@@ -4,6 +4,9 @@
   "private": true,
   "description": "Local-first card and set builder for Unmatched Adventures content.",
   "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "dev": "vite",
     "build": "npm run check && vite build",

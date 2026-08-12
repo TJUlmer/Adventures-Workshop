@@ -40,16 +40,41 @@
    * A throwaway account may share by link but not post to the gallery. The
    * database enforces this; showing it here is so the rule is discovered before
    * someone picks an option and gets an error for it.
+   *
+   * Listed first because it is the default, and a list whose default is in the
+   * middle reads as though something else was expected of you.
    */
   const visibilityOptions = $derived(
     [
-      { value: 'unlisted' as const, label: 'Anyone with the link' },
       ...(auth.isAnonymous
         ? []
         : [{ value: 'public' as const, label: 'Listed publicly' }]),
+      { value: 'unlisted' as const, label: 'Anyone with the link' },
       { value: 'private' as const, label: 'Only me — link stops working' }
     ]
   );
+
+  /**
+   * What a first publish does unless the author says otherwise.
+   *
+   * Public, because a gallery nobody posts to is not a gallery — the whole
+   * point of publishing here is that other people find the set. An anonymous
+   * account falls back to a link, because the database refuses a public set
+   * from a throwaway identity and sending one would be an error rather than a
+   * choice.
+   */
+  const defaultVisibility = $derived<Visibility>(auth.isAnonymous ? 'unlisted' : 'public');
+
+  /** What the author picked before publishing, if they picked anything. */
+  let picked = $state<Visibility | null>(null);
+
+  const wanted = $derived.by<Visibility>(() => {
+    const choice = picked ?? defaultVisibility;
+    /* Clamped rather than trusted: `picked` survives a sign-out, so someone who
+       chose "listed" while signed in and then dropped to an anonymous session
+       would otherwise send a value the database is bound to refuse. */
+    return auth.isAnonymous && choice === 'public' ? 'unlisted' : choice;
+  });
 
   function humanBytes(bytes: number): string {
     if (bytes < 1024) return `${bytes} B`;
@@ -105,7 +130,9 @@
     guard(async () => {
       status = 'Preparing…';
       const row = await publishSet(set, {
-        visibility: published?.visibility ?? 'unlisted',
+        // Re-publishing keeps whatever the set already is; only a first publish
+        // takes the default, because changing visibility is its own control.
+        visibility: published?.visibility ?? wanted,
         changeNote,
         onProgress: (progress) => {
           status =
@@ -220,9 +247,24 @@
           {/if}
         </p>
 
+        <!--
+          Offered *before* the first publish, not only after it. The default is
+          to list the set in the gallery, and a default that cannot be seen
+          until it has already happened is not a choice — it is a surprise.
+        -->
+        <label class="option">
+          <span class="option-label">Who can see it</span>
+          <Select
+            value={wanted}
+            options={visibilityOptions}
+            disabled={busy}
+            onchange={(value) => (picked = value)}
+          />
+        </label>
+
         <Button variant="primary" disabled={busy} onclick={publish}>
           <Icon name="upload" size={13} />
-          Publish and get a link
+          {wanted === 'public' ? 'Publish to the gallery' : 'Publish and get a link'}
         </Button>
       {/if}
 
