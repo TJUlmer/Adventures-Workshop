@@ -146,12 +146,18 @@ class Navigation {
    *
    * The hash is cleared as well as the view, or the link would reassert itself
    * on the next reload and the viewer could never get out of it.
+   *
+   * `to` overrides where it lands. Without it the viewer goes back where they
+   * came from, which is right for "Done" and wrong for anything that names its
+   * destination: "Go to my library" after taking a copy sent people to the
+   * gallery, because that is where they had opened the set from. A button that
+   * says where it goes has to go there.
    */
-  leaveShared(): void {
+  leaveShared(to?: View): void {
     if (readSharedSlug() !== null) {
       history.replaceState(null, '', window.location.pathname + window.location.search);
     }
-    this.view = this.#returnTo;
+    this.view = to ?? this.#returnTo;
   }
 }
 

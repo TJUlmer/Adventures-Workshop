@@ -243,20 +243,13 @@
         {/if}
       </section>
 
-      <!-- Export -------------------------------------------------------- -->
-      <section class="panel">
-        <h2 class="panel-title">Export</h2>
-        <p class="panel-hint">Everything here covers the whole set.</p>
-
-        <ExportPanel {set} onprint={() => navigation.go('print')} />
-        <SharePanel {set} />
-      </section>
-
       <!--
-        Contributions, both directions. The panel is the *contributor's* side
-        and draws only on a fork; the row below is the *owner's* side and
-        appears once anyone has offered something. A set can be both at once,
-        which is exactly what a chain of forks looks like.
+        Contributions, both directions, and above Export on purpose. Offering
+        changes back is the thing to do *with* a copied set, and burying it
+        under a list of file formats made it read as an afterthought. The
+        panel draws only on a fork; the row draws only once someone has offered
+        something. A set can be both at once, which is what a chain of forks
+        looks like.
       -->
       {#if waiting > 0}
         <section class="panel">
@@ -273,6 +266,15 @@
       {/if}
 
       <ContributePanel {set} />
+
+      <!-- Export -------------------------------------------------------- -->
+      <section class="panel">
+        <h2 class="panel-title">Export</h2>
+        <p class="panel-hint">Everything here covers the whole set.</p>
+
+        <ExportPanel {set} onprint={() => navigation.go('print')} />
+        <SharePanel {set} />
+      </section>
 
       <!-- Notes --------------------------------------------------------- -->
       {#if set.meta.description}

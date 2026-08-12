@@ -666,6 +666,18 @@ filling absent fields from the factories. **Any new persisted field needs a
 branch there**, or existing documents load without it. Absent is meaningfully
 different from empty in places (a step's `fill: null` means "follow the board").
 
+**`normalizeSet` must be idempotent**, and this is not a nicety. The usual
+shape there is `{ ...createThing(), ...fields read from the raw value }`, and a
+factory that stamps `now()` will hand every load a fresh timestamp for any
+field the branch does not explicitly carry over. `figure()` did exactly that
+with `createdAt`/`updatedAt`: every load silently destroyed both, and once
+fingerprints existed it also meant a freshly-taken fork reported every one of
+its components as edited, because hashing the same document twice gave two
+answers. Anything a factory generates — a timestamp, an id — must be read back
+from the raw value when it is there. Worth asserting rather than assuming:
+normalise a document three times and compare `fingerprintSet` across the
+passes; they must be identical.
+
 ### Other subsystems
 
 - `src/lib/models/` — STL (binary + ASCII) and OBJ parsing into an unindexed,

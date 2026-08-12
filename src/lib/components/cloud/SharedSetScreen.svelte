@@ -192,7 +192,10 @@
                 “{forked}” is in your library, with this set recorded as where it
                 came from.
               </p>
-              <Button variant="primary" onclick={() => navigation.leaveShared()}>
+              <Button
+                variant="primary"
+                onclick={() => navigation.leaveShared({ kind: 'library' })}
+              >
                 Go to my library
               </Button>
             {:else}

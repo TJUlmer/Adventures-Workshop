@@ -337,7 +337,19 @@ function figure(value: unknown): Figure {
     ttsSave: modelFile(raw['ttsSave']),
     token: tokenBuild(raw['token']),
     dialRange: dialRange(raw['dialRange']),
-    notes: str(raw['notes'])
+    notes: str(raw['notes']),
+    /*
+     * Carried over, not taken from `base`.
+     *
+     * `createFigure()` stamps both with `now()`, and every field above is set
+     * explicitly — so without these two lines each load handed every figure a
+     * fresh pair of timestamps and destroyed the real ones. That made
+     * `normalizeSet` non-idempotent, which is what a fingerprint cannot
+     * survive: a fork reported all of its components as edited the instant it
+     * was made, because hashing the document twice gave two answers.
+     */
+    createdAt: str(raw['createdAt'], base.createdAt) as Figure['createdAt'],
+    updatedAt: str(raw['updatedAt'], base.updatedAt) as Figure['updatedAt']
   };
 }
 

@@ -28,9 +28,13 @@
  * that moved on while a contribution sat waiting is judged as it actually is
  * rather than as it was when the offer was made.
  */
+import { cardLabel } from '$lib/cards/factory';
 import type { Card } from '$lib/cards/types';
+import { characterLabel } from '$lib/characters/factory';
 import type { Character } from '$lib/characters/types';
+import { deckLabel } from '$lib/decks/factory';
 import type { Deck } from '$lib/decks/types';
+import { figureLabel } from '$lib/figures/types';
 import type { Figure } from '$lib/figures/types';
 import { hashEntity, SET_KEYS } from './fingerprint';
 import type { AdventureSet } from './types';
@@ -122,6 +126,37 @@ export function readEntity(set: AdventureSet, key: string): unknown {
   );
 }
 
+/**
+ * What the rest of the app calls this thing.
+ *
+ * Through the same label helpers every other screen uses, rather than reading
+ * `.name` — which was the first attempt and was wrong for most of the
+ * document. An action card is often named by its `title` and a rules or event
+ * card by its `heading`, so a perfectly well-named card came through the review
+ * list as "Untitled card"; a health dial takes its name from the character it
+ * belongs to and had none of its own. Anything that names an entity for a
+ * person belongs in one place, and that place already existed.
+ */
+function displayName(set: AdventureSet, key: string, value: unknown): string | null {
+  if (value === null || typeof value !== 'object') return null;
+
+  switch (kindOf(key)) {
+    case 'card':
+      return cardLabel(value as Card);
+    case 'character':
+      return characterLabel(value as Character);
+    case 'deck':
+      return deckLabel(value as Deck);
+    case 'figure': {
+      const figure = value as Figure;
+      const owner = set.characters.find((entry) => entry.id === figure.characterId);
+      return figureLabel(figure, owner ? characterLabel(owner) : null);
+    }
+    default:
+      return null;
+  }
+}
+
 /** Something to call an entity in a list, without opening it. */
 function labelFor(set: AdventureSet, key: string, value: unknown): string {
   switch (key) {
@@ -141,11 +176,8 @@ function labelFor(set: AdventureSet, key: string, value: unknown): string {
       break;
   }
 
-  const named = value as { name?: unknown } | undefined;
-  if (named && typeof named.name === 'string' && named.name.trim()) return named.name;
-
-  const existing = readEntity(set, key) as { name?: unknown } | undefined;
-  if (existing && typeof existing.name === 'string' && existing.name.trim()) return existing.name;
+  const shown = displayName(set, key, value) ?? displayName(set, key, readEntity(set, key));
+  if (shown) return shown;
 
   /*
    * A removal has nothing left to read a name from — that is what removing it
@@ -242,11 +274,8 @@ export function reviewEntries(
      * card". The owner still has it, and "Melting" is what they need to see to
      * judge whether losing it is a good idea.
      */
-    const held = current as { name?: unknown } | undefined;
-    const label =
-      entry.change === 'removed' && held && typeof held.name === 'string' && held.name.trim()
-        ? held.name
-        : entry.label;
+    const held = entry.change === 'removed' ? displayName(target, entry.key, current) : null;
+    const label = held ?? entry.label;
 
     return { ...entry, label, conflict, ...(current === undefined ? {} : { current }) };
   });

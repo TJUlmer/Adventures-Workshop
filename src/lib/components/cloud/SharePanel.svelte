@@ -126,6 +126,24 @@
     }
   }
 
+  /**
+   * Publishing a set that came from somebody else's.
+   *
+   * Not a block, and deliberately not one: a fork may be a legitimate thing to
+   * publish — a variant, a translation, a continuation with permission — and
+   * the app is in no position to judge which. What it *is* in a position to do
+   * is make sure the question was asked, because the two paths look identical
+   * from here and only one of them is what most people mean. Someone who
+   * copied a set to fix three cards wants the Contributions panel, and
+   * publishing instead puts a near-duplicate of another author's work on the
+   * shelf under their own name.
+   *
+   * Only for a first publish. Re-publishing a fork that is already out there
+   * is not the moment to relitigate it.
+   */
+  let acknowledged = $state(false);
+  const needsForkWarning = $derived(set.origin !== null && published === null && !acknowledged);
+
   const publish = () =>
     guard(async () => {
       status = 'Preparing…';
@@ -247,25 +265,51 @@
           {/if}
         </p>
 
-        <!--
-          Offered *before* the first publish, not only after it. The default is
-          to list the set in the gallery, and a default that cannot be seen
-          until it has already happened is not a choice — it is a surprise.
-        -->
-        <label class="option">
-          <span class="option-label">Who can see it</span>
-          <Select
-            value={wanted}
-            options={visibilityOptions}
-            disabled={busy}
-            onchange={(value) => (picked = value)}
-          />
-        </label>
+        {#if needsForkWarning}
+          <div class="caution" role="note">
+            <p class="caution-title">This set is a copy of someone else's</p>
+            <p class="line">
+              It came from
+              <strong>{set.origin?.authorName || 'another author'}</strong>’s set. Publishing
+              puts your version on the shelf beside theirs, under your name.
+            </p>
+            <p class="line">
+              <strong>If you meant to send these changes back to them</strong>, close this and
+              use <em>Offer your changes back</em> above — that is the path that keeps their
+              set as the one people find, and lets them take your work into it.
+            </p>
+            <p class="line">
+              Publish separately only when this is genuinely your own thing to share —
+              a variant you have permission for, or a set that has grown into
+              something of its own. Publishing someone else's work as yours is
+              not something the app can detect, and not something it will
+              defend you from.
+            </p>
+            <Button disabled={busy} onclick={() => (acknowledged = true)}>
+              I understand — let me publish it separately
+            </Button>
+          </div>
+        {:else}
+          <!--
+            Offered *before* the first publish, not only after it. The default is
+            to list the set in the gallery, and a default that cannot be seen
+            until it has already happened is not a choice — it is a surprise.
+          -->
+          <label class="option">
+            <span class="option-label">Who can see it</span>
+            <Select
+              value={wanted}
+              options={visibilityOptions}
+              disabled={busy}
+              onchange={(value) => (picked = value)}
+            />
+          </label>
 
-        <Button variant="primary" disabled={busy} onclick={publish}>
-          <Icon name="upload" size={13} />
-          {wanted === 'public' ? 'Publish to the gallery' : 'Publish and get a link'}
-        </Button>
+          <Button variant="primary" disabled={busy} onclick={publish}>
+            <Icon name="upload" size={13} />
+            {wanted === 'public' ? 'Publish to the gallery' : 'Publish and get a link'}
+          </Button>
+        {/if}
       {/if}
 
       <div class="who">
@@ -300,6 +344,25 @@
     font-size: var(--text-xs);
     line-height: var(--leading-normal);
     color: var(--text-muted);
+  }
+
+  /* Amber rather than red: this is a question worth stopping at, not a fault. */
+  .caution {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--space-2);
+    padding: var(--space-3);
+    border: 1px solid color-mix(in oklab, var(--warning) 45%, transparent);
+    border-radius: var(--radius-sm);
+    background: color-mix(in oklab, var(--warning) 7%, transparent);
+  }
+
+  .caution-title {
+    margin: 0;
+    font-size: var(--text-xs);
+    font-weight: var(--weight-semibold);
+    color: var(--warning);
   }
 
   .link-row {

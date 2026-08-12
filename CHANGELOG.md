@@ -471,6 +471,36 @@ the column grant, forging `contributor_id` is refused, a stranger sees zero rows
 and resolves nothing, offers to private and hidden sets are refused while
 unlisted ones are allowed, and a decided offer cannot be reopened.
 
+### 12 August · What testing contributions with two accounts found
+
+- **`normalizeSet` was not idempotent, and figures paid for it.** `figure()`
+  built on `createFigure()`, which stamps `createdAt` and `updatedAt` with
+  `now()`, and the branch set every other field explicitly — so each load handed
+  every figure a fresh pair of timestamps and destroyed the real ones. A
+  data-loss bug on its own, and once fingerprints existed it also meant a
+  freshly-taken fork reported all of its components as edited before anyone had
+  touched anything. Measured after the fix: fourteen entities, zero drift across
+  three normalise passes, and a fresh copy reports nothing.
+- **Entities were labelled by reading `.name`.** An action card is often named
+  by its `title` and a rules or event card by its `heading`, so well-named cards
+  came through review as "Untitled card"; a health dial takes its name from the
+  character it belongs to and had none of its own. Now through `cardLabel`,
+  `characterLabel`, `deckLabel` and `figureLabel` — the helpers every other
+  screen already used.
+- **"Go to my library" went to the gallery.** It called `leaveShared()`, which
+  returns you where you came from — correct for "Done", wrong for a button that
+  names its destination. `leaveShared` now takes an optional target, and "Done"
+  still goes back where it came from.
+- Offering changes back moved above Export on Set Home. It is the thing to do
+  *with* a copied set, and under a list of file formats it read as an
+  afterthought.
+- **Publishing a fork now stops and asks.** Not a block — a variant or a
+  continuation with permission is a legitimate thing to publish, and the app
+  cannot tell which is which. But the two paths look identical from the share
+  panel and only one is what most people mean, so a first publish of a set with
+  an `origin` explains the difference and points at the contribution panel
+  first. Re-publishing does not ask again.
+
 ---
 
 ## Still open
