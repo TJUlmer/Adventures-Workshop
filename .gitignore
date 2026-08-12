@@ -1,0 +1,31 @@
+node_modules
+dist
+dist-ssr
+.vite
+*.local
+.DS_Store
+.idea
+.vscode/*
+!.vscode/extensions.json
+*.log
+exports
+
+# Local environment. .env.local holds the Supabase project keys.
+.env
+.env.*
+!.env.example
+
+# Vercel's local link/CLI state. Contains project and org ids.
+.vercel
+
+# Credentials kept beside the project.
+#
+# These were committed once, before the repo had a remote, and had to be taken
+# back out: an OAuth client secret, a GitHub token, an API key and a set of
+# recovery codes. Nothing that opens an account belongs in a repository that is
+# about to become public, however convenient it is to keep it next to the thing
+# it configures.
+OAuth2.txt
+recovery-codes.md
+*secret*
+*credentials*

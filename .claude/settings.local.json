@@ -1,0 +1,34 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(node --version)",
+      "PowerShell(npm --version)",
+      "PowerShell(npm run check 2>&1)",
+      "PowerShell(npm run build 2>&1)",
+      "PowerShell(Remove-Item \"C:\\\\Users\\\\Ulmer\\\\Documents\\\\Unmatched\\\\Adventures_Workshop\\\\src\\\\lib\\\\core\\\\art.ts\" -Confirm:$false)",
+      "PowerShell($p = \"C:\\\\Users\\\\Ulmer\\\\Documents\\\\Unmatched\\\\Adventures_Workshop\\\\src\\\\lib\\\\components\\\\workspace\\\\StyleSection.svelte\"; \\(Get-Content $p -Raw\\) -replace 'workshop\\\\.clearStyle\\\\\\(layer\\\\\\)', 'workshop.clearStyle\\(target\\)' -replace 'workshop\\\\.setStyle\\\\\\(layer,', 'workshop.setStyle\\(target,' | Set-Content $p -Encoding utf8 -NoNewline; Select-String -Path $p -Pattern 'workshop\\\\.\\(setStyle|clearStyle\\)' | ForEach-Object { $_.Line.Trim\\(\\) })",
+      "Bash(where python *)",
+      "Bash(python -c \"import PIL, numpy; print\\(PIL.__version__, numpy.__version__\\)\")",
+      "Bash(python -c ' *)",
+      "Bash(python -)",
+      "Bash(netstat -ano)",
+      "PowerShell($env:BROWSER='none'; Start-Process -FilePath \"cmd.exe\" -ArgumentList '/c','\"C:\\\\Users\\\\Ulmer\\\\Documents\\\\Unmatched\\\\Adventures_Workshop\\\\Start Adventures Workshop.cmd\"' -WindowStyle Hidden -RedirectStandardOutput \"$env:TEMP\\\\aw_out.txt\" -RedirectStandardError \"$env:TEMP\\\\aw_err.txt\"; Start-Sleep -Seconds 12; Get-Content \"$env:TEMP\\\\aw_out.txt\" -ErrorAction SilentlyContinue)",
+      "PowerShell($conns = Get-NetTCPConnection -LocalPort 5173 -State Listen -ErrorAction SilentlyContinue; foreach \\($c in $conns\\) { try { Stop-Process -Id $c.OwningProcess -Force -ErrorAction Stop; \"stopped PID $\\($c.OwningProcess\\)\" } catch { \"could not stop $\\($c.OwningProcess\\)\" } }; Start-Sleep -Seconds 2; if \\(Get-NetTCPConnection -LocalPort 5173 -State Listen -ErrorAction SilentlyContinue\\) { \"port 5173 still listening\" } else { \"port 5173 free\" })",
+      "Bash(awk '{print $5, $9}')",
+      "Bash(npm run *)",
+      "Bash(Select-Object -Last 12)",
+      "Bash(sed -n '/^  \\\\.board {/,/^  }/p' src/lib/components/tools/ThreatTracker.svelte)",
+      "Bash(sed -n '/^  \\\\.page {/,/^  }/p' src/lib/components/tools/ThreatTracker.svelte)",
+      "Bash(sed -n '/^  \\\\.label {/,/^  }/p;/^  \\\\.subject {/,/^  }/p;/^  \\\\.move-number {/,/^  }/p;/^  \\\\.move-badge/,/^  }/p' src/lib/renderer/InitiativeCardFace.svelte)",
+      "Bash(sed -n '/card.showMove/,/^  {\\\\/if}/p' src/lib/renderer/InitiativeCardFace.svelte)",
+      "Bash(npx svelte-check *)",
+      "Bash(grep -n 'from '\\\\''$lib/cards/factory'\\\\''' src/lib/state/workshop.svelte.ts)",
+      "Bash(grep -n \"^      {/each}$\\\\|^    </div>$\\\\|^    <div class=\\\\\"board-foot\\\\\">\" src/lib/components/tools/ThreatTracker.svelte)",
+      "Bash(awk '/^<style>/{f=1} f' src/lib/components/tools/ThreatTracker.svelte)",
+      "Bash(grep -n \"^  \\\\.\\\\|^  \\\\/\\\\*\")"
+    ]
+  },
+  "enabledMcpjsonServers": [
+    "supabase"
+  ]
+}

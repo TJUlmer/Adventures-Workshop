@@ -1,0 +1,226 @@
+/**
+ * Design tokens — the single source of truth for the visual language.
+ *
+ * Rules of the road:
+ *  - Components never hardcode a hex value or a pixel spacing. They use tokens.
+ *  - Raw palette scales (`--grey-700`) are the *primitive* layer. Prefer the
+ *    semantic layer (`--surface-raised`, `--text-secondary`) in components so
+ *    the palette can be re-tuned in one place.
+ */
+
+:root {
+  color-scheme: dark;
+
+  /* ------------------------------------------------------------------ */
+  /* Primitives — neutrals                                              */
+  /* A cool grey ramp with a faint indigo cast, so the UI reads as       */
+  /* "ink" rather than the flat #222 of a stock dark theme.              */
+  /* ------------------------------------------------------------------ */
+  --grey-1000: hsl(233 24% 3.5%);
+  --grey-950: hsl(233 20% 5.5%);
+  --grey-900: hsl(233 18% 7.5%);
+  --grey-850: hsl(233 16% 9.5%);
+  --grey-800: hsl(233 15% 12%);
+  --grey-750: hsl(233 14% 15%);
+  --grey-700: hsl(233 13% 19%);
+  --grey-600: hsl(233 11% 27%);
+  --grey-500: hsl(233 9% 40%);
+  --grey-400: hsl(233 10% 56%);
+  --grey-300: hsl(233 14% 71%);
+  --grey-200: hsl(233 20% 84%);
+  --grey-100: hsl(233 32% 93%);
+  --grey-50: hsl(233 44% 97%);
+
+  /* ------------------------------------------------------------------ */
+  /* Primitives — accents                                               */
+  /* ------------------------------------------------------------------ */
+  --violet-700: hsl(252 62% 38%);
+  --violet-600: hsl(252 72% 52%);
+  --violet-500: hsl(252 88% 68%);
+  --violet-400: hsl(252 92% 76%);
+  --violet-300: hsl(252 94% 85%);
+
+  --gold-600: hsl(38 58% 42%);
+  --gold-500: hsl(38 62% 56%);
+  --gold-400: hsl(40 72% 68%);
+
+  --emerald-500: hsl(152 52% 46%);
+  --amber-500: hsl(36 88% 58%);
+  --rose-500: hsl(356 70% 60%);
+  --sky-500: hsl(206 78% 58%);
+
+  /* ------------------------------------------------------------------ */
+  /* Semantic — surfaces & structure                                    */
+  /* Elevation goes *lighter* as it comes forward, never via drop        */
+  /* shadows alone.                                                      */
+  /* ------------------------------------------------------------------ */
+  --surface-canvas: var(--grey-1000);
+  --surface-sunken: var(--grey-950);
+  --surface-base: var(--grey-900);
+  --surface-raised: var(--grey-850);
+  --surface-overlay: var(--grey-800);
+  --surface-inset: hsl(233 20% 4.5%);
+
+  --surface-hover: hsl(233 20% 100% / 0.035);
+  --surface-active: hsl(233 20% 100% / 0.06);
+  --surface-selected: hsl(252 88% 68% / 0.11);
+
+  --border-subtle: hsl(233 20% 100% / 0.05);
+  --border-default: hsl(233 20% 100% / 0.08);
+  --border-strong: hsl(233 20% 100% / 0.14);
+  --border-accent: hsl(252 88% 68% / 0.45);
+
+  /* Hairline highlight used along the top edge of raised panels. */
+  --edge-highlight: hsl(233 40% 100% / 0.045);
+
+  /* ------------------------------------------------------------------ */
+  /* Semantic — text                                                    */
+  /* ------------------------------------------------------------------ */
+  --text-primary: var(--grey-100);
+  --text-secondary: var(--grey-300);
+  --text-tertiary: var(--grey-400);
+  --text-muted: var(--grey-500);
+  --text-inverse: var(--grey-1000);
+  --text-accent: var(--violet-400);
+  --text-on-accent: hsl(252 100% 98%);
+
+  /* ------------------------------------------------------------------ */
+  /* Semantic — interactive                                             */
+  /* ------------------------------------------------------------------ */
+  --accent: var(--violet-500);
+  --accent-hover: var(--violet-400);
+  --accent-press: var(--violet-600);
+  --accent-soft: hsl(252 88% 68% / 0.14);
+  --accent-soft-hover: hsl(252 88% 68% / 0.22);
+  --accent-ring: hsl(252 88% 68% / 0.5);
+
+  --brand-gold: var(--gold-500);
+
+  --success: var(--emerald-500);
+  --warning: var(--amber-500);
+  --danger: var(--rose-500);
+  --info: var(--sky-500);
+
+  /* ------------------------------------------------------------------ */
+  /* Semantic — card taxonomy                                           */
+  /* Used by the editor chrome: sidebar dots, badges, segmented          */
+  /* controls. The card renderer does NOT read these — a printed card    */
+  /* must not depend on the app's stylesheet — so these values mirror    */
+  /* `CARD_KIND_META[kind].color` in src/lib/cards/types.ts. Change      */
+  /* both together.                                                      */
+  /* ------------------------------------------------------------------ */
+  --kind-attack: #e05a52;
+  --kind-defense: #4d94e8;
+  --kind-versatile: #a479e8;
+  --kind-scheme: #45b880;
+  --kind-initiative: #d4a355;
+
+  --role-villain: hsl(348 66% 58%);
+  --role-minion: hsl(268 50% 64%);
+  --role-sidekick: hsl(190 60% 52%);
+  --role-hero: hsl(200 70% 60%);
+
+  /* ------------------------------------------------------------------ */
+  /* Typography                                                          */
+  /* System stacks only — the app must work fully offline.               */
+  /* ------------------------------------------------------------------ */
+  --font-sans:
+    'Inter var', 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI Variable Text',
+    'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --font-display:
+    'Iowan Old Style', 'Palatino Linotype', 'Book Antiqua', 'Hoefler Text', Georgia, serif;
+  --font-mono:
+    ui-monospace, 'SF Mono', 'Cascadia Mono', 'JetBrains Mono', 'Consolas', 'Liberation Mono',
+    monospace;
+
+  --text-2xs: 0.6875rem; /* 11px — labels, badges */
+  --text-xs: 0.75rem; /* 12px — meta, captions */
+  --text-sm: 0.8125rem; /* 13px — the UI workhorse */
+  --text-base: 0.875rem; /* 14px — body */
+  --text-md: 1rem; /* 16px */
+  --text-lg: 1.125rem; /* 18px */
+  --text-xl: 1.375rem; /* 22px */
+  --text-2xl: 1.75rem; /* 28px */
+
+  --leading-tight: 1.2;
+  --leading-snug: 1.35;
+  --leading-normal: 1.55;
+  --leading-relaxed: 1.7;
+
+  --weight-normal: 400;
+  --weight-medium: 500;
+  --weight-semibold: 600;
+  --weight-bold: 700;
+
+  --tracking-tight: -0.012em;
+  --tracking-normal: 0;
+  --tracking-wide: 0.02em;
+  --tracking-caps: 0.075em;
+
+  /* ------------------------------------------------------------------ */
+  /* Space — 4px base grid                                              */
+  /* ------------------------------------------------------------------ */
+  --space-0: 0;
+  --space-px: 1px;
+  --space-1: 0.25rem; /* 4 */
+  --space-2: 0.5rem; /* 8 */
+  --space-3: 0.75rem; /* 12 */
+  --space-4: 1rem; /* 16 */
+  --space-5: 1.25rem; /* 20 */
+  --space-6: 1.5rem; /* 24 */
+  --space-7: 2rem; /* 32 */
+  --space-8: 2.5rem; /* 40 */
+  --space-9: 3rem; /* 48 */
+  --space-10: 4rem; /* 64 */
+
+  /* ------------------------------------------------------------------ */
+  /* Radii                                                               */
+  /* ------------------------------------------------------------------ */
+  --radius-xs: 4px;
+  --radius-sm: 6px;
+  --radius-md: 9px;
+  --radius-lg: 13px;
+  --radius-xl: 18px;
+  --radius-full: 999px;
+
+  /* ------------------------------------------------------------------ */
+  /* Elevation                                                           */
+  /* ------------------------------------------------------------------ */
+  --shadow-xs: 0 1px 2px hsl(233 40% 2% / 0.4);
+  --shadow-sm: 0 1px 2px hsl(233 40% 2% / 0.35), 0 2px 6px hsl(233 40% 2% / 0.3);
+  --shadow-md: 0 2px 4px hsl(233 40% 2% / 0.3), 0 8px 20px hsl(233 40% 2% / 0.35);
+  --shadow-lg: 0 4px 10px hsl(233 40% 2% / 0.35), 0 18px 44px hsl(233 40% 2% / 0.45);
+  --shadow-card: 0 2px 6px hsl(233 40% 2% / 0.5), 0 16px 40px hsl(233 40% 2% / 0.55),
+    0 0 0 1px hsl(233 20% 100% / 0.06);
+
+  --focus-ring: 0 0 0 2px var(--surface-base), 0 0 0 4px var(--accent-ring);
+
+  /* ------------------------------------------------------------------ */
+  /* Motion                                                              */
+  /* ------------------------------------------------------------------ */
+  --duration-instant: 80ms;
+  --duration-fast: 130ms;
+  --duration-normal: 200ms;
+  --duration-slow: 320ms;
+
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  --ease-spring: cubic-bezier(0.34, 1.32, 0.64, 1);
+
+  /* ------------------------------------------------------------------ */
+  /* Layout                                                              */
+  /* ------------------------------------------------------------------ */
+  --titlebar-height: 48px;
+  --sidebar-width: 272px;
+  --preview-width: 424px;
+  --statusbar-height: 26px;
+
+  /* Poker-size card: 2.5in x 3.5in. */
+  --card-aspect: 2.5 / 3.5;
+
+  --z-base: 0;
+  --z-sticky: 10;
+  --z-dropdown: 100;
+  --z-overlay: 200;
+  --z-toast: 300;
+}

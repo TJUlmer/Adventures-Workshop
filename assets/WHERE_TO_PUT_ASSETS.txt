@@ -1,0 +1,89 @@
+Adventures Studio — where things live
+=====================================
+
+Two places, and which one a file belongs in comes down to a single question:
+does the running app fetch it?
+
+  public/   is served, and is copied verbatim into dist/. Everything here
+            ships to every user, so it holds only what the app asks for by URL.
+  assets/   is not. Nothing imports it and no build touches it. It holds the
+            originals and the working files that produce what is in public/.
+
+A 17 MB Photoshop file under public/ is 17 MB in the built app for no reason,
+which is why the working files below are on this side of the line.
+
+
+public/  — what the app fetches
+-------------------------------
+  public/assets/
+  ├── symbols/          attack, defense, versatile, scheme, initiative, boost…
+  │   └── *.svg or *.png
+  ├── templates/        full card frame / print templates (1632×2222 bleed)
+  │   ├── UMA_Action_Card_Template_bleed_Knockout.png ← the printed artwork.
+  │   │                                          Every number in geometry.ts is
+  │   │                                          measured off this one.
+  │   ├── UMA_Action_Card_Template_bleed_Oswald.png ← the renderer's own output,
+  │   │                                          for comparing against it. Never
+  │   │                                          measure geometry from this.
+  │   ├── outer_border.png                     ← live preview outer frame mask
+  │   ├── inner_border.png                     ← boost ring + divider mask
+  │   ├── banner_border.png                    ← name ribbon outline mask
+  │   ├── adventures_minion_cardback_nologo.png ← the deck back the app draws
+  │   ├── health dial.json                     ← the dial's TTS object + Lua
+  │   └── (other initiative / rules / split templates)
+  ├── patterns/         optional body pattern textures
+  └── fonts/            the card faces the renderer sets in
+                          Oswald-custom-condensed.ttf  → name ribbon + title
+                          Oswald-Custom-Junior.ttf     → ability, quantity,
+                                                          boost + combat values
+                          edosz.ttf                    → event card heading
+
+  How to reference in code
+    /assets/symbols/attack.svg
+    /assets/templates/UMA_Action_Card_Template.png
+    Registry: src/lib/renderer/asset-paths.ts
+
+  Recommended symbol names (symbols/)
+    attack.svg (or .png), defense.svg, versatile.svg, scheme.svg,
+    initiative.svg, special.svg, boost.svg, value.svg
+
+  Prefer SVG for symbols — they scale cleanly on export. Prefer PNG for full
+  card templates and photo art. Per-card character art is NOT stored here; it
+  is imported in the editor and embeds into the set JSON.
+
+
+assets/  — originals and working files, not shipped
+---------------------------------------------------
+  assets/
+  ├── fonts/            the Knockout HTF originals the card faces stand in for.
+  │                     Kept for *measuring against*, never served — the licence
+  │                     does not allow publishing them, which is the whole
+  │                     reason the stand-ins exist. Every width in
+  │                     renderer/geometry.ts was compared against these:
+  │                       Knockout-HTF48-Featherweight-CUSTOM.ttf  → name + title
+  │                       Knockout-HTF29-JuniorLiteweight-CUSTOM.ttf → ability + qty
+  │                       Knockout-HTF49-Liteweight-Custom.ttf → boost + combat values
+  └── resources/        the Photoshop templates an author paints in
+                          health_dial_skin.psd / .png     ← the dial's face
+                          token_skin_two_sided.psd / .png ← a two-sided token
+
+  Both skins are *generated*, from the numbers that describe the piece:
+                          tools/health-dial-skin.py
+                          tools/token-skin.py
+
+  Regenerate rather than hand-editing. Their guides are drawn from the real
+  dimensions — the dial's diameter, the Lua's trigger positions, the UV split a
+  two-sided token uses — so they go stale the moment any of those move.
+
+Other generated files
+---------------------
+  templates/initiative_frame.png   Initiative Card_border.png, bars erased
+  templates/event_logo*.png        lifted out of event_back_template_blank.png
+
+  The health dial has no .obj anywhere: its mesh is generated at export from
+  HEALTH_DIAL_SPEC in src/lib/figures/health-dial.ts.
+
+Also available
+--------------
+  src/assets/           Vite-imported assets (hashed URLs) if you prefer
+                        import icon from '$lib/…' style bundling later.

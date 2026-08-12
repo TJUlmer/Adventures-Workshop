@@ -1,0 +1,141 @@
+/**
+ * The card-face type: two cuts of Oswald Custom.
+ *
+ * Loaded from `public/assets/fonts` so the app works fully offline. These faces
+ * are for the *rendered card only*; the editor chrome uses the UI stack from
+ * tokens.css.
+ *
+ * The printed originals are set in Knockout HTF, whose licence does not allow
+ * publishing this project. The stand-ins are Oswald redrawn towards Knockout,
+ * and — unlike every version before them — they are redrawn to Knockout's own
+ * vertical metrics: caps at 0.666em against Oswald's 0.81, the same x-height
+ * and the same lining figures. That is what makes the type sizes in
+ * `renderer/geometry.ts` the *artwork's* sizes rather than a conversion of
+ * them: `inFace()` and `inFaceLeading()` are now within a percent of identity,
+ * and the leading that had to be reconstructed no longer does.
+ *
+ * What is still not matched is width, which is set per role in the geometry —
+ * see `TITLE.condense`. Change a family here and every one of those has to be
+ * re-measured against the Knockout file it stands in for; the originals are
+ * kept out of the build in `assets/fonts` for exactly that.
+ */
+
+/*
+ * Bebas Neue — for the printed cards' Knockout HTF48 Featherweight: the
+ * character name ribbon and the card title.
+ *
+ * The closest match in the project so far, and it matches on the thing that is
+ * hardest to fix by measurement: weight. Its cap stem lands on 0.1579 of cap
+ * height against Featherweight's 0.1579 — the same number — where a face that
+ * has to be squeezed into place thins its stems as it goes.
+ *
+ * Measure with `tools/font-compare.py` for the numbers and `tools/font-atlas.py`
+ * for the sheet, both against `Knockout-HTF48-Featherweight-CUSTOM.ttf`. The
+ * `.otf` beside it is a different cut and gives different answers — most of all
+ * on the figure 1 — so passing the wrong one changes the conclusions rather
+ * than merely the decimals.
+ *
+ * `BebasNeue-Custom` is `BebasNeue-Regular` with six glyphs redrawn — J, 1, 6,
+ * 8, 3 and G — and it earns the swap mostly on the J. Regular's J is a narrow
+ * hook where Featherweight's is wide: 0.10 overlap, by far the worst glyph in
+ * the face. Custom takes it to 0.90. Median overlap across the whole sample
+ * goes 0.833 → 0.850, and the worst glyph goes 0.10 → 0.36.
+ *
+ * That is not only a shape fix. `condense` is one constant per role, so it has
+ * to hold for whatever copy a card carries, and against Regular it did not: a
+ * J-free string wanted 0.953 while "MAJOR JINX" wanted 1.026, a spread of 7.3%
+ * riding on how many J's a name happened to have. Against Custom the same
+ * strings sit inside 2.1%, which is what makes a single constant honest.
+ *
+ * The worst glyph left is the double quote at 0.36, then the ampersand and the
+ * colon-semicolon pair around 0.48. All punctuation, none of it common in a
+ * card title or a character name, which is why none has been worth redrawing.
+ *
+ * It is **caps only**. Every lowercase codepoint is drawn as a capital, which
+ * is why it is scoped to these two roles instead of taking `--card-font-title`
+ * wholesale: several of that variable's other users carry mixed-case copy and
+ * would set entirely in capitals. Note the name ribbon prints "Villain" on the
+ * real card, so it sets as VILLAIN here until the face grows a lower case.
+ */
+@font-face {
+  font-family: 'Bebas Neue';
+  src: url('/assets/fonts/BebasNeue-Custom.ttf') format('truetype');
+  font-weight: 400;
+  font-style: normal;
+  font-display: block;
+}
+
+/*
+ * Condensed — the display face for everything else that is set large: the
+ * initiative card's labels and copy, the rules heading, the threat board.
+ *
+ * These were Featherweight's roles by association rather than by the record,
+ * which lists Featherweight as the name and the title only. They keep this cut
+ * because they include mixed-case copy that Bebas cannot set.
+ */
+@font-face {
+  font-family: 'Oswald Custom Condensed';
+  src: url('/assets/fonts/Oswald-custom-condensed.ttf') format('truetype');
+  font-weight: 400;
+  font-style: normal;
+  font-display: block;
+}
+
+/*
+ * Junior — for Knockout HTF29 JuniorLiteweight (ability text, quantity) and
+ * HTF49 Liteweight (boost and combat values). Those two Knockout cuts sit
+ * within 2% of each other, which is why one face stands in for both.
+ */
+@font-face {
+  font-family: 'Oswald Custom Junior';
+  src: url('/assets/fonts/Os-Custom-Junior.ttf') format('truetype');
+  font-weight: 400;
+  font-style: normal;
+  font-display: block;
+}
+
+/*
+ * Edo — the brush face the printed event cards set their heading in, and the
+ * only card face that is not Oswald.
+ */
+@font-face {
+  font-family: 'Edo';
+  src: url('/assets/fonts/edosz.ttf') format('truetype');
+  font-weight: 400;
+  font-style: normal;
+  font-display: block;
+}
+
+/*
+ * Roles carry their weight with them, so a face swap is one line per role
+ * rather than a hunt through the renderer. The fallbacks are for the moment
+ * before the file has loaded.
+ *
+ * Every role is 400 because that is the only weight either file has, and the
+ * contrast the printed cards have does not come from weight anyway — it comes
+ * from the two cuts, which is what these two files now are. Asking for more
+ * than 400 buys a synthetic smear, not a heavier drawing.
+ */
+:root {
+  /*
+   * The two roles the record actually assigns to Knockout HTF48 Featherweight:
+   * the character name ribbon and the card title. Both set in capitals on the
+   * printed card — the title genuinely, the ribbon only because this face has
+   * no other option. See the note on the `@font-face` above.
+   */
+  --card-font-name: 'Bebas Neue', 'Haettenschweiler', 'Arial Narrow', sans-serif;
+  --card-font-name-weight: 400;
+
+  /* Everything else that is set large. Mixed case reaches this one. */
+  --card-font-title: 'Oswald Custom Condensed', 'Haettenschweiler', 'Arial Narrow', sans-serif;
+  --card-font-title-weight: 400;
+
+  --card-font-text: 'Oswald Custom Junior', 'Arial Narrow', sans-serif;
+  --card-font-text-weight: 400;
+
+  --card-font-numeral: 'Oswald Custom Junior', 'Arial Narrow', sans-serif;
+  --card-font-numeral-weight: 400;
+
+  --card-font-event: 'Oswald Custom Junior', 'Arial Narrow', sans-serif;
+  --card-font-event-weight: 400;
+}

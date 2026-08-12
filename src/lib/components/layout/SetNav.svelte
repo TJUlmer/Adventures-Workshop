@@ -1,0 +1,125 @@
+<script lang="ts">
+  /**
+   * Secondary navigation inside a set.
+   *
+   * "Cards" is the editor — the three-pane workspace. The rest are set-level
+   * tools. The way back out to the library is here too, because leaving a set
+   * is a navigation act, not a file act.
+   */
+  import { SET_PAGE_META } from '$lib/state/navigation.svelte';
+  import type { SetPage } from '$lib/state/navigation.svelte';
+  import { navigation } from '$lib/state/navigation.svelte';
+  import { workshop } from '$lib/state/workshop.svelte';
+  import Icon from '$lib/ui/Icon.svelte';
+  import type { IconName } from '$lib/ui/Icon.svelte';
+
+  const PAGES: readonly SetPage[] = ['home', 'editor', 'threat', 'map', 'figures', 'assets', 'settings'];
+
+  const current = $derived(navigation.page);
+</script>
+
+<nav class="set-nav" aria-label="Set sections">
+  <button
+    type="button"
+    class="back"
+    title="Back to the library"
+    onclick={() => workshop.closeSet()}
+  >
+    <Icon name="chevronRight" size={13} />
+    <span class="back-label">Library</span>
+  </button>
+
+  <span class="divider"></span>
+
+  {#each PAGES as page (page)}
+    {@const meta = SET_PAGE_META[page]}
+    <button
+      type="button"
+      class="tab"
+      class:active={current === page}
+      title={meta.hint}
+      aria-current={current === page ? 'page' : undefined}
+      onclick={() => navigation.go(page)}
+    >
+      <Icon name={meta.icon as IconName} size={13} />
+      <span class="tab-label">{meta.label}</span>
+    </button>
+  {/each}
+</nav>
+
+<style>
+  .set-nav {
+    display: flex;
+    align-items: center;
+    gap: var(--space-1);
+    height: 100%;
+    padding-inline: var(--space-3);
+    overflow-x: auto;
+  }
+
+  .back {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-1);
+    height: 26px;
+    padding-inline: var(--space-2);
+    border-radius: var(--radius-sm);
+    font-size: var(--text-xs);
+    color: var(--text-muted);
+    transition:
+      background-color var(--duration-fast) var(--ease-out),
+      color var(--duration-fast) var(--ease-out);
+  }
+
+  /* The chevron points back the way you came. */
+  .back :global(.icon) {
+    rotate: 180deg;
+  }
+
+  .back:hover {
+    background: var(--surface-hover);
+    color: var(--text-primary);
+  }
+
+  .back-label {
+    white-space: nowrap;
+  }
+
+  .divider {
+    width: 1px;
+    height: 16px;
+    margin-inline: var(--space-2);
+    background: var(--border-default);
+    flex: none;
+  }
+
+  .tab {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    height: 26px;
+    padding-inline: var(--space-3);
+    border-radius: var(--radius-full);
+    font-size: var(--text-xs);
+    color: var(--text-muted);
+    white-space: nowrap;
+    transition:
+      background-color var(--duration-fast) var(--ease-out),
+      color var(--duration-fast) var(--ease-out);
+  }
+
+  .tab:hover {
+    color: var(--text-secondary);
+    background: var(--surface-hover);
+  }
+
+  .tab.active {
+    color: var(--text-primary);
+    background: var(--surface-active);
+    box-shadow: inset 0 0 0 1px var(--border-default);
+  }
+
+  .tab-label {
+    font-weight: var(--weight-medium);
+  }
+</style>
