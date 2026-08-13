@@ -795,6 +795,38 @@ been three artwork slots.
   it is removed: contributions are the next rung, and this release is the
   heroes'.
 
+### 13 August · A title that wraps, a shelf that tells forks apart
+
+- **The copy button is back.** `SHOW_FORK` flips on now that the heroes
+  release has shipped — it was only ever a flag on the button, never on
+  `fork()` or the lineage a copy carries, both of which were live the whole
+  time.
+- **A card's title wraps to a second line instead of ellipsising on the
+  first.** It used to be pinned at a fixed offset from the panel's top, on the
+  assumption that it was exactly one line tall — which meant everything below
+  it (the rule, the value stack, the ability text) was pinned the same way, at
+  offsets that only made sense for a one-line title. Letting it wrap meant all
+  of that had to start riding down with it instead: the title is in flow now,
+  and everything from the rule down is repositioned as an offset from the rule
+  rather than from the panel — `belowTitleRule`, inside a `.below-title`
+  wrapper whose own top edge is wherever flow actually put the rule, never a
+  number. Clamped to two lines rather than left to run on: a title long enough
+  to want a third reads the ellipsis as the same "this does not fit" signal
+  `.split`/`.ability-block` already give elsewhere on this face. Verified by
+  rasterising the export at three title lengths and reading the ink back: a
+  short title lands the rule at exactly `TITLE_RULE.y` (1406, unchanged); a
+  long one wraps to two measured ink bands and moves the rule to 1513.4; an
+  absurd one still clips at two bands and the same 1513.4 — it does not keep
+  growing.
+- **The library shelf says which revision a copy was forked from.**
+  `originAuthor` was already denormalised into the library's index for exactly
+  this reason — showing a tile what it needs without loading every document to
+  find out — and `originRevision` rides beside it now, in the same
+  `· revision N` wording `SetHome`'s own lineage line uses. Two forks of the
+  same published set, taken before and after the author moved on, now read
+  "revision 4" and "revision 6" on the shelf instead of showing the same name
+  twice with nothing to tell them apart.
+
 ---
 
 ## Still open

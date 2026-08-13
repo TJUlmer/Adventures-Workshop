@@ -35,6 +35,19 @@ export interface LibraryEntry {
    * Absent on an original and on any index row written before forking existed.
    */
   originAuthor?: string;
+  /**
+   * The revision of the published set this copy was forked from, frozen at
+   * the moment of copying — see `SetOrigin.revision`. Denormalised for the
+   * same reason `originAuthor` is: it is what tells two forks of the same
+   * set apart on the shelf, without opening each one to find out. Shown
+   * unconditionally, the same as `SetHome`'s own lineage line — a first fork
+   * is still worth saying "revision 1", once there might be a second beside
+   * it on the shelf reading "revision 4".
+   *
+   * Absent on an original and on any index row written before forking
+   * existed.
+   */
+  originRevision?: number;
 }
 
 function storage(): Storage | null {
@@ -78,7 +91,9 @@ function toEntry(set: AdventureSet, bytes: number): LibraryEntry {
     cardCount: set.cards.length,
     characterCount: set.characters.length,
     bytes,
-    ...(set.origin ? { originAuthor: set.origin.authorName } : {})
+    ...(set.origin
+      ? { originAuthor: set.origin.authorName, originRevision: set.origin.revision }
+      : {})
   };
 }
 

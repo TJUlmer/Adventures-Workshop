@@ -574,12 +574,23 @@ whole document is in the viewer's browser the moment the page draws, and the
 `.json` export is a re-importable copy. What the fork route buys is a copy that
 can later offer its changes *back*.
 
-`SharedSetScreen`'s copy button is behind a `SHOW_FORK` constant, currently
-off. Off means only that the button is not drawn — `fork()`, `sets/fork.ts`,
-the fingerprint it records and the lineage the row carries are untouched, and a
-copy already taken still shows its way back to the library. Contributions are
-the next rung; a route into a feature that is not finished is worse than no
-route yet.
+`SharedSetScreen`'s copy button is behind a `SHOW_FORK` constant. Off ever meant
+only that the button was not drawn — `fork()`, `sets/fork.ts`, the fingerprint
+it records and the lineage the row carries were never touched by the flag, and
+a copy already taken always showed its way back to the library. Back on now
+that the heroes release has shipped.
+
+A copy's own lineage badge follows it to the shelf. `LibraryScreen` already
+showed `originAuthor` (denormalised into `storage/library.ts`'s `LibraryEntry`
+index, the same reason every field there is denormalised — a tile per set
+would otherwise mean loading every document in the library to draw a list of
+them); `originRevision` rides beside it now, in the same `· revision N` wording
+`SetHome`'s own lineage line already uses. It is what tells two forks of the
+same published set apart on a shelf that would otherwise show the same name
+twice — fork it once at revision 4, again after the author publishes more, and
+the second copy reads "revision 6" without opening either to find out. Shown
+unconditionally rather than gated past revision 1, matching `SetHome`: a first
+fork is still worth saying "revision 1", once there might be a second beside it.
 
 `sets/fork.ts` holds the one rule everything else depends on: **a fork keeps
 every id inside the document, and only the set's own id changes.** Card, deck,
@@ -783,6 +794,36 @@ is set in a vertical writing mode so its length *is* its box's height, and the
 panel is bottom-anchored so growing it moves the divider. Where a size genuinely
 cannot be laid out (the event heading), it is derived from the face's mean
 advance in `renderer/fonts.ts`, still without measuring.
+
+The card title is the same trick turned sideways. It used to be pinned at
+`TITLE.capTop` with `white-space: nowrap` and an ellipsis, so a title one word
+too long simply lost its tail — never a second line, because everything below
+it (the rule, the value stack, the ability text) was *also* pinned, at fixed
+offsets from the panel's own top, on the assumption that the title was
+exactly one line tall. Letting the title wrap meant the rule and everything
+under it had to start riding down with it, which a fixed offset cannot do —
+so `TITLE_RULE.y` stopped being a position anything is placed *at* and became
+one only the single-line case still lands on by construction.
+
+`ActionCardFace` now puts the title in flow rather than pinning it — `panel-lead`
+spacers before and after it, sized from `TITLE_BOX_TOP` and `TITLE_RULE_GAP`,
+with the rule as a flow sibling right after — so a wrapped second line adds its
+own line-box height to the title and carries the gap, the rule, and everything
+below along with it, the same as the name ribbon's own length falling out of
+its column. Clamped to two lines (`-webkit-line-clamp`) rather than left to run
+on indefinitely: a title long enough to want a third line reads the ellipsis as
+the honest "this does not fit," the same failure mode `.split`/`.half`/
+`.ability-block` already use elsewhere on this face, rather than pushing the
+ability text an unbounded distance down the card.
+
+Everything from the rule down — the value stack's symbols and numbers, the
+split body, the ability block — used to be positioned as an offset from the
+panel's top (`inPanel`). Once the rule can move, that origin is wrong for all
+of them, so they are positioned as an offset from the rule instead
+(`belowTitleRule`), inside a `.below-title` wrapper that is `position: relative`
+for exactly that reason. The wrapper's own top edge is wherever flow put the
+rule — never a number — so nothing here needed to learn how many lines a
+wrapped title used; CSS already knew.
 
 ### Standing in for Knockout
 

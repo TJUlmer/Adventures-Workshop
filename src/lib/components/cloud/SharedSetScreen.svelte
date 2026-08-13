@@ -50,14 +50,13 @@
   /**
    * Whether to offer taking a copy.
    *
-   * Off for now, and the whole of what "off" means is that the button is not
-   * drawn: `fork()` below, `sets/fork.ts`, the fingerprint it records and the
-   * lineage the row carries are all untouched, and a copy already taken still
-   * shows its way back to the library. Contributions are the next rung and
-   * this release is the heroes' — offering a route into a feature that is not
-   * finished is worse than not offering it yet.
+   * "Off" ever meant only that the button was not drawn: `fork()` below,
+   * `sets/fork.ts`, the fingerprint it records and the lineage the row
+   * carries were never touched by the flag, and a copy already taken always
+   * showed its way back to the library. Back on now that the heroes release
+   * is out.
    */
-  const SHOW_FORK = false;
+  const SHOW_FORK = true;
 
   let row = $state<PublishedSetWithDocument | null>(null);
   let set = $state<AdventureSet | null>(null);

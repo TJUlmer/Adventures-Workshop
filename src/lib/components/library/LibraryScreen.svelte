@@ -121,11 +121,17 @@
                 A copy says so before it is opened. `originAuthor` is absent
                 rather than empty on a set authored here, and empty on one
                 copied from a published set whose author had no display name —
-                so the badge distinguishes the two.
+                so the badge distinguishes the two. The revision rides beside
+                it for the same reason `SetHome`'s own lineage line carries
+                one: it is what tells two forks of the same set apart on a
+                shelf that otherwise shows the same name twice.
               -->
               {#if entry.originAuthor !== undefined}
                 <span class="lineage">
                   {entry.originAuthor ? `Based on ${entry.originAuthor}’s set` : 'Based on a published set'}
+                  {#if entry.originRevision !== undefined}
+                    <span class="numeric">· revision {entry.originRevision}</span>
+                  {/if}
                 </span>
               {/if}
 

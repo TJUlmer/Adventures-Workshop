@@ -492,6 +492,45 @@ export const TITLE = {
 export const TITLE_RULE = { x: 220, y: 1406, width: 1193, height: 10 } as const;
 
 /**
+ * Where the title's own text box starts — the top of its *first* line box,
+ * whether the title sets on one line or wraps to two. CSS stacks line boxes
+ * of equal height under this point, so it never moves; only how far the text
+ * runs below it does. Reused by `TITLE_RULE_GAP` and by `ActionCardFace`,
+ * which used to compute this inline before the title could wrap.
+ */
+export const TITLE_BOX_TOP = capTopToBoxTop(TITLE.capTop, TITLE.size, TITLE.lineHeight, NAME_METRICS);
+
+/**
+ * Gap from the bottom of the title's first line to the rule beneath it —
+ * measured once, at the single-line position the template was drawn to, and
+ * from there on treated as a flow spacer rather than a fixed offset from the
+ * panel's top.
+ *
+ * That distinction is the whole of how a title can wrap to a second line
+ * without anything measuring the rendered text: `ActionCardFace` puts the
+ * title in normal flow instead of pinning it at `TITLE_RULE.y`'s remove, so a
+ * second line adds its own line-box height to the title and this gap — the
+ * rule, the values, the ability text, everything from here down — simply
+ * rides along after it. CSS already knows how many line boxes a wrapped
+ * paragraph sets; nothing here needs to ask it.
+ */
+export const TITLE_RULE_GAP = TITLE_RULE.y - (TITLE_BOX_TOP + TITLE.size * TITLE.lineHeight);
+
+/**
+ * A position measured on the print template, as an offset below the title
+ * rule rather than from the panel's top.
+ *
+ * The origin every element from the rule down is placed against, once the
+ * title can wrap: their fixed offsets from the panel's top only ever
+ * described where they sit *when the title is one line*, and using them
+ * directly again would leave the rule pinned in place while the title grew
+ * past it. See `TITLE_RULE_GAP`.
+ */
+export function belowTitleRule(y: number): number {
+  return y - TITLE_RULE.y - TITLE_RULE.height;
+}
+
+/**
  * Attack / defense stack. Symbols are centred on one axis at their natural
  * size; numbers are left-aligned on a second axis, their digits sitting a few
  * pixels below the symbol's top edge.

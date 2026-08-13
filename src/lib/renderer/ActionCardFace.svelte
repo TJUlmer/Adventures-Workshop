@@ -31,6 +31,7 @@
     BANNER,
     BANNER_HEAD,
     BANNER_HEAD_BELOW,
+    belowTitleRule,
     BLEED,
     BODY_PANEL,
     BODY_PANEL_MAX_HEIGHT,
@@ -54,7 +55,6 @@
     INTERIOR,
     INTERIOR_RADIUS,
     NAME,
-    NAME_METRICS,
     NAME_TOP,
     OWNER_LINE,
     px,
@@ -69,7 +69,9 @@
     SPLIT_SEPARATOR_OVERHANG,
     SPLIT_TOP,
     TITLE,
+    TITLE_BOX_TOP,
     TITLE_RULE,
+    TITLE_RULE_GAP,
     VALUE_STACK
   } from './geometry';
 
@@ -294,11 +296,23 @@
       ></div>
     {/if}
 
-    <!-- Body panel content. Everything here is placed off the panel's top. -->
+    <!--
+      Body panel content. The title is the one thing here still placed off the
+      panel's top; everything else is placed off the rule beneath it instead,
+      so a title that wraps to a second line carries the rule — and the values
+      and ability text below it — down with it. See `TITLE_RULE_GAP` and
+      `belowTitleRule`.
+    -->
+    <div class="panel-lead" style:height={pu(inPanel(TITLE_BOX_TOP))}></div>
+
+    <!--
+      Set in flow rather than pinned, so a long title wraps to a second line
+      instead of running off the panel or ellipsising into something
+      unreadable — the printed cards have no such limit on a title's length.
+    -->
     <div
       class="title"
-      style:left={pu(TITLE.x - BODY_PANEL.x)}
-      style:top={pu(inPanel(capTopToBoxTop(TITLE.capTop, TITLE.size, TITLE.lineHeight, NAME_METRICS)))}
+      style:margin-left={pu(TITLE.x - BODY_PANEL.x)}
       style:width={pu(TITLE.width)}
       style:font-size={pu(TITLE.size)}
       style:line-height={TITLE.lineHeight}
@@ -309,70 +323,97 @@
       {title}
     </div>
 
+    <div class="panel-lead" style:height={pu(TITLE_RULE_GAP)}></div>
+
     <div
       class="rule"
-      style:left={pu(TITLE_RULE.x - BODY_PANEL.x)}
-      style:top={pu(inPanel(TITLE_RULE.y))}
+      style:margin-left={pu(TITLE_RULE.x - BODY_PANEL.x)}
       style:width={pu(TITLE_RULE.width)}
       style:height={pu(TITLE_RULE.height)}
       style:background={theme.bodyInk}
     ></div>
 
-    {#if card.split}
-      <div class="panel-lead" style:height={pu(inPanel(SPLIT_TOP))}></div>
-      {@render splitBody()}
-      <div class="panel-foot" style:height={pu(SPLIT.bottom)}></div>
-    {:else}
-      {#if hasValues}
-        {#each values as row (row.key)}
-          {@const size = CARD_SYMBOL_SIZES[row.key]}
-          <img
-            class="value-symbol"
-            src={CARD_SYMBOLS[row.key]}
-            alt={row.key}
-            style:left={pu(VALUE_STACK.symbolCenterX - size.width / 2 - BODY_PANEL.x)}
-            style:top={pu(inPanel(row.top))}
-            style:width={pu(size.width)}
-          />
-          <span
-            class="value-number"
-            style:left={pu(VALUE_STACK.numberX - BODY_PANEL.x)}
-            style:top={pu(
-              inPanel(digitTopToBoxTop(row.top + VALUE_STACK.numberOffset, VALUE_STACK.numberSize))
-            )}
-            style:font-size={pu(VALUE_STACK.numberSize)}
-            style:color={theme.bodyInk}
-          >
-            {row.value}
-          </span>
-        {/each}
-      {/if}
+    <!--
+      Everything from here down is positioned against this wrapper's own top
+      edge rather than the panel's — which is wherever the rule above ended up
+      once the title had its say, in flow, rather than a number fixed in
+      advance. `belowTitleRule` is the conversion.
+    -->
+    <div class="below-title">
+      {#if card.split}
+        <div class="panel-lead" style:height={pu(belowTitleRule(SPLIT_TOP))}></div>
+        {@render splitBody()}
+        <div class="panel-foot" style:height={pu(SPLIT.bottom)}></div>
+      {:else}
+        {#if hasValues}
+          {#each values as row (row.key)}
+            {@const size = CARD_SYMBOL_SIZES[row.key]}
+            <img
+              class="value-symbol"
+              src={CARD_SYMBOLS[row.key]}
+              alt={row.key}
+              style:left={pu(VALUE_STACK.symbolCenterX - size.width / 2 - BODY_PANEL.x)}
+              style:top={pu(belowTitleRule(row.top))}
+              style:width={pu(size.width)}
+            />
+            <span
+              class="value-number"
+              style:left={pu(VALUE_STACK.numberX - BODY_PANEL.x)}
+              style:top={pu(
+                belowTitleRule(
+                  digitTopToBoxTop(row.top + VALUE_STACK.numberOffset, VALUE_STACK.numberSize)
+                )
+              )}
+              style:font-size={pu(VALUE_STACK.numberSize)}
+              style:color={theme.bodyInk}
+            >
+              {row.value}
+            </span>
+          {/each}
+        {/if}
 
-      <div class="panel-lead" style:height={pu(inPanel(hasValues ? ABILITY_RULE.y : abilityTop))}></div>
-
-      {#if hasValues}
-        <!--
-          Rule and ability text as one block, so the rule can be as long as the
-          taller of the two columns without anything measuring anything: the
-          block is sized by the text and floored by the value stack, and the
-          rule stretches. The panel is sized by the block in turn.
-        -->
         <div
-          class="ability-block"
-          style:margin-left={pu(ABILITY_RULE.x - BODY_PANEL.x)}
-          style:min-height={pu(valuesRun)}
-        >
-          <div
-            class="rule-v"
-            style:width={pu(ABILITY_RULE.width)}
-            style:background={theme.bodyInk}
-          ></div>
+          class="panel-lead"
+          style:height={pu(belowTitleRule(hasValues ? ABILITY_RULE.y : abilityTop))}
+        ></div>
 
+        {#if hasValues}
+          <!--
+            Rule and ability text as one block, so the rule can be as long as the
+            taller of the two columns without anything measuring anything: the
+            block is sized by the text and floored by the value stack, and the
+            rule stretches. The panel is sized by the block in turn.
+          -->
+          <div
+            class="ability-block"
+            style:margin-left={pu(ABILITY_RULE.x - BODY_PANEL.x)}
+            style:min-height={pu(valuesRun)}
+          >
+            <div
+              class="rule-v"
+              style:width={pu(ABILITY_RULE.width)}
+              style:background={theme.bodyInk}
+            ></div>
+
+            <div
+              class="block-ability"
+              style:margin-left={pu(abilityGap)}
+              style:padding-top={pu(abilityOffset)}
+              style:width={pu(ABILITY.width)}
+              style:font-size={pu(ABILITY.size)}
+              style:line-height={ABILITY.lineHeight}
+              style:letter-spacing="{ABILITY.tracking}em"
+              style:color={theme.bodyInk}
+            >
+              <AbilityText ability={card.ability} subject={ribbonName} />
+            </div>
+          </div>
+        {:else}
+          <!-- No values to separate: the copy runs the panel's full measure. -->
           <div
             class="block-ability"
-            style:margin-left={pu(abilityGap)}
-            style:padding-top={pu(abilityOffset)}
-            style:width={pu(ABILITY.width)}
+            style:margin-left={pu(TITLE.x - BODY_PANEL.x)}
+            style:width={pu(ABILITY.x + ABILITY.width - TITLE.x)}
             style:font-size={pu(ABILITY.size)}
             style:line-height={ABILITY.lineHeight}
             style:letter-spacing="{ABILITY.tracking}em"
@@ -380,24 +421,11 @@
           >
             <AbilityText ability={card.ability} subject={ribbonName} />
           </div>
-        </div>
-      {:else}
-        <!-- No values to separate: the copy runs the panel's full measure. -->
-        <div
-          class="block-ability"
-          style:margin-left={pu(TITLE.x - BODY_PANEL.x)}
-          style:width={pu(ABILITY.x + ABILITY.width - TITLE.x)}
-          style:font-size={pu(ABILITY.size)}
-          style:line-height={ABILITY.lineHeight}
-          style:letter-spacing="{ABILITY.tracking}em"
-          style:color={theme.bodyInk}
-        >
-          <AbilityText ability={card.ability} subject={ribbonName} />
-        </div>
-      {/if}
+        {/if}
 
-      <div class="panel-foot" style:height={pu(ABILITY.bottomInset)}></div>
-    {/if}
+        <div class="panel-foot" style:height={pu(ABILITY.bottomInset)}></div>
+      {/if}
+    </div>
   </div>
   </div>
 </div>
@@ -1041,20 +1069,45 @@
    * `line-height` and the horizontal squeeze both come from `TITLE` — see there
    * for why. The squeeze is anchored left because that is the edge the title is
    * positioned by; scaling about the centre would walk it off its measured `x`.
+   *
+   * In flow rather than pinned, so it can wrap — and clamped to two lines
+   * rather than left to wrap indefinitely: a title long enough to want a
+   * third reads the two-line ellipsis as the honest signal that it does not
+   * fit, the same as every other overflow this face clips rather than
+   * measures. `-webkit-line-clamp` rather than a fixed `height`, because a
+   * height would have to already know how many lines the title wrapped to.
    */
   .title {
-    position: absolute;
+    display: -webkit-box;
     font-family: var(--card-font-name);
     font-weight: var(--card-font-name-weight);
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
     transform-origin: left center;
     text-transform: uppercase;
-    white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
   }
 
+  /* Now a flow sibling of `.title`, so it rides down when the title wraps. */
   .rule {
-    position: absolute;
+    flex: none;
+  }
+
+  /*
+   * Everything from the rule down, repositioned against wherever the title's
+   * flow put it rather than against the panel's own top — see
+   * `belowTitleRule`. `overflow: hidden` resets this flex item's automatic
+   * minimum size to zero, the same trick `.ability-block` and `.split` already
+   * rely on, so it can still shrink if the panel runs out of room.
+   */
+  .below-title {
+    position: relative;
+    flex: 0 1 auto;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
   }
 
   .value-symbol {
