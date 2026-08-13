@@ -1,20 +1,41 @@
 /**
  * The set library.
  *
- * Sets are stored one key per document, with a small index alongside. That
- * split matters: the library screen needs names and counts for a dozen sets,
- * and reading a dozen documents — each carrying embedded artwork — just to
- * draw a list would be wasteful and slow.
+ * Backed by IndexedDB rather than `localStorage`, which is where this lived
+ * until it turned out to be too small for the job: `localStorage` is roughly
+ * 5MB **per origin**, shared across every set in the library rather than
+ * metered per set, and a handful of unresized photos was enough to fill it —
+ * see `core/image-import.ts` for the half of this fix that shrinks a picture
+ * before it is ever embedded. IndexedDB's own ceiling is tied to available
+ * disk space instead, commonly hundreds of megabytes at minimum, which is
+ * the actual room a set with dozens of images needs.
+ *
+ * Sets are stored one key per document, with a small index alongside — same
+ * split as before, and for the same reason: the library screen needs names
+ * and counts for a dozen sets, and reading a dozen documents, each carrying
+ * embedded artwork, just to draw a list would be wasteful and slow.
+ *
+ * Every function here is now async, `indexeddb.ts`'s doing rather than a
+ * choice made for its own sake — there is no synchronous IndexedDB API to
+ * have kept this on. Callers that do not need to wait on the result use
+ * `void`, the same as anywhere else in the app that fires a write and moves
+ * on; see `state/persistence.svelte.ts` and `state/workshop.svelte.ts`.
  */
 import { parseSetFile, serializeSet } from '$lib/export/json';
 import type { AdventureSet, SetId } from '$lib/sets/types';
 import type { IsoDateTime } from '$lib/core/id';
 import { now } from '$lib/core/id';
+import { idbDelete, idbGet, idbPut, META_STORE, SETS_STORE } from './indexeddb';
 
-const INDEX_KEY = 'adventures-workshop:library:v1';
-const SET_PREFIX = 'adventures-workshop:set:';
-/** The single-document key used before the library existed. */
+/** The pre-IndexedDB keys, read once each to migrate whatever they hold. */
+const OLD_INDEX_KEY = 'adventures-workshop:library:v1';
+const OLD_SET_PREFIX = 'adventures-workshop:set:';
+const OLD_LAST_OPEN_KEY = 'adventures-workshop:last-open:v1';
+/** The single-document key used before the library existed at all. */
 const LEGACY_KEY = 'adventures-workshop:document:v1';
+
+const INDEX_KEY = 'library-index';
+const LAST_OPEN_KEY = 'last-open';
 
 /** What the library screen needs, without loading a whole document. */
 export interface LibraryEntry {
@@ -50,7 +71,7 @@ export interface LibraryEntry {
   originRevision?: number;
 }
 
-function storage(): Storage | null {
+function localStore(): Storage | null {
   try {
     return window.localStorage;
   } catch {
@@ -58,28 +79,18 @@ function storage(): Storage | null {
   }
 }
 
-function setKey(id: SetId): string {
-  return `${SET_PREFIX}${id}`;
+/**
+ * Every set's index row, most recently saved first.
+ *
+ * `unshift`-on-save is what gives the order, not a stored field — see
+ * `saveSet` — so this simply returns whatever was written, in write order.
+ */
+export async function readIndex(): Promise<LibraryEntry[]> {
+  return (await idbGet<LibraryEntry[]>(META_STORE, INDEX_KEY)) ?? [];
 }
 
-export function readIndex(): LibraryEntry[] {
-  const store = storage();
-  if (!store) return [];
-
-  const raw = store.getItem(INDEX_KEY);
-  if (!raw) return [];
-
-  try {
-    const parsed: unknown = JSON.parse(raw);
-    if (!Array.isArray(parsed)) return [];
-    return parsed as LibraryEntry[];
-  } catch {
-    return [];
-  }
-}
-
-function writeIndex(entries: readonly LibraryEntry[]): void {
-  storage()?.setItem(INDEX_KEY, JSON.stringify(entries));
+async function writeIndex(entries: readonly LibraryEntry[]): Promise<void> {
+  await idbPut(META_STORE, INDEX_KEY, entries);
 }
 
 function toEntry(set: AdventureSet, bytes: number): LibraryEntry {
@@ -98,30 +109,26 @@ function toEntry(set: AdventureSet, bytes: number): LibraryEntry {
 }
 
 /**
- * Write a document and refresh its index row. Returns false if storage is full.
+ * Write a document and refresh its index row. Resolves `false` if storage is
+ * unavailable or genuinely full — IndexedDB's own ceiling is far larger than
+ * `localStorage`'s was, but it is not infinite.
  *
  * `json` may be supplied by a caller that has already serialised the set —
  * the autosave effect does, because serialising is also how it establishes a
  * deep read on every field of the document.
  */
-export function saveSet(set: AdventureSet, json = serializeSet(set)): boolean {
-  const store = storage();
-  if (!store) return false;
+export async function saveSet(set: AdventureSet, json = serializeSet(set)): Promise<boolean> {
+  const wrote = await idbPut(SETS_STORE, set.id, json);
+  if (!wrote) return false;
 
-  try {
-    store.setItem(setKey(set.id), json);
-  } catch {
-    return false;
-  }
-
-  const entries = readIndex().filter((entry) => entry.id !== set.id);
+  const entries = (await readIndex()).filter((entry) => entry.id !== set.id);
   entries.unshift(toEntry(set, json.length));
-  writeIndex(entries);
+  await writeIndex(entries);
   return true;
 }
 
-export function loadSet(id: SetId): AdventureSet | null {
-  const raw = storage()?.getItem(setKey(id));
+export async function loadSet(id: SetId): Promise<AdventureSet | null> {
+  const raw = await idbGet<string>(SETS_STORE, id);
   if (!raw) return null;
 
   const result = parseSetFile(raw);
@@ -132,33 +139,31 @@ export function loadSet(id: SetId): AdventureSet | null {
   return result.set;
 }
 
-export function deleteSet(id: SetId): void {
-  storage()?.removeItem(setKey(id));
-  writeIndex(readIndex().filter((entry) => entry.id !== id));
+export async function deleteSet(id: SetId): Promise<void> {
+  await idbDelete(SETS_STORE, id);
+  await writeIndex((await readIndex()).filter((entry) => entry.id !== id));
 }
 
 /** Which set was open last, so a reload lands where the author left off. */
-const LAST_OPEN_KEY = 'adventures-workshop:last-open:v1';
-
-export function rememberLastOpen(id: SetId | null): void {
-  const store = storage();
-  if (!store) return;
-  if (id === null) store.removeItem(LAST_OPEN_KEY);
-  else store.setItem(LAST_OPEN_KEY, id);
+export async function rememberLastOpen(id: SetId | null): Promise<void> {
+  if (id === null) await idbDelete(META_STORE, LAST_OPEN_KEY);
+  else await idbPut(META_STORE, LAST_OPEN_KEY, id);
 }
 
-export function readLastOpen(): SetId | null {
-  return (storage()?.getItem(LAST_OPEN_KEY) as SetId | null) ?? null;
+export async function readLastOpen(): Promise<SetId | null> {
+  return idbGet<SetId>(META_STORE, LAST_OPEN_KEY);
 }
 
 /**
  * Move a pre-library document into the library, once.
  *
- * The old build kept a single set under one key. Rather than stranding it, the
- * first run of the library adopts it and clears the old key.
+ * The old build kept a single set under one `localStorage` key. Rather than
+ * stranding it, the first run of the library adopts it and clears the old
+ * key — unchanged behaviour from before IndexedDB, just landing in the new
+ * store now that `saveSet` writes there.
  */
-export function migrateLegacyDocument(): AdventureSet | null {
-  const store = storage();
+export async function migrateLegacyDocument(): Promise<AdventureSet | null> {
+  const store = localStore();
   if (!store) return null;
 
   const raw = store.getItem(LEGACY_KEY);
@@ -170,7 +175,69 @@ export function migrateLegacyDocument(): AdventureSet | null {
 
   const set = result.set;
   set.meta.updatedAt = set.meta.updatedAt || now();
-  saveSet(set);
-  rememberLastOpen(set.id);
+  await saveSet(set);
+  await rememberLastOpen(set.id);
   return set;
+}
+
+/**
+ * Move an existing `localStorage`-backed library into IndexedDB, once.
+ *
+ * Presence of the old index key is the whole test for whether this has
+ * already run: a successful migration clears it below, so a browser that
+ * never had a library and one that has already moved both read as "nothing
+ * to do" without a separate flag to keep in sync with reality.
+ *
+ * Copies before it deletes, and only deletes what it confirmed landed —
+ * `saveSet` returning `false` for one set leaves that set's old key in place
+ * rather than losing it, so a partial failure (an interrupted migration, a
+ * write that lost a race with a full disk) is a set still reachable next
+ * time rather than one silently dropped.
+ */
+export async function migrateLibraryFromLocalStorage(): Promise<void> {
+  const store = localStore();
+  if (!store) return;
+
+  const rawIndex = store.getItem(OLD_INDEX_KEY);
+  if (!rawIndex) return;
+
+  let entries: LibraryEntry[];
+  try {
+    const parsed: unknown = JSON.parse(rawIndex);
+    entries = Array.isArray(parsed) ? (parsed as LibraryEntry[]) : [];
+  } catch {
+    entries = [];
+  }
+
+  const movedIds: string[] = [];
+
+  for (const entry of entries) {
+    const raw = store.getItem(`${OLD_SET_PREFIX}${entry.id}`);
+    if (!raw) continue; // Already moved by an earlier, partial run.
+
+    // Written through `saveSet` rather than copied key-for-key, so the new
+    // index row comes from the same `toEntry` every other write uses — an
+    // old row written before a field like `originRevision` existed is
+    // repaired the same way loading and re-saving it normally would repair it.
+    const result = parseSetFile(raw);
+    if (!result.ok) continue;
+
+    if (await saveSet(result.set, raw)) movedIds.push(entry.id);
+  }
+
+  for (const id of movedIds) store.removeItem(`${OLD_SET_PREFIX}${id}`);
+
+  // Anything still under the old prefix belongs to an entry that failed to
+  // move this run — leaving the index blob in place is what lets the next
+  // run find it again, rather than the old data becoming unreachable.
+  const remaining = entries.some((entry) => store.getItem(`${OLD_SET_PREFIX}${entry.id}`) !== null);
+  if (!remaining) store.removeItem(OLD_INDEX_KEY);
+
+  const oldLastOpen = store.getItem(OLD_LAST_OPEN_KEY);
+  if (oldLastOpen) {
+    // Checked against IndexedDB itself, not just this run's `movedIds` — the
+    // set this pointed at may have moved on an earlier, partial run.
+    if (await idbGet(SETS_STORE, oldLastOpen)) await rememberLastOpen(oldLastOpen as SetId);
+    store.removeItem(OLD_LAST_OPEN_KEY);
+  }
 }

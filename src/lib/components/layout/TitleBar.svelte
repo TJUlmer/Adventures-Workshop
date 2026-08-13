@@ -21,8 +21,8 @@
    * happened either way, which the debounced save cannot do at the moment the
    * author is wondering whether their work is safe.
    */
-  function saveNow(): void {
-    flash(workshop.saveNow() ? 'Saved.' : 'Could not save — export the set to keep your work.');
+  async function saveNow(): Promise<void> {
+    flash((await workshop.saveNow()) ? 'Saved.' : 'Could not save — export the set to keep your work.');
   }
 
   let exportOpen = $state(false);

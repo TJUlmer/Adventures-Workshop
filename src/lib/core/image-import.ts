@@ -3,14 +3,19 @@
  * storage budget.
  *
  * Every image in the document is a data URL, embedded whole — see
- * `artwork.ts` — and the document lives in `localStorage`, whose quota is
- * commonly around 5MB *per browser origin*, shared across every set in the
- * library, not per set. A single unedited camera photo is routinely 3-10MB
- * before the ~33% this format's base64 encoding adds on top, so "import one
- * photo" was enough on its own to leave nothing for the rest of the document,
- * let alone anything already saved beside it — reported as "storage is full"
- * the moment autosave next ran, with no indication that a single picture was
- * the whole cause.
+ * `artwork.ts`. This started as a fix for `localStorage`'s ~5MB-per-origin
+ * quota, shared across every set in the library rather than metered per set:
+ * a single unedited camera photo is routinely 3-10MB before the ~33% this
+ * format's base64 encoding adds on top, so "import one photo" was enough on
+ * its own to leave nothing for the rest of the document, let alone anything
+ * already saved beside it — reported as "storage is full" the moment
+ * autosave next ran, with no indication that a single picture was the whole
+ * cause. `storage/library.ts` has since moved the library itself onto
+ * IndexedDB, which lifts that particular ceiling by two to three orders of
+ * magnitude — but downscaling stays worth doing regardless: a 200-image
+ * library of unedited photos is still tens or hundreds of megabytes of JSON
+ * to parse, hash and hold in memory on every load, save and fingerprint, and
+ * none of it prints any sharper for having skipped this.
  *
  * Nothing here changes what an author sees. The largest single print surface
  * a picked image is ever placed into is the event card's 2232px bleed —

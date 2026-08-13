@@ -7,6 +7,7 @@ import { navigation } from './navigation.svelte';
 import {
   loadSet,
   migrateLegacyDocument,
+  migrateLibraryFromLocalStorage,
   readIndex,
   readLastOpen,
   rememberLastOpen,
@@ -17,32 +18,42 @@ import type { WorkshopStore } from './workshop.svelte';
 /**
  * Pick up where the author left off.
  *
- * A pre-library document is adopted into the library on first run rather than
- * stranded. Failing that, the last-open set is reopened; failing that, the
- * library screen is where you land, which is the correct place to start.
+ * Two migrations run first, oldest scheme last: a `localStorage`-backed
+ * library (`migrateLibraryFromLocalStorage`, the common case for anyone
+ * upgrading into IndexedDB) and, older still, a single pre-library document
+ * (`migrateLegacyDocument`). Both are safe to call on every startup — each
+ * is a no-op the moment there is nothing left of its own to move — so there
+ * is no separate "have we migrated" flag to keep in sync with reality.
+ *
+ * Async now, where this used to resolve before the first paint: IndexedDB
+ * has no synchronous API to have kept it on. `App.svelte` gates its first
+ * render on this rather than showing the library and then jumping, which is
+ * what awaiting it here without a caller-side gate would have looked like.
  */
-export function restoreSession(store: WorkshopStore): void {
-  const adopted = migrateLegacyDocument();
+export async function restoreSession(store: WorkshopStore): Promise<void> {
+  await migrateLibraryFromLocalStorage();
+
+  const adopted = await migrateLegacyDocument();
   if (adopted) {
     store.load(adopted);
     store.markSaved(adopted.meta.updatedAt);
-    store.refreshLibrary();
+    await store.refreshLibrary();
     navigation.openSet('home');
     return;
   }
 
-  store.refreshLibrary();
+  await store.refreshLibrary();
 
-  const lastOpen = readLastOpen();
+  const lastOpen = await readLastOpen();
   if (lastOpen) {
-    const set = loadSet(lastOpen);
+    const set = await loadSet(lastOpen);
     if (set) {
       store.load(set);
       store.markSaved(set.meta.updatedAt);
       navigation.openSet('home');
       return;
     }
-    rememberLastOpen(null);
+    await rememberLastOpen(null);
   }
 
   navigation.openLibrary();
@@ -65,12 +76,17 @@ export function useAutosave(store: WorkshopStore, delayMs = 500): void {
     if (!inSet) return;
 
     const handle = setTimeout(() => {
-      if (saveSet(set, json)) {
-        store.markSaved();
-        store.library = readIndex();
-      } else {
-        store.markSaveFailed('Autosave failed — export the set to keep your work.');
-      }
+      // `$effect` cannot itself be `async`; the write is fired from inside a
+      // plain callback instead, same as everywhere else in the app that
+      // starts an async task from a synchronous handler.
+      void (async () => {
+        if (await saveSet(set, json)) {
+          store.markSaved();
+          store.library = await readIndex();
+        } else {
+          store.markSaveFailed('Autosave failed — export the set to keep your work.');
+        }
+      })();
     }, delayMs);
 
     return () => clearTimeout(handle);

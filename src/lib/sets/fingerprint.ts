@@ -18,11 +18,13 @@
  * existing the moment revision 3 is published. The only moment it can be
  * captured is when the copy is taken.
  *
- * Keeping the whole base document would double every copied set's footprint in
- * `localStorage`, which is already the tightest resource the app has. But the
- * question being asked of the base is never "what did it say?" — it is only
- * "was this the same before?". A hash answers that exactly, at about 4 KB for
- * a whole set against several megabytes for the document.
+ * Keeping the whole base document would double every copied set's footprint
+ * in storage — no longer the acute problem it was under `localStorage`'s 5MB
+ * ceiling now that the library lives in IndexedDB, but still real weight for
+ * no reason: the question being asked of the base is never "what did it
+ * say?", it is only "was this the same before?". A hash answers that
+ * exactly, at about 4 KB for a whole set against several megabytes for the
+ * document.
  *
  * With one hash per entity, every case falls out:
  *

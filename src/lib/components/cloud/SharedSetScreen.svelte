@@ -126,15 +126,15 @@
    * go?" is the question that follows a screen changing under someone — and
    * this screen is very often the first thing a person sees of the app.
    */
-  function fork(): void {
+  async function fork(): Promise<void> {
     if (!set || !row || forking) return;
     forking = true;
     try {
       // `$state.snapshot` because `forkSet` clones, and `structuredClone`
       // throws on a reactive proxy.
       const copy = forkSet($state.snapshot(set), sourceOf(row, authorName));
-      saveSet(copy);
-      workshop.refreshLibrary();
+      await saveSet(copy);
+      await workshop.refreshLibrary();
       forked = copy.name;
     } finally {
       forking = false;

@@ -23,7 +23,7 @@
     type="button"
     class="back"
     title="Back to the library"
-    onclick={() => workshop.closeSet()}
+    onclick={() => void workshop.closeSet()}
   >
     <Icon name="chevronRight" size={13} />
     <span class="back-label">Library</span>

@@ -31,24 +31,48 @@ ZIP writer, the PNG rasteriser, the WebGL model viewer, the STL/OBJ parsers and
 the rich-text sanitiser are all hand-rolled for this reason. Reach for a library
 only after establishing that hand-rolling is genuinely unreasonable.
 
-**Local-first, offline, no backend.** The document lives in `localStorage`;
-every user asset (artwork, models, replacement images) is embedded as a data URL
-so a set survives being handed to someone else as one file. Static chrome is
-served from `public/assets` as stable URLs, never bundler-imported.
+**Local-first, offline, no backend.** The library — every set, indexed for the
+Library screen — lives in IndexedDB, in `src/lib/storage/`; every user asset
+(artwork, models, replacement images) is embedded as a data URL so a set
+survives being handed to someone else as one file. Static chrome is served
+from `public/assets` as stable URLs, never bundler-imported.
 
-`localStorage` is small — commonly around 5MB, **per origin**, shared across
-every set in the library rather than metered per set — and a data URL costs
-its picture's raw bytes plus another third on top for the base64 encoding. An
-unedited camera photo routinely arrives at 3-10MB, so importing one used to be
-enough on its own to leave nothing for the rest of the document, reported only
-once autosave next ran, as a bare "storage is full" with no hint that a single
-picture was the whole cause. `core/image-import.ts`'s `readArtworkFile` is what
-every "choose an image" control in the app reads a file through now — it
-decodes, and if the picture is larger than it will ever need to be printed
+It was `localStorage` at first, and moved for a reason worth keeping: that
+store is small — commonly around 5MB, **per origin**, shared across every set
+in the library rather than metered per set — and a data URL costs its
+picture's raw bytes plus another third on top for the base64 encoding. An
+unedited camera photo routinely arrives at 3-10MB, so importing one was
+enough on its own to leave nothing for the rest of the document, reported
+only once autosave next ran, as a bare "storage is full" with no hint that a
+single picture was the whole cause. IndexedDB's own ceiling is tied to
+available disk space instead — commonly hundreds of megabytes at minimum —
+which is the room a library of dozens of sets, each with its own artwork,
+actually needs. `storage/indexeddb.ts` is the whole of the browser API this
+touches, hand-rolled to the same zero-dependency rule as everything else; two
+object stores, `sets` and `meta`, opened once and reused. `storage/library.ts`
+builds the library on top of it, and every function there is `async` as a
+result — there is no synchronous IndexedDB API to have kept any of it on. A
+browser that still has the old `localStorage`-backed library, or older still
+the single pre-library document, adopts it into IndexedDB once, automatically,
+on first load after the upgrade (`migrateLibraryFromLocalStorage`,
+`migrateLegacyDocument` in `storage/library.ts`) — idempotent and resumable,
+so an interrupted migration leaves the old data in place to pick up next time
+rather than losing it. `App.svelte` gates its first paint on that migration
+and the session restore it is part of (`sessionReady`), because both are async
+where they used to resolve before Svelte rendered at all, and rendering the
+routes unconditionally in the meantime would show the library screen and then
+jump to whatever set was actually open.
+
+Downscaling large images stays worth doing independently of which store backs
+the library — see `core/image-import.ts`. `readArtworkFile` is what every
+"choose an image" control in the app reads a file through: it decodes, and if
+the picture is larger than it will ever need to be printed
 (`ARTWORK_MAX_DIMENSION`, well above every card face's own bleed size),
 downscales and re-encodes it before it ever reaches the document. A picture
 already small enough is returned exactly as read; nothing here is lossy for a
-file that did not need touching.
+file that did not need touching. IndexedDB lifted the acute ceiling this was
+first built to relieve, but a library of unresized photos is still needless
+weight on every parse, hash and save.
 
 The one exception is `exports/`, and it earns itself. The `exports-folder`
 plugin in `vite.config.ts` answers `/__workshop/export`: `GET` says where the

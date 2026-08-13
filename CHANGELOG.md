@@ -894,6 +894,65 @@ adds another third on top. One import really was enough.
   not just the logic — and a save that would have flashed "storage is full"
   before now flashes "Saved."
 
+### 13 August · Off localStorage, onto IndexedDB
+
+The downscale above closed the common case — one or two unedited photos — but
+the underlying question was asked directly: the library is meant to hold
+1-200 images across all of a set's decks and artwork, more again once several
+sets share a library, and `localStorage`'s ceiling is a hard ~5MB **per
+origin**, not per set, with no API to raise it. No amount of downscaling
+changes an order-of-magnitude ceiling into enough room for that. The actual
+fix was moving the library itself onto IndexedDB, whose ceiling is tied to
+disk space instead — commonly hundreds of megabytes at minimum.
+
+- **`storage/indexeddb.ts`** is the entire hand-rolled wrapper this needed —
+  two object stores, `sets` and `meta`, opened once behind a cached promise
+  and reused. Every function resolves to a safe fallback (`null`/`[]`/`false`)
+  rather than throwing, the same defensive shape `storage/local.ts` (now
+  deleted) already used for `localStorage`.
+- **`storage/library.ts`** rewrote every export as `async` — there is no
+  synchronous IndexedDB API to have kept any of it on — which meant `async`
+  had to propagate through every command in `state/workshop.svelte.ts`
+  (`createSet`, `openSet`, `closeSet`, `removeSet`, `duplicateSet`,
+  `saveNow`) and every caller of them, down to individual `onclick` handlers
+  in `LibraryScreen.svelte` and `SetNav.svelte` and the fork button in
+  `SharedSetScreen.svelte`.
+- **The one-time migration is automatic, idempotent and resumable** —
+  `migrateLibraryFromLocalStorage` for anyone with an existing
+  `localStorage`-backed library, and (older still) `migrateLegacyDocument` for
+  the single pre-library document. Both run on every startup and are a no-op
+  the instant there is nothing left of their own to move, so there is no
+  separate "have we migrated" flag to keep in sync with reality. The library
+  migration copies before it deletes, and only deletes what it confirmed
+  landed in IndexedDB — a set that fails to move (an interrupted migration, a
+  write that lost a race with a full disk) keeps its old `localStorage` key
+  rather than being silently dropped, and is picked up again next launch.
+  Caught one real bug writing it: the "last open" pointer was being checked
+  against *this run's* migrated-set list, which would have discarded it for a
+  set that had already migrated on an earlier, partial run — fixed by
+  checking IndexedDB directly instead.
+- **`App.svelte` now gates its first paint on the restore.** Session restore
+  used to resolve before Svelte ever rendered; async IndexedDB access broke
+  that, and rendering the routes unconditionally in the meantime would have
+  shown the library screen and then jumped to whatever set was actually open.
+  A `sessionReady` flag, set once `restoreSession` resolves, fixed the flash —
+  and surfaced a second bug on the way: the deep-link handler for a
+  `#/shared/…` URL used to run *after* a synchronous `restoreSession`, so a
+  share link was guaranteed to win. Made async without also moving the deep
+  link, the two would have raced — the restored "last open" set could have
+  clobbered the very share link it was meant to lose to. Fixed by running the
+  deep-link check inside `restoreSession`'s own `.then`, preserving the
+  original ordering rather than the original code shape.
+- Verified end to end against the real running app rather than by reading the
+  code: created, closed, reopened, duplicated and deleted sets through the
+  UI with IndexedDB inspected directly after each step; both migration paths
+  proven from a genuinely empty IndexedDB with fabricated old-format
+  `localStorage` data in place, confirming the old keys are cleared only once
+  everything has actually landed; and the motivating case itself — a ~31MB
+  document, six times past the old 5MB ceiling — written through the app's
+  own autosave path and read back intact on reload, where it would previously
+  have failed outright.
+
 ---
 
 ## Still open
@@ -926,10 +985,3 @@ adds another third on top. One import really was enough.
   and anything resembling a template library are not.
 - **Direct manipulation of artwork** — scale, offset and crop are sliders; the
   model already supports everything dragging would write.
-- **Storage headroom.** Embedded artwork is stored as data URLs, and every
-  picture is now downscaled on import (`core/image-import.ts`) rather than
-  embedded at whatever resolution a camera happened to shoot it at — which is
-  what closed the common case, one or two unedited photos being enough on
-  their own to fill a 5MB origin quota. A set with dozens of images can still
-  outgrow `localStorage`; the autosave failure is surfaced rather than
-  swallowed, but the real fix for *that* is still IndexedDB or a file handle.

@@ -196,50 +196,59 @@ export class WorkshopStore {
   }
 
   // -- Library ----------------------------------------------------------
+  //
+  // Every command here is async now — `storage/library.ts` moved from
+  // `localStorage` to IndexedDB, which has no synchronous API to have kept
+  // any of this on. Nothing outside this class reads a return value from
+  // `createSet`/`openSet`/`duplicateSet`/`removeSet`/`closeSet` today, so a
+  // caller that does not need to wait on one uses `void`, same as any other
+  // fire-and-forget write in the app. `saveNow` is the exception: its boolean
+  // is what the title bar's flash message reads, so that one is worth
+  // awaiting.
 
   /** Index rows for the library screen. Refreshed on write, not derived. */
   library = $state<LibraryEntry[]>([]);
 
-  refreshLibrary(): void {
-    this.library = readIndex();
+  async refreshLibrary(): Promise<void> {
+    this.library = await readIndex();
   }
 
   /** Create a set, put it in the library, and open it. */
-  createSet(name = 'Untitled Adventure'): AdventureSet {
+  async createSet(name = 'Untitled Adventure'): Promise<AdventureSet> {
     const set = createEmptySet({ name });
-    saveSetToLibrary(set);
-    this.refreshLibrary();
+    await saveSetToLibrary(set);
+    await this.refreshLibrary();
     this.load(set);
-    rememberLastOpen(set.id);
+    await rememberLastOpen(set.id);
     navigation.openSet('home');
     return set;
   }
 
-  openSet(id: SetId): boolean {
-    const set = loadSetFromLibrary(id);
+  async openSet(id: SetId): Promise<boolean> {
+    const set = await loadSetFromLibrary(id);
     if (!set) return false;
     this.load(set);
     this.markSaved(set.meta.updatedAt);
-    rememberLastOpen(id);
+    await rememberLastOpen(id);
     navigation.openSet('home');
     return true;
   }
 
-  closeSet(): void {
-    this.refreshLibrary();
-    rememberLastOpen(null);
+  async closeSet(): Promise<void> {
+    await this.refreshLibrary();
+    await rememberLastOpen(null);
     navigation.openLibrary();
   }
 
-  removeSet(id: SetId): void {
-    deleteSetFromLibrary(id);
-    this.refreshLibrary();
-    if (this.adventure.id === id) this.closeSet();
+  async removeSet(id: SetId): Promise<void> {
+    await deleteSetFromLibrary(id);
+    await this.refreshLibrary();
+    if (this.adventure.id === id) await this.closeSet();
   }
 
   /** Copy a set under a new identity — the Save As of a local-first tool. */
-  duplicateSet(id: SetId): void {
-    const source = id === this.adventure.id ? this.adventure : loadSetFromLibrary(id);
+  async duplicateSet(id: SetId): Promise<void> {
+    const source = id === this.adventure.id ? this.adventure : await loadSetFromLibrary(id);
     if (!source) return;
 
     const copy: AdventureSet = {
@@ -248,8 +257,8 @@ export class WorkshopStore {
       name: `${source.name} (copy)`
     };
     copy.meta.updatedAt = now();
-    saveSetToLibrary(copy);
-    this.refreshLibrary();
+    await saveSetToLibrary(copy);
+    await this.refreshLibrary();
   }
 
   // -- Document ---------------------------------------------------------
@@ -281,10 +290,10 @@ export class WorkshopStore {
    * embedded artwork makes that reachable. Reporting it in the status bar is
    * not much use without a way to try again, which is what this is.
    */
-  saveNow(): boolean {
-    if (saveSetToLibrary(this.adventure)) {
+  async saveNow(): Promise<boolean> {
+    if (await saveSetToLibrary(this.adventure)) {
       this.markSaved();
-      this.library = readIndex();
+      this.library = await readIndex();
       return true;
     }
     this.markSaveFailed('Could not save — storage is full. Export the set to keep your work.');

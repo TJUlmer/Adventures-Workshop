@@ -45,8 +45,8 @@
       flash(result.error);
       return;
     }
-    saveSet(result.set);
-    workshop.refreshLibrary();
+    await saveSet(result.set);
+    await workshop.refreshLibrary();
     flash(`Imported “${result.set.name}”.`);
   }
 </script>
@@ -84,7 +84,7 @@
         <Icon name="upload" size={14} />
         Import
       </Button>
-      <Button variant="primary" onclick={() => workshop.createSet()}>
+      <Button variant="primary" onclick={() => void workshop.createSet()}>
         <Icon name="plus" size={14} />
         New set
       </Button>
@@ -103,7 +103,7 @@
         description="A set holds a villain, its minions, and every card that goes with them."
       >
         {#snippet actions()}
-          <Button variant="primary" onclick={() => workshop.createSet()}>
+          <Button variant="primary" onclick={() => void workshop.createSet()}>
             <Icon name="plus" size={14} />
             Create your first set
           </Button>
@@ -113,7 +113,7 @@
       <ul class="grid">
         {#each entries as entry (entry.id)}
           <li class="card">
-            <button type="button" class="open" onclick={() => workshop.openSet(entry.id)}>
+            <button type="button" class="open" onclick={() => void workshop.openSet(entry.id)}>
               <span class="card-title">{entry.name || 'Untitled Adventure'}</span>
               {#if entry.subtitle}<span class="card-subtitle">{entry.subtitle}</span>{/if}
 
@@ -152,13 +152,13 @@
                 class="ghost"
                 title="Duplicate"
                 aria-label="Duplicate set"
-                onclick={() => workshop.duplicateSet(entry.id)}
+                onclick={() => void workshop.duplicateSet(entry.id)}
               >
                 <Icon name="copy" size={13} />
               </button>
 
               {#if confirmingDelete === entry.id}
-                <button type="button" class="ghost danger" onclick={() => workshop.removeSet(entry.id)}>
+                <button type="button" class="ghost danger" onclick={() => void workshop.removeSet(entry.id)}>
                   Delete
                 </button>
                 <button type="button" class="ghost" onclick={() => (confirmingDelete = null)}>

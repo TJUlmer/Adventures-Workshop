@@ -31,9 +31,28 @@
   import { restoreSession, useAutosave } from '$lib/state/persistence.svelte';
   import { workshop } from '$lib/state/workshop.svelte';
 
-  // Local-first: the last session is picked back up before the first paint,
-  // and every edit from here on is written back on a debounce.
-  restoreSession(workshop);
+  /*
+   * Local-first: the last session is picked back up before the first paint,
+   * and every edit from here on is written back on a debounce.
+   *
+   * `restoreSession` is async now that it reads IndexedDB, where this used to
+   * resolve before Svelte ever rendered. `navigation.view` defaults to the
+   * library, so rendering the routes below unconditionally while this is
+   * still in flight would show the library and then jump to whatever set was
+   * actually open — `sessionReady` gates the first paint on it instead.
+   *
+   * `openDeepLink` (below) now has to run inside this `.then` rather than
+   * straight after, for the same reason: it used to follow a *synchronous*
+   * `restoreSession` and so was guaranteed to run after it. Calling it
+   * unconditionally here would race the restore instead, and could have the
+   * restored "last open" set clobber the very share link it is meant to lose
+   * to.
+   */
+  let sessionReady = $state(false);
+  void restoreSession(workshop).then(() => {
+    openDeepLink();
+    sessionReady = true;
+  });
   useAutosave(workshop);
 
   // Any session from a previous visit, before anything asks whether we have one.
@@ -69,13 +88,13 @@
    *
    * Someone arriving on `#/shared/…` clicked a link to see a *particular* set,
    * and `restoreSession` has just reopened whatever they were last editing. The
-   * link is the more recent intent, so it is applied after.
+   * link is the more recent intent, so it is applied after — from inside
+   * `restoreSession`'s `.then`, above, rather than here.
    */
   const openDeepLink = (): void => {
     const slug = readSharedSlug();
     if (slug) navigation.openShared(slug);
   };
-  openDeepLink();
 
   $effect(() => {
     /*
@@ -95,66 +114,73 @@
   const currentPage = $derived(navigation.page);
 </script>
 
-{#if navigation.view.kind === 'shared'}
+{#if sessionReady}
   <!--
-    Outside the shell: this is very often someone's first sight of the app, and
-    they have not entered a workshop yet. Chrome for a set they do not have
-    would be answering a question they have not asked.
+    Gated on `restoreSession` resolving — see the comment beside it above.
+    Nothing here reads `navigation.view` correctly until the restore (and,
+    where it applies, the deep link it defers to) has actually run.
   -->
-  <SharedSetScreen slug={navigation.view.slug} />
-{:else if navigation.view.kind === 'gallery'}
-  <GalleryScreen />
-{:else if navigation.view.kind === 'library'}
-  <LibraryScreen />
-{:else if currentPage === 'print'}
-  <!--
-    Outside the shell on purpose: printing is the one thing the app does where
-    the chrome is not merely irrelevant but harmful, because anything laid out
-    around the sheet can move it. See `PrintScreen`.
-  -->
-  <PrintScreen />
-{:else}
-  <AppShell>
-    {#snippet titlebar()}
-      <TitleBar />
-    {/snippet}
+  {#if navigation.view.kind === 'shared'}
+    <!--
+      Outside the shell: this is very often someone's first sight of the app, and
+      they have not entered a workshop yet. Chrome for a set they do not have
+      would be answering a question they have not asked.
+    -->
+    <SharedSetScreen slug={navigation.view.slug} />
+  {:else if navigation.view.kind === 'gallery'}
+    <GalleryScreen />
+  {:else if navigation.view.kind === 'library'}
+    <LibraryScreen />
+  {:else if currentPage === 'print'}
+    <!--
+      Outside the shell on purpose: printing is the one thing the app does where
+      the chrome is not merely irrelevant but harmful, because anything laid out
+      around the sheet can move it. See `PrintScreen`.
+    -->
+    <PrintScreen />
+  {:else}
+    <AppShell>
+      {#snippet titlebar()}
+        <TitleBar />
+      {/snippet}
 
-    {#snippet subnav()}
-      <SetNav />
-    {/snippet}
+      {#snippet subnav()}
+        <SetNav />
+      {/snippet}
 
-    {#snippet page()}
-      {#if currentPage === 'editor'}
-        <EditorPanes>
-          {#snippet sidebar()}
-            <SetSidebar />
-          {/snippet}
-          {#snippet workspace()}
-            <Workspace />
-          {/snippet}
-          {#snippet preview()}
-            <PreviewPanel />
-          {/snippet}
-        </EditorPanes>
-      {:else if currentPage === 'threat'}
-        <ThreatTracker />
-      {:else if currentPage === 'map'}
-        <MapEditor />
-      {:else if currentPage === 'figures'}
-        <FiguresPanel />
-      {:else if currentPage === 'assets'}
-        <AssetsOverview />
-      {:else if currentPage === 'contributions'}
-        <ContributionsScreen />
-      {:else if currentPage === 'settings'}
-        <SetSettings />
-      {:else}
-        <SetHome />
-      {/if}
-    {/snippet}
+      {#snippet page()}
+        {#if currentPage === 'editor'}
+          <EditorPanes>
+            {#snippet sidebar()}
+              <SetSidebar />
+            {/snippet}
+            {#snippet workspace()}
+              <Workspace />
+            {/snippet}
+            {#snippet preview()}
+              <PreviewPanel />
+            {/snippet}
+          </EditorPanes>
+        {:else if currentPage === 'threat'}
+          <ThreatTracker />
+        {:else if currentPage === 'map'}
+          <MapEditor />
+        {:else if currentPage === 'figures'}
+          <FiguresPanel />
+        {:else if currentPage === 'assets'}
+          <AssetsOverview />
+        {:else if currentPage === 'contributions'}
+          <ContributionsScreen />
+        {:else if currentPage === 'settings'}
+          <SetSettings />
+        {:else}
+          <SetHome />
+        {/if}
+      {/snippet}
 
-    {#snippet statusbar()}
-      <StatusBar />
-    {/snippet}
-  </AppShell>
+      {#snippet statusbar()}
+        <StatusBar />
+      {/snippet}
+    </AppShell>
+  {/if}
 {/if}
