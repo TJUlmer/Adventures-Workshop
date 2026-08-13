@@ -229,6 +229,74 @@ export async function withdrawContribution(id: string): Promise<void> {
   });
 }
 
+/** One person's public credit — nothing about what they contributed. */
+export interface Contributor {
+  display_name: string;
+  avatar_url: string;
+}
+
+/**
+ * Everyone whose offer took, for a set anyone can already see.
+ *
+ * Deliberately anonymous, like every other public read — see the note on
+ * `listPublicSets`. The database function this calls is the actual boundary:
+ * it answers only for a set that is unlisted or public, and only names
+ * `accepted` contributions with at least one entry actually taken. What was
+ * offered, declined, or left open stays as private as it always was; this is
+ * a credit for what is already sitting in the published document, not a
+ * window into the negotiation that produced it.
+ */
+export async function listContributors(setId: string): Promise<Contributor[]> {
+  try {
+    return await request<Contributor[]>('/rest/v1/rpc/set_contributors', {
+      method: 'POST',
+      body: { target: setId },
+      anonymous: true
+    });
+  } catch {
+    // A credit line is never worth failing a page over.
+    return [];
+  }
+}
+
+/** One contributor's name and how many changes of theirs actually landed. */
+export interface ContributorTally {
+  name: string;
+  avatarUrl: string;
+  changes: number;
+}
+
+/**
+ * The owner's own view of who has helped, with counts.
+ *
+ * Built from `listContributions` rather than the public credit function —
+ * the owner already has full read access to their own set's contributions
+ * through RLS, so this needs no new grant, and it can afford to show more:
+ * how many of each person's changes were actually taken, which the public
+ * credit deliberately does not.
+ */
+export function tallyContributors(accepted: readonly ContributionSummary[]): ContributorTally[] {
+  const byPerson = new Map<string, ContributorTally>();
+
+  for (const offer of accepted) {
+    const taken = offer.applied_keys.length;
+    if (taken === 0) continue;
+
+    const existing = byPerson.get(offer.contributor_id);
+    if (existing) {
+      existing.changes += taken;
+      continue;
+    }
+    byPerson.set(offer.contributor_id, {
+      name: offer.contributor?.display_name || 'Someone',
+      avatarUrl: offer.contributor?.avatar_url ?? '',
+      changes: taken
+    });
+  }
+
+  return [...byPerson.values()].sort((a, b) => b.changes - a.changes);
+}
+
 /**
  * How many offers are waiting, per set the caller owns.
  *

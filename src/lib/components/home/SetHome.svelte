@@ -12,7 +12,8 @@
   import ExportPanel from '$lib/components/export/ExportPanel.svelte';
   import { auth } from '$lib/cloud/auth.svelte';
   import { cloudEnabled } from '$lib/cloud/config';
-  import { openContributionCounts } from '$lib/cloud/contributions';
+  import { listContributions, openContributionCounts, tallyContributors } from '$lib/cloud/contributions';
+  import type { ContributorTally } from '$lib/cloud/contributions';
   import { fetchSetSummaryBySlug, listMyPublishedSets } from '$lib/cloud/sets';
   import type { SetSummary } from '$lib/cloud/sets';
   import { characterLabel } from '$lib/characters/factory';
@@ -59,29 +60,37 @@
   );
 
   /*
-   * Offers waiting on this set. One call answers for the whole library, so
-   * this is a map lookup rather than a request per set — and it is keyed by the
-   * *published row* id, which has to be found first.
+   * Offers waiting on this set, and everyone whose offer already landed. One
+   * call answers `waiting` for the whole library, so that half is a map
+   * lookup rather than a request per set; the contributor tally needs the
+   * *published row* id either way, so both wait on the same lookup.
    */
   let waiting = $state(0);
+  let contributors = $state<ContributorTally[]>([]);
 
   $effect(() => {
     void set.id;
     void auth.signedIn;
     waiting = 0;
+    contributors = [];
     if (!cloudEnabled() || !auth.signedIn) return;
 
     void (async () => {
       try {
-        const [mine, counts] = await Promise.all([
-          listMyPublishedSets(),
-          openContributionCounts()
-        ]);
+        const mine = await listMyPublishedSets();
         const row = mine.find((entry) => entry.local_id === set.id);
-        waiting = row ? (counts.get(row.id) ?? 0) : 0;
+        if (!row) return;
+
+        const [counts, accepted] = await Promise.all([
+          openContributionCounts(),
+          listContributions(row.id, 'accepted')
+        ]);
+        waiting = counts.get(row.id) ?? 0;
+        contributors = tallyContributors(accepted);
       } catch {
         // A badge is never worth an error message.
         waiting = 0;
+        contributors = [];
       }
     })();
   });
@@ -244,24 +253,50 @@
       </section>
 
       <!--
-        Contributions, both directions, and above Export on purpose. Offering
-        changes back is the thing to do *with* a copied set, and burying it
-        under a list of file formats made it read as an afterthought. The
-        panel draws only on a fork; the row draws only once someone has offered
-        something. A set can be both at once, which is what a chain of forks
-        looks like.
+        Contributions, all three directions, and above Export on purpose.
+        Offering changes back is the thing to do *with* a copied set, and
+        burying it under a list of file formats made it read as an
+        afterthought. Waiting offers, the tally of who has already helped, and
+        the offer panel below can each be present or absent independently — a
+        set can be a fork that owes credit to its own contributors, which is
+        what a chain of forks looks like.
       -->
-      {#if waiting > 0}
+      {#if waiting > 0 || contributors.length > 0}
         <section class="panel">
           <h2 class="panel-title">Contributions</h2>
-          <button type="button" class="waiting" onclick={() => navigation.go('contributions')}>
-            <Icon name="users" size={14} />
-            <span class="waiting-text">
-              <span class="waiting-count numeric">{waiting}</span>
-              {waiting === 1 ? 'change is' : 'changes are'} waiting for you
-            </span>
-            <Icon name="chevronRight" size={13} />
-          </button>
+
+          {#if waiting > 0}
+            <button type="button" class="waiting" onclick={() => navigation.go('contributions')}>
+              <Icon name="users" size={14} />
+              <span class="waiting-text">
+                <span class="waiting-count numeric">{waiting}</span>
+                {waiting === 1 ? 'change is' : 'changes are'} waiting for you
+              </span>
+              <Icon name="chevronRight" size={13} />
+            </button>
+          {/if}
+
+          {#if contributors.length > 0}
+            <!--
+              Only the owner sees the counts — a public credit line names who
+              helped and stops there; this is allowed to say how much,
+              because it is read by the one person the number is actually
+              useful to.
+            -->
+            <ul class="contributors">
+              {#each contributors as person (person.name)}
+                <li class="contributor">
+                  {#if person.avatarUrl}
+                    <img class="contributor-avatar" src={person.avatarUrl} alt="" loading="lazy" />
+                  {/if}
+                  <span class="contributor-name">{person.name}</span>
+                  <span class="contributor-count numeric">
+                    {person.changes} {person.changes === 1 ? 'change' : 'changes'}
+                  </span>
+                </li>
+              {/each}
+            </ul>
+          {/if}
         </section>
       {/if}
 
@@ -418,6 +453,42 @@
     font-family: var(--font-display);
     font-size: var(--text-lg);
     color: var(--brand-gold);
+  }
+
+  .contributors {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    width: 100%;
+  }
+
+  .contributor {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    padding: var(--space-1) 0;
+    font-size: var(--text-xs);
+  }
+
+  .contributor-avatar {
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    flex: none;
+  }
+
+  .contributor-name {
+    flex: 1;
+    min-width: 0;
+    color: var(--text-secondary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .contributor-count {
+    color: var(--text-muted);
+    font-size: var(--text-2xs);
   }
 
   .lineage {

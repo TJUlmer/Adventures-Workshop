@@ -412,6 +412,20 @@ the timestamp belongs to a trigger. `set_accepts_contributions` is `security
 definer` for the same reason `set_by_slug` is: a policy checking `sets` directly
 would refuse every offer to an *unlisted* set, which is most of them.
 
+**Public credit is a narrower, separate question from the proposal itself.**
+`set_contributors` answers only "did this set take anything from them", never
+what — no payload, no title, no message, and only `status = 'accepted'` with at
+least one key actually in `applied_keys`. That last clause matters: an offer can
+be marked accepted with nothing taken (every entry conflicted and the owner
+still wanted to close it out), and crediting someone for zero changes taken
+would be a false credit. Safe to expose to `anon` at all because it reveals
+nothing that is not already sitting in the published document — the changes are
+visible either way; this only names who made them. The owner's own view
+(`tallyContributors`, folded into Set Home) needs no equivalent function — RLS
+already gives an owner full read of their own set's contributions — and it is
+allowed to show *how many* changes landed per person, which the public credit
+deliberately does not.
+
 That is what `ExportPanel` exists for. The exporters always took a set rather
 than reaching for the store, so the list of them could move out of `SetHome`
 wholesale; `PrintScreen` and `AssetsOverview` take an optional `set` prop for

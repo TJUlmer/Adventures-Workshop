@@ -501,6 +501,25 @@ unlisted ones are allowed, and a decided offer cannot be reopened.
   an `origin` explains the difference and points at the contribution panel
   first. Re-publishing does not ask again.
 
+### 12 August · Contributor credit, both directions
+
+- **A public credit line on the shared page**: "With contributions from …",
+  for anyone who has actually had a change taken. One new `security definer`
+  function, `set_contributors`, and it is careful about what it exposes —
+  status must be `accepted` **and** `applied_keys` must be non-empty, because
+  an offer can be accepted with nothing taken from it and crediting that would
+  be a false credit. Nothing about *what* changed is exposed, only *that*
+  someone's work is in the document — which was already true and visible
+  before this existed. Attacked directly: a private set, a hidden one, a
+  zero-taken acceptance and a declined offer all return nothing; an unlisted
+  set with a genuine acceptance returns the name. Verified against the app's
+  own real data as an anonymous visitor, not a fixture.
+- **A private, counted view for the owner**, folded into the existing
+  Contributions panel on Set Home: who has helped and how many of their
+  changes actually landed, using data the owner already has full read access
+  to — no new grant. Counted from `applied_keys`, not the offered
+  `entry_count`, so a partially-accepted offer credits only what was taken.
+
 ---
 
 ## Still open

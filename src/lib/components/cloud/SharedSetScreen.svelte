@@ -28,6 +28,8 @@
    */
   import ExportPanel from '$lib/components/export/ExportPanel.svelte';
   import AssetsOverview from '$lib/components/tools/AssetsOverview.svelte';
+  import { listContributors } from '$lib/cloud/contributions';
+  import type { Contributor } from '$lib/cloud/contributions';
   import { fetchAuthorName, fetchSetBySlug, hydratePublishedSet } from '$lib/cloud/sets';
   import type { PublishedSetWithDocument } from '$lib/cloud/sets';
   import { cloudEnabled } from '$lib/cloud/config';
@@ -62,6 +64,13 @@
   /** The author's display name, for the credit a fork will carry. */
   let authorName = $state('');
 
+  /**
+   * Everyone whose offer this set has taken. Credit for work already visible
+   * in the document below, not a window into anything still private — see
+   * `listContributors`.
+   */
+  let contributors = $state<Contributor[]>([]);
+
   /** The forked copy, once one has been taken. Names the set for the message. */
   let forked = $state<string | null>(null);
   let forking = $state(false);
@@ -86,6 +95,7 @@
         // Fired off rather than awaited: the credit is wanted for the fork
         // button, and nothing on the page should wait on a display name.
         void fetchAuthorName(found.owner_id).then((name) => (authorName = name));
+        void listContributors(found.id).then((people) => (contributors = people));
         set = await hydratePublishedSet(found, (done, total) => {
           progress = total > 0 ? `Fetching artwork ${done} of ${total}…` : null;
         });
@@ -151,6 +161,19 @@
           -->
           {#if row?.change_note}
             <p class="stats">Latest change: “{row.change_note}”</p>
+          {/if}
+
+          <!--
+            A credit, not a changelog: who helped, not what they changed. The
+            "what" stays between the owner and whoever proposed it — this only
+            exists because their work is already sitting in the set below.
+          -->
+          {#if contributors.length > 0}
+            <p class="stats credit">
+              With contributions from {contributors
+                .map((person) => person.display_name || 'someone')
+                .join(', ')}
+            </p>
           {/if}
         {/if}
       </div>
@@ -291,6 +314,10 @@
 
   .stats {
     font-size: var(--text-xs);
+  }
+
+  .credit {
+    font-style: italic;
   }
 
   .message {
