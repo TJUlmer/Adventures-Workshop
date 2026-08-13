@@ -9,6 +9,7 @@
    */
   import { characterLabel } from '$lib/characters/factory';
   import { hasArtwork } from '$lib/core/artwork';
+  import { readArtworkFile } from '$lib/core/image-import';
   import { saveExport, slugify } from '$lib/export';
   import { exportTokenModel, tokenTextureUrl } from '$lib/export/token-model';
   import type { Figure, FigureId, FigureKind } from '$lib/figures/types';
@@ -62,6 +63,7 @@
     label: FIGURE_KIND_LABELS[kind]
   }));
 
+  /** For the mesh a model file carries — never an image, so never shrunk. */
   function readAsDataUrl(file: File): Promise<string> {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
@@ -81,7 +83,7 @@
 
     error = null;
     try {
-      const source = await readAsDataUrl(file);
+      const source = await readArtworkFile(file);
       workshop.editFigure(id, (figure) => {
         figure.reference.source = source;
         figure.reference.label = file.name;

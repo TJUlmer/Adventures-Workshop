@@ -15,6 +15,7 @@
    */
   import type { Artwork } from '$lib/core/artwork';
   import { hasArtwork } from '$lib/core/artwork';
+  import { readArtworkFile } from '$lib/core/image-import';
   import { Button, Icon, Switch } from '$lib/ui';
   import EditorSection from './EditorSection.svelte';
 
@@ -50,15 +51,6 @@
 
   const chosen = $derived(hasArtwork(artwork));
 
-  function readAsDataUrl(file: File): Promise<string> {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve(String(reader.result));
-      reader.onerror = () => reject(new Error('Could not read that file.'));
-      reader.readAsDataURL(file);
-    });
-  }
-
   async function pick(event: Event & { currentTarget: HTMLInputElement }): Promise<void> {
     const file = event.currentTarget.files?.[0];
     event.currentTarget.value = '';
@@ -66,7 +58,7 @@
 
     error = null;
     try {
-      onpick(await readAsDataUrl(file), file.name);
+      onpick(await readArtworkFile(file), file.name);
     } catch (cause) {
       error = cause instanceof Error ? cause.message : 'Could not read that file.';
     }

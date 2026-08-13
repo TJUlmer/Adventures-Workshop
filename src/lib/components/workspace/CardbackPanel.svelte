@@ -10,6 +10,7 @@
   import type { Fill } from '$lib/cards/style';
   import type { Character } from '$lib/characters/types';
   import { hasArtwork } from '$lib/core/artwork';
+  import { readArtworkFile } from '$lib/core/image-import';
   import { workshop } from '$lib/state/workshop.svelte';
   import { Button, ColorInput, FillEditor, Icon, Slider, TextInput } from '$lib/ui';
   import EditorSection from './EditorSection.svelte';
@@ -28,15 +29,6 @@
   const hasInset = $derived(hasArtwork(back.artwork));
   const hasReplacement = $derived(hasArtwork(back.replacement));
 
-  function readAsDataUrl(file: File): Promise<string> {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve(String(reader.result));
-      reader.onerror = () => reject(new Error('Could not read that file.'));
-      reader.readAsDataURL(file);
-    });
-  }
-
   async function pick(
     slot: 'artwork',
     event: Event & { currentTarget: HTMLInputElement }
@@ -47,7 +39,7 @@
 
     error = null;
     try {
-      const source = await readAsDataUrl(file);
+      const source = await readArtworkFile(file);
       workshop.editCardback(character.id, (design) => {
         design[slot].source = source;
         design[slot].label = file.name;

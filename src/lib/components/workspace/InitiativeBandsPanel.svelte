@@ -11,6 +11,7 @@
   import type { InitiativeBandKey, InitiativeCard } from '$lib/cards/types';
   import { initiativeBandLabel } from '$lib/cards/types';
   import { hasArtwork } from '$lib/core/artwork';
+  import { readArtworkFile } from '$lib/core/image-import';
   import { INITIATIVE_BAND_DEFAULTS } from '$lib/renderer/geometry';
   import { workshop } from '$lib/state/workshop.svelte';
   import { Button, ColorInput, FillEditor, Icon, Slider, Switch } from '$lib/ui';
@@ -28,15 +29,6 @@
   let inputs: Record<string, HTMLInputElement | null> = $state({});
   let error = $state<string | null>(null);
 
-  function readAsDataUrl(file: File): Promise<string> {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve(String(reader.result));
-      reader.onerror = () => reject(new Error('Could not read that file.'));
-      reader.readAsDataURL(file);
-    });
-  }
-
   async function pick(
     band: InitiativeBandKey,
     event: Event & { currentTarget: HTMLInputElement }
@@ -47,7 +39,7 @@
 
     error = null;
     try {
-      const source = await readAsDataUrl(file);
+      const source = await readArtworkFile(file);
       workshop.editBand(card.id, band, (style) => {
         style.artwork.source = source;
         style.artwork.label = file.name;

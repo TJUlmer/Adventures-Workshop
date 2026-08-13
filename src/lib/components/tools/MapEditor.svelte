@@ -15,6 +15,7 @@
   import MapBoard from '$lib/renderer/MapBoard.svelte';
   import { solid } from '$lib/cards/style';
   import { createArtwork, hasArtwork } from '$lib/core/artwork';
+  import { readArtworkFile } from '$lib/core/image-import';
   import { photographMapBoard, saveExport, slugify } from '$lib/export';
   import {
     createMapNote,
@@ -225,12 +226,7 @@
 
     artError = null;
     try {
-      const source = await new Promise<string>((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => resolve(String(reader.result));
-        reader.onerror = () => reject(new Error('Could not read that file.'));
-        reader.readAsDataURL(file);
-      });
+      const source = await readArtworkFile(file);
       workshop.editMap((m) => {
         m.artwork.source = source;
         m.artwork.label = file.name;

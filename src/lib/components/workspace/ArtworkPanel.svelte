@@ -9,6 +9,7 @@
    */
   import type { CardTheme } from '$lib/cards/style';
   import { hasArtwork } from '$lib/core/artwork';
+  import { readArtworkFile } from '$lib/core/image-import';
   import type { EntityRef, StyleTarget } from '$lib/state/workshop.svelte';
   import { workshop } from '$lib/state/workshop.svelte';
   import { Button, FillEditor, Icon, Slider, Switch, TextInput } from '$lib/ui';
@@ -48,15 +49,6 @@
     { value: 'oval', label: 'Oval' }
   ] as const;
 
-  function readAsDataUrl(file: File): Promise<string> {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve(String(reader.result));
-      reader.onerror = () => reject(new Error('Could not read that file.'));
-      reader.readAsDataURL(file);
-    });
-  }
-
   async function pick(event: Event & { currentTarget: HTMLInputElement }): Promise<void> {
     const file = event.currentTarget.files?.[0];
     event.currentTarget.value = '';
@@ -64,7 +56,7 @@
 
     error = null;
     try {
-      workshop.setArtworkSource(target, await readAsDataUrl(file), file.name);
+      workshop.setArtworkSource(target, await readArtworkFile(file), file.name);
     } catch (cause) {
       error = cause instanceof Error ? cause.message : 'Could not read that file.';
     }

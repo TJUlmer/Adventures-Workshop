@@ -858,6 +858,42 @@ front of the public, with no screen having ever asked first.
   the export menu's own), and sign-out clearing the menu from the bar were all
   checked the same way.
 
+### 13 August · One photo should not fill the whole quota
+
+Reported as: "as soon as I import any image, even just one, it no longer lets
+me save my work" — `localStorage`'s answer to that turned out to be exactly
+correct and exactly the problem. It is roughly 5MB, **per browser origin**,
+shared across every set in the library rather than metered per set — and an
+unedited camera photo is routinely 3-10MB before this format's base64 encoding
+adds another third on top. One import really was enough.
+
+- **`core/image-import.ts`** is the fix: every "choose an image" control in
+  the app — `ArtworkPanel`, `CardbackPanel`, `ReplacementPanel`, the map's
+  board art, the threat track's replacement and logo, box art, a figure's
+  reference picture — now reads a file through `readArtworkFile` rather than
+  its own `FileReader.readAsDataURL`. A picture already small enough is
+  handed back exactly as read; anything larger is decoded, capped to
+  `ARTWORK_MAX_DIMENSION` (2400px — above every card's own bleed size, so
+  nothing printed changes) and re-encoded as WebP, the same trick
+  `cloud/thumbnail.ts` already used for gallery tiles, at a quality set for
+  something an author will crop and print rather than a screen-only thumbnail.
+  Never rejects a file: a picture that only needed shrinking and did not get
+  it is a better outcome than an import that failed outright over a format
+  the canvas happens not to decode.
+- `FiguresPanel`'s model picker is untouched on purpose — a `.stl`/`.obj`
+  cannot be downscaled the way a picture can, which is why it already carried
+  its own explicit 8MB reject-and-warn rather than a silent embed. Images get
+  the gentler answer now; meshes keep the one they already had.
+- Verified against synthetic worst cases as well as realistic ones: a
+  41MB/4000×3000 field of random noise — the least compressible input
+  possible — still came down to 2400×1800 and 3.4MB purely from the
+  dimension cap; a realistic 4032×3024 phone-camera JPEG at 586KB came down
+  to 189KB; a 1.2KB icon passed through byte-for-byte untouched. Driven
+  through the real running app via an actual file-input `change` event
+  rather than by calling the function directly, confirming the wiring and
+  not just the logic — and a save that would have flashed "storage is full"
+  before now flashes "Saved."
+
 ---
 
 ## Still open
@@ -890,6 +926,10 @@ front of the public, with no screen having ever asked first.
   and anything resembling a template library are not.
 - **Direct manipulation of artwork** — scale, offset and crop are sliders; the
   model already supports everything dragging would write.
-- **Storage headroom.** Embedded artwork is stored as data URLs, which will
-  outgrow `localStorage` on a set with many images. The autosave failure is
-  surfaced rather than swallowed; the real fix is IndexedDB or a file handle.
+- **Storage headroom.** Embedded artwork is stored as data URLs, and every
+  picture is now downscaled on import (`core/image-import.ts`) rather than
+  embedded at whatever resolution a camera happened to shoot it at — which is
+  what closed the common case, one or two unedited photos being enough on
+  their own to fill a 5MB origin quota. A set with dozens of images can still
+  outgrow `localStorage`; the autosave failure is surfaced rather than
+  swallowed, but the real fix for *that* is still IndexedDB or a file handle.

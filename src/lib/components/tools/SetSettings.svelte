@@ -7,6 +7,7 @@
    * from anything it changes.
    */
   import { hasArtwork } from '$lib/core/artwork';
+  import { readArtworkFile } from '$lib/core/image-import';
   import { workshop } from '$lib/state/workshop.svelte';
   import { Button, Icon, TextArea, TextInput } from '$lib/ui';
   import EditorSection from '../workspace/EditorSection.svelte';
@@ -24,12 +25,7 @@
 
     error = null;
     try {
-      const source = await new Promise<string>((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => resolve(String(reader.result));
-        reader.onerror = () => reject(new Error('Could not read that file.'));
-        reader.readAsDataURL(file);
-      });
+      const source = await readArtworkFile(file);
       set.boxArt.source = source;
       set.boxArt.label = file.name;
     } catch (cause) {

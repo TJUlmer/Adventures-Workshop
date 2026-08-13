@@ -11,6 +11,7 @@
   import { solid } from '$lib/cards/style';
   import { characterLabel } from '$lib/characters/factory';
   import { createArtwork, hasArtwork } from '$lib/core/artwork';
+  import { readArtworkFile } from '$lib/core/image-import';
   import { renderThreatTrackImage, saveExport, slugify } from '$lib/export';
   import { ThreatBoard } from '$lib/renderer';
   import { THREAT_MAX_SPACES, THREAT_TRACK } from '$lib/renderer/geometry';
@@ -148,12 +149,7 @@
 
     artError = null;
     try {
-      const source = await new Promise<string>((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => resolve(String(reader.result));
-        reader.onerror = () => reject(new Error('Could not read that file.'));
-        reader.readAsDataURL(file);
-      });
+      const source = await readArtworkFile(file);
       workshop.editThreat((t) => {
         t.replacement.source = source;
         t.replacement.label = file.name;
@@ -184,12 +180,7 @@
 
     logoError = null;
     try {
-      const source = await new Promise<string>((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => resolve(String(reader.result));
-        reader.onerror = () => reject(new Error('Could not read that file.'));
-        reader.readAsDataURL(file);
-      });
+      const source = await readArtworkFile(file);
       workshop.editThreat((t) => {
         t.logo.source = source;
         t.logo.label = file.name;

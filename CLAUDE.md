@@ -36,6 +36,20 @@ every user asset (artwork, models, replacement images) is embedded as a data URL
 so a set survives being handed to someone else as one file. Static chrome is
 served from `public/assets` as stable URLs, never bundler-imported.
 
+`localStorage` is small — commonly around 5MB, **per origin**, shared across
+every set in the library rather than metered per set — and a data URL costs
+its picture's raw bytes plus another third on top for the base64 encoding. An
+unedited camera photo routinely arrives at 3-10MB, so importing one used to be
+enough on its own to leave nothing for the rest of the document, reported only
+once autosave next ran, as a bare "storage is full" with no hint that a single
+picture was the whole cause. `core/image-import.ts`'s `readArtworkFile` is what
+every "choose an image" control in the app reads a file through now — it
+decodes, and if the picture is larger than it will ever need to be printed
+(`ARTWORK_MAX_DIMENSION`, well above every card face's own bleed size),
+downscales and re-encodes it before it ever reaches the document. A picture
+already small enough is returned exactly as read; nothing here is lossy for a
+file that did not need touching.
+
 The one exception is `exports/`, and it earns itself. The `exports-folder`
 plugin in `vite.config.ts` answers `/__workshop/export`: `GET` says where the
 folder is, `POST` writes one file into it, and `DELETE` prunes a bundle folder
