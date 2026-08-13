@@ -827,6 +827,37 @@ been three artwork slots.
   "revision 4" and "revision 6" on the shelf instead of showing the same name
   twice with nothing to tell them apart.
 
+### 13 August · A name an author actually chose
+
+Prompted by noticing that signing in with Google was putting a real name in
+front of the public, with no screen having ever asked first.
+
+- **`handle_new_user` only ever seeds `profiles.display_name` once, at
+  signup** — from Google's `full_name` when that is the provider — and nothing
+  server-side re-syncs it afterwards. So the fix was never a database change,
+  it was that nothing in the app let an author overwrite what the trigger
+  wrote. `cloud/profile.ts` adds `fetchOwnProfile`/`updateOwnDisplayName`,
+  both on the same authenticated footing `setVisibility`/`unpublishSet`
+  already stand on — `auth.ensureFresh()` first, "my own row" rather than a
+  public read, because a stale token here is exactly what that call is for.
+- **A persistent account menu**, `AccountMenu.svelte`, in the title bar rather
+  than folded into `SignInPanel`. The name someone wants to fix might belong
+  to a session from weeks ago, and burying the fix inside the publish flow
+  would mean finding it only at the moment of publishing something — too late
+  for whatever they already put out. Renders nothing signed out; there is no
+  new sign-in entry point here, only a way to manage an identity that already
+  exists. Blank is offered as a real choice, not treated as an empty state —
+  `GalleryScreen`/`ContributionsScreen` already read a blank `display_name` as
+  "Anonymous," which is the more private of the two options.
+- Verified against the real project rather than a mock: a forged session with
+  a syntactically valid but unsigned JWT reached Supabase and came back a
+  proper 401, surfaced through the same "Your sign-in has expired" wording
+  every other authenticated action in the app already uses — proving the
+  request shape and the error path without needing a real Google account to
+  do it. Save's disabled state, the outside-click/Escape close (copied from
+  the export menu's own), and sign-out clearing the menu from the bar were all
+  checked the same way.
+
 ---
 
 ## Still open

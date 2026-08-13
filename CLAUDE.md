@@ -544,6 +544,20 @@ see a column's old value, so "update your row but not that field" is not
 expressible as a `with check`. Grants are checked first, so there is no route
 through PostgREST to self-promote.
 
+**`profiles.display_name` defaults to a real name, and that default is a
+privacy problem an author can walk into without choosing it.** `handle_new_user`
+seeds it from whatever the OAuth provider hands back at first sign-in — Google's
+`full_name` — so signing in with Google used to mean a real name went out under
+every set published and every contribution offered, with no screen that ever
+asked. The trigger only runs once, at signup; nothing about it re-syncs later,
+so `cloud/profile.ts`'s `updateOwnDisplayName` is not fighting it, only
+overwriting what it wrote. `AccountMenu.svelte` is the one place that calls it
+— a persistent menu in `TitleBar`, not folded into `SignInPanel`, because the
+name someone wants to fix might belong to a session they signed into weeks ago
+and the fix needs to be findable without first trying to publish something.
+Fetching the row is never the boundary (`profiles_public_read using (true)`
+means anyone can already read it); the fix is giving the value a UI at all.
+
 `sets.owner_id` references **`profiles`**, not `auth.users` — PostgREST builds
 embeds from foreign keys, and without one the gallery needed a second query per
 tile to name the author. Nothing is lost by the swap: `profiles.id` cascades to

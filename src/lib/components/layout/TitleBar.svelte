@@ -1,5 +1,6 @@
 <script lang="ts">
   import { cloudEnabled } from '$lib/cloud/config';
+  import AccountMenu from '$lib/components/cloud/AccountMenu.svelte';
   import { EXPORTERS, getExporter, saveExport } from '$lib/export';
   import { navigation } from '$lib/state/navigation.svelte';
   import { setLabel } from '$lib/sets/factory';
@@ -129,6 +130,8 @@
         </div>
       {/if}
     </div>
+
+    <AccountMenu />
   </div>
 </div>
 
