@@ -1,11 +1,19 @@
 <script lang="ts">
   /**
-   * Villain / minion action card.
+   * Villain / minion / hero action card.
    *
    * The printed chrome is the real template art used as alpha masks, so the
    * frame, ribbon, divider and boost disc keep their exact drawn shapes while
    * still taking any colour or gradient. Everything else is positioned from
    * `geometry.ts`, in bleed pixels, converted to percentages.
+   *
+   * A hero's card shares this component rather than getting its own, because
+   * almost everything about it is unchanged: the frame, the artwork, the
+   * divider, the boost disc, the title and its rule, and — the moment a card
+   * has no attack/defense values to separate it from, which a hero card never
+   * does — the ability text's own left-aligned layout. What differs is
+   * confined to two places, both branched on `isHero`: the ribbon, and the
+   * line above the copies count.
    */
   import type { CardTheme } from '$lib/cards/style';
   import { fillCss } from '$lib/cards/style';
@@ -13,7 +21,7 @@
   import { abilityIsEmpty } from '$lib/cards/types';
   import type { Character } from '$lib/characters/types';
   import AbilityText from './AbilityText.svelte';
-  import { CARD_SYMBOL_SIZES, CARD_SYMBOLS, patternAspect } from './assets';
+  import { CARD_SYMBOL_COLORS, CARD_SYMBOL_SIZES, CARD_SYMBOLS, patternAspect } from './assets';
   import type { CardSymbolName } from './assets';
   import CardArt from './CardArt.svelte';
   import {
@@ -34,12 +42,21 @@
     digitMiddleToBoxTop,
     digitTopToBoxTop,
     DIVIDER,
+    HERO_ART_WINDOW_HEIGHT,
+    HERO_BODY_PANEL_HEIGHT,
+    HERO_POINT_BELOW,
+    HERO_RIBBON,
+    HERO_RIBBON_OWNER,
+    HERO_RIBBON_OWNER_LEFT,
+    HERO_RIBBON_SYMBOL,
+    HERO_RIBBON_VALUE,
     inPanel,
     INTERIOR,
     INTERIOR_RADIUS,
     NAME,
     NAME_METRICS,
     NAME_TOP,
+    OWNER_LINE,
     px,
     pu,
     py,
@@ -71,11 +88,56 @@
     top: number;
   }
 
-  const ribbonName = $derived(card.name.trim() || character?.name.trim() || 'Villain Name');
+  const isHero = $derived(character?.role === 'hero');
+
+  /**
+   * The character's name as the *ribbon* prints it.
+   *
+   * `subtitle` is a shortened form — "Geralt" against "Geralt of Rivia" — and
+   * the ribbon is where the difference matters, because it is the one place a
+   * name is set at display size in a column two centimetres wide. Blank is the
+   * ordinary case, and then there is only the one name.
+   */
+  const shortName = $derived(character?.subtitle.trim() || character?.name.trim() || '');
+
+  const ribbonName = $derived(card.name.trim() || shortName || 'Villain Name');
   const title = $derived(card.title.trim() || 'Card Title');
 
-  /** Attack then defense, skipping whichever the card does not print. */
+  /**
+   * Who may play this card, on a hero's shared deck: the hero's own name, the
+   * sidekick's, or the literal word "ANY". Follows the same empty-name
+   * fallback as `ribbonName`, because it is the same situation — a card newly
+   * dropped into the deck, before anyone has named it.
+   *
+   * Twice, because the two places it prints want different lengths: the
+   * ribbon takes the short name, and the line above the copies count — which
+   * has a whole card's width to run in — takes the full one.
+   */
+  const ownerLabel = $derived.by(() => {
+    if (card.owner === 'sidekick') return character?.sidekick.name.trim() || 'Sidekick';
+    if (card.owner === 'any') return 'ANY';
+    return card.name.trim() || shortName || 'Hero Name';
+  });
+
+  /**
+   * The line above the copies count is always the *hero's* full name, whoever
+   * may play the card. It says which figure's deck this card belongs to —
+   * which is the hero's either way, sidekick cards included — where the ribbon
+   * says who plays it.
+   */
+  const ownerFullLabel = $derived(character?.name.trim() || 'Hero Name');
+
+  /**
+   * Attack then defense, skipping whichever the card does not print.
+   *
+   * Always empty for a hero card. Not because `card.attack`/`card.defense`
+   * are cleared — a card keeps whatever it last held if its owner's role
+   * changes, the way every other field here survives a re-assignment — but
+   * because a hero's combat value lives in the ribbon instead, in `symbol` and
+   * `symbolValue`, and showing both would print the same value twice.
+   */
   const values = $derived.by((): ValueRow[] => {
+    if (isHero) return [];
     const present: { key: CardSymbolName; value: number }[] = [];
     if (card.attack !== null) present.push({ key: 'attack', value: card.attack });
     if (card.defense !== null) present.push({ key: 'defense', value: card.defense });
@@ -119,6 +181,19 @@
 
   /** Attack half first, then defense — the printed order. */
   const SPLIT_SIDES = [{ key: 'attack' as const }, { key: 'defense' as const }];
+
+  const heroSymbol = $derived(card.symbol ?? 'attack');
+
+  /**
+   * A scheme card prints no number.
+   *
+   * Attack, defense and versatile all name a value the card is played *for*;
+   * scheme names a card played for none, which is exactly why the symbol is
+   * drawn tall enough to fill the head on its own. Gated on the symbol rather
+   * than on the field being empty, so switching a card to scheme and back
+   * returns the value it had.
+   */
+  const showSymbolValue = $derived(heroSymbol !== 'scheme' && card.symbolValue !== null);
 </script>
 
 <!--
@@ -150,7 +225,7 @@
   style:height={py(INTERIOR.height)}
   style:border-radius={pu(INTERIOR_RADIUS)}
 >
-  <div class="art" style:height={pu(ART_WINDOW.height)}>
+  <div class="art" style:height={pu(isHero ? HERO_ART_WINDOW_HEIGHT : ART_WINDOW.height)}>
     <CardArt artwork={card.artwork} background={fillCss(theme.artBackground)} />
   </div>
 
@@ -204,7 +279,7 @@
 
   <div
     class="body"
-    style:min-height={pu(BODY_PANEL.height)}
+    style:min-height={pu(isHero ? HERO_BODY_PANEL_HEIGHT : BODY_PANEL.height)}
     style:max-height={pu(BODY_PANEL_MAX_HEIGHT)}
     style:background={fillCss(theme.body)}
   >
@@ -327,62 +402,186 @@
   </div>
 </div>
 
-<!--
-  Name ribbon. A column: the clearance below the frame, the name, the clearance
-  above the shoulder, then the pennant head — so the ribbon's length *is* its
-  contents, and the name sets it without anything being measured.
-
-  Fill and outline are each one element spanning the whole ribbon, so a
-  gradient is painted once down its full length rather than restarting at the
-  point. Each is cut to shape by two mask layers: a plain rectangle for the
-  straight run — which can therefore be any length without distorting — and the
-  art itself for the pennant head, sampled at its natural size.
--->
-<div class="banner" style:left={px(BANNER.x)} style:width={px(BANNER.width)}>
-  <div
-    class="banner-ink banner-face"
-    style:left={pu(BANNER_HEAD.x - BANNER.x)}
-    style:width={pu(BANNER_HEAD.width)}
-    style:--run-size="{pu(BANNER.width)} calc(100% - {pu(BANNER_HEAD.height)})"
-    style:--run-position="left {pu(BANNER.x - BANNER_HEAD.x)} top 0"
-    style:--head-size="{pu(BLEED.width)} {pu(BLEED.height)}"
-    style:--head-position="left {pu(-BANNER_HEAD.x)} bottom {pu(-BANNER_HEAD_BELOW)}"
-    style:background={fillCss(theme.banner)}
-  ></div>
-  <div
-    class="banner-ink banner-outline"
-    style:left={pu(BANNER_HEAD.x - BANNER.x)}
-    style:width={pu(BANNER_HEAD.width)}
-    style:--run-size="{pu(BANNER.edge.width)} calc(100% - {pu(BANNER_HEAD.height)})"
-    style:--run-position="left {pu(BANNER.edge.x - BANNER_HEAD.x)} top 0"
-    style:--head-size="{pu(BLEED.width)} {pu(BLEED.height)}"
-    style:--head-position="left {pu(-BANNER_HEAD.x)} bottom {pu(-BANNER_HEAD_BELOW)}"
-    style:background={theme.divider}
-  ></div>
-
-  <div class="banner-lead" style:height={pu(NAME_TOP)}></div>
-
+{#if isHero}
   <!--
-    Set vertically rather than rotated, so the name's length is its box's
-    height and the column above can lay itself out around it. The half turn
-    puts the reading direction bottom-up, which also puts the last character —
-    and the ellipsis, when the name is too long — at the top, against the
-    clearance the frame is measured from.
+    A hero's combat ribbon.
+
+    Same column as the name ribbon below, and for the same reason: the ribbon's
+    length *is* its contents, so the name sets it without anything being
+    measured. What is stacked in it is a fixed lead for the head, the name, the
+    clearance above the shoulder, and the pennant point.
+
+    The three painted layers are not in that column — each spans the whole
+    ribbon and is cut to shape by a mask, so none of them has to know how long
+    it is. Their order is the whole of the ribbon's construction:
+
+      fill     the run and its point, in the banner colour
+      head     the combat block over the top of it, in the symbol's colour —
+               which is what keeps it still while the name grows underneath,
+               and what makes the seam between the two colours the head's own
+               printed chevron rather than a line ruled across a box
+      outline  over both, because the head is the ribbon's full width and an
+               outline under it is one the head paints out
   -->
   <div
-    class="name"
-    style:font-size={pu(NAME.size)}
-    style:max-height={pu(NAME.maxLength)}
-    style:color={theme.bannerInk}
+    class="banner"
+    style:left={px(HERO_RIBBON.x)}
+    style:width={px(HERO_RIBBON.width)}
+    style:top={py(HERO_RIBBON.top)}
   >
-    {ribbonName}
+    <div
+      class="banner-ink hero-face"
+      style:left="0"
+      style:width="100%"
+      style:--run-size="calc(100% - {pu(HERO_RIBBON.edgeWidth)}) calc(100% - {pu(HERO_RIBBON.pointHeight)})"
+      style:--run-position="left 0 top 0"
+      style:--head-size="{pu(BLEED.width)} {pu(BLEED.height)}"
+      style:--head-position="left {pu(-HERO_RIBBON.x)} bottom {pu(-HERO_POINT_BELOW)}"
+      style:background={fillCss(theme.banner)}
+    ></div>
+    <div
+      class="hero-head"
+      style:--head-size="{pu(BLEED.width)} {pu(BLEED.height)}"
+      style:--head-position="left {pu(-HERO_RIBBON.x)} top {pu(-HERO_RIBBON.top)}"
+      style:background={CARD_SYMBOL_COLORS[heroSymbol]}
+    ></div>
+    <!--
+      The stroke: down the right edge, and round the foot. Nowhere else — the
+      printed ribbon has none on its left, where it meets the frame, and none
+      across its top.
+
+      It does not lie *over* the fill; the two are cut from one silhouette and
+      tile. That is why the fill's own run stops `edgeWidth` short of the right
+      edge above: laying a stroke over a full-width fill can only eat back into
+      it, which is what made the point come out solid stroke-colour and the
+      corners look bitten.
+    -->
+    <div
+      class="hero-outline"
+      style:left="0"
+      style:width="100%"
+      style:--edge-run="calc(100% - {pu(HERO_RIBBON.pointHeight)})"
+      style:--edge-width={pu(HERO_RIBBON.edgeWidth)}
+      style:--point-size="{pu(BLEED.width)} {pu(BLEED.height)}"
+      style:--point-position="left {pu(-HERO_RIBBON.x)} bottom {pu(-HERO_POINT_BELOW)}"
+      style:background={theme.divider}
+    ></div>
+
+    <div class="banner-lead" style:height={pu(HERO_RIBBON_OWNER.top - HERO_RIBBON.top)}></div>
+
+    <!--
+      Who may play the card. Vertical for the same reason the name it replaces
+      is, and positioned across the ribbon rather than centred in it — see
+      `HERO_RIBBON_OWNER_LEFT`, and note that `align-items: center` on the
+      column would centre this on the run at 268.5 rather than on the point
+      at 262.
+    -->
+    <div
+      class="hero-owner-text"
+      style:align-self="flex-start"
+      style:margin-left={pu(HERO_RIBBON_OWNER_LEFT - HERO_RIBBON.x)}
+      style:font-size={pu(HERO_RIBBON_OWNER.size)}
+      style:line-height={HERO_RIBBON_OWNER.lineHeight}
+      style:max-height={pu(HERO_RIBBON_OWNER.maxLength)}
+      style:color={theme.bannerInk}
+    >
+      {ownerLabel}
+    </div>
+
+    <div class="banner-tail" style:height={pu(HERO_RIBBON_OWNER.pointGap)}></div>
+
+    <!-- The point is painted by the ink layers; here it only reserves its run. -->
+    <div class="banner-head" style:height={pu(HERO_RIBBON.pointHeight)}></div>
   </div>
 
-  <div class="banner-tail" style:height={pu(NAME.headGap)}></div>
+  <!--
+    Icon and value, in the coloured head. The icon is forced white by filter
+    rather than swapped for a white asset: `CARD_SYMBOLS` already exists in the
+    villain/minion colours this same file draws elsewhere, and
+    `brightness(0) invert(1)` turns any opaque pixel white while leaving
+    transparency alone — the identical trick printer-friendly mode already uses
+    on these same four files, for the same reason.
+  -->
+  {@const size = CARD_SYMBOL_SIZES[heroSymbol]}
+  <img
+    class="hero-symbol"
+    src={CARD_SYMBOLS[heroSymbol]}
+    alt={heroSymbol}
+    style:left={pu(HERO_RIBBON_SYMBOL.centerX - size.width / 2)}
+    style:top={pu(HERO_RIBBON_SYMBOL.top)}
+    style:width={pu(size.width)}
+  />
 
-  <!-- The head is painted by the ink layers; here it only reserves its run. -->
-  <div class="banner-head" style:height={pu(BANNER_HEAD.height)}></div>
-</div>
+  {#if showSymbolValue}
+    <span
+      class="hero-symbol-value"
+      style:left={pu(HERO_RIBBON.centerX)}
+      style:top={pu(digitTopToBoxTop(HERO_RIBBON_VALUE.top, HERO_RIBBON_VALUE.size))}
+      style:font-size={pu(HERO_RIBBON_VALUE.size)}
+      style:color={theme.bannerInk}
+    >
+      {card.symbolValue}
+    </span>
+  {/if}
+{:else}
+  <!--
+    Name ribbon. A column: the clearance below the frame, the name, the
+    clearance above the shoulder, then the pennant head — so the ribbon's
+    length *is* its contents, and the name sets it without anything being
+    measured.
+
+    Fill and outline are each one element spanning the whole ribbon, so a
+    gradient is painted once down its full length rather than restarting at the
+    point. Each is cut to shape by two mask layers: a plain rectangle for the
+    straight run — which can therefore be any length without distorting — and
+    the art itself for the pennant head, sampled at its natural size.
+  -->
+  <div class="banner" style:left={px(BANNER.x)} style:width={px(BANNER.width)}>
+    <div
+      class="banner-ink banner-face"
+      style:left={pu(BANNER_HEAD.x - BANNER.x)}
+      style:width={pu(BANNER_HEAD.width)}
+      style:--run-size="{pu(BANNER.width)} calc(100% - {pu(BANNER_HEAD.height)})"
+      style:--run-position="left {pu(BANNER.x - BANNER_HEAD.x)} top 0"
+      style:--head-size="{pu(BLEED.width)} {pu(BLEED.height)}"
+      style:--head-position="left {pu(-BANNER_HEAD.x)} bottom {pu(-BANNER_HEAD_BELOW)}"
+      style:background={fillCss(theme.banner)}
+    ></div>
+    <div
+      class="banner-ink banner-outline"
+      style:left={pu(BANNER_HEAD.x - BANNER.x)}
+      style:width={pu(BANNER_HEAD.width)}
+      style:--run-size="{pu(BANNER.edge.width)} calc(100% - {pu(BANNER_HEAD.height)})"
+      style:--run-position="left {pu(BANNER.edge.x - BANNER_HEAD.x)} top 0"
+      style:--head-size="{pu(BLEED.width)} {pu(BLEED.height)}"
+      style:--head-position="left {pu(-BANNER_HEAD.x)} bottom {pu(-BANNER_HEAD_BELOW)}"
+      style:background={theme.divider}
+    ></div>
+
+    <div class="banner-lead" style:height={pu(NAME_TOP)}></div>
+
+    <!--
+      Set vertically rather than rotated, so the name's length is its box's
+      height and the column above can lay itself out around it. The half turn
+      puts the reading direction bottom-up, which also puts the last character —
+      and the ellipsis, when the name is too long — at the top, against the
+      clearance the frame is measured from.
+    -->
+    <div
+      class="name"
+      style:font-size={pu(NAME.size)}
+      style:max-height={pu(NAME.maxLength)}
+      style:color={theme.bannerInk}
+    >
+      {ribbonName}
+    </div>
+
+    <div class="banner-tail" style:height={pu(NAME.headGap)}></div>
+
+    <!-- The head is painted by the ink layers; here it only reserves its run. -->
+    <div class="banner-head" style:height={pu(BANNER_HEAD.height)}></div>
+  </div>
+{/if}
 
 <!--
   Split card: two stacked halves with a floating separator. The lower half is
@@ -496,17 +695,40 @@
   </div>
 {/snippet}
 
-<!-- Outer frame: it covers everything outside the card window. -->
-<div class="mask outer-border" style:background={fillCss(theme.frame)}></div>
+<!--
+  Outer frame: it covers everything outside the card window.
+
+  A hero's is its own file, not a reuse of the villain's. The supplied art
+  differs in one visible way — its bottom right corner takes the same radius as
+  the other three, where the villain frame sweeps out to clear the copies count
+  — and in one invisible one: its window sits four pixels further in, which is
+  why the interior behind it is drawn to `INTERIOR` either way and simply
+  covered a little more.
+-->
+<div
+  class="mask outer-border"
+  class:hero-border={isHero}
+  style:background={fillCss(theme.frame)}
+></div>
 
 <!-- The copies count prints over the border, so it is drawn after it. -->
 <div
   class="quantity"
-  style:right={px(BLEED.width - QUANTITY.right)}
-  style:top={py(capTopToBoxTop(QUANTITY.capTop, QUANTITY.size))}
+  style:right={px(BLEED.width - (isHero ? OWNER_LINE.right : QUANTITY.right))}
+  style:top={py(capTopToBoxTop(isHero ? OWNER_LINE.capTop : QUANTITY.capTop, QUANTITY.size))}
   style:font-size={pu(QUANTITY.size)}
   style:color={theme.bodyInk}
 >
+  <!--
+    Who owns the card, ahead of the count — the one thing here that is new for
+    a hero card. `right` alone anchors this element, with no `left` or `width`
+    set, so prepending copy grows the box leftward and the count stays put
+    exactly where it already was.
+  -->
+  {#if isHero}
+    <span class="quantity-owner">{ownerFullLabel}</span>
+    <span class="quantity-rule" style:width={pu(OWNER_LINE.ruleWidth)}></span>
+  {/if}
   <!--
     A lowercase letter x, not the multiplication sign: the printed mark is a
     full x-height "x" sitting on the baseline beside the figure, where "×" sets
@@ -613,6 +835,72 @@
     -webkit-mask-image: url('/assets/templates/outer_border.png');
   }
 
+  .outer-border.hero-border {
+    mask-image: url('/assets/templates/hero_action_frame.png');
+    -webkit-mask-image: url('/assets/templates/hero_action_frame.png');
+  }
+
+  /* -- hero combat ribbon ----------------------------------------------- */
+  /*
+   * The combat head. It spans the whole ribbon and is cut to shape by the art
+   * at its natural size, anchored to the ribbon's *top* — which is fixed —
+   * rather than to its bottom, which is wherever the name has pushed it. That
+   * is what leaves the head still while the ribbon lengthens under it.
+   */
+  .hero-head {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    mask-image: url('/assets/templates/hero_combat_banner.png');
+    -webkit-mask-image: url('/assets/templates/hero_combat_banner.png');
+    mask-size: var(--head-size);
+    -webkit-mask-size: var(--head-size);
+    mask-position: var(--head-position);
+    -webkit-mask-position: var(--head-position);
+    mask-repeat: no-repeat;
+    -webkit-mask-repeat: no-repeat;
+  }
+
+  /*
+   * The ribbon's fill and its outline, cut the same way `.banner-face` and
+   * `.banner-outline` are: a plain rectangle for the run, so it stretches
+   * without distorting, plus the pennant point's own art at natural size,
+   * anchored to whatever bottom the name has pushed it to.
+   */
+  .hero-face {
+    mask-image: linear-gradient(#000, #000), url('/assets/templates/hero_ribbon_point.png');
+    -webkit-mask-image: linear-gradient(#000, #000),
+      url('/assets/templates/hero_ribbon_point.png');
+  }
+
+  /*
+   * One bar down the run's right edge, plus the foot's own art. Nothing on the
+   * left or the top, because the printed ribbon has nothing there.
+   *
+   * Deliberately *not* a `.banner-ink`: that class describes a fill, in two
+   * mask layers sized from `--run-size`/`--head-size`, and wearing both meant
+   * its `mask-size` won the cascade and then computed to `auto` because those
+   * two custom properties are not set here — which painted the whole ribbon
+   * box in the stroke's colour.
+   */
+  .hero-outline {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    pointer-events: none;
+    mask-repeat: no-repeat;
+    -webkit-mask-repeat: no-repeat;
+    mask-composite: add;
+    mask-image: linear-gradient(#000, #000),
+      url('/assets/templates/hero_ribbon_point_edge.png');
+    -webkit-mask-image: linear-gradient(#000, #000),
+      url('/assets/templates/hero_ribbon_point_edge.png');
+    mask-size: var(--edge-width) var(--edge-run), var(--point-size);
+    -webkit-mask-size: var(--edge-width) var(--edge-run), var(--point-size);
+    mask-position: right 0 top 0, var(--point-position);
+    -webkit-mask-position: right 0 top 0, var(--point-position);
+  }
+
   /*
    * The ring, lifted out of the divider art at its natural size so it keeps
    * its drawn shape wherever the divider has ended up.
@@ -715,6 +1003,35 @@
     font-family: var(--card-font-name);
     font-weight: var(--card-font-name-weight);
     line-height: 0.88;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  /* -- hero ribbon content ----------------------------------------------- */
+  .hero-symbol {
+    position: absolute;
+    height: auto;
+    /* Recoloured white regardless of the file's own ink — see the markup. */
+    filter: brightness(0) invert(1);
+  }
+
+  .hero-symbol-value {
+    position: absolute;
+    translate: -50% 0;
+    font-family: var(--card-font-numeral);
+    font-weight: var(--card-font-numeral-weight);
+    line-height: 1;
+  }
+
+  .hero-owner-text {
+    position: relative;
+    flex: none;
+    writing-mode: vertical-rl;
+    rotate: 180deg;
+    font-family: var(--card-font-name);
+    font-weight: var(--card-font-name-weight);
+    text-transform: uppercase;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -875,9 +1192,23 @@
 
   .quantity {
     position: absolute;
+    display: flex;
+    align-items: center;
+    gap: 0.3em;
     font-family: var(--card-font-text);
     font-weight: var(--card-font-text-weight);
     line-height: 1;
     opacity: 0.9;
+  }
+
+  .quantity-owner {
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+
+  .quantity-rule {
+    align-self: stretch;
+    background: currentColor;
+    opacity: 0.6;
   }
 </style>

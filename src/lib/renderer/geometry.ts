@@ -367,7 +367,7 @@ const ARTWORK_CAP = 0.666;
 const inFace = (artworkSize: number): number => (artworkSize * ARTWORK_CAP) / FONT_METRICS.cap;
 
 /** As `inFace`, for the two roles set in the name face. See `NAME_METRICS`. */
-const inName = (artworkSize: number): number => (artworkSize * ARTWORK_CAP) / NAME_METRICS.cap;
+export const inName = (artworkSize: number): number => (artworkSize * ARTWORK_CAP) / NAME_METRICS.cap;
 
 /**
  * An artwork line height, converted for a size that has been through `inFace`.
@@ -615,6 +615,189 @@ export const NAME = {
 export const NAME_TOP = INTERIOR.y + NAME.borderGap;
 
 /**
+ * A hero card's own name line before the copies count — "Hero Name | x2"
+ * rather than a bare "x2" — because the vertical ribbon that would otherwise
+ * carry the name is busy with the combat symbol. Reuses `QUANTITY`'s size;
+ * only the rule and the corner it sets in are new.
+ *
+ * It sits further in than the villain card's bare count, and that is the
+ * frame's doing rather than the line's: the villain frame sweeps its bottom
+ * right corner out to clear the count, and the hero frame takes the same
+ * radius there as the other three. Measured off the ink in
+ * `Hero_Action_Card_Template.png`, which ends at 1434 and stands 1991 rather
+ * than the 1488 and 2045 the villain card's own template gives.
+ */
+export const OWNER_LINE = {
+  ruleGap: 16,
+  ruleWidth: 3,
+  textGap: 16,
+  right: 1440,
+  /**
+   * Twenty-one below the template's own 1991, which puts the line's descenders
+   * about a dozen pixels clear of the frame's inner edge at 2076. The printed
+   * line is set in Knockout, whose descenders sit higher than the stand-in's,
+   * so matching the measured cap line left the copy floating in the panel
+   * rather than sitting against its foot.
+   */
+  capTop: 2012
+} as const;
+
+/**
+ * A hero's combat ribbon: one symbol and one value in a coloured head, who may
+ * play the card in a navy tail, replacing the villain/minion ribbon's vertical
+ * name.
+ *
+ * It is built the same way — a straight run the renderer draws as a plain
+ * rectangle, so it can be any length, plus a pennant point placed at its
+ * natural size and anchored to the run's foot — but from its own art:
+ * `hero_combat_banner.png`, `hero_ribbon_point.png` and
+ * `hero_ribbon_point_edge.png`, all lifted out of the supplied
+ * `hero_action_card_border.png` by `tools/hero-card-assets.py`. The villain's
+ * own files could not stand in: that ribbon is 230 wide against this one's
+ * 243, and its head flares 12px left of the run where this one tapers
+ * straight from the run's edges.
+ *
+ * What is genuinely different is the **head**. It is a fixed block at the top
+ * of the ribbon carrying the combat symbol and its value, drawn over the run
+ * in the symbol's own colour, and it does not move when the name below it
+ * grows — so the seam between the two colours is the head's printed
+ * **chevron** rather than a straight line, and the ribbon still lengthens with
+ * its name exactly as every other action card's does.
+ *
+ * Every number below is read back off those derived masks, which are resampled
+ * onto the action card's own 1632 × 2222 bleed — the supplied art is four rows
+ * short of it — so they are bleed pixels like everything else here.
+ */
+export const HERO_RIBBON = {
+  x: 147,
+  /**
+   * Body *and* stroke: 147..379 of colour, then the stroke's own 380..398.
+   * Read off `hero_frame_plus_ribbon_stroke.png`, the supplied drawing of the
+   * frame and the stroke together, which agrees with the printed template's
+   * 148..380 of tail against cream at 381..401.
+   */
+  width: 252,
+  /**
+   * The ribbon's axis, and what the type sets on.
+   *
+   * *Not* the run's centre, which is 268.5. The pennant is drawn a little
+   * asymmetrical and comes to its point at 262 — exactly where the supplied
+   * `ribbon_guides.png` puts the guide the symbol, the value and the name are
+   * all aligned to. Centring on the run instead walks all three 6px off the
+   * point they sit above.
+   */
+  centerX: 262,
+  /**
+   * Flush with the frame's inner edge, so the ribbon reaches the border. It
+   * used to hang from `NAME_TOP` — the clearance the villain ribbon's *name*
+   * needs below the frame — which left it floating short of it.
+   */
+  top: 147,
+  /** Where the head's chevron begins, and the run first shows either side. */
+  headTaper: 477,
+  /** The head's own point. Below here the ribbon is the name's to set. */
+  headPoint: 549,
+  /** The foot's own run, drawn 1:1 so its ∨ keeps its angle. */
+  pointHeight: 87,
+  /**
+   * The stroke's weight, down the right edge and round the foot — never the
+   * left or the top. It sits *outside* the colour rather than eaten out of it,
+   * which is why the fill's own run mask stops this far short of the ribbon's
+   * right edge.
+   */
+  edgeWidth: 19
+} as const;
+
+/**
+ * How much card sits below the pennant point's last row.
+ *
+ * The point is masked with the whole card image anchored to the ribbon's
+ * bottom rather than its top — the top is fixed, the bottom is wherever the
+ * name has pushed it — so this is the offset that lands the art's own point on
+ * the ribbon's however long it has grown. Exactly `BANNER_HEAD_BELOW`'s job.
+ */
+export const HERO_POINT_BELOW = BLEED.height - 935;
+
+/**
+ * The combat symbol, drawn white in the coloured head.
+ *
+ * `top` is the ink's, and each symbol file is already its own printed size —
+ * see `CARD_SYMBOL_SIZES` — so a tall `scheme` simply reaches further down the
+ * head, which is where the value it prints instead of would have gone.
+ */
+export const HERO_RIBBON_SYMBOL = { top: 187, centerX: HERO_RIBBON.centerX } as const;
+
+/**
+ * The combat value, under the symbol.
+ *
+ * The template's "3" stands 125px, and Knockout's lining figures are a shade
+ * taller than its caps, so the artwork set it at 183.
+ */
+export const HERO_RIBBON_VALUE = { top: 370, size: inFace(183.3) } as const;
+
+/**
+ * Who-may-play text in the ribbon below the head: "ANY", or a short name. Set
+ * vertically like the ribbon's own name is on every other action card, so the
+ * same face and the same bottom-up reading direction carry over — see `.name`
+ * in `ActionCardFace`.
+ *
+ * `top` is the guide the supplied `ribbon_guides.png` gives, and the ribbon
+ * grows downward from it: the name is anchored at the head, which does not
+ * move, and the point follows the name.
+ */
+export const HERO_RIBBON_OWNER = {
+  top: 598,
+  /** The template's letters stand 91px, which the name face sets at 136.5. */
+  size: inName(136.5),
+  lineHeight: 0.88,
+  /** Clear space between the start of the name and the pennant's shoulder. */
+  pointGap: 33,
+  /**
+   * Longest run of type the ribbon will set before it ellipsises. Chosen to
+   * bring the point down no further than the hero card's own divider.
+   */
+  maxLength: 560
+} as const;
+
+/**
+ * Where the name's box starts, measured across the ribbon.
+ *
+ * The type is set on its side, so this is the axis its *cap height* runs
+ * along — and a line box is not centred on its caps. At `lineHeight` 0.88
+ * against a face whose ascent and descent come to 1.30 the two sit 6.7px
+ * apart, which is exactly the gap between what centring the box gives and the
+ * template's 217. `capTopToBoxTop` solves that on the other axis and does not
+ * care which axis it is asked about.
+ */
+export const HERO_RIBBON_OWNER_LEFT = capTopToBoxTop(
+  HERO_RIBBON.centerX - (NAME_METRICS.cap * HERO_RIBBON_OWNER.size) / 2,
+  HERO_RIBBON_OWNER.size,
+  HERO_RIBBON_OWNER.lineHeight,
+  NAME_METRICS
+);
+
+/**
+ * A hero card's divider sits lower than a villain's — 1380 against 1204 — so
+ * its body panel starts shallower and its art window keeps more of the card.
+ * The panel is bottom-anchored either way, so this is only where it *starts*:
+ * a card with more copy than fits still carries the divider up.
+ */
+export const HERO_DIVIDER_Y = 1380;
+
+export const HERO_BODY_PANEL_HEIGHT =
+  INTERIOR.y + INTERIOR.height - (HERO_DIVIDER_Y + DIVIDER.height);
+
+/**
+ * And the art window reaches down to meet it.
+ *
+ * Not optional: the window is a fixed height rather than "whatever is left",
+ * so a panel that starts lower without this leaves a band of the bed's own
+ * fill between the two — 176px of it, which reads as a printing fault rather
+ * than as a design.
+ */
+export const HERO_ART_WINDOW_HEIGHT = HERO_DIVIDER_Y - INTERIOR.y;
+
+/**
  * Split cards divide the body panel into an attack half and a defense half,
  * each with its own ability stack.
  *
@@ -679,6 +862,229 @@ export const SPLIT_SEPARATOR_BAR = SPLIT_SEPARATOR.file.height - SPLIT_SEPARATOR
 
 /** How far the separator's ink runs past the interior window, each side. */
 export const SPLIT_SEPARATOR_OVERHANG = (SPLIT_SEPARATOR.inkWidth - INTERIOR.width) / 2;
+
+// -- Character card -------------------------------------------------------
+
+/**
+ * A hero's stat-reference card: attack type, health, move and special
+ * ability the character already carries, plus a sidekick or a flavour quote.
+ * Measured off the three `Hero_Character_Card_Template_*.png` files, which
+ * agree on every band but the last.
+ *
+ * The chrome is the supplied `…_frame.png` art laid over the top, not masks
+ * and not a redrawing of it. That art is *already* in the colours it prints —
+ * pink border and band separators, the tab labels white on the navy bands and
+ * black on the gold one, the health badge, the move arrow and the word MOVE —
+ * and the character card is the one face here that does not go through the
+ * style cascade, so there is nothing for a mask's recolourability to buy. What
+ * the renderer supplies is the band fills beneath it and the copy in its
+ * holes.
+ *
+ * It shares the action card's `BLEED` coordinate system: the same 63×88mm
+ * card, at the same bleed pixel size. The templates are the four rows shorter
+ * that all the supplied hero art is, and are laid over the plate at 100%, so
+ * everything below is out by up to 0.2% against them — a fifth of a
+ * millimetre at the card's foot, and nothing at all where the copy sits.
+ */
+export const CHARACTER_CARD = {
+  /** The printed rectangle's bounds, cut from the surrounding bleed. */
+  x: 144,
+  y: 140,
+  width: 1487 - 144,
+  radius: INTERIOR_RADIUS,
+  /** The narrow strip on the left of every band, carrying its vertical label. */
+  tabWidth: 85,
+  tabGap: 5,
+  /**
+   * How far a band fill runs past its own edges.
+   *
+   * The frame is a 2218-row picture laid over a 2222-row plate, so every hole
+   * in it sits up to four rows below the y this file measured — which showed
+   * as a hairline of the wrong colour along the foot of the gold band. The
+   * fills overshoot into the separators instead, and the art's own pink paints
+   * over the overshoot, so there is no width at which the seam can open.
+   */
+  fillBleed: 8
+} as const;
+
+/**
+ * The three bands an author dresses, as one run each.
+ *
+ * The hero's name band and its attack row are one block here even though the
+ * frame rules a line between them — see `CHARACTER_BAND_NAMES`. Each runs from
+ * its first band's top to its last band's foot, and `fillBleed` carries the
+ * fill past both.
+ */
+export const CHARACTER_BAND_RUNS = {
+  hero: { top: 140, bottom: 606 },
+  ability: { top: 630, bottom: 1588 },
+  sidekick: { top: 1612, bottom: 2078 }
+} as const;
+
+/** Vertical run of each band, top to bottom. Gaps are the pink between them. */
+export const CHARACTER_BANDS = {
+  hero: { top: 140, height: 271 },
+  heroAttack: { top: 422, height: 184 },
+  ability: { top: 630, height: 958 },
+  sidekick: { top: 1612, height: 272 },
+  sidekickAttack: { top: 1895, height: 183 },
+  /** Where the printed rectangle ends — also the quote panel's foot. */
+  bottom: 2078
+} as const;
+
+/**
+ * An attack-type row's inner columns: the type word and its icon, then the
+ * health badge (or, on the sidekick's row, a token count instead).
+ *
+ * `contentX` and `healthLabelX` are the frame art's own holes, read off its
+ * alpha at rows 300 and 1900.
+ */
+export const CHARACTER_ATTACK_ROW = {
+  contentX: 234,
+  contentRight: 1045,
+  healthLabelX: 1056,
+  healthLabelRight: 1200,
+  badgeX: 1209,
+  badgeRight: 1478
+} as const;
+
+/** The special-ability panel's ability column and its move column. */
+export const CHARACTER_ABILITY_PANEL = {
+  contentX: 234,
+  contentRight: 1250,
+  moveX: 1266,
+  moveRight: 1478
+} as const;
+
+/**
+ * The two band headings, HERO and SIDEKICK. Both sit the same distance below
+ * their band's top — 66 and 67 — so one offset carries both.
+ */
+export const CHARACTER_HEADING = {
+  x: 282,
+  capTop: 66,
+  /** Caps stand 165 in both templates. */
+  size: inName(247.5)
+} as const;
+
+/**
+ * Where an attack-type lockup starts. Its own size is in `ATTACK_TYPE_SIZES`
+ * — the whole thing is one supplied picture, so there is nothing else here to
+ * place.
+ */
+export const CHARACTER_ATTACK = { x: 282 } as const;
+
+/**
+ * Health, inside the badge the frame art draws. Both badges are at the same
+ * x, and the digits are centred in each — measured, not assumed: the badge is
+ * a shield with a point, so its ink centre and its box centre are not the same
+ * thing, and it is the box the printed figure sits in.
+ */
+export const CHARACTER_HEALTH = {
+  centerX: 1342,
+  /**
+   * The badge's ink centroid, not its box centre.
+   *
+   * It is a shield: full width for its top two thirds, then a taper to a
+   * point. Centring the figure in the bounding box puts it eleven pixels low
+   * of where it reads as centred, which is the whole of the difference between
+   * 524 and this.
+   */
+  heroCenterY: 513,
+  sidekickCenterY: 1986,
+  /**
+   * Set at 105 rather than the 146 that would fill the badge to the template's
+   * own ink. The badge is the frame's shape and the number sits *inside* it;
+   * matching the template's figure crowded its edges at every width past one
+   * digit.
+   */
+  size: inFace(106)
+} as const;
+
+/** The special ability: a name, a rule under it, and the copy. */
+export const CHARACTER_ABILITY = {
+  nameX: 272,
+  nameCapTop: 658,
+  /** Caps stand 84. */
+  nameSize: inName(126),
+  ruleX: 276,
+  ruleY: 788,
+  ruleWidth: 1173 - 276 + 1,
+  ruleHeight: 7,
+  textX: 276,
+  textCapTop: 840,
+  /** Caps stand 68. */
+  textSize: inFace(102),
+  /**
+   * The one leading here with no artwork behind it — the template sets a
+   * single line, so there is no second baseline to measure against. Re-derive
+   * it by hand if the copy face ever changes; everything else on this card
+   * follows from `inFace`. Same situation as `INITIATIVE.bodyLineHeight`.
+   */
+  textLineHeight: 1.3,
+  /** Gap between one ability block and the next. */
+  gap: 60
+} as const;
+
+/**
+ * A swarm sidekick's token stack, where a single one has a health badge.
+ *
+ * Three discs at most, however many figures there are: the printed stack is a
+ * picture of "several", and the number on the last one is what says how many.
+ * Measured off `Hero_Character_Card_Template_multisidekick.png`, whose three
+ * discs sit 1213..1473 — centred in the column the health badge occupies.
+ */
+export const CHARACTER_TOKENS = {
+  centerX: 1343,
+  centerY: 1990,
+  diameter: 115,
+  /** Centre to centre. They overlap by more than half a radius. */
+  pitch: 68,
+  ring: 5,
+  max: 3,
+  /** The count, on the last disc. Caps stand 49. */
+  size: inFace(72)
+} as const;
+
+/**
+ * The move figure, above the word MOVE the frame art draws.
+ *
+ * Set enormous — 373px of digit, more than twice the card title's — and
+ * *heavily* condensed with it: the printed "2" is 106px across at that
+ * height, where the numeral face draws a figure 188 wide. That squeeze is the
+ * artwork's own distortion rather than anything the substitution introduced,
+ * the same case as the initiative card's MOVE badge — the template is drawn
+ * to fill the tall narrow slot the frame leaves beside the word MOVE — so it
+ * is carried here as a factor instead of being dialled out of the size, which
+ * would take the height with it.
+ */
+export const CHARACTER_MOVE = {
+  centerX: (1322 + 1427) / 2,
+  digitTop: 673,
+  size: inFace(547),
+  condense: 0.56
+} as const;
+
+/**
+ * The quote panel, which stands in for the sidekick bands when there is no
+ * sidekick. Measured off `Hero_Character_Card_Template_quote.png`.
+ */
+export const CHARACTER_QUOTE = {
+  markY: 1661,
+  markLeftX: 167,
+  markRightX: 1464,
+  /** Ascender to descender, the only thing a display quote mark offers. */
+  markHeight: 94,
+  textCapTop: 1790,
+  textSize: inFace(92),
+  textLineHeight: 1.3,
+  /** Measure the copy is centred in, inset from the card either side. */
+  textX: 330,
+  textWidth: 1487 - 330 - 186,
+  attributionCapTop: 1949,
+  attributionRight: 1399,
+  attributionSize: inFace(56)
+} as const;
 
 // -- Initiative card ----------------------------------------------------
 

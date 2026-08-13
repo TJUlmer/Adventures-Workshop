@@ -25,6 +25,12 @@
 
   const entries = $derived<Entry[]>([
     {
+      label: 'Hero',
+      hint: 'A playable protagonist',
+      icon: 'users',
+      run: () => workshop.addCharacter('hero')
+    },
+    {
       label: 'Villain',
       hint: villainCount >= 2 ? 'Two villains is the limit' : 'A figure with its own deck',
       icon: 'skull',

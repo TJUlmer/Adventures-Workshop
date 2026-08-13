@@ -135,11 +135,10 @@ export function outline(set: AdventureSet): SetOutline {
     toCharacterEntry(character, set.decks, index);
 
   return {
+    heroes: charactersByRole(set, 'hero').map(entryFor),
     villains: charactersByRole(set, 'villain').map(entryFor),
     minions: charactersByRole(set, 'minion').map(entryFor),
-    others: set.characters
-      .filter((character) => character.role === 'sidekick' || character.role === 'hero')
-      .map(entryFor),
+    others: charactersByRole(set, 'sidekick').map(entryFor),
     initiative: initiativeDecks(set).map((deck) => toDeckEntry(deck, index)),
     rules: rulesDecks(set).map((deck) => toDeckEntry(deck, index)),
     events: eventDecks(set).map((deck) => toDeckEntry(deck, index)),
@@ -200,7 +199,8 @@ export function styleLayersForCard(set: AdventureSet, card: Card): StyleLayers {
 /** The card's final look: stock → set → character → card. */
 export function resolveStyleForCard(set: AdventureSet, card: Card): CardTheme {
   const layers = styleLayersForCard(set, card);
-  return resolveCardTheme(layers.set, layers.character, layers.card, card.type);
+  const role = characterForCard(set, card)?.role;
+  return resolveCardTheme(layers.set, layers.character, layers.card, card.type, role);
 }
 
 /** Which layer a given style key is currently coming from. */

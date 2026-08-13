@@ -12,6 +12,7 @@
   import type { DeckId } from '$lib/decks/types';
   import { formatForCard, renderCardImage, saveExport } from '$lib/export';
   import { CardRenderer } from '$lib/renderer';
+  import type { CardFormat } from '$lib/renderer/geometry';
   import { BLEED_MM, CARD_FORMATS, trimBox } from '$lib/renderer/geometry';
   import { findDeck } from '$lib/sets/queries';
   import { workshop } from '$lib/state/workshop.svelte';
@@ -28,6 +29,16 @@
    */
   const cardback = $derived(workshop.selectedCharacter);
   const card = $derived(cardback ? null : workshop.previewCard);
+
+  /**
+   * A hero's character card, shown above its deck back.
+   *
+   * Only a hero prints one — it is the sheet the figure is set up from, and
+   * the one thing in the character workspace with no other preview: its stats,
+   * its ability and its sidekick are all edited there and until now none of
+   * them appeared anywhere until the card was exported.
+   */
+  const statCard = $derived(cardback?.role === 'hero' ? cardback : null);
   const owner = $derived(workshop.previewCharacter);
   const theme = $derived(workshop.previewTheme);
   const deck = $derived(card ? findDeck(workshop.adventure, card.deckId) : null);
@@ -52,8 +63,16 @@
     cardback ? resolveCardTheme(workshop.adventure.style, cardback.style, null) : undefined
   );
 
-  /** The template on screen. A selected character previews its deck back. */
-  const format = $derived(cardback ? CARD_FORMATS.cardback : card ? formatForCard(card) : null);
+  /**
+   * The template on screen. A selected character previews its deck back —
+   * which for a hero is drawn on the action card's own bleed canvas rather
+   * than the villain/minion back's trim-only one, so it is the one deck back
+   * with a bleed to show. `CardRenderer` picks the same way.
+   */
+  const format = $derived.by((): CardFormat | null => {
+    if (cardback) return cardback.role === 'hero' ? CARD_FORMATS.action : CARD_FORMATS.cardback;
+    return card ? formatForCard(card) : null;
+  });
 
   /**
    * Some templates — the deck back among them — are drawn at trim size. There
@@ -127,6 +146,23 @@
   </div>
 
   <div class="stage scroll-y" bind:this={stage}>
+    {#if statCard}
+      <!--
+        Above the deck back, and labelled, because from here down there are two
+        printed things on screen rather than one. Both belong to the set — this
+        is not the sample card further down, which does not.
+      -->
+      <span class="face-label">Character card</span>
+      <div class="card-slot" style:width="{zoom * 100}%">
+        <CardRenderer
+          card={null}
+          {statCard}
+          options={{ showBleed: bleeding, showGuides: showGuides && bleeding }}
+        />
+      </div>
+      <span class="face-label">Deck back</span>
+    {/if}
+
     <div class="card-slot" style:width="{zoom * 100}%">
       <CardRenderer
         {card}

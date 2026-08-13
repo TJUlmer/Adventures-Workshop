@@ -37,8 +37,16 @@
 
 <div class="body scroll-y">
   {#if isEmpty}
-    <Section title="Start here" description="Three moves get an adventure off the ground.">
+    <Section title="Start here" description="A few moves get an adventure off the ground.">
       <div class="starters">
+        <button type="button" class="starter" onclick={() => workshop.addCharacter('hero')}>
+          <span class="starter-icon" style:color="var(--role-hero)">
+            <Icon name="users" size={17} />
+          </span>
+          <span class="starter-title">Create a hero</span>
+          <span class="starter-text">A protagonist players take up.</span>
+        </button>
+
         <button type="button" class="starter" onclick={() => workshop.addCharacter('villain')}>
           <span class="starter-icon" style:color="var(--role-villain)">
             <Icon name="skull" size={17} />

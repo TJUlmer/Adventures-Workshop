@@ -47,6 +47,18 @@
 
   let { slug }: Props = $props();
 
+  /**
+   * Whether to offer taking a copy.
+   *
+   * Off for now, and the whole of what "off" means is that the button is not
+   * drawn: `fork()` below, `sets/fork.ts`, the fingerprint it records and the
+   * lineage the row carries are all untouched, and a copy already taken still
+   * shows its way back to the library. Contributions are the next rung and
+   * this release is the heroes' — offering a route into a feature that is not
+   * finished is worse than not offering it yet.
+   */
+  const SHOW_FORK = false;
+
   let row = $state<PublishedSetWithDocument | null>(null);
   let set = $state<AdventureSet | null>(null);
   let error = $state<string | null>(null);
@@ -206,7 +218,11 @@
           <!--
             Above the exports, because it is the one thing here that starts
             something rather than finishing it.
+
+            Shown only once a copy exists — see `SHOW_FORK`. Nothing below is
+            removed: a fork already taken still finds its way home from here.
           -->
+          {#if SHOW_FORK || forked}
           <section class="panel">
             <h2 class="panel-title">Build on this</h2>
 
@@ -233,6 +249,7 @@
               </p>
             {/if}
           </section>
+          {/if}
 
           <section class="panel">
             <h2 class="panel-title">Export</h2>

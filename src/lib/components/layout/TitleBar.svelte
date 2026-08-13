@@ -1,5 +1,7 @@
 <script lang="ts">
+  import { cloudEnabled } from '$lib/cloud/config';
   import { EXPORTERS, getExporter, saveExport } from '$lib/export';
+  import { navigation } from '$lib/state/navigation.svelte';
   import { setLabel } from '$lib/sets/factory';
   import { workshop } from '$lib/state/workshop.svelte';
   import { Button, Icon } from '$lib/ui';
@@ -72,7 +74,25 @@
       <span class="message">{message}</span>
     {/if}
 
-    <!-- Importing lives on the Library, where opening a set already happens. -->
+    <!--
+      The way into the gallery, from wherever the author happens to be. It used
+      to live only on the Library, which meant browsing what other people had
+      made was a thing you could only think of before opening a set.
+
+      Importing still lives on the Library, where opening a set already happens.
+    -->
+    {#if cloudEnabled()}
+      <Button
+        size="sm"
+        variant="ghost"
+        title="Sets other people have published"
+        onclick={() => navigation.openGallery()}
+      >
+        <Icon name="layers" size={14} />
+        Gallery
+      </Button>
+    {/if}
+
     <Button size="sm" variant="ghost" title="Save to this browser" onclick={saveNow}>
       <Icon name="save" size={14} />
       Save

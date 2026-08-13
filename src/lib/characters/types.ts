@@ -17,15 +17,33 @@ export type CharacterRole = (typeof CHARACTER_ROLES)[number];
 /**
  * The roles an author can actually pick.
  *
- * An Adventures set is a villain and its minions; sidekicks and heroes belong
- * to a hero-side feature that does not exist yet. The roles stay in the model
- * so a document that already uses them still loads and still groups correctly —
- * they are just not offered.
+ * `sidekick` stays out: it is not a roster entity a set adds directly — a
+ * hero's own companion lives on `Character.sidekick` instead, a field rather
+ * than a character, so there is nothing to select it *as*. The role stays in
+ * `CHARACTER_ROLES` so a document that already used it still loads and still
+ * groups correctly.
  */
-export const SELECTABLE_ROLES = ['villain', 'minion'] as const;
+export const SELECTABLE_ROLES = ['hero', 'villain', 'minion'] as const;
 
-export const ATTACK_TYPES = ['melee', 'ranged'] as const;
+/**
+ * How a figure attacks, in the order the printed symbols read: the two
+ * ordinary ranges first, then the three that modify one.
+ *
+ * Each is a supplied lockup in `public/assets/symbols` — the word and its
+ * icon drawn together as one picture, in the colour that identifies it — so
+ * adding one here is adding a file, and nothing about the character card
+ * changes to print it.
+ */
+export const ATTACK_TYPES = ['melee', 'ranged', 'lunge', 'reach', 'large'] as const;
 export type AttackType = (typeof ATTACK_TYPES)[number];
+
+export const ATTACK_TYPE_LABELS: Readonly<Record<AttackType, string>> = {
+  melee: 'Melee',
+  ranged: 'Ranged',
+  lunge: 'Lunge',
+  reach: 'Reach',
+  large: 'Large'
+};
 
 export interface CharacterAbility {
   name: string;
@@ -53,10 +71,84 @@ export interface CardbackDesign {
   label: string;
 }
 
+/**
+ * A hero's companion figure, printed on the character card's lower block.
+ *
+ * One sub-object rather than a list: every template the character card comes
+ * in shows at most one sidekick *concept* — a single tracked individual, or an
+ * undifferentiated swarm of copies — never several distinct named companions
+ * side by side. `enabled` off is what selects the quote panel instead; nothing
+ * about `name`, `attackType`, `health` or `count` is drawn on the character
+ * card even when it is on, since that card prints the fixed word "SIDEKICK"
+ * rather than an identity. `name` exists to be picked up elsewhere: labelling
+ * which of a hero's action cards this figure may play, and naming the piece in
+ * a Tabletop Simulator export.
+ */
+export interface HeroSidekick {
+  enabled: boolean;
+  name: string;
+  attackType: AttackType;
+  /**
+   * Off: one figure with its own tracked `health`. On: `count` identical,
+   * healthless copies — a token count printed in place of the health badge,
+   * the way a minion's `figureCount` already works.
+   */
+  multiple: boolean;
+  health: number | null;
+  count: number;
+}
+
+/** Flavour text on the character card, printed only when there is no sidekick. */
+export interface HeroQuote {
+  text: string;
+  attribution: string;
+}
+
+/**
+ * The three bands of the character card an author can dress: the hero's own
+ * heading *and its attack row*, the special-ability panel, and whichever of
+ * the sidekick bands or the quote panel is showing.
+ *
+ * Three rather than five, because the hero's name and its attack row are one
+ * block to look at — the frame rules a line between them, and nobody wants to
+ * match two colours across it. Named for what they are on the card rather than
+ * by index, so a layout change cannot silently re-point somebody's picture.
+ */
+export const CHARACTER_BAND_NAMES = ['hero', 'ability', 'sidekick'] as const;
+export type CharacterBandName = (typeof CHARACTER_BAND_NAMES)[number];
+
+export interface CharacterBandStyle {
+  fill: Fill;
+  artwork: Artwork;
+}
+
+/**
+ * How a hero's character card is dressed.
+ *
+ * The only part of this card that goes through anything like the style
+ * cascade, and it does not go through the cascade proper: the sheet is one
+ * fixed layout and its chrome is supplied art, so what an author gets to
+ * choose is the border's colour and what fills each of the three bands.
+ */
+export interface CharacterCardDesign {
+  /** The pink outline and the bars between the bands, in the printed art. */
+  border: Fill;
+  hero: CharacterBandStyle;
+  ability: CharacterBandStyle;
+  sidekick: CharacterBandStyle;
+}
+
 export interface Character {
   readonly id: CharacterId;
   name: string;
-  /** Small line under the name on the character sheet. */
+  /**
+   * A shorter form of the name, for where the full one will not fit.
+   *
+   * The character card prints `name`; the action cards' ribbon prints this
+   * when it is set and falls back to `name` when it is not — "Geralt" on the
+   * ribbon against "Geralt of Rivia" on the sheet and beside the copies count.
+   * Blank is the ordinary case: most names are short enough already.
+   */
   subtitle: string;
   role: CharacterRole;
   attackType: AttackType;
@@ -68,6 +160,15 @@ export interface Character {
   abilities: CharacterAbility[];
   artwork: Artwork;
   cardback: CardbackDesign;
+  /**
+   * The character card's lower block, and its no-sidekick alternative.
+   * Present on every character but drawn only for a `hero` — the printed
+   * card the rest of this app's roles do not have yet.
+   */
+  sidekick: HeroSidekick;
+  quote: HeroQuote;
+  /** The printed character card's border, band fills and band artwork. */
+  characterCard: CharacterCardDesign;
   /**
    * Look overrides applied to every card in this character's decks.
    * Sits between the set's style and each card's own overrides.

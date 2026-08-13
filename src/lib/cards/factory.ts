@@ -91,6 +91,13 @@ export function createCard<TType extends CardType>(
         defense: 2,
         boost: 1,
         ability: createAbilityBlocks(),
+        /* Meaningful only inside a hero's deck — see `ActionCard` — and given
+           sensible values there rather than left null, so a card dropped into
+           a hero's deck already has a ribbon to look at before anyone visits
+           its editor. */
+        symbol: 'attack',
+        symbolValue: 2,
+        owner: 'hero',
         split: false,
         defenseAbility: createAbilityBlocks()
       } as CardOfType<TType>;

@@ -8,15 +8,24 @@
  * the absence of a key rather than a sentinel value.
  */
 import type { CardStyleOverride, CardTheme } from './style';
-import { DEFAULT_CARD_THEME, EVENT_CARD_THEME, mergeCardStyle } from './style';
+import { DEFAULT_CARD_THEME, EVENT_CARD_THEME, HERO_ACTION_CARD_THEME, mergeCardStyle } from './style';
 
 /**
  * The bottom of the cascade, which is not the same for every template: an
  * event card is a red placard, not a slate card, so it starts from its own
  * values rather than from ones the author would have to override away.
+ *
+ * A hero's action card is the same template as a villain's or a minion's —
+ * `type` alone cannot tell them apart, which is why `role` is a second,
+ * separate parameter rather than a new card type. Only `'action'` plus
+ * `role: 'hero'` reaches the hero stock theme; every other combination,
+ * including a hero's *other* cards, falls through to the same default every
+ * other role uses.
  */
-export function stockTheme(type?: string): CardTheme {
-  return type === 'event' ? EVENT_CARD_THEME : DEFAULT_CARD_THEME;
+export function stockTheme(type?: string, role?: string): CardTheme {
+  if (type === 'event') return EVENT_CARD_THEME;
+  if (type === 'action' && role === 'hero') return HERO_ACTION_CARD_THEME;
+  return DEFAULT_CARD_THEME;
 }
 
 /**
@@ -27,9 +36,10 @@ export function resolveCardTheme(
   setStyle: CardStyleOverride | null,
   characterStyle: CardStyleOverride | null,
   cardStyle: CardStyleOverride | null,
-  type?: string
+  type?: string,
+  role?: string
 ): CardTheme {
-  return mergeCardStyle(stockTheme(type), setStyle, characterStyle, cardStyle);
+  return mergeCardStyle(stockTheme(type, role), setStyle, characterStyle, cardStyle);
 }
 
 /**

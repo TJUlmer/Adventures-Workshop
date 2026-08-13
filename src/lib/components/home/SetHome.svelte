@@ -149,7 +149,7 @@
       <section class="panel">
         <h2 class="panel-title">Roster</h2>
 
-        {#each [...outline.villains, ...outline.minions, ...outline.others] as entry (entry.character.id)}
+        {#each [...outline.heroes, ...outline.villains, ...outline.minions, ...outline.others] as entry (entry.character.id)}
           {@const meta = CHARACTER_ROLE_META[entry.character.role]}
           <button
             type="button"

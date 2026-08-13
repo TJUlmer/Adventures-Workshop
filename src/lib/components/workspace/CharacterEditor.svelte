@@ -3,6 +3,7 @@
   import type { CardTheme } from '$lib/cards/style';
   import { ACTION_SURFACES, resolveCardTheme } from '$lib/cards/theme';
   import { characterLabel } from '$lib/characters/factory';
+  import { ATTACK_TYPE_LABELS, ATTACK_TYPES } from '$lib/characters/types';
   import type { CharacterRole } from '$lib/characters/types';
   import { CHARACTER_ROLE_META, SELECTABLE_ROLES } from '$lib/characters/types';
   import type { DeckId, DeckKind } from '$lib/decks/types';
@@ -16,12 +17,34 @@
     Section,
     SegmentedControl,
     Select,
+    Switch,
     TextArea,
     TextInput
   } from '$lib/ui';
   import CardbackPanel from './CardbackPanel.svelte';
+  import CharacterCardPanel from './CharacterCardPanel.svelte';
   import StylePanel from './StylePanel.svelte';
   import WorkspaceHeader from './WorkspaceHeader.svelte';
+
+  const ATTACK_TYPE_OPTIONS = ATTACK_TYPES.map((type) => ({
+    value: type,
+    label: ATTACK_TYPE_LABELS[type]
+  }));
+
+  const ABILITY_KIND_OPTIONS = [
+    { value: 'passive' as const, label: 'Passive' },
+    { value: 'triggered' as const, label: 'Triggered' }
+  ];
+
+  function addAbility(): void {
+    if (!character) return;
+    character.abilities.push({ name: '', text: '', kind: 'passive' });
+  }
+
+  function removeAbility(index: number): void {
+    if (!character) return;
+    character.abilities.splice(index, 1);
+  }
 
   /** Read from the store rather than taken as a prop — see Workspace.svelte. */
   const character = $derived(workshop.selectedCharacter);
@@ -40,7 +63,9 @@
 
   /** What this character's cards look like before any per-card override. */
   const resolvedTheme: CardTheme | null = $derived(
-    character ? resolveCardTheme(workshop.adventure.style, character.style, null) : null
+    character
+      ? resolveCardTheme(workshop.adventure.style, character.style, null, 'action', character.role)
+      : null
   );
 
   function originFor(key: keyof CardTheme): string {
@@ -77,7 +102,10 @@
   <div class="body scroll-y">
     <!--
       Identity and Decks are both short, so they sit side by side rather than
-      each taking a full width of the workspace to say very little.
+      each taking a full width of the workspace to say very little. A hero's
+      stats go under Decks in that same right-hand column: Identity is the
+      taller of the two, and the block that fills the gap beside it is the one
+      that describes the same figure rather than its cards.
     -->
     <div class="tiles">
     <Section title="Identity" description="How the figure is presented on its sheet.">
@@ -85,8 +113,13 @@
         <TextInput bind:value={character.name} placeholder="Name this character" prominent />
       </Field>
 
-      <Field label="Subtitle" hint="A short epithet under the name.">
-        <TextInput bind:value={character.subtitle} placeholder="e.g. Warden of the Deep" />
+      <!--
+        A shorter form for where the full name will not fit. The action cards'
+        ribbon takes it when it is set; the character card and the line beside
+        the copies count always print the full name.
+      -->
+      <Field label="Shortened name" hint="Used on the action card ribbon. Blank uses the full name.">
+        <TextInput bind:value={character.subtitle} placeholder="e.g. Geralt" />
       </Field>
 
       <Field label="Role">
@@ -108,7 +141,8 @@
       </Field>
     </Section>
 
-    <Section title="Decks" description="Every deck this figure deals from.">
+    <div class="column">
+      <Section title="Decks" description="Every deck this figure deals from.">
       {#snippet actions()}
         <Button size="sm" variant="ghost" onclick={() => workshop.addDeck('special', character.id)}>
           <Icon name="plus" size={13} />
@@ -153,14 +187,166 @@
           {/each}
         </ul>
       {/if}
-    </Section>
+      </Section>
+
+    {#if character.role === 'hero'}
+      <!--
+        Health, move and attack type stay fixed for a villain or a minion — see
+        the note on the Figures field above — but a hero's character card
+        prints all three, so a hero is the one role that gets to set them.
+      -->
+      <Section
+        title="Hero stats"
+        description="Printed on the character card: attack type, starting health and move."
+      >
+        <Field label="Attack type">
+          <SegmentedControl
+            label="Attack type"
+            value={character.attackType}
+            segments={ATTACK_TYPE_OPTIONS}
+            onchange={(value) => (character.attackType = value)}
+          />
+        </Field>
+
+        <div class="stat-pair">
+          <Field label="Move" inline>
+            <NumberInput bind:value={character.move} min={0} max={12} />
+          </Field>
+
+          <Field label="Starting health" inline>
+            <NumberInput
+              value={character.health ?? 0}
+              min={1}
+              max={40}
+              onchange={(value) => (character.health = value)}
+            />
+          </Field>
+        </div>
+      </Section>
+    {/if}
+    </div>
     </div>
 
-    <!--
-      Character abilities are filed away rather than deleted: `abilities` stays
-      on the model so nothing an author already wrote is lost, and the editor
-      comes back with the hero/sidekick side when there is one.
-    -->
+    {#if character.role === 'hero'}
+      <Section
+        title="Special ability"
+        description="Printed as its own block on the character card, name and text both."
+      >
+        {#snippet actions()}
+          <Button size="sm" variant="ghost" onclick={addAbility}>
+            <Icon name="plus" size={13} />
+            Add ability
+          </Button>
+        {/snippet}
+
+        {#if character.abilities.length === 0}
+          <p class="hint">No abilities yet. The card prints a placeholder until one is added.</p>
+        {:else}
+          <ul class="abilities">
+            {#each character.abilities as ability, index (index)}
+              <li class="ability">
+                <div class="ability-row">
+                  <TextInput bind:value={ability.name} placeholder="Ability name" prominent />
+                  <div class="ability-kind">
+                    <Select
+                      value={ability.kind}
+                      options={ABILITY_KIND_OPTIONS}
+                      onchange={(value) => (ability.kind = value)}
+                    />
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    iconOnly
+                    aria-label="Remove ability"
+                    onclick={() => removeAbility(index)}
+                  >
+                    <Icon name="trash" size={13} />
+                  </Button>
+                </div>
+                <TextArea bind:value={ability.text} rows={2} placeholder="Ability text goes here." />
+              </li>
+            {/each}
+          </ul>
+        {/if}
+      </Section>
+
+      <Section
+        title="Sidekick"
+        description="The lower block on the character card — a companion figure, or a quote when there is none."
+      >
+        <Switch
+          checked={character.sidekick.enabled}
+          label="This hero has a sidekick"
+          hint="Off prints a flavour quote in this space instead."
+          onchange={(value) => (character.sidekick.enabled = value)}
+        />
+
+        {#if character.sidekick.enabled}
+          <div class="tiles sidekick-fields">
+            <Field label="Sidekick name" hint="Not printed on the character card. Used to label its own action cards.">
+              <TextInput bind:value={character.sidekick.name} placeholder="Name this sidekick" />
+            </Field>
+
+            <Field label="Attack type">
+              <SegmentedControl
+                label="Sidekick attack type"
+                value={character.sidekick.attackType}
+                segments={ATTACK_TYPE_OPTIONS}
+                onchange={(value) => (character.sidekick.attackType = value)}
+              />
+            </Field>
+
+            <Field label="Figure" inline hint="One tracked individual, or identical copies with no health of their own.">
+              <SegmentedControl
+                label="Sidekick figure"
+                value={character.sidekick.multiple ? 'multiple' : 'single'}
+                segments={[
+                  { value: 'single', label: 'Single' },
+                  { value: 'multiple', label: 'Multiple' }
+                ]}
+                onchange={(value) => (character.sidekick.multiple = value === 'multiple')}
+              />
+            </Field>
+
+            {#if character.sidekick.multiple}
+              <Field label="Copies" inline>
+                <NumberInput bind:value={character.sidekick.count} min={2} max={12} />
+              </Field>
+            {:else}
+              <Field label="Starting health" inline>
+                <NumberInput
+                  value={character.sidekick.health ?? 0}
+                  min={1}
+                  max={40}
+                  onchange={(value) => (character.sidekick.health = value)}
+                />
+              </Field>
+            {/if}
+          </div>
+        {:else}
+          <div class="tiles sidekick-fields">
+            <Field label="Quote">
+              <TextArea
+                bind:value={character.quote.text}
+                rows={2}
+                placeholder="A memorable line goes here."
+              />
+            </Field>
+            <Field label="Attribution">
+              <TextInput bind:value={character.quote.attribution} placeholder="Who said it" />
+            </Field>
+          </div>
+        {/if}
+      </Section>
+
+      <Section
+        title="Character card"
+        description="The printed sheet’s border, and what fills each of its three bands."
+      >
+        <CharacterCardPanel {character} />
+      </Section>
+    {/if}
 
     <Section
       title="Deck back"
@@ -243,6 +429,56 @@
     text-align: right;
     font-size: var(--text-xs);
     color: var(--text-muted);
+  }
+
+  .abilities {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+  }
+
+  .ability {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+  }
+
+  .ability-row {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+  }
+
+  .ability-row :global(> :first-child) {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
+  .ability-kind {
+    flex: 0 0 140px;
+  }
+
+  .sidekick-fields {
+    margin-top: var(--space-3);
+  }
+
+  /*
+   * The right-hand tile is two blocks rather than one. Identity is the taller
+   * of the pair, so a hero's stats fill what would otherwise be white space
+   * beside it rather than taking a full width of their own further down.
+   */
+  .column {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+    min-width: 0;
+  }
+
+  .stat-pair {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: var(--space-3);
+    margin-top: var(--space-3);
   }
 
   /*

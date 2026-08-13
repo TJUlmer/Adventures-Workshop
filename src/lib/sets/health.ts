@@ -38,12 +38,24 @@ function wantsArtwork(card: Card): boolean {
 export function assessSet(set: AdventureSet): SetHealth {
   const issues: SetIssue[] = [];
 
+  /*
+   * A villain and its minions are what an *adventure* is played against — but
+   * a set of heroes is a box in its own right, and telling someone who has
+   * built one that their set is unplayable is simply wrong. So both are gaps
+   * rather than blockers: still worth saying, never a reason to stop.
+   */
   if (set.characters.every((character) => character.role !== 'villain')) {
-    issues.push({ severity: 'blocker', message: 'No villain yet — an adventure needs one.' });
+    issues.push({
+      severity: 'gap',
+      message: 'No villain — an adventure needs one, a box of heroes does not.'
+    });
   }
 
   if (set.characters.every((character) => character.role !== 'minion')) {
-    issues.push({ severity: 'blocker', message: 'No minions yet — an adventure needs at least one.' });
+    issues.push({
+      severity: 'gap',
+      message: 'No minions — an adventure wants at least one.'
+    });
   }
 
   if (set.cards.length === 0) {

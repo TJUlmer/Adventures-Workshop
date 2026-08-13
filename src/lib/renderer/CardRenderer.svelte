@@ -12,6 +12,7 @@
   import { mergeCardStyle } from '$lib/cards/style';
   import { stockTheme } from '$lib/cards/theme';
   import type { Card } from '$lib/cards/types';
+  import { characterLabel } from '$lib/characters/factory';
   import type { Character } from '$lib/characters/types';
   import { hasArtwork } from '$lib/core/artwork';
   import ActionCardFace from './ActionCardFace.svelte';
@@ -19,6 +20,8 @@
   import CardbackFace from './CardbackFace.svelte';
   import EventCardFace from './EventCardFace.svelte';
   import { CARD_FORMATS, trimBox } from './geometry';
+  import HeroCardbackFace from './HeroCardbackFace.svelte';
+  import HeroCharacterCardFace from './HeroCharacterCardFace.svelte';
   import InitiativeCardFace from './InitiativeCardFace.svelte';
   import RulesCardFace from './RulesCardFace.svelte';
   import type { CardRenderOptions } from './types';
@@ -33,6 +36,12 @@
      * export machinery are shared, so the back behaves like any other face.
      */
     cardback?: Character | null;
+    /**
+     * Render this hero's character card instead of a card. Same reasoning as
+     * `cardback` — a stat-reference sheet is read off the character, not off
+     * anything in `set.cards`, so it shares this frame the same way.
+     */
+    statCard?: Character | null;
     /** Fully resolved look. Falls back to the stock template. */
     theme?: CardTheme;
     /** Which face of a two-sided card to draw. Only event cards have both. */
@@ -40,8 +49,15 @@
     options?: Partial<CardRenderOptions>;
   }
 
-  let { card, character = null, cardback = null, theme, side = 'front', options }: Props =
-    $props();
+  let {
+    card,
+    character = null,
+    cardback = null,
+    statCard = null,
+    theme,
+    side = 'front',
+    options
+  }: Props = $props();
 
   const settings = $derived({ ...DEFAULT_RENDER_OPTIONS, ...options });
 
@@ -51,7 +67,7 @@
    * the document changes and switching it off returns the design untouched.
    */
   const look = $derived.by(() => {
-    const resolved = theme ?? stockTheme(card?.type);
+    const resolved = theme ?? stockTheme(card?.type, character?.role);
     return settings.printerFriendly ? mergeCardStyle(resolved, MONO_LAYER) : resolved;
   });
 
@@ -83,7 +99,11 @@
 
   /** Each template has its own bleed size. */
   const format = $derived.by(() => {
-    if (cardback) return CARD_FORMATS.cardback;
+    // A hero's back was supplied at the action card's own bleed canvas, not
+    // the villain/minion back's trim-only size — see `HeroCardbackFace`.
+    if (cardback) return cardback.role === 'hero' ? CARD_FORMATS.action : CARD_FORMATS.cardback;
+    // The same 63×88mm sheet as an action card — see `CHARACTER_CARD`.
+    if (statCard) return CARD_FORMATS.action;
     if (card?.type === 'initiative') return CARD_FORMATS.initiative;
     if (card?.type === 'rules') return CARD_FORMATS.rules;
     if (card?.type === 'event') return CARD_FORMATS.event;
@@ -211,7 +231,15 @@
   >
     {#if cardback}
       <article class="face" aria-label="Deck back">
-        <CardbackFace character={cardback} />
+        {#if cardback.role === 'hero'}
+          <HeroCardbackFace character={cardback} />
+        {:else}
+          <CardbackFace character={cardback} />
+        {/if}
+      </article>
+    {:else if statCard}
+      <article class="face" aria-label="{characterLabel(statCard)} character card">
+        <HeroCharacterCardFace character={statCard} />
       </article>
     {:else if card === null}
       <div class="blank">
@@ -378,6 +406,21 @@
 
   .printer-friendly :global(.separator-art) {
     background: #000 !important;
+  }
+
+  /*
+   * A hero's combat ribbon. Its head is painted the *symbol's* own colour,
+   * which identifies the symbol and so is not a theme key — on white it has to
+   * be told to go white, or the one panel on the card that is not line art
+   * would be a slab of it. The ribbon still reads, because its outline is
+   * drawn in `divider` exactly as the villain's is.
+   */
+  .printer-friendly :global(.hero-head) {
+    background: #fff !important;
+  }
+
+  .printer-friendly :global(.hero-symbol) {
+    filter: brightness(0) !important;
   }
 
   /*

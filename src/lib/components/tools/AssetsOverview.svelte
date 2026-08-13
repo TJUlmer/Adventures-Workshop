@@ -72,8 +72,8 @@
   const FRONT_ONLY = ['front'] as const;
   const EVENT_SIDES = ['front', 'back'] as const;
 
-  /** Figures in the order a set is read: the villain, then what it commands. */
-  const ROLE_ORDER: readonly CharacterRole[] = ['villain', 'minion', 'sidekick', 'hero'];
+  /** Figures in the order a set is read: who it is played as, then against. */
+  const ROLE_ORDER: readonly CharacterRole[] = ['hero', 'villain', 'minion', 'sidekick'];
 
   /** A figure's own decks, action first, then whatever else it deals from. */
   const OWNED_DECK_ORDER: readonly DeckKind[] = ['action', 'special', 'rules', 'event', 'initiative'];

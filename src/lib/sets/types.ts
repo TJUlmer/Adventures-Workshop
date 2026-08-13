@@ -53,10 +53,30 @@ export type SetId = Id<'Set'>;
  *      document written before this, which is exactly right: those sets did
  *      not come from anywhere.
  *
+ * v13 — the hero role gained a printed action card (a combat symbol and value
+ *      in the ribbon, and who may play it, in place of the attack/defense pair
+ *      a villain or minion card carries) and a character card (attack type,
+ *      health and special ability the character already had, plus a sidekick
+ *      or a flavour quote). Every field fills from its factory on load, so an
+ *      older document opens with a plain "attack" ribbon, no sidekick, and no
+ *      quote — none of which it had an opinion about before now.
+ *
+ * v14 — `attackType` gained `lunge`, `reach` and `large` beside `melee` and
+ *      `ranged`. A bump for an added enum value rather than an added field,
+ *      because `normalizeSet` repairs an unknown attack type by falling back
+ *      to `melee` — which is right for a damaged document and wrong for a
+ *      newer one, where it would quietly throw the author's choice away.
+ *
+ * v15 — a hero's character card gained artwork behind each of its three
+ *      bands, and `subtitle` became a *shortened name* rather than an epithet
+ *      — the action cards' ribbon prints it where the character card prints
+ *      the full one. Nothing is lost by the change of meaning: the field was
+ *      never drawn on anything.
+ *
  * Older documents are *repaired*, not rejected — see `sets/normalize.ts`. Only
  * a version newer than this build understands is refused.
  */
-export const SET_SCHEMA_VERSION = 12;
+export const SET_SCHEMA_VERSION = 15;
 
 /**
  * Where a set was copied from, if it was copied.
@@ -172,10 +192,12 @@ export interface CharacterEntry {
  * and a deck whose owner was deleted lands in `loose`.
  */
 export interface SetOutline {
+  /** Shown first — a hero is who the set is played *as*, the rest is who it is played against. */
+  heroes: CharacterEntry[];
   /** Up to two, per `MAX_VILLAINS`. */
   villains: CharacterEntry[];
   minions: CharacterEntry[];
-  /** Sidekicks and heroes, shown only when the author has added any. */
+  /** Sidekicks, shown only when the role is in use. Not offered yet — see `SELECTABLE_ROLES`. */
   others: CharacterEntry[];
   initiative: DeckEntry[];
   rules: DeckEntry[];

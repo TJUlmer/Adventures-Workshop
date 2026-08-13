@@ -181,6 +181,240 @@ follow. `twoSided` splits the reference image down the middle — front on the
 left, back on the right — mapping each half to one face; otherwise the one
 picture is shown on both and a rim-colour band fills the edge.
 
+### The hero role
+
+Villain and minion have always been the two selectable roles; `hero` is the
+third, and — deliberately — the only new thing about it at the data-model
+level is small. Health, move, attack type and ability text already existed on
+`Character` for other reasons (the health dial's range, a figure's stat
+block) and simply had nowhere to print before now.
+
+**A hero's action card is one field, not a new card type.** `ActionCard.type`
+stays `'action'`; `symbol` (one of the four combat symbols), `symbolValue` and
+`owner` (`hero` / `sidekick` / `any` — who may play it) are new fields, read
+only when the owning character's role is `hero`. Everywhere else —
+`ActionCardFace`'s artwork, divider, boost disc, title, and the ability text's
+own left-aligned layout the moment there are no attack/defense values to
+separate it from — a hero card falls through the same code path a villain's
+does, unchanged, because it was already correct. `symbol` is a **card type**
+in the editor, not a "symbol": four short fixed choices with a visible effect
+on the card, so it is a toggle beside "who may play this card" rather than a
+menu. A `scheme` card prints no value at all — that is what the symbol means,
+and it is why its glyph is drawn tall enough to fill the head on its own — so
+the value control disappears rather than sitting at nought.
+
+**Frame and ribbon are their own art, split out of one supplied file.**
+`hero_action_card_border.png` paints the frame, the ribbon's head and a
+leftover boost numeral into one picture; `tools/hero-card-assets.py` takes
+them apart into `hero_action_frame.png`, `hero_action_ribbon.png`,
+`hero_combat_banner.png` and `hero_action_ribbon_edge.png`. Regenerate rather
+than hand-edit. Four things about that arrangement are worth keeping:
+
+- The frame is **not** `outer_border.png`. The supplied art differs in one
+  visible way — its bottom right corner takes the same radius as the other
+  three, where the villain frame sweeps out to clear the copies count — and in
+  one invisible one: its window sits four pixels further in.
+- The ribbon **grows with its name**, exactly as the villain's does, and its
+  top reaches the frame's inner edge. It hung from `NAME_TOP` for a while —
+  the clearance the villain ribbon's *name* needs — which left it floating
+  short of the border, and it was a fixed length for a while after that, which
+  meant a long name simply ellipsised.
+- **The combat head does not move.** It spans the whole ribbon and is cut to
+  shape by art anchored to the ribbon's *top*, which is fixed, rather than to
+  its bottom, which is wherever the name has pushed it. That is also what makes
+  the seam between the two colours the head's own printed **chevron** rather
+  than a line ruled across a box, which is all a single gradient could draw.
+- **The three painted layers stack fill → head → outline, in that order.** The
+  head is the ribbon's full width, so an outline under it is an outline the
+  head paints out for the whole top third of the ribbon — which is exactly what
+  it did for a pass.
+- Below the head the ribbon is a plain rectangle the renderer draws, plus
+  `hero_ribbon_point.png` at natural size anchored to its foot — the same
+  split `banner_fill.png` already makes, for the same reason. The villain's
+  own files could not stand in: that ribbon is 230 wide against this one's
+  243, and its head flares 12px left of the run where this one tapers straight
+  from the run's edges.
+- The point's art carries `POINT_OVERLAP` rows of straight run above its
+  taper, so the rectangle and the mask overlap rather than meeting on one row.
+  A row where each contributes part of its alpha is a row that prints as a
+  pale line across the ribbon.
+- Every ribbon layer is squared up and clipped to one span **after** the
+  resample onto the plate. Resizing to 2222 rows runs the filter across both
+  axes even though the width does not change, and a hard vertical edge loses
+  enough alpha to its ringing that the head and the point disagreed about
+  their last column — which showed as the head overhanging its own outline.
+- The ribbon's stroke is drawn in `divider`, like the villain's, and on a hero
+  card `divider` is the frame's own cream — so what it prints is the pale
+  channel the template shows between the ribbon and the artwork. It runs down
+  the **right edge and round the foot, and nowhere else**.
+- **The stroke is outside the colour, not eaten out of it.** The body runs
+  147..379 and the stroke 380..398, so the ribbon's box is 252 wide and the
+  fill's own run mask stops `edgeWidth` short of it. Laying a stroke over a
+  full-width fill can only ever bite back into it, which is what made the foot
+  come out solid stroke-colour and the corners look chewed.
+- `hero_frame_plus_ribbon_stroke.png` is the authority on all of that: the
+  supplied drawing of the frame and the stroke together, in one flat colour,
+  on the same 1632 × 2218 canvas as every other piece of hero art — so it goes
+  through the same resample onto the plate and needs no offset of its own. Clip it to the frame's window and what is left *is* the stroke —
+  the bar, and the foot's ∨ — which is where the tool reads the ribbon's width,
+  the stroke's weight and the foot's shape from, rather than inferring them
+  from the border art. Its own numbers agree with the printed template's
+  148..380 of tail against cream at 381..401.
+- The tool **checks `geometry.ts`** against what it just derived, and says so
+  per constant. The masks and the numbers that place them have drifted apart
+  twice, and both times it printed as the ribbon's fill running past its own
+  point — which looks like a mask bug and is not one.
+- The head is squeezed from the border art's 147..389 into that 147..379. Ten
+  pixels on a 1632px card, and it is what lets the stroke sit beside the head
+  rather than over it.
+- That outline is **not** a `.banner-ink`. Wearing both classes meant
+  `.banner-ink`'s `mask-size` won the cascade and then computed to `auto`,
+  because it is written in terms of two custom properties the hero outline
+  does not set — and a mask that computes to `auto` is no mask at all, so the
+  whole ribbon box came out in the outline's colour. A var that is not there
+  does not fall back to the next declaration; it invalidates the one that
+  won.
+- **The ribbon is drawn under the frame**, so the window's rounded corner is
+  what shapes its top and no join between the two can open. An earlier pass
+  kept the ribbon's footprint opaque in the frame mask and drew the ribbon
+  over it, which works right up until the frame quietly covers the whole
+  ribbon — which is what it did.
+
+`combat_banner.png` is the ribbon's head supplied on its own, and nothing uses
+it. That is deliberate rather than an oversight: it is 254 × 414 where the
+head drawn into the border is 243 × 403, and its taper is a different angle,
+so a ribbon assembled from it would not meet the tail the border's own head
+meets. The head comes out of the border for that reason. Keep the file — it is
+the piece to reach for if the ribbon ever needs to be drawn away from its
+frame.
+
+Everything in the ribbon is measured off `Hero_Action_Card_Template.png` and
+the supplied `ribbon_guides.png`, which gives the three Photoshop guides the
+artwork was set to. **The ribbon's axis is 262, not the run's centre at
+268.5** — the pennant is drawn a little asymmetrical and comes to its point at
+262, which is where the guide is. The name in the tail is centred on that axis
+by its *cap*, not by its line box: at `line-height` 0.88 against a face whose
+ascent and descent come to 1.30 the two sit 6.7px apart, and `capTopToBoxTop`
+solves that on the horizontal axis exactly as well as on the vertical one. The
+icon is one of the four existing `CARD_SYMBOLS` files forced white with
+`brightness(0) invert(1)`, the same filter printer-friendly mode already
+applies to them.
+
+`owner` is easy to misread as a range indicator — "ANY" printed in exactly the
+spot a melee/ranged/either field would — and it very nearly became one. It is
+not: a hero's own attack type is fixed per character and prints on the
+character card; `owner` says who may play *this card*, and follows the same
+empty-name fallback the existing ribbon name does.
+
+**The character card is a genuinely new card, not a reskin.**
+`HeroCharacterCardFace` is its own component, dispatched from `CardRenderer`
+through a `statCard` prop keyed by character, the same shape as `cardback`: a
+stat sheet is read off the character directly and was never going to live in
+`set.cards`. `PreviewPanel` shows it above the deck back whenever a hero is
+selected — it is the only thing in the character workspace that had no preview
+at all, and its stats, ability and sidekick are all edited there.
+
+Its chrome is the supplied `Hero_Character_Card_Template_*_frame.png` art,
+split by `tools/hero-card-assets.py` into **a border and its ink** — and the
+split is the whole of what this card exposes to an author:
+
+- **border** — the pink outline and the bars between the bands, as a mask, so
+  it takes a colour. It is the only piece of this card's chrome anyone would
+  want to choose.
+- **ink** — every tab label, the two START HEALTH captions, the health badge,
+  the move arrow and the word MOVE, as a picture. All already in the colours
+  they print, none of them a choice, and none overlapping the border.
+
+Under both go three band fills and whatever artwork each carries. The bands are
+`CHARACTER_BAND_RUNS`, and there are **three, not five**: the hero's name band
+and its attack row are one block, and so are the sidekick's, because the frame
+rules a bar between each pair and nobody wants to match two colours across it.
+The border covers every join and all four corners, so no fill needs a radius —
+each simply runs `fillBleed` past its own edges.
+
+This card still does not go through the style cascade. `Character.characterCard`
+is its own small design object, because the sheet is one fixed layout and what
+there is to choose is a border colour and three fills.
+
+Two consequences of that:
+
+- **The figures go over the art, the copy under it.** Under, so an over-long
+  heading or ability runs out of sight behind the frame rather than across the
+  tab strip. Over, because the health number sits *inside* the badge the art
+  draws, and the move figure fills the hole left for it so exactly that a
+  wider digit would be trimmed by its edges. The health number spent a pass
+  hidden behind the badge.
+- **Three frames, not one with pieces switched off**, because each is one flat
+  picture with nothing in it to switch: quote, sidekick, and a derived third
+  for a swarm sidekick with the lower health badge taken out. The token stack
+  that replaces it is the only piece of chrome on the card the renderer draws,
+  because how many discs it shows is the one thing here that depends on a
+  number.
+
+The move figure is set at 373px and squeezed to 0.56 of its drawn width, which
+is not a substitution artefact: the printed "2" really is 106px across at that
+height, because the frame leaves it a tall narrow slot beside the word MOVE.
+Same case as the initiative card's MOVE badge — carried as a factor, never
+dialled out of the size, which would take the height with it.
+
+The band fills run `CHARACTER_CARD.fillBleed` past their own edges rather than
+up to them. The frame is a 2218-row picture over a 2222-row plate, so its holes
+sit up to four rows below the y this file measured, and the gold band's foot
+showed a hairline of navy underneath. The separators are opaque, so the
+overshoot cannot show.
+
+Artwork goes behind the card **one band at a time**, not as one picture across
+the sheet: the border's bars divide the card, and a picture crossing one would
+be cut in half by one drawn over it. Each band is an `EntityRef` of its own
+(`{ entity: 'characterBand', id, band }`) so the existing `ArtworkPanel` does
+crop, placement and grade with nothing new behind it.
+
+The health figure is centred on the badge's **ink centroid**, not its box
+centre. The badge is a shield — full width for its top two thirds, then a taper
+— so the two are eleven pixels apart, and the box centre reads low.
+
+The two band headings print the character's and the sidekick's **full** names,
+falling back to the words HERO and SIDEKICK the template sets. Full, because
+this is the sheet a figure is introduced on — `Character.subtitle` is a
+*shortened* name for the action cards' ribbon, which is the one place a name is
+set at display size in a column two centimetres wide. The line beside the
+copies count takes the full name too; it has a whole card's width to run in.
+
+A sidekick is **one sub-object, not a list**: every character-card template
+shows at most one sidekick concept — a single tracked individual, or an
+undifferentiated swarm of identical copies, never several distinct companions
+— so `Character.sidekick` has `enabled`, `multiple`, and either a tracked
+`health` or a `count`, matching. `enabled: false` is what selects the
+`Character.quote` panel instead; the templates confirm this by measurement,
+not guess — the quote panel occupies exactly the sidekick band's and its
+attack row's combined height, in the same file.
+
+An attack type is **one supplied picture**, word and icon together, in the
+colour that identifies it — `ATTACK_TYPE_SYMBOLS`. Nothing about it is set as
+type, which is why adding `lunge`, `reach` and `large` beside `melee` and
+`ranged` was adding three files and a line in `ATTACK_TYPES`. Two things
+about them:
+
+- **They do not share a scale.** `melee`, `ranged` and `reach` were exported
+  at print size; `lunge` and `large` came out about 1.86× that. What is common
+  is the *word*: its caps stand 58 in every file at print size, because on the
+  card they are one size set once. So the two oversized files are scaled by
+  their own word rather than by a guessed factor, and the ink inset that
+  leaves is carried in `ATTACK_TYPE_SIZES` so all five still start on one
+  line.
+- They are drawn **over** the frame art, not under it like the rest of the
+  copy. The hole the art leaves for this row is cut to whichever lockup the
+  template happened to show, and `reach` is 85px wider than `melee`.
+
+**Print sheets, PNG export and the Tabletop Simulator bundle do not know
+about a hero yet.** `SetOutline` gained a `heroes` bucket alongside
+`villains`/`minions`/`others`, shown first everywhere a roster is drawn, but
+`card-pngs.ts`, `tabletop-simulator.ts` and `print/sheet.ts` still walk the
+older buckets only. A hero can be fully authored — cards, sidekick, quote —
+and previewed, but not yet exported outside a PNG of one card at a time. That
+was the deliberately chosen scope for the first pass; wiring the character
+card and hero decks into those three files is the natural next one.
+
 ### The adventure map
 
 `src/lib/map/` is the model, `renderer/MapBoard.svelte` draws it, and
@@ -273,6 +507,10 @@ a 360° arc is degenerate and renders as nothing at all.
 
 ### Sharing and the gallery
 
+A set with no villain and no minions is a **gap, not a blocker**
+(`sets/health.ts`). With heroes in, a box of them is a set in its own right,
+and telling someone who has built one that it is not playable is simply wrong.
+
 `src/lib/cloud/` talks to Supabase over plain HTTP — no client library, same
 zero-dependency rule as everything else. The contract that shapes it: **the
 cloud is a publish target, never the source of truth.** A published row is a
@@ -335,6 +573,13 @@ to copying, it was to copying that erased the source. None of it is a lock: the
 whole document is in the viewer's browser the moment the page draws, and the
 `.json` export is a re-importable copy. What the fork route buys is a copy that
 can later offer its changes *back*.
+
+`SharedSetScreen`'s copy button is behind a `SHOW_FORK` constant, currently
+off. Off means only that the button is not drawn — `fork()`, `sets/fork.ts`,
+the fingerprint it records and the lineage the row carries are untouched, and a
+copy already taken still shows its way back to the library. Contributions are
+the next rung; a route into a feature that is not finished is worse than no
+route yet.
 
 `sets/fork.ts` holds the one rule everything else depends on: **a fork keeps
 every id inside the document, and only the set's own id changes.** Card, deck,
@@ -634,6 +879,9 @@ templates**, not authored:
 - `event_logo.png` / `event_logo_ink.png` — the Unmatched Adventures lockup
   lifted out of `event_back_template_blank.png` as two alpha layers (box, and
   the lettering knocked out of it).
+- The hero card's five, all from `tools/hero-card-assets.py` — see *The hero
+  role*. Its output prints the measurements `geometry.ts`'s `HERO_RIBBON` is
+  checked against, so run it after touching a source template and compare.
 
 They were produced with Python/PIL from files still in the repo. If a source
 template changes, regenerate rather than hand-editing.

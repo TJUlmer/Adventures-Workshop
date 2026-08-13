@@ -36,6 +36,8 @@ import { createCharacter } from '$lib/characters/factory';
 import type {
   CardbackDesign,
   Character,
+  CharacterBandName,
+  CharacterCardDesign,
   CharacterId,
   CharacterRole
 } from '$lib/characters/types';
@@ -115,6 +117,15 @@ function defaultCardType(deck: Deck): CardType {
 export type EntityRef =
   | { readonly entity: 'card'; readonly id: CardId }
   | { readonly entity: 'character'; readonly id: CharacterId }
+  /**
+   * One band of a hero's character card. Addressed by band *name* rather than
+   * by index so a layout change cannot re-point somebody's picture.
+   */
+  | {
+      readonly entity: 'characterBand';
+      readonly id: CharacterId;
+      readonly band: CharacterBandName;
+    }
   /** The threat track's background. The board has one, so it needs no id. */
   | { readonly entity: 'threat' };
 
@@ -637,6 +648,14 @@ export class WorkshopStore {
     this.touch();
   }
 
+  editCharacterCard(id: CharacterId, mutate: (design: CharacterCardDesign) => void): void {
+    const character = findCharacter(this.adventure, id);
+    if (!character) return;
+    mutate(character.characterCard);
+    character.updatedAt = now();
+    this.touch();
+  }
+
   /**
    * Edit one band of an initiative card. A command rather than a bound object
    * because the bands panel is a shared child component.
@@ -665,6 +684,9 @@ export class WorkshopStore {
   /** The artwork block a ref points at, or `null` if the ref is stale. */
   artworkFor(ref: EntityRef): Artwork | null {
     if (ref.entity === 'threat') return this.adventure.threat.background;
+    if (ref.entity === 'characterBand') {
+      return findCharacter(this.adventure, ref.id)?.characterCard[ref.band].artwork ?? null;
+    }
     const owner =
       ref.entity === 'card'
         ? findCard(this.adventure, ref.id)

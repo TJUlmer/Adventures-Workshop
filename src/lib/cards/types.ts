@@ -83,7 +83,26 @@ export interface CardCommon {
   updatedAt: IsoDateTime;
 }
 
-/** A villain or minion action card. */
+/**
+ * The four combat symbols a hero's action card can print — exactly one per
+ * card, in the ribbon, rather than the attack-and-defense pair a villain or
+ * minion card carries in its body. Named to match `CardSymbolName` in
+ * `renderer/assets.ts`, which this module cannot import — cards depend on
+ * nothing, everything depends on cards — so the two are kept structurally
+ * identical instead of sharing a type.
+ */
+export const COMBAT_SYMBOLS = ['attack', 'defense', 'versatile', 'scheme'] as const;
+export type CombatSymbol = (typeof COMBAT_SYMBOLS)[number];
+
+/**
+ * Who may play a hero's action card, on a deck a hero shares with its
+ * sidekick. Printed in the ribbon's tail and again beside the copies count —
+ * see `ActionCardFace`. Meaningless, and ignored, on a villain or minion card.
+ */
+export const CARD_OWNERS = ['hero', 'sidekick', 'any'] as const;
+export type CardOwner = (typeof CARD_OWNERS)[number];
+
+/** A villain, minion or hero action card. */
 export interface ActionCard extends CardCommon {
   type: 'action';
   /** Printed above the ability text. Distinct from the character name ribbon. */
@@ -93,6 +112,20 @@ export interface ActionCard extends CardCommon {
   defense: number | null;
   boost: number | null;
   ability: AbilityBlocks;
+  /**
+   * A hero card's own combat display: one symbol and one value in the ribbon,
+   * in place of the attack/defense pair a villain or minion card prints in its
+   * body. `null` outside a hero's deck, where `attack`/`defense` carry the
+   * value instead.
+   */
+  symbol: CombatSymbol | null;
+  symbolValue: number | null;
+  /**
+   * Which of a hero and its sidekick may play this card. Read only inside a
+   * hero's deck — a villain or minion card ignores it entirely, the way it
+   * already ignores `split` when unset.
+   */
+  owner: CardOwner;
   /**
    * Split cards divide the body panel: the attack value and `ability` above a
    * floating separator, the defense value and `defenseAbility` below it.

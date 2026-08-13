@@ -189,6 +189,31 @@ export const EVENT_CARD_THEME: CardTheme = {
   backInk: '#1a1a1a'
 };
 
+/**
+ * The hero action card's own stock look, measured off
+ * `Hero_Action_Card_Template.png`.
+ *
+ * A colour inversion of the default rather than a fresh palette: `frame`
+ * takes the cream the default card uses nowhere, and `banner`/`body`/`boost`
+ * take the navy the default frame is drawn in. `bannerInk`, `bodyInk` and
+ * `boostInk` are already white on the default theme, so nothing about them
+ * needs restating here.
+ *
+ * `divider` follows `frame` rather than staying at its default — on the
+ * *default* theme the two already happen to match (`#001722` each), which is
+ * what makes the boost ring and the ribbon's outline read as the same
+ * structural cream as the border here rather than as a leftover navy stroke
+ * nobody asked for.
+ */
+export const HERO_ACTION_CARD_THEME: CardTheme = {
+  ...DEFAULT_CARD_THEME,
+  frame: solid('#f6eada'),
+  banner: solid('#001722'),
+  body: solid('#001722'),
+  boost: solid('#001722'),
+  divider: '#f6eada'
+};
+
 export const THEME_KEYS = [
   'frame',
   'banner',

@@ -10,12 +10,14 @@
  * This runs on file import and on session restore alike, because both are
  * equally likely to be out of date.
  */
-import { createAbilityBlocks, createHeadingPlacement } from '$lib/cards/types';
+import { CARD_OWNERS, COMBAT_SYMBOLS, createAbilityBlocks, createHeadingPlacement } from '$lib/cards/types';
 import type { AdventureMap, MapNoteId, MapPath, MapPathId, MapSpace, MapSpaceId } from '$lib/map/types';
 import { createAdventureMap, createMapNote, createMapPath, createMapSpace } from '$lib/map/types';
 import type {
   ActionCard,
   Card,
+  CardOwner,
+  CombatSymbol,
   EventCard,
   HeadingPlacement,
   InitiativeBands,
@@ -24,8 +26,10 @@ import type {
 } from '$lib/cards/types';
 import { solid } from '$lib/cards/style';
 import type { Fill } from '$lib/cards/style';
-import { createCardback } from '$lib/characters/factory';
-import { CHARACTER_ROLES } from '$lib/characters/types';
+import { createCardback, createCharacterCard, createHeroSidekick } from '$lib/characters/factory';
+import { ATTACK_TYPES, CHARACTER_BAND_NAMES, CHARACTER_ROLES } from '$lib/characters/types';
+import type { CharacterBandName } from '$lib/characters/types';
+import type { CharacterCardDesign, HeroQuote, HeroSidekick } from '$lib/characters/types';
 import type { Artwork } from '$lib/core/artwork';
 import { createArtwork } from '$lib/core/artwork';
 import type { DialRange, Figure, ModelFile, TokenBuild } from '$lib/figures/types';
@@ -89,6 +93,59 @@ function artwork(value: unknown): Artwork {
     adjustments: asRecord(raw['adjustments']),
     effects: asRecord(raw['effects'])
   });
+}
+
+/** `null` is a valid, meaningful value here — see `ActionCard.symbol`. */
+function combatSymbol(value: unknown): CombatSymbol | null {
+  return (COMBAT_SYMBOLS as readonly unknown[]).includes(value) ? (value as CombatSymbol) : null;
+}
+
+function cardOwner(value: unknown): CardOwner {
+  return (CARD_OWNERS as readonly unknown[]).includes(value) ? (value as CardOwner) : 'hero';
+}
+
+function heroSidekick(value: unknown): HeroSidekick {
+  const raw = asRecord(value);
+  const defaults = createHeroSidekick();
+  return {
+    enabled: bool(raw['enabled'], defaults.enabled),
+    name: str(raw['name'], defaults.name),
+    attackType: (ATTACK_TYPES as readonly unknown[]).includes(raw['attackType'])
+      ? (raw['attackType'] as HeroSidekick['attackType'])
+      : defaults.attackType,
+    multiple: bool(raw['multiple'], defaults.multiple),
+    health: nullableNum(raw['health'], defaults.health),
+    count: num(raw['count'], defaults.count)
+  };
+}
+
+function heroQuote(value: unknown): HeroQuote {
+  const raw = asRecord(value);
+  return { text: str(raw['text']), attribution: str(raw['attribution']) };
+}
+
+/**
+ * The character card's border and its three bands, keyed by band rather than
+ * by position — a document written before this existed simply gets the printed
+ * template's own colours and three empty artwork slots.
+ */
+function characterCard(value: unknown): CharacterCardDesign {
+  const raw = asRecord(value);
+  const defaults = createCharacterCard();
+  const band = (name: CharacterBandName) => {
+    const entry = asRecord(raw[name]);
+    return {
+      fill: fill(entry['fill'], defaults[name].fill),
+      artwork: artwork(entry['artwork'])
+    };
+  };
+  return {
+    border: fill(raw['border'], defaults.border),
+    ...(Object.fromEntries(CHARACTER_BAND_NAMES.map((name) => [name, band(name)])) as Pick<
+      CharacterCardDesign,
+      CharacterBandName
+    >)
+  };
 }
 
 function cardback(value: unknown, role: string) {
@@ -462,6 +519,9 @@ function normalizeCard(value: unknown): Card | null {
         defense: nullableNum(raw['defense'], null),
         boost: nullableNum(raw['boost'], null),
         ability: abilityBlocks(raw['ability']),
+        symbol: combatSymbol(raw['symbol']),
+        symbolValue: nullableNum(raw['symbolValue'], 2),
+        owner: cardOwner(raw['owner']),
         split: bool(raw['split'], false),
         defenseAbility: abilityBlocks(raw['defenseAbility'])
       } as ActionCard;
@@ -521,6 +581,9 @@ export function normalizeSet(value: AdventureSet): AdventureSet {
       ...character,
       artwork: artwork(character['artwork']),
       cardback: cardback(character['cardback'], role),
+      sidekick: heroSidekick(character['sidekick']),
+      quote: heroQuote(character['quote']),
+      characterCard: characterCard(character['characterCard']),
       style: asRecord(character['style']),
       abilities: Array.isArray(character['abilities']) ? character['abilities'] : []
     };

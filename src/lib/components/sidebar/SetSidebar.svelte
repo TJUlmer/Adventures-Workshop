@@ -94,6 +94,35 @@
   </div>
 
   <nav class="scroll scroll-y">
+    <!--
+      Heroes, above Villains: a hero is who the set is played *as*, and that
+      comes first in how an author thinks about their own adventure — the
+      antagonist is who it is played against.
+    -->
+    <SidebarGroup title="Heroes" icon="users" count={outline.heroes.length}>
+      {#snippet actions()}
+        <button
+          type="button"
+          class="group-action"
+          title="Add hero"
+          onclick={() => workshop.addCharacter('hero')}
+        >
+          <Icon name="plus" size={12} />
+        </button>
+      {/snippet}
+
+      {#if outline.heroes.length === 0}
+        <button type="button" class="prompt" onclick={() => workshop.addCharacter('hero')}>
+          <Icon name="plus" size={12} />
+          Add a hero
+        </button>
+      {:else}
+        {#each outline.heroes as entry (entry.character.id)}
+          {@render characterBlock(entry)}
+        {/each}
+      {/if}
+    </SidebarGroup>
+
     <!-- Villain --------------------------------------------------------- -->
     <SidebarGroup title="Villains" icon="skull" count={outline.villains.length}>
       {#snippet actions()}
