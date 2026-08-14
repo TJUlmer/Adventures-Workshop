@@ -13,6 +13,7 @@ import {
   rememberLastOpen,
   saveSet
 } from '$lib/storage/library';
+import { requestPersistentStorage } from '$lib/storage/indexeddb';
 import type { WorkshopStore } from './workshop.svelte';
 
 /**
@@ -31,6 +32,12 @@ import type { WorkshopStore } from './workshop.svelte';
  * what awaiting it here without a caller-side gate would have looked like.
  */
 export async function restoreSession(store: WorkshopStore): Promise<void> {
+  // Not awaited: this only lowers the odds of a rare, silent eviction under
+  // storage pressure — see `requestPersistentStorage` — and nothing below
+  // depends on its answer, so it should not add its own latency to the
+  // restore `App.svelte` is gating first paint on.
+  void requestPersistentStorage();
+
   await migrateLibraryFromLocalStorage();
 
   const adopted = await migrateLegacyDocument();

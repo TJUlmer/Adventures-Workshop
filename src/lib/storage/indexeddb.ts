@@ -117,3 +117,45 @@ export async function idbDelete(store: string, key: string): Promise<void> {
     tx.onabort = () => resolve();
   });
 }
+
+/**
+ * Ask the browser not to evict this origin's storage under pressure.
+ *
+ * "Best-effort" storage — what an origin gets by default — can be cleared
+ * automatically when the disk fills up or, on Safari in particular, after a
+ * stretch of the site going unvisited. "Persistent" storage opts out of that.
+ * The browser may still say no (most engines grant it silently once the site
+ * is bookmarked or heavily used, some ask the visitor), and this app works
+ * identically either way — this only lowers the odds of a rare, silent
+ * eviction, so failing quietly is the right outcome for every case: the API
+ * missing entirely, the browser declining, or a private-browsing session
+ * where the question does not apply.
+ *
+ * Fire-and-forget from `restoreSession`, once per session — there is nothing
+ * to gate on, and no UI reads the answer.
+ */
+export async function requestPersistentStorage(): Promise<boolean> {
+  try {
+    return (await navigator.storage?.persist?.()) ?? false;
+  } catch {
+    return false;
+  }
+}
+
+/** How much of the browser's storage quota this origin is using, if the
+ *  browser can say — `null` covers everything from "API not implemented"
+ *  (older Safari, some private-browsing modes) to a call that threw. */
+export interface StorageEstimate {
+  usageBytes: number;
+  quotaBytes: number;
+}
+
+export async function readStorageEstimate(): Promise<StorageEstimate | null> {
+  try {
+    const estimate = await navigator.storage?.estimate?.();
+    if (!estimate || estimate.usage === undefined || estimate.quota === undefined) return null;
+    return { usageBytes: estimate.usage, quotaBytes: estimate.quota };
+  } catch {
+    return null;
+  }
+}

@@ -10,6 +10,8 @@
   import { navigation } from '$lib/state/navigation.svelte';
   import { workshop } from '$lib/state/workshop.svelte';
   import { saveSet } from '$lib/storage/library';
+  import { readStorageEstimate } from '$lib/storage/indexeddb';
+  import type { StorageEstimate } from '$lib/storage/indexeddb';
   import { Button, EmptyState, Icon } from '$lib/ui';
 
   let fileInput = $state<HTMLInputElement | null>(null);
@@ -17,6 +19,20 @@
   let confirmingDelete = $state<string | null>(null);
 
   const entries = $derived(workshop.library);
+
+  /**
+   * Total browser storage this origin is using, against what it could use —
+   * not just this library's own byte counts, which is why it is fetched
+   * separately from `entries` rather than summed from `entry.bytes`: the
+   * quota is shared with whatever else the browser keeps for this origin,
+   * and the point of showing it is the ceiling, not the total.
+   *
+   * `null` while unanswered (the browser has no `navigator.storage.estimate`,
+   * or the call failed) means the line is simply not drawn — there is
+   * nothing useful to say in that case, and no error worth surfacing over it.
+   */
+  let storage = $state<StorageEstimate | null>(null);
+  void readStorageEstimate().then((value) => (storage = value));
 
   function flash(text: string): void {
     message = text;
@@ -32,7 +48,8 @@
   function formatSize(bytes: number): string {
     if (bytes < 1024) return `${bytes} B`;
     if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
-    return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+    if (bytes < 1024 * 1024 * 1024) return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+    return `${(bytes / 1024 / 1024 / 1024).toFixed(2)} GB`;
   }
 
   async function importSet(event: Event & { currentTarget: HTMLInputElement }): Promise<void> {
@@ -58,6 +75,11 @@
       <div class="titles">
         <h1 class="title">Adventures Workshop</h1>
         <p class="subtitle">Everything lives inside a set.</p>
+        {#if storage}
+          <p class="storage-line">
+            {formatSize(storage.usageBytes)} of {formatSize(storage.quotaBytes)} used
+          </p>
+        {/if}
       </div>
     </div>
 
@@ -232,6 +254,12 @@
   .subtitle {
     font-size: var(--text-xs);
     color: var(--text-muted);
+  }
+
+  .storage-line {
+    font-size: var(--text-2xs);
+    color: var(--text-muted);
+    opacity: 0.75;
   }
 
   .actions {
