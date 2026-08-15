@@ -50,9 +50,31 @@
     if (source) workshop.reorderCard(source, card.id, side);
   }
 
+  /**
+   * A hero's action card prints one combat symbol and one value in the
+   * ribbon — `attack`/`defense` on the same card are meaningless there, left
+   * over from the villain/minion shape every action card shares, and never
+   * edited for a hero's own deck. Reading them regardless of `symbol` is what
+   * showed every hero card as "A2 D2": the two leftover fields, not the
+   * card's actual value. `symbol` is `null` outside a hero's deck (see
+   * `ActionCard` in `cards/types.ts`), so that alone is enough to pick which
+   * pair of fields is the real one, with no need to know the character's role
+   * here.
+   */
+  const SYMBOL_LETTERS: Readonly<Record<'attack' | 'defense' | 'versatile', string>> = {
+    attack: 'A',
+    defense: 'D',
+    versatile: 'V'
+  };
+
   /** A compact read of what the card carries, right-aligned in the row. */
   const trailing = $derived.by(() => {
     if (card.type === 'action') {
+      if (card.symbol !== null) {
+        if (card.symbol === 'scheme' || card.symbolValue === null) return '';
+        return `${SYMBOL_LETTERS[card.symbol]}${card.symbolValue}`;
+      }
+
       const parts: string[] = [];
       if (card.attack !== null) parts.push(`A${card.attack}`);
       if (card.defense !== null) parts.push(`D${card.defense}`);
