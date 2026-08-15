@@ -270,7 +270,15 @@ async function componentFor(
     }
   }
 
-  if (figure.token.enabled && figure.reference.source) {
+  /*
+   * No `&& figure.reference.source` guard here — `buildTokenArt` already
+   * falls back to a flat fill of the token's rim colour when there is no
+   * reference image (see `token-model.ts`), so a plain marker with a colour
+   * and no picture still gets a properly textured `Custom_Model` rather than
+   * silently falling through to the "attached mesh" branch below and being
+   * skipped for having neither a model nor an image.
+   */
+  if (figure.token.enabled) {
     const mesh = buildTokenMesh(tokenSpecOf(figure.token));
     const meshPath = await writeBytes(
       files, taken, `models/${slug}`, 'obj', encoder.encode(tokenObj(mesh, slug))

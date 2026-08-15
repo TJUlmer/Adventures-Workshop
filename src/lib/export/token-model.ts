@@ -98,16 +98,44 @@ export async function buildTwoSidedTexture(source: string, size = 1024): Promise
 }
 
 /**
+ * A texture that is nothing but one flat colour.
+ *
+ * A generated token's *mesh* never needed art — `buildTokenMesh` builds one
+ * from a `TokenSpec` alone — so this is what lets its texture skip art too: a
+ * uniform fill reads correctly under any UV layout the mesh uses, one-sided or
+ * two, since every coordinate on it samples the same colour regardless of
+ * where it lands. "Add a token, pick a colour, export" is a complete path
+ * with no picture required anywhere in it.
+ */
+async function buildSolidTexture(color: string, size = 1024): Promise<Blob> {
+  const canvas = document.createElement('canvas');
+  canvas.width = size;
+  canvas.height = Math.round(size * TOKEN_TEXTURE_RATIO);
+  const context = canvas.getContext('2d');
+  if (!context) throw new Error('Could not get a drawing context.');
+  context.fillStyle = color;
+  context.fillRect(0, 0, canvas.width, canvas.height);
+  return encodePng(canvas);
+}
+
+/**
  * The texture a build asks for, one-sided or two, at the given size.
  *
  * A health dial comes through here as well. It is a disc like any other, but it
  * is the app's component rather than the author's, so its rim is the app's too —
- * there is no rim control on a dial to read one from.
+ * there is no rim control on a dial to read one from. A dial's face is still
+ * required — see `tts-bundle.ts`'s `dialObjects`, which never calls this
+ * without one — but every other kind falls back to a flat fill of its own rim
+ * colour rather than throwing, which is what lets a plain marker (a threat
+ * track token, say) ship with no reference image at all.
  */
 export function buildTokenArt(figure: Figure, size = 1024): Promise<Blob> {
   const source = figure.reference.source;
-  if (!source) throw new Error('Attach a reference image first — it is what goes on the token.');
-  if (figure.kind === 'dial') return buildTokenTexture(source, HEALTH_DIAL_RIM, size);
+  if (figure.kind === 'dial') {
+    if (!source) throw new Error('Attach a reference image first — it is what goes on the token.');
+    return buildTokenTexture(source, HEALTH_DIAL_RIM, size);
+  }
+  if (!source) return buildSolidTexture(figure.token.rimColor, size);
   return figure.token.twoSided
     ? buildTwoSidedTexture(source, size)
     : buildTokenTexture(source, figure.token.rimColor, size);
@@ -164,10 +192,6 @@ For printing
 
 /** Everything needed to put one generated token on a table. */
 export async function exportTokenModel(figure: Figure): Promise<ExportResult> {
-  if (!figure.reference.source) {
-    throw new Error('Attach a reference image first — it is what goes on the token.');
-  }
-
   const spec = tokenSpecOf(figure.token);
   const name = figureLabel(figure);
   const base = slugify(name, 'token');
@@ -189,9 +213,14 @@ export async function exportTokenModel(figure: Figure): Promise<ExportResult> {
   };
 }
 
-/** The same texture the export writes, for showing the token on screen. */
+/**
+ * The same texture the export writes, for showing the token on screen.
+ *
+ * Only a dial needs an early exit here — everything else always has *some*
+ * texture to show now, an image or a flat fill of its rim colour.
+ */
 export async function tokenTextureUrl(figure: Figure): Promise<string | null> {
-  if (!figure.reference.source) return null;
+  if (figure.kind === 'dial' && !figure.reference.source) return null;
   const blob = await buildTokenArt(figure, 512);
   return URL.createObjectURL(blob);
 }

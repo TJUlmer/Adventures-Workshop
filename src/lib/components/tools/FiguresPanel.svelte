@@ -63,6 +63,14 @@
     label: FIGURE_KIND_LABELS[kind]
   }));
 
+  /**
+   * The header's second row of "add" buttons — every kind except `token`,
+   * which the header's own token presets (below) already cover. `token`
+   * stays a choice in `kindSegments` above wherever a *figure* picks its own
+   * kind (the per-row `Select`) — only the blank quick-add button is gone.
+   */
+  const plainKindSegments = kindSegments.filter((kind) => kind.value !== 'token');
+
   /** For the mesh a model file carries — never an image, so never shrunk. */
   function readAsDataUrl(file: File): Promise<string> {
     return new Promise((resolve, reject) => {
@@ -125,6 +133,47 @@
 
   function add(kind: FigureKind): void {
     workshop.addFigure(kind);
+  }
+
+  /**
+   * Fixed-spec presets, for the components most sets need one of and would
+   * otherwise mean dialling the same handful of numbers in by hand every
+   * time. Same `Figure`/`TokenBuild` shape as anything else added through
+   * `add()` above — a preset only pre-fills the token fields, it does not
+   * introduce a new kind of figure.
+   */
+  function addSidekickToken(): void {
+    const figure = workshop.addFigure('token');
+    workshop.editFigure(figure.id, (f) => {
+      f.name = 'Sidekick token';
+      f.token.diameterMm = 25;
+      f.token.thicknessMm = 3;
+    });
+  }
+
+  function addMinionToken(): void {
+    const figure = workshop.addFigure('token');
+    workshop.editFigure(figure.id, (f) => {
+      f.name = 'Minion token';
+      f.token.shape = 'polygon';
+      f.token.sides = 6;
+      f.token.diameterMm = 25;
+      f.token.thicknessMm = 3;
+    });
+  }
+
+  function addThreatTrackToken(): void {
+    const figure = workshop.addFigure('token');
+    workshop.editFigure(figure.id, (f) => {
+      f.name = 'Threat track token';
+      f.token.shape = 'polygon';
+      f.token.sides = 6;
+      f.token.diameterMm = 15;
+      f.token.thicknessMm = 2;
+      // Distinct from the generic rim default — a threat token reads as
+      // "threat" on sight rather than needing its label read.
+      f.token.rimColor = '#9E0000';
+    });
   }
 
   // -- previews -----------------------------------------------------------
@@ -205,7 +254,9 @@
       if (textureKeys[figure.id] === key) continue;
       textureKeys[figure.id] = key;
 
-      if (!figure.reference.source) {
+      // Only a dial needs an image — everything else always has *some*
+      // texture now, an image or a flat fill of its rim colour.
+      if (figure.kind === 'dial' && !figure.reference.source) {
         delete tokenTextures[figure.id];
         continue;
       }
@@ -385,12 +436,40 @@
     </div>
 
     <div class="head-actions">
-      {#each kindSegments as kind (kind.value)}
-        <Button size="sm" onclick={() => add(kind.value)}>
+      <!--
+        Presets first, and on their own row — these are specific tokens with
+        their dimensions already decided, not another choice of kind, so they
+        read as a distinct group rather than three more entries in the row
+        below.
+      -->
+      <div class="action-row">
+        <Button size="sm" onclick={addSidekickToken}>
           <Icon name="plus" size={13} />
-          {kind.label}
+          Sidekick token
         </Button>
-      {/each}
+        <Button size="sm" onclick={addMinionToken}>
+          <Icon name="plus" size={13} />
+          Minion token
+        </Button>
+        <Button size="sm" onclick={addThreatTrackToken}>
+          <Icon name="plus" size={13} />
+          Threat track token
+        </Button>
+      </div>
+
+      <!--
+        `token` itself is not here — every preset above already is one, so a
+        blank one is one click from any of them (turn its dimensions down to
+        whatever is wanted) rather than needing its own button too.
+      -->
+      <div class="action-row">
+        {#each plainKindSegments as kind (kind.value)}
+          <Button size="sm" onclick={() => add(kind.value)}>
+            <Icon name="plus" size={13} />
+            {kind.label}
+          </Button>
+        {/each}
+      </div>
     </div>
   </header>
 
@@ -717,9 +796,17 @@
                       />
                     </label>
 
-                    {#if !figure.token.twoSided}
+                    <!--
+                      Shown whenever there is no image to make `twoSided`
+                      meaningful — without art the whole piece is this one
+                      colour, so the control that reaches it must stay
+                      reachable regardless of that switch.
+                    -->
+                    {#if !figure.token.twoSided || !hasArtwork(figure.reference)}
                       <label class="field">
-                        <span class="field-label">Rim</span>
+                        <span class="field-label">
+                          {hasArtwork(figure.reference) ? 'Rim' : 'Colour'}
+                        </span>
                         <ColorInput
                           value={figure.token.rimColor}
                           inherited={figure.token.rimColor}
@@ -756,7 +843,14 @@
 
                     <div class="note-block">
                       <span class="block-title">Painting it</span>
-                      {#if figure.token.twoSided}
+                      {#if !hasArtwork(figure.reference)}
+                        <p class="hint">
+                          No image attached, so every face and the edge export as one
+                          plain fill of the colour above — a marker that needs no
+                          picture to render correctly in Tabletop Simulator. Attach an
+                          image to put art on it instead.
+                        </p>
+                      {:else if figure.token.twoSided}
                         <p class="hint">
                           The image is read as two squares side by side — the left one
                           goes on top, the right on the underside — and the pixel at the
@@ -777,14 +871,16 @@
                   <div class="build-actions">
                     <Button
                       size="sm"
-                      disabled={!hasArtwork(figure.reference) || exportingId === figure.id}
+                      disabled={exportingId === figure.id}
                       onclick={() => exportToken(figure)}
                     >
                       <Icon name="download" size={13} />
                       {exportingId === figure.id ? 'Building…' : 'Export model'}
                     </Button>
                     {#if !hasArtwork(figure.reference)}
-                      <span class="hint">Attach a reference image first — it is what goes on it.</span>
+                      <span class="hint">
+                        No image attached — exports as a solid fill of the colour below.
+                      </span>
                     {/if}
                   </div>
                 {/if}
@@ -961,6 +1057,13 @@
   }
 
   .head-actions {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: var(--space-2);
+  }
+
+  .action-row {
     display: flex;
     gap: var(--space-2);
   }
