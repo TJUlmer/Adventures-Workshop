@@ -139,19 +139,28 @@ class Navigation {
    * has to leave a page that can be reloaded, bookmarked and sent on. Without
    * this a tile opened the set and a refresh threw it away.
    *
-   * `pushState` rather than `replaceState`, so Back returns to the gallery.
-   * Skipped when the address bar already names this slug — the case when
-   * this is being called *by* the hashchange listener, or by the initial
-   * deep link off a path-form share URL — or every deep link would push a
-   * duplicate entry and Back would appear not to work.
+   * Always writes the **path** form, matching `shareUrl` — a gallery tile
+   * used to open a shared set under the old hash form while `shareUrl`'s copy
+   * button had already moved to the path form, so the address bar and the
+   * text someone actually copied disagreed about the one thing that has to
+   * survive being pasted. There is now exactly one URL shape for "viewing a
+   * shared set," everywhere it can be reached from.
    *
-   * Always writes the hash form here, even though `shareUrl` now hands out
-   * the path form. A page that arrived via `…/shared/{slug}` already names
-   * the right set (`readSharedSlug` reads both), so the `slug` check below
-   * leaves it alone rather than decorating it with a redundant hash; every
-   * *other* caller — the gallery, a "Based on…" link, re-opening a shared
-   * view from within the running app — never touched the path form in the
-   * first place and has no reason to start.
+   * Two different address-bar writes, depending on how this was reached:
+   *
+   * `replaceState`, causing no new history entry, when the address bar
+   * already names this slug — in *either* form. Covers the initial deep link
+   * off a path-form share URL (nothing to normalize, so this is a no-op) and
+   * a stale hash-form bookmark (upgraded to the path form in place). Also
+   * covers the hashchange listener catching a native click on an in-app
+   * `#/shared/…` link (`SetHome`'s "Based on…" line): the browser has
+   * already added its own history entry for that click by the time this
+   * runs, so a `pushState` here would double it up — Back would need
+   * pressing twice to actually leave.
+   *
+   * `pushState` otherwise — the gallery, or a "Based on…" link to a
+   * *different* shared set than the one already open — because that *is* a
+   * fresh navigation and wants a fresh, back-button-reachable entry.
    */
   openShared(slug: string): void {
     /*
@@ -162,18 +171,21 @@ class Navigation {
      * or re-entering a shared view from a shared view would overwrite it.
      */
     if (this.view.kind !== 'shared') this.#returnTo = this.view;
-
     this.view = { kind: 'shared', slug };
-    if (readSharedSlug() === slug) return;
 
-    /*
-     * Strips a stale `/shared/{otherSlug}` tail before writing the hash, the
-     * same as `leaveShared` does — otherwise navigating from one shared view
-     * reached by path to a *different* one from within the app would leave
-     * both a path and a hash naming two different slugs at once.
-     */
+    // Strips a stale `/shared/{otherSlug}` tail rather than assuming root, so
+    // a sub-path deploy's own base path survives — same as `leaveShared`.
     const base = window.location.pathname.replace(SHARED_PATH_PATTERN, '');
-    history.pushState(null, '', `${base}#/shared/${slug}`);
+    const wanted = `${base}shared/${slug}${window.location.search}`;
+
+    if (readSharedSlug() === slug) {
+      if (window.location.pathname !== `${base}shared/${slug}` || window.location.hash !== '') {
+        history.replaceState(null, '', wanted);
+      }
+      return;
+    }
+
+    history.pushState(null, '', wanted);
   }
 
   /** Wherever `openShared` was called from. The library if it was nowhere. */
