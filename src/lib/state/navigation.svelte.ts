@@ -81,11 +81,32 @@ export type View =
  * A hash rather than a path, because the app is served as static files from
  * wherever someone drops it. A path would need a server rewriting unknown URLs
  * to `index.html`; a hash needs nothing and works from `file://`.
+ *
+ * A shared set's link is the one exception, and reads a real path
+ * (`…/shared/{slug}`) as well as the old hash form. A path is the only thing
+ * an HTTP request ever carries to a server — a fragment never leaves the
+ * browser, by the URL spec, so a link unfurler (Discord, Slack, Twitter…)
+ * reading `#/shared/…` cannot know which set is being asked for. `shareUrl`
+ * is the only place that *writes* the path form; every in-app navigation
+ * still writes the hash, unchanged, and this only *reads* the path so a
+ * freshly-opened share link is recognised regardless of which shape it
+ * arrived in. See `middleware.ts` for the server side of this.
+ *
+ * Unanchored at the front and anchored at the end, so this matches the tail
+ * of whatever the app's own base path happens to be (`/shared/…` at the
+ * root, `/some/base/shared/…` for a sub-path deploy) without needing to know
+ * it in advance — the same reason `shareUrl` builds off `location.pathname`
+ * rather than assuming root.
  */
-const SHARED_PATTERN = /^#\/shared\/([A-Za-z0-9_-]+)$/;
+const SHARED_PATH_PATTERN = /shared\/([A-Za-z0-9_-]+)\/?$/;
+const SHARED_HASH_PATTERN = /^#\/shared\/([A-Za-z0-9_-]+)$/;
 
-export function readSharedSlug(hash: string = window.location.hash): string | null {
-  return SHARED_PATTERN.exec(hash)?.[1] ?? null;
+export function readSharedSlug(): string | null {
+  return (
+    SHARED_PATH_PATTERN.exec(window.location.pathname)?.[1] ??
+    SHARED_HASH_PATTERN.exec(window.location.hash)?.[1] ??
+    null
+  );
 }
 
 class Navigation {
@@ -119,9 +140,18 @@ class Navigation {
    * this a tile opened the set and a refresh threw it away.
    *
    * `pushState` rather than `replaceState`, so Back returns to the gallery.
-   * Skipped when the hash already matches, which is the case when this is being
-   * called *by* the hashchange listener — otherwise every deep link would push
-   * a duplicate entry and Back would appear not to work.
+   * Skipped when the address bar already names this slug — the case when
+   * this is being called *by* the hashchange listener, or by the initial
+   * deep link off a path-form share URL — or every deep link would push a
+   * duplicate entry and Back would appear not to work.
+   *
+   * Always writes the hash form here, even though `shareUrl` now hands out
+   * the path form. A page that arrived via `…/shared/{slug}` already names
+   * the right set (`readSharedSlug` reads both), so the `slug` check below
+   * leaves it alone rather than decorating it with a redundant hash; every
+   * *other* caller — the gallery, a "Based on…" link, re-opening a shared
+   * view from within the running app — never touched the path form in the
+   * first place and has no reason to start.
    */
   openShared(slug: string): void {
     /*
@@ -134,8 +164,16 @@ class Navigation {
     if (this.view.kind !== 'shared') this.#returnTo = this.view;
 
     this.view = { kind: 'shared', slug };
-    const wanted = `#/shared/${slug}`;
-    if (window.location.hash !== wanted) history.pushState(null, '', wanted);
+    if (readSharedSlug() === slug) return;
+
+    /*
+     * Strips a stale `/shared/{otherSlug}` tail before writing the hash, the
+     * same as `leaveShared` does — otherwise navigating from one shared view
+     * reached by path to a *different* one from within the app would leave
+     * both a path and a hash naming two different slugs at once.
+     */
+    const base = window.location.pathname.replace(SHARED_PATH_PATTERN, '');
+    history.pushState(null, '', `${base}#/shared/${slug}`);
   }
 
   /** Wherever `openShared` was called from. The library if it was nowhere. */
@@ -152,10 +190,17 @@ class Navigation {
    * destination: "Go to my library" after taking a copy sent people to the
    * gallery, because that is where they had opened the set from. A button that
    * says where it goes has to go there.
+   *
+   * The `/shared/{slug}` tail is stripped from `pathname` rather than the
+   * whole path being reset to `/` — a sub-path deploy's own base path is
+   * everything ahead of that tail, and hardcoding root would drop it. A
+   * hash-only arrival has no such tail to strip, so this is a no-op on the
+   * path and the hash still goes, same as before.
    */
   leaveShared(to?: View): void {
     if (readSharedSlug() !== null) {
-      history.replaceState(null, '', window.location.pathname + window.location.search);
+      const base = window.location.pathname.replace(SHARED_PATH_PATTERN, '');
+      history.replaceState(null, '', base + window.location.search);
     }
     this.view = to ?? this.#returnTo;
   }

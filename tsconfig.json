@@ -22,5 +22,5 @@
       "$lib/*": ["./src/lib/*"]
     }
   },
-  "include": ["src/**/*.ts", "src/**/*.d.ts", "src/**/*.svelte", "vite.config.ts"]
+  "include": ["src/**/*.ts", "src/**/*.d.ts", "src/**/*.svelte", "vite.config.ts", "middleware.ts"]
 }

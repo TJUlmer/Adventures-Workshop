@@ -99,7 +99,7 @@
       comes first in how an author thinks about their own adventure — the
       antagonist is who it is played against.
     -->
-    <SidebarGroup title="Heroes" icon="users" count={outline.heroes.length}>
+    <SidebarGroup title="Heroes" icon="users" count={outline.heroes.length} tint="--role-hero">
       {#snippet actions()}
         <button
           type="button"
@@ -124,7 +124,7 @@
     </SidebarGroup>
 
     <!-- Villain --------------------------------------------------------- -->
-    <SidebarGroup title="Villains" icon="skull" count={outline.villains.length}>
+    <SidebarGroup title="Villains" icon="skull" count={outline.villains.length} tint="--role-villain">
       {#snippet actions()}
         {#if workshop.canAddVillain()}
           <button
@@ -151,7 +151,7 @@
     </SidebarGroup>
 
     <!-- Minions --------------------------------------------------------- -->
-    <SidebarGroup title="Minions" icon="users" count={outline.minions.length}>
+    <SidebarGroup title="Minions" icon="users" count={outline.minions.length} tint="--role-minion">
       {#snippet actions()}
         <button
           type="button"
@@ -176,7 +176,12 @@
     </SidebarGroup>
 
     <!-- Initiative ------------------------------------------------------ -->
-    <SidebarGroup title="Initiative" icon="hourglass" count={outline.initiative.length}>
+    <SidebarGroup
+      title="Initiative"
+      icon="hourglass"
+      count={outline.initiative.length}
+      tint="--section-initiative"
+    >
       {#snippet actions()}
         <button
           type="button"
@@ -201,7 +206,7 @@
     </SidebarGroup>
 
     <!-- Rules ----------------------------------------------------------- -->
-    <SidebarGroup title="Rules" icon="book" count={outline.rules.length}>
+    <SidebarGroup title="Rules" icon="book" count={outline.rules.length} tint="--section-rules">
       {#snippet actions()}
         <button
           type="button"
@@ -226,7 +231,7 @@
     </SidebarGroup>
 
     <!-- Events ---------------------------------------------------------- -->
-    <SidebarGroup title="Events" icon="sparkle" count={outline.events.length}>
+    <SidebarGroup title="Events" icon="sparkle" count={outline.events.length} tint="--section-event">
       {#snippet actions()}
         <button
           type="button"

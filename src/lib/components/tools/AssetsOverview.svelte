@@ -448,6 +448,16 @@
     display: block;
     padding: 0;
     border-radius: var(--radius-sm);
+    /*
+     * A native `<button>` defaults to `text-align: center`, and it is a
+     * button here whenever the tile is clickable (`interactive`). Card faces
+     * like `ActionCardFace` never set their own `text-align` — nothing else
+     * ever renders them inside a button, `PreviewPanel`'s `.card-slot` is a
+     * plain div — so without this the browser default cascades straight into
+     * the card and every line of body text centres, which is not what the
+     * card actually prints.
+     */
+    text-align: left;
     transition: translate var(--duration-fast) var(--ease-out);
   }
 
@@ -492,6 +502,9 @@
     width: 100%;
     padding: 0;
     border-radius: var(--radius-lg);
+    /* Same reasoning as `.tile-card` above — a free-floating threat-track
+       note has no `text-align` of its own to fall back on either. */
+    text-align: left;
     transition: translate var(--duration-fast) var(--ease-out);
   }
 

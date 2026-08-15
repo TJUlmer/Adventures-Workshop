@@ -121,6 +121,23 @@
   --role-hero: hsl(200 70% 60%);
 
   /* ------------------------------------------------------------------ */
+  /* Semantic — sidebar section tint                                    */
+  /* One accent per SetSidebar group, so Heroes/Villains/Minions/        */
+  /* Initiative/Events/Rules read apart from each other at a glance —    */
+  /* see SidebarGroup's `tint` prop. Hero, Villain and Minion reuse      */
+  /* `--role-hero`/`-villain`/`-minion` above rather than mint a second   */
+  /* set that would drift from the colours a character's own role badge  */
+  /* already uses elsewhere (`SetEditor`'s starter icons). Initiative,   */
+  /* Event and Rules have no existing token at this saturation — the     */
+  /* card-kind taxonomy's colours for those decks (`--kind-defense` for  */
+  /* rules, `--kind-versatile` for event) were chosen for a different    */
+  /* purpose and do not land on the six colours asked for here.          */
+  /* ------------------------------------------------------------------ */
+  --section-initiative: hsl(48 85% 58%);
+  --section-event: hsl(152 55% 50%);
+  --section-rules: hsl(25 85% 56%);
+
+  /* ------------------------------------------------------------------ */
   /* Typography                                                          */
   /* System stacks only — the app must work fully offline.               */
   /* ------------------------------------------------------------------ */

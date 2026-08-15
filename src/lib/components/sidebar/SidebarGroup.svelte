@@ -7,17 +7,25 @@
     title: string;
     icon: IconName;
     count?: number;
+    /**
+     * CSS custom property carrying this section's accent colour — e.g.
+     * `--role-hero`, `--section-rules` — for a soft wash behind the whole
+     * group and the header icon. Omit for a neutral section (Others,
+     * Unassigned); `SidebarGroup` does not know or care what the name means,
+     * it only paints whatever var it is handed.
+     */
+    tint?: string;
     /** Buttons revealed on hover in the group header. */
     actions?: Snippet;
     children: Snippet;
   }
 
-  let { title, icon, count, actions, children }: Props = $props();
+  let { title, icon, count, tint, actions, children }: Props = $props();
 
   let open = $state(true);
 </script>
 
-<section class="group" class:collapsed={!open}>
+<section class="group" class:collapsed={!open} style:--tint={tint ? `var(${tint})` : undefined}>
   <div class="head">
     <button
       type="button"
@@ -49,6 +57,13 @@
     flex-direction: column;
     gap: var(--space-2);
     padding-block: var(--space-3);
+    /*
+     * `var(--tint, transparent)` falls back to `transparent` when no `tint`
+     * prop is set, so `color-mix` resolves to fully transparent and an
+     * untinted group (Others, Unassigned) looks exactly as it did before —
+     * no separate class needed to opt out.
+     */
+    background: color-mix(in oklab, var(--tint, transparent) 9%, transparent);
   }
 
   .head {
@@ -94,6 +109,7 @@
   .icon {
     display: grid;
     place-items: center;
+    color: var(--tint, inherit);
     opacity: 0.85;
   }
 

@@ -676,6 +676,50 @@ original gets credited to its own copy while the copy shows nothing.
 because that question is one integer and `set_by_slug` would charge megabytes
 for it.
 
+**A shared set's link is the one URL in this app that is a real path rather
+than a hash**, and `middleware.ts` (project root, alongside `vite.config.ts`)
+is why. Everywhere else, routing lives entirely after `#` on purpose — see
+`state/navigation.svelte.ts` — because a hash needs no server and works from
+`file://`. A link unfurler (Discord, Slack, Twitter…) breaks that: it fetches
+a URL with plain HTTP and reads whatever `<meta>` tags come back, never runs
+the app's JavaScript, and a fragment never leaves the browser in an HTTP
+request at all — so `#/shared/{slug}` cannot tell a bot which set is being
+asked about, by the URL spec, not by any missing configuration. `shareUrl`
+therefore hands out `…/shared/{slug}` as a real path now; `readSharedSlug`
+reads that form *and* the old hash form, so a link already pasted somewhere
+keeps working, and every in-app navigation still only ever writes the hash —
+`shareUrl` is the one place that writes the path form at all.
+
+`middleware.ts` is a Vercel Edge Middleware matching `/shared/:slug`,
+deliberately self-contained rather than importing from `src/lib/cloud/` — it
+runs outside Vite entirely, so `$lib` does not resolve there, and the one
+PostgREST call it needs (the same anonymous `set_by_slug` RPC `fetchSetBySlug`
+already makes, read `VITE_SUPABASE_URL`/`VITE_SUPABASE_PUBLISHABLE_KEY` out of
+`process.env` — already-configured Environment Variables, since the client
+build needs them too; Vite's `VITE_` prefix only gates what reaches the
+browser bundle, not what a server-side function may read) is small enough
+that duplicating it beats a shared build step for it. It only ever answers a
+request whose User-Agent names a known unfurling bot, with a tiny hand-written
+HTML page carrying `og:title`/`og:description`/`og:image` — the image is
+`thumbnail_url`, already sitting on the row from `publishSet`, so nothing here
+renders a picture, it only ever echoes one that already exists. Every other
+request — every real visitor — falls through untouched to `vercel.json`'s
+rewrite, which serves the ordinary SPA exactly as if this file did not exist.
+Untestable via `vite dev`, which has no Edge Runtime to run it in: verifying
+it means an actual Vercel deploy, then either curling the URL with a spoofed
+bot User-Agent or pasting a real link into Discord — which also means it
+inherits Discord's own aggressive per-URL unfurl caching, so a fix does not
+show up on a re-paste of the same slug without a cache-busting change.
+
+`cloud/thumbnail.ts`'s `coverArtwork` — the function that decides what
+picture becomes `thumbnail_url`, and now also what a shared link's preview
+image shows — used to take "the first character in the set's array with
+artwork," i.e. creation order, whatever role that character happened to be.
+It now explicitly prefers the villain, then the first hero, before falling
+back to that same creation-order search — matching how an author thinks about
+their own adventure (see "Heroes, above Villains" in `SetSidebar`), not an
+accident of which character was added first.
+
 ### Contributions
 
 Rung 2, and the shape of the trust is the thing to hold on to: **a contribution

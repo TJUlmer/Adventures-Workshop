@@ -31,13 +31,23 @@ const QUALITY = 0.8;
 /**
  * The picture that best stands for a set.
  *
- * Box art first, because that is what it is *for*. Failing that, the first
- * character with artwork — a villain's portrait says more about a set than a
- * blank tile does. Failing that, nothing, and the gallery draws its own
- * placeholder rather than being handed an empty image to render.
+ * Box art first, because that is what it is *for*. Failing that, the
+ * villain — the antagonist is who an adventure is played *against*, and one
+ * portrait says more about a set than a blank tile does — then the first
+ * hero, for a set with none. Neither is guaranteed to exist (a box of heroes
+ * has no villain; a set mid-authoring may have neither), so this falls
+ * through to the first character in the set with artwork at all, whatever
+ * its role, rather than turning up nothing when a perfectly good picture is
+ * sitting on a minion or a sidekick.
  */
 export function coverArtwork(set: AdventureSet): Artwork | null {
   if (hasArtwork(set.boxArt)) return set.boxArt;
+
+  const villain = set.characters.find((character) => character.role === 'villain');
+  if (villain && hasArtwork(villain.artwork)) return villain.artwork;
+
+  const hero = set.characters.find((character) => character.role === 'hero');
+  if (hero && hasArtwork(hero.artwork)) return hero.artwork;
 
   for (const character of set.characters) {
     if (hasArtwork(character.artwork)) return character.artwork;

@@ -591,7 +591,15 @@ export async function unpublishSet(id: string): Promise<void> {
   });
 }
 
-/** The link to hand someone. */
+/**
+ * The link to hand someone.
+ *
+ * A real path (`…/shared/{slug}`), not the in-app hash form — a fragment
+ * never leaves the browser, so a link unfurler reading it server-side (see
+ * `middleware.ts`) would have no way to know which set was being asked for.
+ * `window.location.pathname` carries the app's own base path along, the same
+ * as the old hash form did, so this still works for a sub-path deploy.
+ */
 export function shareUrl(slug: string): string {
-  return `${window.location.origin}${window.location.pathname}#/shared/${slug}`;
+  return `${window.location.origin}${window.location.pathname}shared/${slug}`;
 }
