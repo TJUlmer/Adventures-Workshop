@@ -572,8 +572,15 @@ export const ABILITY = {
    * panel's bottom corner — so the two can never collide.
    */
   bottomInset: INTERIOR_RADIUS,
-  /* The template's leading I stands 57px, and Knockout's caps are 0.666em. */
-  size: inFace(85.5),
+  /*
+   * The template's leading I stands 57px, and Knockout's caps are 0.666em —
+   * that measurement is 85.5, still the number `lineHeight` below is fitted
+   * against. This is a deliberate step up from it rather than a re-measurement:
+   * a side-by-side against the same card set in real Knockout HTF at print
+   * size read a shade small here, and 90 is "a little bigger," not a new
+   * measurement of the template's own ink.
+   */
+  size: inFace(90),
   /* Cap top to cap top on the template's three lines: 1466, 1550, 1634. */
   lineHeight: inFaceLeading(84 / 85.5),
   /*
