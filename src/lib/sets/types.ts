@@ -194,7 +194,7 @@ export interface CharacterEntry {
 export interface SetOutline {
   /** Shown first — a hero is who the set is played *as*, the rest is who it is played against. */
   heroes: CharacterEntry[];
-  /** Up to two, per `MAX_VILLAINS`. */
+  /** At most one, per `MAX_VILLAINS` — empty for a box of heroes with none. */
   villains: CharacterEntry[];
   minions: CharacterEntry[];
   /** Sidekicks, shown only when the role is in use. Not offered yet — see `SELECTABLE_ROLES`. */

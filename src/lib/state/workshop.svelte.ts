@@ -102,8 +102,21 @@ import type { AdventureSet, SetId } from '$lib/sets/types';
 import type { Selection } from './selection';
 import { SET_SELECTION } from './selection';
 
-/** An adventure can pit the heroes against two villains at most. */
-export const MAX_VILLAINS = 2;
+/**
+ * An adventure has at most one villain.
+ *
+ * Two were allowed for a while, but nothing else in the document can tell two
+ * villains apart: minions carry no field saying which villain they belong to,
+ * `ThreatTrack.villainId` only ever names one, and the map has no ownership
+ * concept at all. At one villain, "the villain side" (villain + every minion
+ * + the threat track + the map + every set-level deck) is unambiguous by
+ * construction — see `sets/scope.ts`, which is the reason this was lowered.
+ *
+ * Gates new additions only. A set that already has two — loaded from before
+ * this changed — keeps working exactly as it does today; nothing here or in
+ * `sets/normalize.ts` counts or repairs villains on load.
+ */
+export const MAX_VILLAINS = 1;
 
 /** Card template a new card in this deck should use. */
 function defaultCardType(deck: Deck): CardType {

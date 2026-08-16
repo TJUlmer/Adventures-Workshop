@@ -39,6 +39,13 @@ const QUALITY = 0.8;
  * through to the first character in the set with artwork at all, whatever
  * its role, rather than turning up nothing when a perfectly good picture is
  * sitting on a minion or a sidekick.
+ *
+ * This is also why `sets/scope.ts`'s `computeScopedSet` drops `boxArt` from
+ * every scoped document it builds, in both directions: with no box art to
+ * catch on, a hero-scoped publish falls straight through to that hero's own
+ * portrait and a villain-scoped one falls through to the villain's, with no
+ * scope-awareness needed here at all. Change this order and that stops
+ * being true.
  */
 export function coverArtwork(set: AdventureSet): Artwork | null {
   if (hasArtwork(set.boxArt)) return set.boxArt;
