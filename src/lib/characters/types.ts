@@ -83,6 +83,18 @@ export interface CardbackDesign {
  * rather than an identity. `name` exists to be picked up elsewhere: labelling
  * which of a hero's action cards this figure may play, and naming the piece in
  * a Tabletop Simulator export.
+ *
+ * `multiple` is not asked for directly — the editor derives it from `count`
+ * (one copy is a single tracked figure, more than one a swarm) rather than
+ * offering it as its own toggle, since the two fields would otherwise be
+ * able to disagree with each other. A single tracked sidekick stays a
+ * genuinely different, lighter thing than "+1 character card"
+ * (`Character.additionalCards`): a name and a stat line on someone else's
+ * sheet, not a full stat block, abilities and a sheet of its own — so it is
+ * not a stand-in for one, and is never folded into `additionalCards`. The
+ * one place old data *is* folded is a not-yet-normalized document from
+ * before `additionalCards` existed at all, where a single tracked companion
+ * was the only way to express a second figure — see `sets/normalize.ts`.
  */
 export interface HeroSidekick {
   enabled: boolean;
@@ -104,6 +116,34 @@ export interface HeroQuote {
   attribution: string;
 }
 
+export type HeroCharacterCardId = Id<'HeroCharacterCard'>;
+
+/**
+ * A further named identity sharing its hero's roster entry, action deck and
+ * figures — Dagger, alongside Cloak, entered as "+1 character card" rather
+ * than as a second, separately-linked roster entry. Prints as its own full
+ * character-card sheet, reusing the same template every hero already uses —
+ * with its own `characterCard` design, independent of the primary's, since
+ * two identities sharing one deck do not have to share one look.
+ *
+ * No top-level `artwork`: the character-card sheet has no portrait window of
+ * its own to put one in — what art it carries lives inside `characterCard`,
+ * as band artwork or a whole-sheet replacement, same as the primary's. No
+ * `createdAt`/`updatedAt`: `Character.updatedAt` already covers every nested
+ * mutation, the same as a threat track's slots or a map's spaces.
+ */
+export interface HeroCharacterCard {
+  readonly id: HeroCharacterCardId;
+  name: string;
+  subtitle: string;
+  attackType: AttackType;
+  health: number | null;
+  move: number;
+  abilities: CharacterAbility[];
+  quote: HeroQuote;
+  characterCard: CharacterCardDesign;
+}
+
 /**
  * The three bands of the character card an author can dress: the hero's own
  * heading *and its attack row*, the special-ability panel, and whichever of
@@ -123,12 +163,16 @@ export interface CharacterBandStyle {
 }
 
 /**
- * How a hero's character card is dressed.
+ * How one character-card sheet is dressed — the primary's own
+ * (`Character.characterCard`), or one belonging to a specific additional
+ * card (`HeroCharacterCard.characterCard`); each identity's is independent.
  *
  * The only part of this card that goes through anything like the style
  * cascade, and it does not go through the cascade proper: the sheet is one
  * fixed layout and its chrome is supplied art, so what an author gets to
- * choose is the border's colour and what fills each of the three bands.
+ * choose is the border's colour and what fills each of the three bands —
+ * or, with `useReplacement` on, a finished sheet that skips composing one
+ * entirely, the same escape hatch every other printed face already has.
  */
 export interface CharacterCardDesign {
   /** The pink outline and the bars between the bands, in the printed art. */
@@ -136,6 +180,9 @@ export interface CharacterCardDesign {
   hero: CharacterBandStyle;
   ability: CharacterBandStyle;
   sidekick: CharacterBandStyle;
+  /** A finished image that replaces the whole composed sheet, template included. */
+  replacement: Artwork;
+  useReplacement: boolean;
 }
 
 export interface Character {
@@ -167,6 +214,21 @@ export interface Character {
    */
   sidekick: HeroSidekick;
   quote: HeroQuote;
+  /**
+   * Further named identities sharing this roster entry, its action deck and
+   * its figures — a duo like Cloak & Dagger, entered as "+1 character card"
+   * rather than as two linked characters. Empty for the ordinary case of one
+   * figure, one name.
+   */
+  additionalCards: HeroCharacterCard[];
+  /**
+   * The joint name printed on the roster, the deck-owner line and the action
+   * card ribbon's fallback, once there is more than one identity here. Blank
+   * auto-joins `name` and every `additionalCards[].name` with " & ". Set
+   * explicitly for something that isn't a plain join, e.g. "The Bishops."
+   * Irrelevant and hidden while `additionalCards` is empty.
+   */
+  printedName: string;
   /** The printed character card's border, band fills and band artwork. */
   characterCard: CharacterCardDesign;
   /**

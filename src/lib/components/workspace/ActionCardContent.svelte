@@ -7,9 +7,9 @@
    * added on demand and always print in the fixed Immediately → During Combat →
    * After Combat order, so the editor never shows a field the card will not use.
    */
-  import { CARD_OWNERS, COMBAT_SYMBOLS } from '$lib/cards/types';
+  import { COMBAT_SYMBOLS } from '$lib/cards/types';
   import type { ActionCard, CardOwner, CombatSymbol } from '$lib/cards/types';
-  import { characterLabel } from '$lib/characters/factory';
+  import { characterLabel, primaryCardName } from '$lib/characters/factory';
   import { deckLabel } from '$lib/decks/factory';
   import type { DeckId } from '$lib/decks/types';
   import { asId } from '$lib/core/id';
@@ -67,17 +67,25 @@
 
   const isScheme = $derived(card.symbol === 'scheme');
 
-  const ownerOptions = $derived(
-    CARD_OWNERS.map((value) => ({
-      value,
-      label:
-        value === 'hero'
-          ? owner?.name.trim() || 'Hero'
-          : value === 'sidekick'
-            ? owner?.sidekick.name.trim() || 'Sidekick'
-            : 'Any'
-    }))
-  );
+  /**
+   * "Who may play this card" pulls from the hero's own named identities: the
+   * primary one, then each additional character card, then the sidekick —
+   * only when it's a swarm, since a single tracked companion is now itself
+   * an additional card, not a separate slot — then "Any," always last.
+   */
+  const ownerOptions = $derived.by(() => {
+    const options: { value: CardOwner; label: string }[] = [
+      { value: 'hero', label: (owner ? primaryCardName(owner) : '').trim() || 'Hero' }
+    ];
+    for (const extra of owner?.additionalCards ?? []) {
+      options.push({ value: extra.id, label: extra.name.trim() || 'Character card' });
+    }
+    if (owner?.sidekick.enabled && owner.sidekick.multiple) {
+      options.push({ value: 'sidekick', label: owner.sidekick.name.trim() || 'Sidekick' });
+    }
+    options.push({ value: 'any', label: 'Any' });
+    return options;
+  });
 
   function edit(mutate: (target: ActionCard) => void): void {
     workshop.editCard(card.id, (target) => {

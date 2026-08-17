@@ -36,6 +36,65 @@
   let size = $state<{ assets: number; bytes: number } | null>(null);
   let changeNote = $state('');
 
+<<<<<<< Updated upstream
+=======
+  /** A `PublishScope` as one string, for the `<select>` this drives. */
+  function scopeKeyOf(scope: PublishScope): string {
+    return scope.kind === 'hero' ? `hero:${scope.characterId}` : scope.kind;
+  }
+
+  const heroes = $derived(charactersByRole(set, 'hero'));
+  /* Villain-side content — the villain, its minions, the threat track, the
+     map, every set-level deck — is one bundle, never split further; see
+     `sets/scope.ts`. Offered only when there is something in it to publish. */
+  const hasVillainSide = $derived(
+    charactersByRole(set, 'villain').length > 0 || charactersByRole(set, 'minion').length > 0
+  );
+
+  const scopeOptions = $derived([
+    { value: 'full', label: 'Whole set' },
+    ...heroes.map((hero) => ({ value: `hero:${hero.id}`, label: characterLabel(hero) })),
+    ...(hasVillainSide ? [{ value: 'villain', label: 'Villain side' }] : [])
+  ]);
+
+  let selectedScope = $state<PublishScope>({ kind: 'full' });
+
+  /*
+   * The panel's own heading follows the scope selection, so it stops
+   * reading as "Share this set" the moment a hero or the villain side is
+   * picked — the fixed title was what made this feel buried under a
+   * whole-set-only heading in the first place.
+   */
+  const scopeTitle = $derived.by(() => {
+    const scope = selectedScope;
+    if (scope.kind === 'full') return 'Share this set';
+    if (scope.kind === 'villain') return 'Share the villain side';
+    const hero = heroes.find((candidate) => candidate.id === scope.characterId);
+    return hero ? `Share ${characterLabel(hero)}` : 'Share this set';
+  });
+
+  /*
+   * Falls back to "Whole set" whenever the current selection stops naming a
+   * real option — the set just opened (a stale selection from a previous one
+   * would otherwise persist), or the hero it named was deleted mid-session.
+   */
+  $effect(() => {
+    const key = scopeKeyOf(selectedScope);
+    if (!scopeOptions.some((option) => option.value === key)) {
+      selectedScope = { kind: 'full' };
+    }
+  });
+
+  /** The published row the scope selector currently has in view, if any. */
+  const published = $derived(
+    mine.find(
+      (row) =>
+        row.scope === selectedScope.kind &&
+        row.character_id === (selectedScope.kind === 'hero' ? selectedScope.characterId : '')
+    ) ?? null
+  );
+
+>>>>>>> Stashed changes
   /**
    * A throwaway account may share by link but not post to the gallery. The
    * database enforces this; showing it here is so the rule is discovered before
@@ -197,7 +256,7 @@
 
 {#if cloudEnabled()}
   <section class="share">
-    <h3 class="title">Share this set</h3>
+    <h3 class="title">{scopeTitle}</h3>
 
     {#if !auth.signedIn}
       <SignInPanel

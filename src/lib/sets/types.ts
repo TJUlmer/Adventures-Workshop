@@ -73,10 +73,27 @@ export type SetId = Id<'Set'>;
  *      the full one. Nothing is lost by the change of meaning: the field was
  *      never drawn on anything.
  *
+ * v16 — a hero gained `additionalCards`, further named identities sharing its
+ *      roster entry, deck and figures — a duo like Cloak & Dagger, entered as
+ *      "+1 character card" rather than as two linked characters — and
+ *      `printedName`, the joint label printed when there is more than one. A
+ *      hero's sidekick, when it was a single tracked companion rather than a
+ *      swarm, is folded into its first additional card on load; a swarm
+ *      sidekick is untouched. Absent on an older document, which opens with
+ *      no additional cards and its sidekick exactly as it was.
+ *
+ * v17 — a character card's design gained `replacement`/`useReplacement`, the
+ *      same finished-image escape hatch every other printed face already
+ *      has, and each additional card gained a `characterCard` of its own —
+ *      independent of the primary's, since two identities sharing one deck
+ *      do not have to share one look. Absent on an older document, which
+ *      opens with every design composed as before and every additional card
+ *      matching the primary's own colours, exactly what a shared design was.
+ *
  * Older documents are *repaired*, not rejected — see `sets/normalize.ts`. Only
  * a version newer than this build understands is refused.
  */
-export const SET_SCHEMA_VERSION = 15;
+export const SET_SCHEMA_VERSION = 16;
 
 /**
  * Where a set was copied from, if it was copied.

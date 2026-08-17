@@ -26,10 +26,23 @@ import type {
 } from '$lib/cards/types';
 import { solid } from '$lib/cards/style';
 import type { Fill } from '$lib/cards/style';
-import { createCardback, createCharacterCard, createHeroSidekick } from '$lib/characters/factory';
+import {
+  createCardback,
+  createCharacterCard,
+  createHeroCharacterCard,
+  createHeroSidekick
+} from '$lib/characters/factory';
 import { ATTACK_TYPES, CHARACTER_BAND_NAMES, CHARACTER_ROLES } from '$lib/characters/types';
 import type { CharacterBandName } from '$lib/characters/types';
-import type { CharacterCardDesign, HeroQuote, HeroSidekick } from '$lib/characters/types';
+import type {
+  AttackType,
+  CharacterAbility,
+  CharacterCardDesign,
+  HeroCharacterCard,
+  HeroCharacterCardId,
+  HeroQuote,
+  HeroSidekick
+} from '$lib/characters/types';
 import type { Artwork } from '$lib/core/artwork';
 import { createArtwork } from '$lib/core/artwork';
 import type { DialRange, Figure, ModelFile, TokenBuild } from '$lib/figures/types';
@@ -100,8 +113,17 @@ function combatSymbol(value: unknown): CombatSymbol | null {
   return (COMBAT_SYMBOLS as readonly unknown[]).includes(value) ? (value as CombatSymbol) : null;
 }
 
+/**
+ * `'hero'`/`'sidekick'`/`'any'`, or a `HeroCharacterCard`'s own id addressing
+ * one of a hero's additional identities. Not cross-validated against
+ * `additionalCards` here — this repo already tolerates a dangling foreign key
+ * rather than checking one at load (`Figure.characterId`,
+ * `InitiativeCard.characterId`); an id that no longer resolves to anything
+ * just reads as `'hero'` would, at render time.
+ */
 function cardOwner(value: unknown): CardOwner {
-  return (CARD_OWNERS as readonly unknown[]).includes(value) ? (value as CardOwner) : 'hero';
+  if ((CARD_OWNERS as readonly unknown[]).includes(value)) return value as CardOwner;
+  return typeof value === 'string' && value.length > 0 ? (value as CardOwner) : 'hero';
 }
 
 function heroSidekick(value: unknown): HeroSidekick {
@@ -125,6 +147,32 @@ function heroQuote(value: unknown): HeroQuote {
 }
 
 /**
+ * `fallbackDesign` is what an entry with no `characterCard` of its own seeds
+ * from — a pre-v17 document's additional cards never had one, and starting
+ * them from the *primary's own current colours* (a clone, via `characterCard`
+ * itself — never the same object twice, or editing one card's design would
+ * silently repaint another's) reads as "nothing changed yet" rather than a
+ * surprise reset to the stock template the moment the document is reopened.
+ */
+function heroCharacterCard(value: unknown, fallbackDesign: CharacterCardDesign): HeroCharacterCard {
+  const raw = asRecord(value);
+  const defaults = createHeroCharacterCard();
+  return {
+    id: typeof raw['id'] === 'string' ? (raw['id'] as HeroCharacterCardId) : defaults.id,
+    name: str(raw['name'], defaults.name),
+    subtitle: str(raw['subtitle'], defaults.subtitle),
+    attackType: (ATTACK_TYPES as readonly unknown[]).includes(raw['attackType'])
+      ? (raw['attackType'] as AttackType)
+      : defaults.attackType,
+    health: nullableNum(raw['health'], defaults.health),
+    move: num(raw['move'], defaults.move),
+    abilities: Array.isArray(raw['abilities']) ? (raw['abilities'] as CharacterAbility[]) : [],
+    quote: heroQuote(raw['quote']),
+    characterCard: characterCard(raw['characterCard'] ?? fallbackDesign)
+  };
+}
+
+/**
  * The character card's border and its three bands, keyed by band rather than
  * by position — a document written before this existed simply gets the printed
  * template's own colours and three empty artwork slots.
@@ -144,7 +192,9 @@ function characterCard(value: unknown): CharacterCardDesign {
     ...(Object.fromEntries(CHARACTER_BAND_NAMES.map((name) => [name, band(name)])) as Pick<
       CharacterCardDesign,
       CharacterBandName
-    >)
+    >),
+    replacement: artwork(raw['replacement']),
+    useReplacement: bool(raw['useReplacement'], defaults.useReplacement)
   };
 }
 
@@ -577,13 +627,53 @@ export function normalizeSet(value: AdventureSet): AdventureSet {
   const characters = (Array.isArray(raw['characters']) ? raw['characters'] : []).map((entry) => {
     const character = asRecord(entry);
     const role = typeof character['role'] === 'string' ? character['role'] : 'minion';
+
+    const sidekick = heroSidekick(character['sidekick']);
+    const rawAdditionalCards = character['additionalCards'];
+    const normalizedCharacterCard = characterCard(character['characterCard']);
+
+    /*
+     * A single tracked companion (not a swarm) folds into a first additional
+     * card the first time this document loads under the new shape — see the
+     * v16 note in `sets/types.ts`. Gated on *presence* of `additionalCards`
+     * rather than on `sidekick`'s own value, and `sidekick` is reset to fully
+     * disabled the moment the fold happens — that is what keeps this
+     * idempotent, the same way `tokenBuild`'s `hex`→`polygon` migration
+     * self-terminates: once folded, the trigger condition can never be true
+     * again on a re-pass.
+     */
+    let additionalCards: HeroCharacterCard[];
+    let normalizedSidekick: HeroSidekick;
+    if (Array.isArray(rawAdditionalCards)) {
+      additionalCards = rawAdditionalCards.map((entry) =>
+        heroCharacterCard(entry, normalizedCharacterCard)
+      );
+      normalizedSidekick = sidekick;
+    } else if (sidekick.enabled && !sidekick.multiple) {
+      additionalCards = [
+        {
+          ...createHeroCharacterCard(),
+          name: sidekick.name,
+          attackType: sidekick.attackType,
+          health: sidekick.health,
+          characterCard: characterCard(normalizedCharacterCard)
+        }
+      ];
+      normalizedSidekick = createHeroSidekick();
+    } else {
+      additionalCards = [];
+      normalizedSidekick = sidekick;
+    }
+
     return {
       ...character,
       artwork: artwork(character['artwork']),
       cardback: cardback(character['cardback'], role),
-      sidekick: heroSidekick(character['sidekick']),
+      sidekick: normalizedSidekick,
       quote: heroQuote(character['quote']),
-      characterCard: characterCard(character['characterCard']),
+      additionalCards,
+      printedName: str(character['printedName']),
+      characterCard: normalizedCharacterCard,
       style: asRecord(character['style']),
       abilities: Array.isArray(character['abilities']) ? character['abilities'] : []
     };

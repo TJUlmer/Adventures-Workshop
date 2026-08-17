@@ -4,10 +4,13 @@ import { createId, now } from '$lib/core/id';
 import type {
   CardbackDesign,
   Character,
+  CharacterAbility,
   CharacterBandStyle,
   CharacterCardDesign,
   CharacterId,
   CharacterRole,
+  HeroCharacterCard,
+  HeroCharacterCardId,
   HeroQuote,
   HeroSidekick
 } from './types';
@@ -23,6 +26,32 @@ export function createHeroQuote(): HeroQuote {
 }
 
 /**
+ * A blank ability, ready to type into. A hero's own card and every
+ * additional card start with one already in the list — the printed sheet
+ * shows a placeholder-styled block either way (see `HeroCharacterCardFace`),
+ * so there's nothing to lose by making that block editable immediately
+ * instead of hiding it behind an "Add ability" click.
+ */
+export function createCharacterAbility(): CharacterAbility {
+  return { name: '', text: '', kind: 'passive' };
+}
+
+/** A fresh additional character card — "+1 character card." */
+export function createHeroCharacterCard(): HeroCharacterCard {
+  return {
+    id: createId<HeroCharacterCardId>('hchar'),
+    name: '',
+    subtitle: '',
+    attackType: 'melee',
+    health: 16,
+    move: 2,
+    abilities: [createCharacterAbility()],
+    quote: createHeroQuote(),
+    characterCard: createCharacterCard()
+  };
+}
+
+/**
  * The character card as the printed template dresses it: a pink border, navy
  * behind the hero and the sidekick, and the gold ability panel between them.
  */
@@ -35,7 +64,9 @@ export function createCharacterCard(): CharacterCardDesign {
     border: solid('#dda0c7'),
     hero: band('#001722'),
     ability: band('#cfa058'),
-    sidekick: band('#001722')
+    sidekick: band('#001722'),
+    replacement: createArtwork(),
+    useReplacement: false
   };
 }
 
@@ -76,11 +107,16 @@ export function createCharacter(role: CharacterRole, draft: CharacterDraft = {})
     health: defaults.health,
     move: defaults.move,
     figureCount: defaults.figureCount,
-    abilities: [],
+    // Only a hero prints this list — see `createCharacterAbility`. A villain
+    // or minion has no character card to show it on, so there is nothing to
+    // pre-fill for them.
+    abilities: role === 'hero' ? [createCharacterAbility()] : [],
     artwork: createArtwork(),
     cardback: createCardback(role),
     sidekick: createHeroSidekick(),
     quote: createHeroQuote(),
+    additionalCards: [],
+    printedName: '',
     characterCard: createCharacterCard(),
     style: {},
     notes: '',
@@ -100,6 +136,12 @@ export function duplicateCharacter(character: Character): Character {
     artwork: { ...character.artwork, crop: { ...character.artwork.crop } },
     sidekick: { ...character.sidekick },
     quote: { ...character.quote },
+    additionalCards: character.additionalCards.map((card) => ({
+      ...card,
+      id: createId<HeroCharacterCardId>('hchar'),
+      abilities: card.abilities.map((ability) => ({ ...ability })),
+      quote: { ...card.quote }
+    })),
     style: { ...character.style },
     createdAt: timestamp,
     updatedAt: timestamp
@@ -108,6 +150,42 @@ export function duplicateCharacter(character: Character): Character {
 
 /** Display name that never renders as an empty string in the UI. */
 export function characterLabel(character: Character): string {
-  if (character.name.trim().length > 0) return character.name;
-  return `Untitled ${character.role}`;
+  const resolved = resolvedHeroName(character);
+  return resolved.length > 0 ? resolved : `Untitled ${character.role}`;
+}
+
+/**
+ * The whole hero's resolved identity — `name` when an author has typed one,
+ * else the same join the "Name" field's placeholder already suggests, once
+ * there is more than one card to join. Never falls back to "Untitled" itself
+ * — callers each supply their own placeholder for the truly-blank case, so a
+ * hero with two named cards and a blank group name still reads as their
+ * joined names everywhere rather than "Untitled hero."
+ */
+export function resolvedHeroName(character: Character): string {
+  if (character.name.trim().length > 0) return character.name.trim();
+  return character.additionalCards.length > 0 ? suggestedGroupName(character) : '';
+}
+
+/**
+ * The primary identity's own name — what its own character-card sheet
+ * prints, what the action-card ribbon and "who may play this card" show for
+ * it. A solo hero's `name` already does this job on its own; once there is a
+ * second card, `name` is needed for the whole hero's own identity instead
+ * (see `characterLabel`), so `printedName` takes over specifically this one.
+ */
+export function primaryCardName(character: Character): string {
+  return character.additionalCards.length === 0 ? character.name : character.printedName;
+}
+
+/**
+ * What the Identity "Name" field's placeholder suggests once there is a
+ * second card and `name` is sitting blank, waiting for a group name — every
+ * identity's own name joined with " & ", skipping any not yet typed in.
+ */
+export function suggestedGroupName(character: Character): string {
+  const names = [character.printedName, ...character.additionalCards.map((card) => card.name)]
+    .map((name) => name.trim())
+    .filter((name) => name.length > 0);
+  return names.join(' & ');
 }

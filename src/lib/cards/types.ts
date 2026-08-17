@@ -1,4 +1,4 @@
-import type { CharacterId } from '$lib/characters/types';
+import type { CharacterId, HeroCharacterCardId } from '$lib/characters/types';
 import type { Artwork } from '$lib/core/artwork';
 import type { Id, IsoDateTime } from '$lib/core/id';
 import type { DeckId } from '$lib/decks/types';
@@ -95,12 +95,24 @@ export const COMBAT_SYMBOLS = ['attack', 'defense', 'versatile', 'scheme'] as co
 export type CombatSymbol = (typeof COMBAT_SYMBOLS)[number];
 
 /**
- * Who may play a hero's action card, on a deck a hero shares with its
- * sidekick. Printed in the ribbon's tail and again beside the copies count —
- * see `ActionCardFace`. Meaningless, and ignored, on a villain or minion card.
+ * Who may play a hero's action card. Printed in the ribbon's tail and again
+ * beside the copies count — see `ActionCardFace`. Meaningless, and ignored,
+ * on a villain or minion card.
+ *
+ * `CARD_OWNERS` stays the fixed, always-offered set: `'hero'` is whichever
+ * identity's fields live directly on `Character` (the primary one — unset by
+ * this widening, unaffected by how many `additionalCards` exist), `'sidekick'`
+ * is meaningful only when `sidekick.enabled && sidekick.multiple` (a swarm —
+ * see `HeroSidekick`), `'any'` always. A `HeroCharacterCardId` is also a valid
+ * `CardOwner` — one of `character.additionalCards`, offered dynamically by
+ * `ActionCardContent`'s picker rather than enumerated here, the way a duo's
+ * second (and further) identity is addressed. Not cross-validated against
+ * `additionalCards` at load — this repo already tolerates a dangling foreign
+ * key rather than checking one (`Figure.characterId`, `InitiativeCard.characterId`);
+ * an id that no longer resolves to anything just reads as `'hero'` would.
  */
 export const CARD_OWNERS = ['hero', 'sidekick', 'any'] as const;
-export type CardOwner = (typeof CARD_OWNERS)[number];
+export type CardOwner = (typeof CARD_OWNERS)[number] | HeroCharacterCardId;
 
 /** A villain, minion or hero action card. */
 export interface ActionCard extends CardCommon {
@@ -121,9 +133,9 @@ export interface ActionCard extends CardCommon {
   symbol: CombatSymbol | null;
   symbolValue: number | null;
   /**
-   * Which of a hero and its sidekick may play this card. Read only inside a
+   * Which of a hero's identities may play this card. Read only inside a
    * hero's deck — a villain or minion card ignores it entirely, the way it
-   * already ignores `split` when unset.
+   * already ignores `split` when unset. See `CardOwner`.
    */
   owner: CardOwner;
   /**

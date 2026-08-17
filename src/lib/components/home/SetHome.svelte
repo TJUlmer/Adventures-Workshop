@@ -305,8 +305,14 @@
       <!-- Export -------------------------------------------------------- -->
       <section class="panel">
         <h2 class="panel-title">Export</h2>
-        <p class="panel-hint">Everything here covers the whole set.</p>
 
+        <!--
+          Scoped to the exports specifically, not the section — Share below
+          can publish one hero or the villain side on its own, and a hint
+          claiming "everything here" is the whole set actively talks someone
+          out of scrolling past it to find that.
+        -->
+        <p class="panel-hint">The exports below cover the whole set.</p>
         <ExportPanel {set} onprint={() => navigation.go('print')} />
         <SharePanel {set} />
       </section>

@@ -25,7 +25,8 @@
    * reasons (the health dial's range, a figure's stat block), and this is the
    * first thing in the app that prints them.
    */
-  import type { AttackType, Character } from '$lib/characters/types';
+  import { primaryCardName } from '$lib/characters/factory';
+  import type { AttackType, Character, HeroCharacterCard } from '$lib/characters/types';
   import { CHARACTER_BAND_NAMES } from '$lib/characters/types';
   import { fillCss } from '$lib/cards/style';
   import { hasArtwork } from '$lib/core/artwork';
@@ -54,12 +55,32 @@
 
   interface Props {
     character: Character;
+    /**
+     * Which identity this sheet prints — the hero's own fields when absent,
+     * or one of its `additionalCards` when a duo's second (or further) card
+     * is being drawn. `design`/`border`/`ink` stay on `character` regardless:
+     * chrome is shared across every sheet a hero prints, never per-identity.
+     */
+    card?: HeroCharacterCard | null;
   }
 
-  let { character }: Props = $props();
+  let { character, card = null }: Props = $props();
+
+  const identity = $derived(
+    card ?? {
+      name: primaryCardName(character),
+      subtitle: character.subtitle,
+      attackType: character.attackType,
+      health: character.health,
+      move: character.move,
+      abilities: character.abilities,
+      quote: character.quote
+    }
+  );
 
   const sidekick = $derived(character.sidekick);
-  const showSidekick = $derived(sidekick.enabled);
+  /** An additional card's own sheet never shows the swarm-sidekick band — only the primary sheet does. */
+  const showSidekick = $derived(card ? false : sidekick.enabled);
 
   /**
    * Which of the three layouts to lay over the card.
@@ -76,7 +97,13 @@
   const border = $derived(TEMPLATE_ASSETS.heroCharacterBorder[layout]);
   const ink = $derived(TEMPLATE_ASSETS.heroCharacterInk[layout]);
 
-  const design = $derived(character.characterCard);
+  /**
+   * `design` is per-identity, not per-character: two names sharing one deck
+   * do not have to share one look, so an additional card's own `characterCard`
+   * wins over the primary's the moment `card` is set.
+   */
+  const design = $derived(card?.characterCard ?? character.characterCard);
+  const replaced = $derived(design.useReplacement && hasArtwork(design.replacement));
 
   const bleed = CHARACTER_CARD.fillBleed;
 
@@ -86,7 +113,7 @@
    * prints its own name, and the *full* one: this is the sheet the figure is
    * introduced on, where the action cards' ribbon takes the short form.
    */
-  const heroName = $derived(character.name.trim() || 'Hero');
+  const heroName = $derived(identity.name.trim() || 'Hero');
   const sidekickName = $derived(sidekick.name.trim() || 'Sidekick');
 
   /** Where the ability block's three pieces sit, solved from the measured ink. */
@@ -105,6 +132,11 @@
   const TEXT_GAP = TEXT_TOP - (CHARACTER_ABILITY.ruleY + CHARACTER_ABILITY.ruleHeight);
 </script>
 
+{#if replaced}
+  <div class="full">
+    <CardArt artwork={design.replacement} background={fillCss(design.border)} />
+  </div>
+{:else}
 <!--
   Each band's fill, then its artwork over it. Three rectangles, not five: the
   frame's own separators cover every join, and its border covers all four
@@ -152,7 +184,7 @@
   )}
   style:gap={pu(CHARACTER_ABILITY.gap)}
 >
-  {#each character.abilities.length ? character.abilities : [null] as ability, index (index)}
+  {#each identity.abilities.length ? identity.abilities : [null] as ability, index (index)}
     <div class="ability-entry">
       <div
         class="ability-name"
@@ -219,10 +251,10 @@
     style:font-size={pu(CHARACTER_QUOTE.textSize)}
     style:line-height={CHARACTER_QUOTE.textLineHeight}
   >
-    {character.quote.text.trim() || 'A memorable line goes here.'}
+    {identity.quote.text.trim() || 'A memorable line goes here.'}
   </p>
 
-  {#if character.quote.attribution.trim()}
+  {#if identity.quote.attribution.trim()}
     <p
       class="quote-attribution"
       style:right={px(1632 - CHARACTER_QUOTE.attributionRight)}
@@ -231,7 +263,7 @@
       )}
       style:font-size={pu(CHARACTER_QUOTE.attributionSize)}
     >
-      — {character.quote.attribution}
+      — {identity.quote.attribution}
     </p>
   {/if}
 {/if}
@@ -254,8 +286,8 @@
 <div class="mask border" style:--border-art="url('{border}')" style:background={fillCss(design.border)}></div>
 <img class="template" src={ink} alt="" />
 
-{@render attackRow(CHARACTER_BANDS.heroAttack, character.attackType)}
-{@render healthValue(CHARACTER_HEALTH.heroCenterY, character.health ?? 0)}
+{@render attackRow(CHARACTER_BANDS.heroAttack, identity.attackType)}
+{@render healthValue(CHARACTER_HEALTH.heroCenterY, identity.health ?? 0)}
 
 <span
   class="move"
@@ -264,7 +296,7 @@
   style:font-size={pu(CHARACTER_MOVE.size)}
   style:scale="{CHARACTER_MOVE.condense} 1"
 >
-  {character.move}
+  {identity.move}
 </span>
 
 {#if showSidekick}
@@ -304,6 +336,7 @@
   {:else}
     {@render healthValue(CHARACTER_HEALTH.sidekickCenterY, sidekick.health ?? 0)}
   {/if}
+{/if}
 {/if}
 
 {#snippet heading(band: { top: number; height: number }, word: string)}
@@ -359,6 +392,11 @@
 {/snippet}
 
 <style>
+  .full {
+    position: absolute;
+    inset: 0;
+  }
+
   .fill,
   .band-art,
   .template {

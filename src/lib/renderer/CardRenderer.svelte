@@ -13,7 +13,7 @@
   import { stockTheme } from '$lib/cards/theme';
   import type { Card } from '$lib/cards/types';
   import { characterLabel } from '$lib/characters/factory';
-  import type { Character } from '$lib/characters/types';
+  import type { Character, HeroCharacterCard } from '$lib/characters/types';
   import { hasArtwork } from '$lib/core/artwork';
   import ActionCardFace from './ActionCardFace.svelte';
   import CardArt from './CardArt.svelte';
@@ -42,6 +42,12 @@
      * anything in `set.cards`, so it shares this frame the same way.
      */
     statCard?: Character | null;
+    /**
+     * Which of `statCard`'s identities to draw — its own fields when absent,
+     * or one of `statCard.additionalCards` for a duo's second (or further)
+     * sheet. Ignored unless `statCard` is set.
+     */
+    statCardEntry?: HeroCharacterCard | null;
     /** Fully resolved look. Falls back to the stock template. */
     theme?: CardTheme;
     /** Which face of a two-sided card to draw. Only event cards have both. */
@@ -54,6 +60,7 @@
     character = null,
     cardback = null,
     statCard = null,
+    statCardEntry = null,
     theme,
     side = 'front',
     options
@@ -238,8 +245,11 @@
         {/if}
       </article>
     {:else if statCard}
-      <article class="face" aria-label="{characterLabel(statCard)} character card">
-        <HeroCharacterCardFace character={statCard} />
+      <article
+        class="face"
+        aria-label="{statCardEntry?.name.trim() || characterLabel(statCard)} character card"
+      >
+        <HeroCharacterCardFace character={statCard} card={statCardEntry} />
       </article>
     {:else if card === null}
       <div class="blank">

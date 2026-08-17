@@ -19,6 +19,7 @@
   import { fillCss } from '$lib/cards/style';
   import type { ActionCard } from '$lib/cards/types';
   import { abilityIsEmpty } from '$lib/cards/types';
+  import { primaryCardName, resolvedHeroName } from '$lib/characters/factory';
   import type { Character } from '$lib/characters/types';
   import AbilityText from './AbilityText.svelte';
   import { CARD_SYMBOL_COLORS, CARD_SYMBOL_SIZES, CARD_SYMBOLS, patternAspect } from './assets';
@@ -99,17 +100,26 @@
    * the ribbon is where the difference matters, because it is the one place a
    * name is set at display size in a column two centimetres wide. Blank is the
    * ordinary case, and then there is only the one name.
+   *
+   * For a hero, that "one name" is the *primary identity's* own name
+   * (`primaryCardName`), not the whole hero's — a duo's ribbon must still say
+   * "Cloak," never "Cloak & Dagger," on a card only she plays.
    */
-  const shortName = $derived(character?.subtitle.trim() || character?.name.trim() || '');
+  const shortName = $derived(
+    character?.subtitle.trim() || (character ? primaryCardName(character) : '').trim() || ''
+  );
 
   const ribbonName = $derived(card.name.trim() || shortName || 'Villain Name');
   const title = $derived(card.title.trim() || 'Card Title');
 
   /**
-   * Who may play this card, on a hero's shared deck: the hero's own name, the
-   * sidekick's, or the literal word "ANY". Follows the same empty-name
-   * fallback as `ribbonName`, because it is the same situation — a card newly
-   * dropped into the deck, before anyone has named it.
+   * Who may play this card: the primary identity's own name, an additional
+   * character card's own name, the sidekick's, or the literal word "ANY".
+   * Follows the same empty-name fallback as `ribbonName`, because it is the
+   * same situation — a card newly dropped into the deck, before anyone has
+   * named it. An `owner` that doesn't resolve to anything (a deleted
+   * additional card, most likely) falls through to the primary identity,
+   * same as `'hero'` itself.
    *
    * Twice, because the two places it prints want different lengths: the
    * ribbon takes the short name, and the line above the copies count — which
@@ -118,16 +128,23 @@
   const ownerLabel = $derived.by(() => {
     if (card.owner === 'sidekick') return character?.sidekick.name.trim() || 'Sidekick';
     if (card.owner === 'any') return 'ANY';
-    return card.name.trim() || shortName || 'Hero Name';
+    const extra = character?.additionalCards.find((entry) => entry.id === card.owner);
+    const extraShortName = extra ? extra.subtitle.trim() || extra.name.trim() : '';
+    return card.name.trim() || extraShortName || shortName || 'Hero Name';
   });
 
   /**
-   * The line above the copies count is always the *hero's* full name, whoever
-   * may play the card. It says which figure's deck this card belongs to —
-   * which is the hero's either way, sidekick cards included — where the ribbon
-   * says who plays it.
+   * The line above the copies count is always the *whole hero's* resolved
+   * identity, whoever may play the card. It says which figure's deck this
+   * card belongs to — which is the same deck either way, sidekick and every
+   * additional card's cards included — where the ribbon says who
+   * specifically plays it. Falls back to every card's own name joined, the
+   * same as the sidebar and the deck back, so a duo with no group name typed
+   * in yet still prints something sensible instead of "Hero Name."
    */
-  const ownerFullLabel = $derived(character?.name.trim() || 'Hero Name');
+  const ownerFullLabel = $derived(
+    (character ? resolvedHeroName(character) : '').trim() || 'Hero Name'
+  );
 
   /**
    * Attack then defense, skipping whichever the card does not print.

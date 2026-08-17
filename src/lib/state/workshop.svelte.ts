@@ -39,7 +39,8 @@ import type {
   CharacterBandName,
   CharacterCardDesign,
   CharacterId,
-  CharacterRole
+  CharacterRole,
+  HeroCharacterCardId
 } from '$lib/characters/types';
 import type {
   ArtAdjustments,
@@ -118,13 +119,16 @@ export type EntityRef =
   | { readonly entity: 'card'; readonly id: CardId }
   | { readonly entity: 'character'; readonly id: CharacterId }
   /**
-   * One band of a hero's character card. Addressed by band *name* rather than
-   * by index so a layout change cannot re-point somebody's picture.
+   * One band of a character card. Addressed by band *name* rather than by
+   * index so a layout change cannot re-point somebody's picture. `cardId`
+   * picks which sheet — absent means the primary's own, present means one of
+   * `additionalCards` — since each identity's design is independent.
    */
   | {
       readonly entity: 'characterBand';
       readonly id: CharacterId;
       readonly band: CharacterBandName;
+      readonly cardId?: HeroCharacterCardId;
     }
   /** The threat track's background. The board has one, so it needs no id. */
   | { readonly entity: 'threat' };
@@ -657,10 +661,16 @@ export class WorkshopStore {
     this.touch();
   }
 
-  editCharacterCard(id: CharacterId, mutate: (design: CharacterCardDesign) => void): void {
+  /** `cardId` absent edits the primary's own design; present edits that one additional card's. */
+  editCharacterCard(
+    id: CharacterId,
+    mutate: (design: CharacterCardDesign) => void,
+    cardId?: HeroCharacterCardId
+  ): void {
     const character = findCharacter(this.adventure, id);
-    if (!character) return;
-    mutate(character.characterCard);
+    const design = this.characterCardDesignFor(id, cardId);
+    if (!character || !design) return;
+    mutate(design);
     character.updatedAt = now();
     this.touch();
   }
@@ -690,11 +700,24 @@ export class WorkshopStore {
 
   // -- Artwork ----------------------------------------------------------
 
+  /**
+   * The character-card design a character or one of its `additionalCards`
+   * owns — `cardId` absent means the primary's own, present means that
+   * specific additional card's. `null` when either half of the address is
+   * stale (character deleted, or that card removed).
+   */
+  characterCardDesignFor(id: CharacterId, cardId?: HeroCharacterCardId): CharacterCardDesign | null {
+    const character = findCharacter(this.adventure, id);
+    if (!character) return null;
+    if (!cardId) return character.characterCard;
+    return character.additionalCards.find((card) => card.id === cardId)?.characterCard ?? null;
+  }
+
   /** The artwork block a ref points at, or `null` if the ref is stale. */
   artworkFor(ref: EntityRef): Artwork | null {
     if (ref.entity === 'threat') return this.adventure.threat.background;
     if (ref.entity === 'characterBand') {
-      return findCharacter(this.adventure, ref.id)?.characterCard[ref.band].artwork ?? null;
+      return this.characterCardDesignFor(ref.id, ref.cardId)?.[ref.band].artwork ?? null;
     }
     const owner =
       ref.entity === 'card'

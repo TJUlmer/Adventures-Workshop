@@ -6,7 +6,8 @@
   import { createCard } from '$lib/cards/factory';
   import { resolveCardTheme } from '$lib/cards/theme';
   import { CARD_TYPE_META } from '$lib/cards/types';
-  import { characterLabel } from '$lib/characters/factory';
+  import { characterLabel, primaryCardName } from '$lib/characters/factory';
+  import type { HeroCharacterCard } from '$lib/characters/types';
   import { asId } from '$lib/core/id';
   import { deckLabel } from '$lib/decks/factory';
   import type { DeckId } from '$lib/decks/types';
@@ -14,6 +15,7 @@
   import { CardRenderer } from '$lib/renderer';
   import type { CardFormat } from '$lib/renderer/geometry';
   import { BLEED_MM, CARD_FORMATS, trimBox } from '$lib/renderer/geometry';
+  import { characterEditorView } from '$lib/state/character-editor-view.svelte';
   import { findDeck } from '$lib/sets/queries';
   import { workshop } from '$lib/state/workshop.svelte';
   import { Button, EmptyState, Icon } from '$lib/ui';
@@ -31,7 +33,7 @@
   const card = $derived(cardback ? null : workshop.previewCard);
 
   /**
-   * A hero's character card, shown above its deck back.
+   * A hero's character card(s), shown above its deck back.
    *
    * Only a hero prints one — it is the sheet the figure is set up from, and
    * the one thing in the character workspace with no other preview: its stats,
@@ -39,6 +41,32 @@
    * them appeared anywhere until the card was exported.
    */
   const statCard = $derived(cardback?.role === 'hero' ? cardback : null);
+
+  /**
+   * Which one thing the character workspace's active tab is about, so this
+   * panel shows exactly that rather than stacking every identity, the deck
+   * back and the action-card-defaults sample all at once. `null` outside a
+   * hero (nothing to choose between — see below), else the primary sheet, a
+   * specific additional card, the deck back, or the defaults sample.
+   */
+  type HeroSlot =
+    | { kind: 'card'; entry: HeroCharacterCard | null }
+    | { kind: 'cardback' }
+    | { kind: 'defaults' };
+
+  const heroSlot = $derived.by((): HeroSlot | null => {
+    if (!statCard) return null;
+    const tab = characterEditorView.tab;
+    if (tab === 'cardback' || tab === 'identity') return { kind: 'cardback' };
+    if (tab === 'defaults') return { kind: 'defaults' };
+    if (tab.startsWith('card:')) {
+      const id = tab.slice(5);
+      return { kind: 'card', entry: statCard.additionalCards.find((entry) => entry.id === id) ?? null };
+    }
+    // 'primary', 'design', and anything unrecognised all mean the primary sheet.
+    return { kind: 'card', entry: null };
+  });
+
   const owner = $derived(workshop.previewCharacter);
   const theme = $derived(workshop.previewTheme);
   const deck = $derived(card ? findDeck(workshop.adventure, card.deckId) : null);
@@ -146,32 +174,40 @@
   </div>
 
   <div class="stage scroll-y" bind:this={stage}>
-    {#if statCard}
+    {#if statCard && heroSlot?.kind === 'card'}
       <!--
-        Above the deck back, and labelled, because from here down there are two
-        printed things on screen rather than one. Both belong to the set — this
-        is not the sample card further down, which does not.
+        Exactly one sheet at a time, matching whichever tab the character
+        workspace has open — labelled with its name only once there is more
+        than one identity to tell apart, the same as before this showed every
+        identity stacked together.
       -->
-      <span class="face-label">Character card</span>
+      <span class="face-label">
+        Character card{statCard.additionalCards.length > 0
+          ? ` — ${heroSlot.entry?.name.trim() || primaryCardName(statCard) || 'Untitled'}`
+          : ''}
+      </span>
       <div class="card-slot" style:width="{zoom * 100}%">
         <CardRenderer
           card={null}
           {statCard}
+          statCardEntry={heroSlot.entry}
           options={{ showBleed: bleeding, showGuides: showGuides && bleeding }}
         />
       </div>
-      <span class="face-label">Deck back</span>
     {/if}
 
-    <div class="card-slot" style:width="{zoom * 100}%">
-      <CardRenderer
-        {card}
-        {cardback}
-        character={owner}
-        {theme}
-        options={{ showBleed: bleeding, showGuides: showGuides && bleeding }}
-      />
-    </div>
+    {#if !statCard || heroSlot?.kind === 'cardback'}
+      {#if statCard}<span class="face-label">Deck back</span>{/if}
+      <div class="card-slot" style:width="{zoom * 100}%">
+        <CardRenderer
+          {card}
+          {cardback}
+          character={owner}
+          {theme}
+          options={{ showBleed: bleeding, showGuides: showGuides && bleeding }}
+        />
+      </div>
+    {/if}
 
     {#if card?.type === 'event'}
       <!--
@@ -191,7 +227,7 @@
       </div>
     {/if}
 
-    {#if cardback && sampleCard}
+    {#if cardback && sampleCard && (!statCard || heroSlot?.kind === 'defaults')}
       <!--
         The figure's card style, shown on a card. Labelled as a sample so it is
         never mistaken for one of the set's own — it is not in the document and
