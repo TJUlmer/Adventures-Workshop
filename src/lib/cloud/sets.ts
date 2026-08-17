@@ -309,15 +309,27 @@ export async function publishSet(
   };
 
   /*
-   * Upsert on `(owner_id, local_id)`, which is what makes re-publishing update
-   * the set someone already shared rather than mint a second row with a new
-   * slug — and a link that had been handed out would quietly stop being the
-   * current version.
+   * Upsert on `(owner_id, local_id, scope, character_id)`, which is what makes
+   * re-publishing update the set someone already shared rather than mint a
+   * second row with a new slug — and a link that had been handed out would
+   * quietly stop being the current version.
+   *
+   * The table's own unique constraint is on all four columns — a leftover
+   * from a scoped-publishing feature that never shipped past its migration
+   * (see `SharePanel.svelte`'s history) — even though this function only ever
+   * writes `scope`/`character_id` by omission, which takes the column
+   * defaults ('full' / ''). PostgREST's upsert requires the on_conflict list
+   * to name an actual constraint exactly, so naming only two of the four
+   * columns here — matching what this function *writes* rather than what the
+   * table *has* — fails every publish with "no unique or exclusion
+   * constraint matching the ON CONFLICT specification". Every row this
+   * function ever writes carries the same scope/character_id defaults, so
+   * this is still a two-column key in every publish that happens through it.
    *
    * `slug` is left out of the payload on purpose so the existing one survives.
    */
   const [published] = await request<PublishedSet[]>(
-    '/rest/v1/sets?on_conflict=owner_id,local_id',
+    '/rest/v1/sets?on_conflict=owner_id,local_id,scope,character_id',
     {
       method: 'POST',
       body: row,
