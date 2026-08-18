@@ -13,13 +13,18 @@
   import { saveExport, slugify } from '$lib/export';
   import { exportTokenModel, tokenTextureUrl } from '$lib/export/token-model';
   import type { Figure, FigureId, FigureKind } from '$lib/figures/types';
-  import { FIGURE_KIND_LABELS, FIGURE_KINDS, figureLabel, tokenSpecOf } from '$lib/figures/types';
+  import {
+    FIGURE_KIND_LABELS,
+    FIGURE_KINDS,
+    figureLabel,
+    generatedTokenSpec
+  } from '$lib/figures/types';
   import { HEALTH_DIAL_SPEC } from '$lib/figures/health-dial';
   import type { SkinTemplate } from '$lib/figures/skin-templates';
   import { HEALTH_DIAL_SKIN, TOKEN_SKIN } from '$lib/figures/skin-templates';
   import { isViewableModel, loadMesh } from '$lib/models/load';
   import type { Mesh } from '$lib/models/mesh';
-  import type { TokenShape, TokenSpec } from '$lib/models/token';
+  import type { TokenShape } from '$lib/models/token';
   import type { TtsSave } from '$lib/models/tts';
   import { applyTtsEdits, parseTtsSave } from '$lib/models/tts';
   import {
@@ -198,19 +203,6 @@
   let exportingId = $state<string | null>(null);
 
   /**
-   * The mesh this figure is generated from, or `null` if it is not generated.
-   *
-   * A dial is a disc the app owns rather than one the author shapes, so its spec
-   * is fixed and its build switch never appears — but it is the same generated
-   * prism underneath, and going through the same path is what gets it the same
-   * live preview.
-   */
-  function generatedSpec(figure: Figure): TokenSpec | null {
-    if (figure.kind === 'dial') return HEALTH_DIAL_SPEC;
-    return figure.token.enabled ? tokenSpecOf(figure.token) : null;
-  }
-
-  /**
    * A generated token is rebuilt whenever its dimensions change, which is what
    * makes the controls feel like they are shaping something rather than filling
    * in a form. An attached model is parsed once and kept.
@@ -218,7 +210,7 @@
   const previews = $derived.by(() => {
     const built: Record<string, Preview> = {};
     for (const figure of figures) {
-      const spec = generatedSpec(figure);
+      const spec = generatedTokenSpec(figure);
       if (!spec) continue;
       built[figure.id] = {
         mesh: buildTokenMesh(spec),
@@ -246,7 +238,7 @@
 
   $effect(() => {
     for (const figure of figures) {
-      if (!generatedSpec(figure)) continue;
+      if (!generatedTokenSpec(figure)) continue;
       /* Reading these is what makes a change to any of them rebuild the texture.
          `kind` is in there because a dial takes the app's rim rather than the
          figure's, so becoming one changes the texture without changing a field. */

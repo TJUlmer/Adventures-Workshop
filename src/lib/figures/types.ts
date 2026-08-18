@@ -3,6 +3,7 @@ import type { Artwork } from '$lib/core/artwork';
 import { createArtwork } from '$lib/core/artwork';
 import type { Id, IsoDateTime } from '$lib/core/id';
 import { createId, now } from '$lib/core/id';
+import { HEALTH_DIAL_SPEC } from '$lib/figures/health-dial';
 import type { TokenShape, TokenSpec } from '$lib/models/token';
 
 export type FigureId = Id<'Figure'>;
@@ -87,6 +88,22 @@ export function tokenSpecOf(token: TokenBuild): TokenSpec {
     thicknessMm: token.thicknessMm,
     twoSided: token.twoSided
   };
+}
+
+/**
+ * The mesh spec this figure is built from, or `null` when it stands for a
+ * sculpt of its own — a plain `figure`, or a `token`/`piece` with its build
+ * switched off — that no generated prism speaks for.
+ *
+ * A dial is a disc the app owns rather than one the author shapes, so its
+ * spec is fixed rather than read off `token` — but it is the same generated
+ * prism underneath, and going through this one function is what keeps every
+ * reader (the editor's live preview, an Overview thumbnail) agreeing on
+ * which figures are generated at all, rather than each re-deriving it.
+ */
+export function generatedTokenSpec(figure: Figure): TokenSpec | null {
+  if (figure.kind === 'dial') return HEALTH_DIAL_SPEC;
+  return figure.token.enabled ? tokenSpecOf(figure.token) : null;
 }
 
 /**

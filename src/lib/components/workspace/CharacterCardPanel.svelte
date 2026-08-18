@@ -21,6 +21,7 @@
   import type { CharacterBandName, CharacterCardDesign, CharacterId, HeroCharacterCardId } from '$lib/characters/types';
   import { CHARACTER_BAND_NAMES } from '$lib/characters/types';
   import { hasArtwork } from '$lib/core/artwork';
+  import { CHARACTER_BAND_RUNS, CHARACTER_CARD } from '$lib/renderer/geometry';
   import { workshop } from '$lib/state/workshop.svelte';
   import { FillEditor } from '$lib/ui';
   import ArtworkPanel from './ArtworkPanel.svelte';
@@ -83,7 +84,10 @@
         onchange={(fill: Fill) => edit((card) => (card[band].fill = fill))}
       />
 
-      <ArtworkPanel target={{ entity: 'characterBand', id: characterId, band, cardId }} />
+      <ArtworkPanel
+        target={{ entity: 'characterBand', id: characterId, band, cardId }}
+        aspect={CHARACTER_CARD.width / (CHARACTER_BAND_RUNS[band].bottom - CHARACTER_BAND_RUNS[band].top)}
+      />
     </EditorSection>
   {/each}
 {/if}

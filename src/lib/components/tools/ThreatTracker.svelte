@@ -663,7 +663,10 @@
         title="Board artwork"
         hint="Drawn under the track, with everything else over it."
       >
-        <ArtworkPanel target={{ entity: 'threat' }} />
+        <ArtworkPanel
+          target={{ entity: 'threat' }}
+          aspect={THREAT_TRACK.bleed.width / THREAT_TRACK.bleed.height}
+        />
       </EditorSection>
 
       <EditorSection

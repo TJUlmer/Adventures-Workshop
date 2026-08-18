@@ -21,7 +21,11 @@
   import type { Character, CharacterRole } from '$lib/characters/types';
   import { hasArtwork } from '$lib/core/artwork';
   import type { Deck, DeckKind } from '$lib/decks/types';
-  import { figureLabel, FIGURE_KIND_LABELS } from '$lib/figures/types';
+  import { tokenTextureUrl } from '$lib/export/token-model';
+  import { figureLabel, FIGURE_KIND_LABELS, generatedTokenSpec } from '$lib/figures/types';
+  import { isViewableModel, loadMesh } from '$lib/models/load';
+  import { renderMeshSnapshot } from '$lib/models/snapshot';
+  import { buildTokenMesh } from '$lib/models/token';
   import { CardRenderer, MapBoard, ThreatBoard } from '$lib/renderer';
   import { resolveStyleForCard } from '$lib/sets/queries';
   import type { AdventureSet } from '$lib/sets/types';
@@ -67,6 +71,44 @@
     const owner = set.characters.find((character) => character.id === figure.characterId);
     return owner ? characterLabel(owner) : null;
   }
+
+  /**
+   * A still 3D render, for a figure whose piece is a model — generated or
+   * attached — in place of its flat reference image.
+   *
+   * A token's texture is built to be wrapped onto a shape, not looked at on
+   * its own: it carries a rim-colour band, and a two-sided piece's is both
+   * faces side by side. Flat, that reads as noise rather than as the piece;
+   * rendered onto the actual mesh it reads as the component it is. A plain
+   * `figure` with neither a build nor an attached model keeps its reference
+   * image — there is no model here to render instead.
+   */
+  let modelSnapshots = $state<Record<string, string>>({});
+  const snapshotKeys: Record<string, string> = {};
+
+  $effect(() => {
+    for (const figure of set.figures) {
+      const spec = generatedTokenSpec(figure);
+      const modelName = figure.model?.name ?? '';
+      const modelSource = figure.model?.source ?? null;
+      const attached = !spec && modelSource !== null && isViewableModel(modelName);
+      if (!spec && !attached) continue;
+
+      const key = spec
+        ? `token|${JSON.stringify(spec)}|${figure.reference.source ?? ''}|${figure.token.rimColor}`
+        : `model|${modelSource}|${figure.reference.source ?? ''}`;
+      if (snapshotKeys[figure.id] === key) continue;
+      snapshotKeys[figure.id] = key;
+
+      const figureId = figure.id;
+      void (async () => {
+        const mesh = spec ? buildTokenMesh(spec) : await loadMesh(modelName, modelSource ?? '');
+        const texture = spec ? await tokenTextureUrl(figure) : figure.reference.source;
+        const snapshot = await renderMeshSnapshot(mesh, texture, 160);
+        if (snapshot) modelSnapshots[figureId] = snapshot;
+      })();
+    }
+  });
 
   /** Which faces a card contributes to the gallery. Only events have two. */
   const FRONT_ONLY = ['front'] as const;
@@ -332,8 +374,13 @@
             role={interactive ? 'button' : undefined}
             onclick={interactive ? () => navigation.go('figures') : undefined}
           >
-            <span class="figure-thumb" class:empty={!hasArtwork(figure.reference)}>
-              {#if hasArtwork(figure.reference) && figure.reference.source}
+            <span
+              class="figure-thumb"
+              class:empty={!modelSnapshots[figure.id] && !hasArtwork(figure.reference)}
+            >
+              {#if modelSnapshots[figure.id]}
+                <img src={modelSnapshots[figure.id]} alt="" />
+              {:else if hasArtwork(figure.reference) && figure.reference.source}
                 <img src={figure.reference.source} alt="" />
               {:else}
                 <Icon name="image" size={16} />

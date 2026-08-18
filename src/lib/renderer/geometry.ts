@@ -267,11 +267,16 @@ export const BANNER_HEAD_BELOW = BLEED.height - (BANNER.headTop + BANNER_HEAD.he
  * Boost ring, on the divider near the right edge.
  *
  * The ring is drawn by the divider art, so these are the ring's own numbers,
- * read off the alpha channel of `inner_border.png`: a 19px stroke — the
- * divider's own weight — running from `innerRadius` to `outerRadius`. It sits
- * slightly high of the divider bar, which is how the template is drawn.
+ * read off the alpha channel of `inner_border.png`: a 16px stroke running from
+ * `innerRadius` to `outerRadius`. It sits slightly high of the divider bar,
+ * which is how the template is drawn.
+ *
+ * Trimmed 3px thinner than the divider's own natural weight (19px) — the ring
+ * printed heavier than the rest of the line work around it, and the outer
+ * edge is what the divider bar butts up against, so the trim comes off the
+ * inner edge alone (`innerRadius` 70 → 73) rather than off both.
  */
-export const BOOST = { cx: 1372, cy: 1200, innerRadius: 70, outerRadius: 89 } as const;
+export const BOOST = { cx: 1372, cy: 1200, innerRadius: 73, outerRadius: 89 } as const;
 
 /**
  * Radius of the filled disc behind the boost value.

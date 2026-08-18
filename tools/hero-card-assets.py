@@ -75,6 +75,13 @@ STROKE_REF = "hero_frame_plus_ribbon_stroke.png"
 # own right edge (`BANNER.edge.width`).
 EDGE_STROKE = 17
 
+# `HERO_RIBBON.x` and `HERO_RIBBON_SYMBOL.top` in geometry.ts — read directly
+# rather than re-derived, since telling the frame's own top-left corner apart
+# from the ghost of the example card's combat icon (see the frame section
+# below) turns on exactly where that icon sits.
+HERO_RIBBON_TOP = 147
+HERO_RIBBON_SYMBOL_TOP = 187
+
 # The frame window's bounds, in bleed pixels, read off `hero_action_frame.png`.
 # The stroke drawing is on the same short canvas as every other piece of hero
 # art, so it goes through the same resample and needs no offset of its own.
@@ -230,6 +237,40 @@ def main() -> None:
     # what shapes the ribbon's top. Nothing can show through the join, because
     # the ribbon is wider than the hole on every side that matters.
     frame = np.where(cream, alpha, 0)
+
+    # The example card the source file shows carries a combat icon
+    # (versatile's burst-and-shield — see `CARD_SYMBOL_COLORS`'s own note on
+    # this file), and that icon's rays antialias down toward near-white at
+    # their edges — close enough to `CREAM` for the threshold above to count
+    # them as the frame's own ink. Left alone, that baked a faint ghost of
+    # the burst into every hero's ribbon corner, showing through behind
+    # whichever symbol a card actually carries.
+    #
+    # Two rounds of trying to zero it out cut into real ink instead, both
+    # measured after the fact rather than guessed:
+    #
+    #   - Left of `run_span[0]` (147, the same 147 `HERO_RIBBON.x` places
+    #     the ribbon at) is the frame's own left border stroke — solid at
+    #     every row from the corner down to the foot, at *every* row this
+    #     region spans, not only near the top. Zeroing from column 0 deleted
+    #     it, which is the black gap this was caught from.
+    #   - Above the icon, `head_top` through about 176, is the top border's
+    #     rounded corner tapering into that same left stroke — solid ink
+    #     (>94% of pixels lit across the full measured span, against under
+    #     6% once the ghost actually starts), reaching as far right as
+    #     column 199 at the very top row. Zeroing from `head_top` caught the
+    #     tail of this taper too.
+    #
+    # The ghost itself only starts where `HERO_RIBBON_SYMBOL.top` (187 in
+    # `geometry.ts`) puts the icon — unsurprising, since it is a trace of
+    # that exact icon — which is comfortably clear of both: the taper has
+    # narrowed back to the bare 127..147 stroke by row 176, and the ghost
+    # never reaches left of 147 at any row. So the region zeroed is bounded
+    # by the icon's own top and the ribbon's own left edge, not by the
+    # ribbon head's full silhouette.
+    icon_top = head_top + (HERO_RIBBON_SYMBOL_TOP - HERO_RIBBON_TOP)
+    margin = 20
+    frame[icon_top : head_bottom + margin, run_span[0] : run_span[1] + margin] = 0
 
     # -- the stroke, read off the supplied drawing -------------------------
     #

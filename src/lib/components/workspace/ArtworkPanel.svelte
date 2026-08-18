@@ -7,9 +7,11 @@
    * Every control writes through a store command, because this panel is shared
    * between the card and character editors.
    */
+  import { fillCss } from '$lib/cards/style';
   import type { CardTheme } from '$lib/cards/style';
   import { hasArtwork } from '$lib/core/artwork';
   import { readArtworkFile } from '$lib/core/image-import';
+  import { CardArt } from '$lib/renderer';
   import type { EntityRef, StyleTarget } from '$lib/state/workshop.svelte';
   import { workshop } from '$lib/state/workshop.svelte';
   import { Button, FillEditor, Icon, Slider, Switch, TextInput } from '$lib/ui';
@@ -27,9 +29,25 @@
     styleTarget?: StyleTarget | null;
     resolved?: CardTheme | null;
     bedOrigin?: string;
+    /**
+     * Width ÷ height of the window this art fills, for the drag preview's own
+     * shape. Defaults to the action/villain/minion card's own art window
+     * (`ART_WINDOW`, 1346×1061) — every other caller passes its own, since a
+     * threat-track strip or a character-card band is nothing like that
+     * proportion and a mismatched preview would frame the drag against a box
+     * the printed card never shows.
+     */
+    aspect?: number;
   }
 
-  let { target, hint, styleTarget = null, resolved = null, bedOrigin }: Props = $props();
+  let {
+    target,
+    hint,
+    styleTarget = null,
+    resolved = null,
+    bedOrigin,
+    aspect = 1346 / 1061
+  }: Props = $props();
 
   const bedOverridden = $derived(
     styleTarget ? workshop.styleFor(styleTarget)?.artBackground !== undefined : false
@@ -64,6 +82,68 @@
 
   const pct = (value: number) => `${Math.round(value * 100)}%`;
   const signed = (value: number) => `${value > 0 ? '+' : ''}${Math.round(value * 100)}%`;
+
+  /**
+   * Click-and-drag on the preview, as a shortcut for the Horizontal/Vertical
+   * sliders below rather than a replacement for them — the sliders still hold
+   * the numbers, and still work fine on their own.
+   *
+   * `offsetX`/`offsetY` are fractions of the artwork's *own* rendered width
+   * and height (see `artLayout`'s `translate(offsetX * 100%, ...)`), and that
+   * translate is the outermost transform — applied after scale and rotation —
+   * so it moves the picture along the screen's own axes regardless of either.
+   * That is what makes the drag math independent of both: a drag of `dx`
+   * preview pixels is `dx / (boxWidth / crop.width)` of offset, however the
+   * picture is currently zoomed or turned.
+   */
+  let dragging = $state(false);
+  let drag: {
+    pointerId: number;
+    startX: number;
+    startY: number;
+    startOffsetX: number;
+    startOffsetY: number;
+    boxWidth: number;
+    boxHeight: number;
+  } | null = null;
+
+  function clampOffset(value: number): number {
+    return Math.min(1, Math.max(-1, value));
+  }
+
+  function startDrag(event: PointerEvent): void {
+    if (!artwork || event.button !== 0) return;
+    const box = event.currentTarget as HTMLElement;
+    const rect = box.getBoundingClientRect();
+    box.setPointerCapture(event.pointerId);
+    drag = {
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      startOffsetX: artwork.transform.offsetX,
+      startOffsetY: artwork.transform.offsetY,
+      boxWidth: rect.width,
+      boxHeight: rect.height
+    };
+    dragging = true;
+  }
+
+  function moveDrag(event: PointerEvent): void {
+    if (!drag || event.pointerId !== drag.pointerId || !artwork) return;
+    const offsetX = clampOffset(
+      drag.startOffsetX + ((event.clientX - drag.startX) * artwork.crop.width) / drag.boxWidth
+    );
+    const offsetY = clampOffset(
+      drag.startOffsetY + ((event.clientY - drag.startY) * artwork.crop.height) / drag.boxHeight
+    );
+    workshop.setTransform(target, { offsetX, offsetY });
+  }
+
+  function endDrag(event: PointerEvent): void {
+    if (drag?.pointerId !== event.pointerId) return;
+    drag = null;
+    dragging = false;
+  }
 </script>
 
 <EditorSection title="Image" {hint}>
@@ -115,6 +195,24 @@
         Reset
       </Button>
     {/snippet}
+
+    <div
+      class="drag-preview"
+      class:dragging
+      style:aspect-ratio={aspect}
+      role="application"
+      aria-label="Drag to reposition the artwork"
+      onpointerdown={startDrag}
+      onpointermove={moveDrag}
+      onpointerup={endDrag}
+      onpointercancel={endDrag}
+    >
+      <CardArt {artwork} background={resolved ? fillCss(resolved.artBackground) : 'var(--surface-inset)'} />
+      <div class="drag-hint">
+        <Icon name="move" size={13} />
+        Drag to reposition
+      </div>
+    </div>
 
     <div class="grid">
       <Slider
@@ -389,6 +487,45 @@
   .error {
     font-size: var(--text-xs);
     color: var(--danger);
+  }
+
+  .drag-preview {
+    position: relative;
+    width: 100%;
+    max-width: 320px;
+    margin-bottom: var(--space-3);
+    overflow: hidden;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border-default);
+    touch-action: none;
+    cursor: grab;
+    user-select: none;
+  }
+
+  .drag-preview.dragging {
+    cursor: grabbing;
+  }
+
+  .drag-hint {
+    position: absolute;
+    left: var(--space-2);
+    bottom: var(--space-2);
+    display: flex;
+    align-items: center;
+    gap: var(--space-1);
+    padding: 2px var(--space-2);
+    border-radius: var(--radius-sm);
+    background: rgb(0 0 0 / 0.55);
+    color: #fff;
+    font-size: var(--text-xs);
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity var(--duration-fast) var(--ease-out);
+  }
+
+  .drag-preview:hover .drag-hint,
+  .drag-preview.dragging .drag-hint {
+    opacity: 1;
   }
 
   .grid {
