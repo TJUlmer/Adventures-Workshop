@@ -198,6 +198,7 @@ export function fingerprintSet(set: AdventureSet): Record<string, string> {
   for (const deck of set.decks) marks[deck.id] = hashEntity(deck);
   for (const card of set.cards) marks[card.id] = hashEntity(card);
   for (const figure of set.figures) marks[figure.id] = hashEntity(figure);
+  for (const symbol of set.customSymbols) marks[symbol.id] = hashEntity(symbol);
 
   return marks;
 }

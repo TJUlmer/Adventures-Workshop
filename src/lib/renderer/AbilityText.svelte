@@ -7,6 +7,7 @@
    */
   import type { AbilityBlocks } from '$lib/cards/types';
   import { ABILITY_TIMING_LABELS, usedTimings } from '$lib/cards/types';
+  import type { CustomSymbol } from '$lib/symbols/types';
   import { parseAbilityText } from '$lib/text/tokens';
   import { symbolUrl } from './assets';
 
@@ -18,13 +19,16 @@
     subject?: string;
     /** Ink for the Bonus ability line. Defaults to whatever `.ability` inherits. */
     bonusInk?: string;
+    /** The set's author-uploaded glyphs, for resolving `{{custom:…}}` tokens. */
+    customSymbols?: CustomSymbol[];
   }
 
   let {
     ability,
     placeholder = 'Ability text appears here.',
     subject = 'Villain Name',
-    bonusInk
+    bonusInk,
+    customSymbols = []
   }: Props = $props();
 
   const timings = $derived(usedTimings(ability));
@@ -37,6 +41,11 @@
   {#each parseAbilityText(text) as segment, index (index)}
     {#if segment.kind === 'symbol'}
       <img class="symbol" src={symbolUrl(segment.name)} alt={segment.name} />
+    {:else if segment.kind === 'customSymbol'}
+      {@const custom = customSymbols.find((s) => s.id === segment.id)}
+      {#if custom?.source}
+        <img class="symbol" src={custom.source} alt={custom.name} />
+      {/if}
     {:else if segment.kind === 'subject'}{subject}{:else}{segment.value}{/if}
   {/each}
 {/snippet}

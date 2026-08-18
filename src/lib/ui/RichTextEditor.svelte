@@ -8,8 +8,11 @@
    */
   import { CARD_SYMBOL_LABELS, CARD_SYMBOLS } from '$lib/renderer/assets';
   import type { CardSymbolName } from '$lib/renderer/assets';
+  import type { CustomSymbol } from '$lib/symbols/types';
+  import { customSymbolLabel } from '$lib/symbols/types';
   import {
     clampTextSize,
+    escapeHtml,
     readTextSize,
     sanitizeRichText,
     TEXT_SIZE,
@@ -23,9 +26,17 @@
     placeholder?: string;
     minHeight?: number;
     onchange: (html: string) => void;
+    /** Author-uploaded glyphs, offered alongside the four built-in symbols. */
+    customSymbols?: CustomSymbol[];
   }
 
-  let { value, placeholder = 'Write the rules…', minHeight = 140, onchange }: Props = $props();
+  let {
+    value,
+    placeholder = 'Write the rules…',
+    minHeight = 140,
+    onchange,
+    customSymbols = []
+  }: Props = $props();
 
   let editor = $state<HTMLDivElement | null>(null);
   let focused = $state(false);
@@ -167,6 +178,24 @@
     );
     commit();
   }
+
+  /**
+   * Addressed by id (`data-symbol-id`), not baked in by picture — see
+   * `resolveCustomSymbolImages` in `rich-text.ts`. `src` here is only what the
+   * symbol looks like *right now*; it is what makes the field show something
+   * sensible before the next render re-resolves it, not the source of truth.
+   */
+  function insertCustomSymbol(symbol: CustomSymbol): void {
+    if (!symbol.source) return;
+    editor?.focus();
+    const label = customSymbolLabel(symbol);
+    document.execCommand(
+      'insertHTML',
+      false,
+      `<img class="symbol" data-symbol-id="${escapeHtml(symbol.id)}" src="${symbol.source}" alt="${escapeHtml(label)}" />`
+    );
+    commit();
+  }
 </script>
 
 <div class="rich" class:focused>
@@ -261,6 +290,18 @@
         onclick={() => insertSymbol(name)}
       >
         <img src={CARD_SYMBOLS[name]} alt={CARD_SYMBOL_LABELS[name]} />
+      </button>
+    {/each}
+
+    {#each customSymbols.filter((s) => s.source) as symbol (symbol.id)}
+      <button
+        type="button"
+        class="tool symbol-tool"
+        title="Insert {customSymbolLabel(symbol)} symbol"
+        onmousedown={(event) => event.preventDefault()}
+        onclick={() => insertCustomSymbol(symbol)}
+      >
+        <img src={symbol.source} alt={customSymbolLabel(symbol)} />
       </button>
     {/each}
   </div>

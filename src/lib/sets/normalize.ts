@@ -49,6 +49,8 @@ import type { DialRange, Figure, ModelFile, TokenBuild } from '$lib/figures/type
 import { createDialRange, createFigure, createTokenBuild, FIGURE_KINDS } from '$lib/figures/types';
 import { MAX_POLYGON_SIDES, MIN_POLYGON_SIDES, TOKEN_SHAPES } from '$lib/models/token';
 import { INITIATIVE_BAND_DEFAULTS } from '$lib/renderer/geometry';
+import type { CustomSymbol } from '$lib/symbols/types';
+import { createCustomSymbol } from '$lib/symbols/types';
 import type { ThreatNote, ThreatSlot, ThreatTrack } from '$lib/threat/types';
 import {
   clampNotePosition,
@@ -461,6 +463,22 @@ function figure(value: unknown): Figure {
   };
 }
 
+function customSymbol(value: unknown): CustomSymbol {
+  const raw = asRecord(value);
+  const base = createCustomSymbol();
+
+  return {
+    ...base,
+    ...(typeof raw['id'] === 'string' ? { id: raw['id'] as never } : {}),
+    name: str(raw['name']),
+    source: typeof raw['source'] === 'string' ? raw['source'] : null,
+    // Carried over, not taken from `base` — see `figure()`, which fixed the
+    // same non-idempotency bug for the same reason.
+    createdAt: str(raw['createdAt'], base.createdAt) as CustomSymbol['createdAt'],
+    updatedAt: str(raw['updatedAt'], base.updatedAt) as CustomSymbol['updatedAt']
+  };
+}
+
 function dialRange(value: unknown): DialRange {
   const raw = asRecord(value);
   const base = createDialRange();
@@ -698,6 +716,9 @@ export function normalizeSet(value: AdventureSet): AdventureSet {
     threat: threatTrack(raw['threat']),
     map: adventureMap(raw['map']),
     figures: (Array.isArray(raw['figures']) ? raw['figures'] : []).map(figure),
+    customSymbols: (Array.isArray(raw['customSymbols']) ? raw['customSymbols'] : []).map(
+      customSymbol
+    ),
     boxArt: artwork(raw['boxArt']),
     initiativeBack: artwork(raw['initiativeBack']),
     useInitiativeBack: bool(raw['useInitiativeBack'], false),

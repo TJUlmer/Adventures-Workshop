@@ -12,6 +12,7 @@
   import type { AbilityBlocks } from '$lib/cards/types';
   import type { StyleTarget } from '$lib/state/workshop.svelte';
   import { workshop } from '$lib/state/workshop.svelte';
+  import type { CustomSymbol } from '$lib/symbols/types';
   import { ColorInput, Slider, TextArea } from '$lib/ui';
   import AbilityField from './AbilityField.svelte';
   import EditorSection from './EditorSection.svelte';
@@ -34,6 +35,8 @@
      * every stack but the first.
      */
     textStyle?: boolean;
+    /** Author-uploaded glyphs, offered in every block's symbol palette. */
+    customSymbols?: CustomSymbol[];
   }
 
   let {
@@ -45,7 +48,8 @@
     target,
     resolved,
     originFor,
-    textStyle = true
+    textStyle = true,
+    customSymbols = []
   }: Props = $props();
 
   const layer = $derived(workshop.styleFor(target) ?? {});
@@ -72,6 +76,7 @@
         rows={2}
         placeholder="What happens {ABILITY_TIMING_LABELS[timing].toLowerCase()}…"
         onchange={(value) => onchange({ [timing]: value })}
+        {customSymbols}
       />
     {/each}
   </div>
@@ -83,6 +88,7 @@
     rows={2}
     placeholder="An extra ability, printed below After Combat…"
     onchange={(value) => onchange({ bonusAbility: value })}
+    {customSymbols}
   />
 
   {#if textStyle}

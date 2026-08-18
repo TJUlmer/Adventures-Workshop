@@ -170,7 +170,8 @@ export async function exportCardPngs(
           character: job.character,
           cardback: job.cardback,
           theme: job.card ? resolveStyleForCard(set, job.card) : undefined,
-          side: job.side ?? 'front'
+          side: job.side ?? 'front',
+          customSymbols: set.customSymbols
         },
         format,
         { bleed: options.bleed }

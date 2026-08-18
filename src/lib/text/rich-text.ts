@@ -8,6 +8,8 @@
  * by name, so `class` and `src` cannot smuggle anything in.
  */
 
+import type { CustomSymbol } from '$lib/symbols/types';
+
 /**
  * Text size, as a percentage of the card's own body size.
  *
@@ -61,6 +63,18 @@ const ALLOWED_CLASSES = new Set<string>([...LEGACY_SIZE_CLASSES, TEXT_SIZE_CLASS
 /** Inline symbols may only point inside the bundled symbol folder. */
 const SYMBOL_SRC_PREFIX = '/assets/symbols/';
 
+/**
+ * A custom symbol is addressed by id (`data-symbol-id`) rather than by its
+ * data-URL `src`: the src stored in the document is whatever it was at
+ * insert time, and can go stale the moment the author replaces or renames
+ * the symbol on the Symbols page. `resolveCustomSymbolImages` rewrites it
+ * from the live registry at render time, the same way the built-in symbols
+ * are looked up fresh by name rather than baked in. This only bounds the
+ * *shape* of the attribute the sanitiser will keep — not whether it still
+ * resolves to anything, which `resolveCustomSymbolImages` alone decides.
+ */
+const CUSTOM_SYMBOL_ID_PATTERN = /^[a-zA-Z0-9_-]+$/;
+
 const ALLOWED_TAGS = new Set([
   'B',
   'STRONG',
@@ -111,10 +125,17 @@ function scrub(node: Node): void {
       continue;
     }
 
-    // Images survive only as bundled symbols, and only with a local src.
+    // Images survive only as a bundled symbol or a custom one, and only with
+    // a local src or, for a custom symbol, an id the registry can resolve.
     if (element.tagName === 'IMG') {
       const src = element.getAttribute('src') ?? '';
-      if (!src.startsWith(SYMBOL_SRC_PREFIX)) {
+      const symbolId = element.getAttribute('data-symbol-id');
+      const isBundled = src.startsWith(SYMBOL_SRC_PREFIX);
+      const isCustom =
+        symbolId !== null &&
+        CUSTOM_SYMBOL_ID_PATTERN.test(symbolId) &&
+        src.startsWith('data:image/');
+      if (!isBundled && !isCustom) {
         element.remove();
         continue;
       }
@@ -125,6 +146,7 @@ function scrub(node: Node): void {
       element.setAttribute('src', src);
       element.setAttribute('alt', alt);
       element.setAttribute('class', 'symbol');
+      if (isCustom) element.setAttribute('data-symbol-id', symbolId);
       continue;
     }
 
@@ -168,6 +190,36 @@ export function sanitizeRichText(html: string): string {
   const template = document.createElement('template');
   template.innerHTML = html;
   scrub(template.content);
+  return template.innerHTML;
+}
+
+/**
+ * Rewrite every custom symbol's `src`/`alt` from the live registry.
+ *
+ * Called at render time, after `sanitizeRichText`: the sanitiser only checks
+ * *shape*, so a stored `src` can be an old image or an old name for a symbol
+ * the author has since replaced or renamed. Resolving here, on every render,
+ * is what makes an edit on the Symbols page propagate to every card using it
+ * instantly rather than only to future insertions. A symbol that no longer
+ * exists is dropped rather than left showing a stale picture.
+ */
+export function resolveCustomSymbolImages(html: string, symbols: readonly CustomSymbol[]): string {
+  if (!html.includes('data-symbol-id')) return html;
+
+  const template = document.createElement('template');
+  template.innerHTML = html;
+
+  for (const img of Array.from(template.content.querySelectorAll('img[data-symbol-id]'))) {
+    const id = img.getAttribute('data-symbol-id');
+    const symbol = symbols.find((candidate) => candidate.id === id);
+    if (symbol?.source) {
+      img.setAttribute('src', symbol.source);
+      img.setAttribute('alt', symbol.name);
+    } else {
+      img.remove();
+    }
+  }
+
   return template.innerHTML;
 }
 

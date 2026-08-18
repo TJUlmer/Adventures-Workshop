@@ -234,6 +234,7 @@
                       card={before}
                       character={characterForCard(set, before)}
                       theme={resolveStyleForCard(set, before)}
+                      customSymbols={set.customSymbols}
                     />
                   </div>
                 </figure>
@@ -247,6 +248,7 @@
                       card={after}
                       character={characterForCard(preview, after)}
                       theme={resolveStyleForCard(preview, after)}
+                      customSymbols={preview.customSymbols}
                     />
                   </div>
                 </figure>

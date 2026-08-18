@@ -21,6 +21,7 @@
   import { abilityIsEmpty } from '$lib/cards/types';
   import { primaryCardName, resolvedHeroName } from '$lib/characters/factory';
   import type { Character } from '$lib/characters/types';
+  import type { CustomSymbol } from '$lib/symbols/types';
   import AbilityText from './AbilityText.svelte';
   import { CARD_SYMBOL_COLORS, CARD_SYMBOL_SIZES, CARD_SYMBOLS, patternAspect } from './assets';
   import type { CardSymbolName } from './assets';
@@ -81,9 +82,10 @@
     card: ActionCard;
     character: Character | null;
     theme: CardTheme;
+    customSymbols?: CustomSymbol[];
   }
 
-  let { card, character, theme }: Props = $props();
+  let { card, character, theme, customSymbols = [] }: Props = $props();
 
   interface ValueRow {
     key: CardSymbolName;
@@ -433,6 +435,7 @@
                 ability={card.ability}
                 subject={ribbonName}
                 bonusInk={theme.bonusAbilityInk}
+                {customSymbols}
               />
             </div>
           </div>
@@ -451,6 +454,7 @@
               ability={card.ability}
               subject={ribbonName}
               bonusInk={theme.bonusAbilityInk}
+              {customSymbols}
             />
           </div>
         {/if}
@@ -752,6 +756,7 @@
               placeholder=""
               subject={ribbonName}
               bonusInk={theme.bonusAbilityInk}
+              {customSymbols}
             />
           </div>
         </div>

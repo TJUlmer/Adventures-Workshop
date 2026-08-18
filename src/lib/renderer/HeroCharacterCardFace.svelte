@@ -30,8 +30,10 @@
   import { CHARACTER_BAND_NAMES } from '$lib/characters/types';
   import { fillCss } from '$lib/cards/style';
   import { hasArtwork } from '$lib/core/artwork';
+  import type { CustomSymbol } from '$lib/symbols/types';
+  import { parseAbilityText } from '$lib/text/tokens';
   import CardArt from './CardArt.svelte';
-  import { ATTACK_TYPE_SIZES, ATTACK_TYPE_SYMBOLS, TEMPLATE_ASSETS } from './assets';
+  import { ATTACK_TYPE_SIZES, ATTACK_TYPE_SYMBOLS, symbolUrl, TEMPLATE_ASSETS } from './assets';
   import {
     CHARACTER_ABILITY,
     CHARACTER_ABILITY_PANEL,
@@ -62,9 +64,10 @@
      * chrome is shared across every sheet a hero prints, never per-identity.
      */
     card?: HeroCharacterCard | null;
+    customSymbols?: CustomSymbol[];
   }
 
-  let { character, card = null }: Props = $props();
+  let { character, card = null, customSymbols = [] }: Props = $props();
 
   const identity = $derived(
     card ?? {
@@ -210,7 +213,26 @@
         style:font-size={pu(CHARACTER_ABILITY.textSize)}
         style:line-height={CHARACTER_ABILITY.textLineHeight}
       >
-        {ability?.text.trim() || 'Ability text goes here.'}
+        {#if ability?.text.trim()}
+          <!--
+            The same token parsing as an action card's ability text, minus
+            `{{name}}` — there is no owning card here for it to stand in for,
+            so a stray one falls through as literal text like any other
+            unrecognised token.
+          -->
+          {#each parseAbilityText(ability.text) as segment, index (index)}
+            {#if segment.kind === 'symbol'}
+              <img class="ability-symbol" src={symbolUrl(segment.name)} alt={segment.name} />
+            {:else if segment.kind === 'customSymbol'}
+              {@const custom = customSymbols.find((s) => s.id === segment.id)}
+              {#if custom?.source}
+                <img class="ability-symbol" src={custom.source} alt={custom.name} />
+              {/if}
+            {:else if segment.kind === 'text'}{segment.value}{/if}
+          {/each}
+        {:else}
+          Ability text goes here.
+        {/if}
       </p>
     </div>
   {/each}
@@ -491,6 +513,14 @@
     margin: 0;
     font-family: var(--card-font-text);
     font-weight: var(--card-font-text-weight);
+  }
+
+  .ability-symbol {
+    display: inline-block;
+    height: 0.82em;
+    width: auto;
+    vertical-align: -0.08em;
+    margin-inline: 0.06em;
   }
 
   .placeholder {

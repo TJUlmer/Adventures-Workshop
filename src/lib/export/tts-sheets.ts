@@ -163,7 +163,8 @@ export async function renderDeckSheets(
       const job = {
         card: planned.card,
         character: planned.character,
-        theme: resolveStyleForCard(context.set, planned.card)
+        theme: resolveStyleForCard(context.set, planned.card),
+        customSymbols: context.set.customSymbols
       };
 
       const face = await context.photograph(job, plan.format, options);

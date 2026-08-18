@@ -251,6 +251,7 @@
                   {card}
                   character={group.owner}
                   theme={resolveStyleForCard(set, card)}
+                  customSymbols={set.customSymbols}
                   {side}
                 />
               </svelte:element>

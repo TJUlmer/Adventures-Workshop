@@ -29,6 +29,7 @@
     TextArea,
     TextInput
   } from '$lib/ui';
+  import AbilityField from './AbilityField.svelte';
   import CardbackPanel from './CardbackPanel.svelte';
   import CharacterCardPanel from './CharacterCardPanel.svelte';
   import StylePanel from './StylePanel.svelte';
@@ -204,7 +205,14 @@
                 <Icon name="trash" size={13} />
               </Button>
             </div>
-            <TextArea bind:value={ability.text} rows={2} placeholder="Ability text goes here." />
+            <AbilityField
+              label="Ability text"
+              value={ability.text}
+              rows={2}
+              placeholder="Ability text goes here."
+              onchange={(value) => (ability.text = value)}
+              customSymbols={workshop.adventure.customSymbols}
+            />
           </li>
         {/each}
       </ul>

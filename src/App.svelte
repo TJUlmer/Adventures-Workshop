@@ -25,6 +25,7 @@
   import FiguresPanel from '$lib/components/tools/FiguresPanel.svelte';
   import MapEditor from '$lib/components/tools/MapEditor.svelte';
   import SetSettings from '$lib/components/tools/SetSettings.svelte';
+  import SymbolsPanel from '$lib/components/tools/SymbolsPanel.svelte';
   import ThreatTracker from '$lib/components/tools/ThreatTracker.svelte';
   import Workspace from '$lib/components/workspace/Workspace.svelte';
   import { navigation } from '$lib/state/navigation.svelte';
@@ -167,6 +168,8 @@
           <MapEditor />
         {:else if currentPage === 'figures'}
           <FiguresPanel />
+        {:else if currentPage === 'symbols'}
+          <SymbolsPanel />
         {:else if currentPage === 'assets'}
           <AssetsOverview />
         {:else if currentPage === 'contributions'}

@@ -13,7 +13,16 @@
   import Icon from '$lib/ui/Icon.svelte';
   import type { IconName } from '$lib/ui/Icon.svelte';
 
-  const PAGES: readonly SetPage[] = ['home', 'editor', 'threat', 'map', 'figures', 'assets', 'settings'];
+  const PAGES: readonly SetPage[] = [
+    'home',
+    'editor',
+    'threat',
+    'map',
+    'figures',
+    'symbols',
+    'assets',
+    'settings'
+  ];
 
   const current = $derived(navigation.page);
 </script>

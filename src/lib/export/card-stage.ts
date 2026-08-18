@@ -17,6 +17,7 @@ import { characterLabel } from '$lib/characters/factory';
 import type { Character } from '$lib/characters/types';
 import type { AdventureMap } from '$lib/map/types';
 import CardRenderer from '$lib/renderer/CardRenderer.svelte';
+import type { CustomSymbol } from '$lib/symbols/types';
 import MapBoard from '$lib/renderer/MapBoard.svelte';
 import ThreatBoard from '$lib/renderer/ThreatBoard.svelte';
 import type { CardFormat } from '$lib/renderer/geometry';
@@ -34,6 +35,7 @@ export interface StageJob {
   theme?: CardTheme;
   /** Which face of a two-sided card. Only event cards have both. */
   side?: 'front' | 'back';
+  customSymbols?: CustomSymbol[];
 }
 
 /** Returns `null` when the renderer drew nothing to photograph. */
@@ -63,6 +65,7 @@ export async function withCardStage<T>(run: (photograph: Photograph) => Promise<
         cardback: job.cardback ?? null,
         theme: job.theme,
         side: job.side ?? 'front',
+        customSymbols: job.customSymbols ?? [],
         options: { showBleed: true, showGuides: false }
       }
     });

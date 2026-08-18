@@ -13,6 +13,7 @@ export const SET_PAGES = [
   'threat',
   'map',
   'figures',
+  'symbols',
   'assets',
   'settings',
   'print',
@@ -35,6 +36,11 @@ export const SET_PAGE_META: Readonly<Record<SetPage, SetPageMeta>> = {
   threat: { label: 'Threat track', hint: 'The villain’s threat track', icon: 'skull' },
   map: { label: 'Map', hint: 'The board the adventure is played on', icon: 'grid' },
   figures: { label: 'Components', hint: 'Figures, tokens and game pieces', icon: 'users' },
+  symbols: {
+    label: 'Symbols',
+    hint: 'Custom glyphs, insertable anywhere the built-in combat symbols are',
+    icon: 'sparkle'
+  },
   assets: { label: 'Overview', hint: 'Every component in one place', icon: 'layers' },
   settings: { label: 'Settings', hint: 'Theme defaults, notes and version', icon: 'settings' },
   /*

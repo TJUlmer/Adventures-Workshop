@@ -7,7 +7,8 @@
   import type { CardTheme } from '$lib/cards/style';
   import { fillCss } from '$lib/cards/style';
   import type { EventCard, RulesCard } from '$lib/cards/types';
-  import { richTextIsEmpty, sanitizeRichText } from '$lib/text/rich-text';
+  import type { CustomSymbol } from '$lib/symbols/types';
+  import { resolveCustomSymbolImages, richTextIsEmpty, sanitizeRichText } from '$lib/text/rich-text';
   import { patternAspect } from './assets';
   import {
     capTopToBoxTop,
@@ -23,12 +24,13 @@
     /** Rules and event cards share this prose layout. */
     card: RulesCard | EventCard;
     theme: CardTheme;
+    customSymbols?: CustomSymbol[];
   }
 
-  let { card, theme }: Props = $props();
+  let { card, theme, customSymbols = [] }: Props = $props();
 
   const heading = $derived(card.heading.trim() || (card.type === 'event' ? 'Event' : 'Rules'));
-  const body = $derived(sanitizeRichText(card.body));
+  const body = $derived(resolveCustomSymbolImages(sanitizeRichText(card.body), customSymbols));
   const empty = $derived(richTextIsEmpty(card.body));
 </script>
 

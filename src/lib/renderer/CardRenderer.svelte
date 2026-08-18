@@ -15,6 +15,7 @@
   import { characterLabel } from '$lib/characters/factory';
   import type { Character, HeroCharacterCard } from '$lib/characters/types';
   import { hasArtwork } from '$lib/core/artwork';
+  import type { CustomSymbol } from '$lib/symbols/types';
   import ActionCardFace from './ActionCardFace.svelte';
   import CardArt from './CardArt.svelte';
   import CardbackFace from './CardbackFace.svelte';
@@ -53,6 +54,8 @@
     /** Which face of a two-sided card to draw. Only event cards have both. */
     side?: 'front' | 'back';
     options?: Partial<CardRenderOptions>;
+    /** The set's author-uploaded glyphs, for resolving `{{custom:…}}` tokens. */
+    customSymbols?: CustomSymbol[];
   }
 
   let {
@@ -63,7 +66,8 @@
     statCardEntry = null,
     theme,
     side = 'front',
-    options
+    options,
+    customSymbols = []
   }: Props = $props();
 
   const settings = $derived({ ...DEFAULT_RENDER_OPTIONS, ...options });
@@ -249,7 +253,7 @@
         class="face"
         aria-label="{statCardEntry?.name.trim() || characterLabel(statCard)} character card"
       >
-        <HeroCharacterCardFace character={statCard} card={statCardEntry} />
+        <HeroCharacterCardFace character={statCard} card={statCardEntry} {customSymbols} />
       </article>
     {:else if card === null}
       <div class="blank">
@@ -273,13 +277,13 @@
     {:else}
       <article class="face" aria-label={card.name || 'Untitled card'}>
         {#if card.type === 'action'}
-          <ActionCardFace {card} {character} theme={look} />
+          <ActionCardFace {card} {character} theme={look} {customSymbols} />
         {:else if card.type === 'initiative'}
-          <InitiativeCardFace {card} theme={look} />
+          <InitiativeCardFace {card} theme={look} {customSymbols} />
         {:else if card.type === 'event'}
-          <EventCardFace {card} theme={look} {side} />
+          <EventCardFace {card} theme={look} {side} {customSymbols} />
         {:else}
-          <RulesCardFace {card} theme={look} />
+          <RulesCardFace {card} theme={look} {customSymbols} />
         {/if}
 
         {#if textureUrl}

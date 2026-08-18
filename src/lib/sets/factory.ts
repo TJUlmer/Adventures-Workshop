@@ -36,6 +36,7 @@ export function createEmptySet(draft: SetDraft = {}): AdventureSet {
     threat: createThreatTrack(),
     map: createAdventureMap(),
     figures: [],
+    customSymbols: [],
     boxArt: createArtwork(),
     initiativeBack: createArtwork(),
     useInitiativeBack: false,

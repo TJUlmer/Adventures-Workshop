@@ -14,6 +14,7 @@
    * way would drift from what the author approved, exactly as an export would.
    */
   import CardRenderer from '$lib/renderer/CardRenderer.svelte';
+  import type { CustomSymbol } from '$lib/symbols/types';
   import { CALIBRATION_MM, CROP_MARK_MM, HAIRLINE_MM, PAGE_MARGIN_MM } from './paper';
   import type { Paper } from './paper';
   import type { PrintPage } from './sheet';
@@ -24,9 +25,10 @@
     printerFriendly: boolean;
     /** Crop marks in the margins, for cutting against. */
     marks: boolean;
+    customSymbols?: CustomSymbol[];
   }
 
-  let { page, paper, printerFriendly, marks }: Props = $props();
+  let { page, paper, printerFriendly, marks, customSymbols = [] }: Props = $props();
 
   const gridWidth = $derived(page.grid.columns * page.sizeMm.width);
   const gridHeight = $derived(page.grid.rows * page.sizeMm.height);
@@ -99,6 +101,7 @@
             theme={cell.theme}
             side={cell.side}
             options={{ surface: 'print', showBleed: false, showGuides: false, printerFriendly }}
+            {customSymbols}
           />
         {/if}
       </div>

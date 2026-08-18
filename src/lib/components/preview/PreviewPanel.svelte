@@ -192,6 +192,7 @@
           {statCard}
           statCardEntry={heroSlot.entry}
           options={{ showBleed: bleeding, showGuides: showGuides && bleeding }}
+          customSymbols={workshop.adventure.customSymbols}
         />
       </div>
     {/if}
@@ -205,6 +206,7 @@
           character={owner}
           {theme}
           options={{ showBleed: bleeding, showGuides: showGuides && bleeding }}
+          customSymbols={workshop.adventure.customSymbols}
         />
       </div>
     {/if}
@@ -223,6 +225,7 @@
           {theme}
           side="back"
           options={{ showBleed: bleeding, showGuides: showGuides && bleeding }}
+          customSymbols={workshop.adventure.customSymbols}
         />
       </div>
     {/if}
@@ -241,6 +244,7 @@
             character={cardback}
             theme={sampleTheme}
             options={{ showBleed: bleeding, showGuides: showGuides && bleeding }}
+            customSymbols={workshop.adventure.customSymbols}
           />
         </div>
         <span class="sample-note">A preview of this figure’s defaults. Not part of the set.</span>

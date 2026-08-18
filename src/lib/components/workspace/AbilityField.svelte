@@ -8,7 +8,9 @@
    */
   import { CARD_SYMBOL_LABELS, CARD_SYMBOLS } from '$lib/renderer/assets';
   import type { CardSymbolName } from '$lib/renderer/assets';
-  import { insertToken, SUBJECT_TOKEN, symbolToken } from '$lib/text/tokens';
+  import type { CustomSymbol } from '$lib/symbols/types';
+  import { customSymbolLabel } from '$lib/symbols/types';
+  import { customSymbolToken, insertToken, SUBJECT_TOKEN, symbolToken } from '$lib/text/tokens';
   import { Icon } from '$lib/ui';
 
   interface Props {
@@ -19,9 +21,19 @@
     /** Shown when the block can be taken off the card. */
     onremove?: () => void;
     onchange: (value: string) => void;
+    /** Author-uploaded glyphs, offered alongside the four built-in symbols. */
+    customSymbols?: CustomSymbol[];
   }
 
-  let { label, value, placeholder, rows = 3, onremove, onchange }: Props = $props();
+  let {
+    label,
+    value,
+    placeholder,
+    rows = 3,
+    onremove,
+    onchange,
+    customSymbols = []
+  }: Props = $props();
 
   let field = $state<HTMLTextAreaElement | null>(null);
 
@@ -79,6 +91,17 @@
         >
           Name
         </button>
+
+        {#each customSymbols.filter((s) => s.source) as symbol (symbol.id)}
+          <button
+            type="button"
+            class="symbol"
+            title="Insert {customSymbolLabel(symbol)} symbol"
+            onclick={() => insert(customSymbolToken(symbol.id))}
+          >
+            <img src={symbol.source} alt={customSymbolLabel(symbol)} />
+          </button>
+        {/each}
       </div>
 
       {#if onremove}

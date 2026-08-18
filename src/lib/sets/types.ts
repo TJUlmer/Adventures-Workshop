@@ -6,6 +6,7 @@ import type { Id, IsoDateTime } from '$lib/core/id';
 import type { Deck } from '$lib/decks/types';
 import type { Figure } from '$lib/figures/types';
 import type { AdventureMap } from '$lib/map/types';
+import type { CustomSymbol } from '$lib/symbols/types';
 import type { ThreatTrack } from '$lib/threat/types';
 
 export type SetId = Id<'Set'>;
@@ -99,10 +100,15 @@ export type SetId = Id<'Set'>;
  *      Absent on an older document, which opens with no bonus text and the
  *      template's own measured size, exactly as it printed before.
  *
+ * v19 — a set gained `customSymbols`: author-uploaded glyphs, usable inline in
+ *      ability text and rich text anywhere the four built-in combat symbols
+ *      are. Absent on an older document, which opens with an empty registry
+ *      and no `{{custom:…}}` tokens to resolve, exactly as before.
+ *
  * Older documents are *repaired*, not rejected — see `sets/normalize.ts`. Only
  * a version newer than this build understands is refused.
  */
-export const SET_SCHEMA_VERSION = 18;
+export const SET_SCHEMA_VERSION = 19;
 
 /**
  * Where a set was copied from, if it was copied.
@@ -180,6 +186,8 @@ export interface AdventureSet {
   map: AdventureMap;
   /** Miniatures, tokens and other physical components. */
   figures: Figure[];
+  /** Author-uploaded glyphs, insertable inline in ability text and rich text. */
+  customSymbols: CustomSymbol[];
   /** Box art, shown on the set's home page. */
   boxArt: Artwork;
   /**

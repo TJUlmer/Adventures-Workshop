@@ -211,7 +211,7 @@
           style:height="{paper.heightMm * scale}mm"
         >
           <div class="sheet-inner" style:transform="scale({scale})">
-            <PrintSheet {page} {paper} {printerFriendly} {marks} />
+            <PrintSheet {page} {paper} {printerFriendly} {marks} customSymbols={set.customSymbols} />
           </div>
         </div>
       </figure>

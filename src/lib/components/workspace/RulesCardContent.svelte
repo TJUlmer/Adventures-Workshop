@@ -105,6 +105,7 @@
     minHeight={220}
     placeholder="Write the rules for this card…"
     onchange={(body) => edit((target) => (target.body = body))}
+    customSymbols={workshop.adventure.customSymbols}
   />
 </EditorSection>
 

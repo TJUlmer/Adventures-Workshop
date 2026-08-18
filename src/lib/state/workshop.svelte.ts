@@ -60,6 +60,8 @@ import { createId, now } from '$lib/core/id';
 import { createActionDeck, createDeck } from '$lib/decks/factory';
 import type { Figure, FigureId, FigureKind } from '$lib/figures/types';
 import { createFigure } from '$lib/figures/types';
+import type { CustomSymbol, CustomSymbolId } from '$lib/symbols/types';
+import { createCustomSymbol } from '$lib/symbols/types';
 import type { LibraryEntry } from '$lib/storage/library';
 import {
   deleteSet as deleteSetFromLibrary,
@@ -445,6 +447,30 @@ export class WorkshopStore {
     if (!figure) return;
     mutate(figure);
     figure.updatedAt = now();
+    this.touch();
+  }
+
+  // -- Custom symbols -----------------------------------------------------
+
+  addCustomSymbol(): CustomSymbol {
+    const symbol = createCustomSymbol();
+    this.adventure.customSymbols.push(symbol);
+    this.touch();
+    return symbol;
+  }
+
+  removeCustomSymbol(id: CustomSymbolId): void {
+    this.adventure.customSymbols = this.adventure.customSymbols.filter(
+      (symbol) => symbol.id !== id
+    );
+    this.touch();
+  }
+
+  editCustomSymbol(id: CustomSymbolId, mutate: (symbol: CustomSymbol) => void): void {
+    const symbol = this.adventure.customSymbols.find((candidate) => candidate.id === id);
+    if (!symbol) return;
+    mutate(symbol);
+    symbol.updatedAt = now();
     this.touch();
   }
 

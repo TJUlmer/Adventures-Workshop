@@ -204,6 +204,7 @@
       target={styleTarget}
       resolved={resolvedTheme}
       {originFor}
+      customSymbols={workshop.adventure.customSymbols}
     />
   </Section>
 {:else}
@@ -266,6 +267,7 @@
         target={styleTarget}
         resolved={resolvedTheme}
         {originFor}
+        customSymbols={workshop.adventure.customSymbols}
       />
       <AbilityStack
         title="Defense side"
@@ -277,6 +279,7 @@
         resolved={resolvedTheme}
         {originFor}
         textStyle={false}
+        customSymbols={workshop.adventure.customSymbols}
       />
     {:else}
       <AbilityStack
@@ -286,6 +289,7 @@
         target={styleTarget}
         resolved={resolvedTheme}
         {originFor}
+        customSymbols={workshop.adventure.customSymbols}
       />
     {/if}
   </Section>

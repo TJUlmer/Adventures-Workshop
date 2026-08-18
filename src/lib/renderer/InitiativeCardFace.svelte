@@ -18,6 +18,7 @@
   import { createArtwork } from '$lib/core/artwork';
   import type { InitiativeCard } from '$lib/cards/types';
   import { initiativeBandLabel } from '$lib/cards/types';
+  import type { CustomSymbol } from '$lib/symbols/types';
   import AbilityText from './AbilityText.svelte';
   import CardArt from './CardArt.svelte';
   import type { InitiativeBandBox } from './geometry';
@@ -52,9 +53,10 @@
   interface Props {
     card: InitiativeCard;
     theme: CardTheme;
+    customSymbols?: CustomSymbol[];
   }
 
-  let { card, theme }: Props = $props();
+  let { card, theme, customSymbols = [] }: Props = $props();
 
   const badge = INITIATIVE.moveBadge;
 
@@ -202,6 +204,7 @@
       }}
       placeholder="What happens right now."
       subject={actor}
+      {customSymbols}
     />
   </div>
 
@@ -266,6 +269,7 @@
       }}
       placeholder="What happens at the end of the round."
       subject={actor}
+      {customSymbols}
     />
   </div>
 {/if}

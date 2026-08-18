@@ -14,7 +14,8 @@
   import type { CardTheme } from '$lib/cards/style';
   import { fillCss } from '$lib/cards/style';
   import type { EventCard } from '$lib/cards/types';
-  import { richTextIsEmpty, sanitizeRichText } from '$lib/text/rich-text';
+  import type { CustomSymbol } from '$lib/symbols/types';
+  import { resolveCustomSymbolImages, richTextIsEmpty, sanitizeRichText } from '$lib/text/rich-text';
   import { patternAspect } from './assets';
   import { displayFontStack, displayFontWeight, fitDisplaySize } from './fonts';
   import {
@@ -31,9 +32,10 @@
     theme: CardTheme;
     /** Which face to draw. Both are printed, so both are previewed. */
     side?: 'front' | 'back';
+    customSymbols?: CustomSymbol[];
   }
 
-  let { card, theme, side = 'front' }: Props = $props();
+  let { card, theme, side = 'front', customSymbols = [] }: Props = $props();
 
   const heading = $derived(card.heading.trim() || 'Event Card!');
 
@@ -51,7 +53,7 @@
     const y = (place.offsetY / 100) * (FRAME.height / EVENT.back.heading.height) * 100;
     return `translate(${x.toFixed(3)}%, ${y.toFixed(3)}%) rotate(${place.rotation}deg)`;
   });
-  const body = $derived(sanitizeRichText(card.body));
+  const body = $derived(resolveCustomSymbolImages(sanitizeRichText(card.body), customSymbols));
   const empty = $derived(richTextIsEmpty(card.body));
   const display = $derived(displayFontStack(theme.displayFont));
   const displayWeight = $derived(displayFontWeight(theme.displayFont));
