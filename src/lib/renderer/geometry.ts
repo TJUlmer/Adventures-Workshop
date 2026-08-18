@@ -369,7 +369,7 @@ const ARTWORK_CAP = 0.666;
  * exactly one place. Swap the card face and this constant is the only thing
  * that moves.
  */
-const inFace = (artworkSize: number): number => (artworkSize * ARTWORK_CAP) / FONT_METRICS.cap;
+export const inFace = (artworkSize: number): number => (artworkSize * ARTWORK_CAP) / FONT_METRICS.cap;
 
 /** As `inFace`, for the two roles set in the name face. See `NAME_METRICS`. */
 export const inName = (artworkSize: number): number => (artworkSize * ARTWORK_CAP) / NAME_METRICS.cap;

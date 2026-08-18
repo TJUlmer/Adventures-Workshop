@@ -7,9 +7,12 @@
    * quicker to read — and an empty block still prints nothing, so the card is
    * unaffected either way.
    */
-  import type { AbilityBlocks } from '$lib/cards/types';
+  import type { CardTheme } from '$lib/cards/style';
   import { ABILITY_TIMING_LABELS, ABILITY_TIMINGS } from '$lib/cards/types';
-  import { TextArea } from '$lib/ui';
+  import type { AbilityBlocks } from '$lib/cards/types';
+  import type { StyleTarget } from '$lib/state/workshop.svelte';
+  import { workshop } from '$lib/state/workshop.svelte';
+  import { ColorInput, Slider, TextArea } from '$lib/ui';
   import AbilityField from './AbilityField.svelte';
   import EditorSection from './EditorSection.svelte';
 
@@ -20,9 +23,32 @@
     hint?: string;
     ability: AbilityBlocks;
     onchange: (patch: Partial<AbilityBlocks>) => void;
+    /** For the Bonus ability colour and the ability text size, below. */
+    target: StyleTarget;
+    resolved: CardTheme;
+    originFor: (key: keyof CardTheme) => string;
+    /**
+     * A split card's two stacks share one size and one Bonus ability colour
+     * — both are printed the same whichever side they are on — so showing
+     * the controls twice would just be the same value in two places. Off on
+     * every stack but the first.
+     */
+    textStyle?: boolean;
   }
 
-  let { title, symbol, hint, ability, onchange }: Props = $props();
+  let {
+    title,
+    symbol,
+    hint,
+    ability,
+    onchange,
+    target,
+    resolved,
+    originFor,
+    textStyle = true
+  }: Props = $props();
+
+  const layer = $derived(workshop.styleFor(target) ?? {});
 </script>
 
 <EditorSection {title} {hint}>
@@ -49,6 +75,40 @@
       />
     {/each}
   </div>
+
+  <!-- Printed last, below After Combat, with no label — see `AbilityBlocks.bonusAbility`. -->
+  <AbilityField
+    label="Bonus ability"
+    value={ability.bonusAbility}
+    rows={2}
+    placeholder="An extra ability, printed below After Combat…"
+    onchange={(value) => onchange({ bonusAbility: value })}
+  />
+
+  {#if textStyle}
+    <div class="text-style">
+      <label class="ink">
+        <span class="ink-label">Bonus ability colour</span>
+        <ColorInput
+          value={layer.bonusAbilityInk}
+          inherited={resolved.bonusAbilityInk}
+          origin={originFor('bonusAbilityInk')}
+          onchange={(value) => workshop.setStyle(target, 'bonusAbilityInk', value)}
+        />
+      </label>
+
+      <Slider
+        label="Ability text size"
+        value={resolved.abilityFontSize}
+        min={50}
+        max={130}
+        step={1}
+        neutral={90}
+        format={(value) => `${Math.round(value)}`}
+        onchange={(abilityFontSize) => workshop.setStyle(target, 'abilityFontSize', abilityFontSize)}
+      />
+    </div>
+  {/if}
 </EditorSection>
 
 <style>
@@ -75,6 +135,31 @@
 
   @container workspace (max-width: 620px) {
     .timings {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  }
+
+  .text-style {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--space-3);
+    padding-top: var(--space-1);
+  }
+
+  .ink {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    min-width: 0;
+  }
+
+  .ink-label {
+    font-size: var(--text-xs);
+    color: var(--text-tertiary);
+  }
+
+  @container workspace (max-width: 620px) {
+    .text-style {
       grid-template-columns: minmax(0, 1fr);
     }
   }

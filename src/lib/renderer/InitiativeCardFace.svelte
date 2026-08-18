@@ -193,7 +193,13 @@
     style:color={card.bands.rightNow.ink}
   >
     <AbilityText
-      ability={{ plain: rightNowText, immediately: '', duringCombat: '', afterCombat: '' }}
+      ability={{
+        plain: rightNowText,
+        immediately: '',
+        duringCombat: '',
+        afterCombat: '',
+        bonusAbility: ''
+      }}
       placeholder="What happens right now."
       subject={actor}
     />
@@ -251,7 +257,13 @@
     style:color={card.bands.endOfRound.ink}
   >
     <AbilityText
-      ability={{ plain: card.endOfRound, immediately: '', duringCombat: '', afterCombat: '' }}
+      ability={{
+        plain: card.endOfRound,
+        immediately: '',
+        duringCombat: '',
+        afterCombat: '',
+        bonusAbility: ''
+      }}
       placeholder="What happens at the end of the round."
       subject={actor}
     />

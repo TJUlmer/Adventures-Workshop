@@ -16,8 +16,9 @@ export type CardType = (typeof CARD_TYPES)[number];
 
 /**
  * Timed ability blocks. Rendered in declaration order — plain text first, then
- * Immediately, During Combat, After Combat — and only where non-empty, which is
- * what keeps a one-line card from printing three empty labels.
+ * Immediately, During Combat, After Combat, then Bonus ability last — and only
+ * where non-empty, which is what keeps a one-line card from printing empty
+ * labels.
  */
 export interface AbilityBlocks {
   /** Untimed text, printed with no label. */
@@ -25,6 +26,14 @@ export interface AbilityBlocks {
   immediately: string;
   duringCombat: string;
   afterCombat: string;
+  /**
+   * Printed last, below After Combat, with no label of its own — like `plain`
+   * rather than a fourth timing, since it has no "when" to name. Kept out of
+   * `ABILITY_TIMINGS` because it also takes its own ink
+   * (`CardTheme.bonusAbilityInk`) instead of sharing the rest of the block's
+   * colour, which is what sets it apart on the card without a label.
+   */
+  bonusAbility: string;
 }
 
 export const ABILITY_TIMINGS = ['immediately', 'duringCombat', 'afterCombat'] as const;
@@ -37,7 +46,14 @@ export const ABILITY_TIMING_LABELS: Readonly<Record<AbilityTiming, string>> = {
 } as const;
 
 export function createAbilityBlocks(init: Partial<AbilityBlocks> = {}): AbilityBlocks {
-  return { plain: '', immediately: '', duringCombat: '', afterCombat: '', ...init };
+  return {
+    plain: '',
+    immediately: '',
+    duringCombat: '',
+    afterCombat: '',
+    bonusAbility: '',
+    ...init
+  };
 }
 
 /** The blocks that actually carry text, in printed order. */
@@ -48,6 +64,7 @@ export function usedTimings(ability: AbilityBlocks): AbilityTiming[] {
 export function abilityIsEmpty(ability: AbilityBlocks): boolean {
   return (
     ability.plain.trim().length === 0 &&
+    ability.bonusAbility.trim().length === 0 &&
     ABILITY_TIMINGS.every((timing) => ability[timing].trim().length === 0)
   );
 }

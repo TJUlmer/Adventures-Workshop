@@ -128,6 +128,20 @@ export interface CardTheme {
   /** Disc behind the boost value. */
   boost: Fill;
   boostInk: string;
+  /**
+   * The Bonus ability line, printed last on an action card's ability text —
+   * its own ink rather than `bodyInk`, since it is meant to stand apart from
+   * the timed blocks above it.
+   */
+  bonusAbilityInk: string;
+  /**
+   * Ability text size on an action card, in the same "artwork units" every
+   * other measured size in `renderer/geometry.ts` is expressed in — see
+   * `ABILITY.size` there, which this overrides. A temporary dial rather than
+   * a genuine author-facing surface: it exists to find the right printed
+   * size by eye, not to let two cards in one set carry different ones.
+   */
+  abilityFontSize: number;
   /** Pattern laid over the body panel. */
   pattern: PatternStyle;
   /** Texture laid over the whole card face. */
@@ -162,6 +176,8 @@ export const DEFAULT_CARD_THEME: CardTheme = {
   divider: '#001722',
   boost: solid('#3f474c'),
   boostInk: '#ffffff',
+  bonusAbilityInk: '#ffffff',
+  abilityFontSize: 90,
   pattern: NO_PATTERN,
   texture: { kind: 'none', opacity: 0.3 }
 };
@@ -229,6 +245,8 @@ export const THEME_KEYS = [
   'divider',
   'boost',
   'boostInk',
+  'bonusAbilityInk',
+  'abilityFontSize',
   'pattern',
   'texture'
 ] as const;

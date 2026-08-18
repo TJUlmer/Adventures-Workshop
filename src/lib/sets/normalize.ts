@@ -221,7 +221,8 @@ function abilityBlocks(value: unknown) {
     plain: str(raw['plain']),
     immediately: str(raw['immediately']),
     duringCombat: str(raw['duringCombat']),
-    afterCombat: str(raw['afterCombat'])
+    afterCombat: str(raw['afterCombat']),
+    bonusAbility: str(raw['bonusAbility'])
   });
 }
 

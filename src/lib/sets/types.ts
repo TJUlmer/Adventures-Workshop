@@ -90,10 +90,19 @@ export type SetId = Id<'Set'>;
  *      opens with every design composed as before and every additional card
  *      matching the primary's own colours, exactly what a shared design was.
  *
+ * v18 — an action card's `AbilityBlocks` gained `bonusAbility`, printed last
+ *      below After Combat with its own ink (`CardTheme.bonusAbilityInk`)
+ *      rather than sharing the timed blocks' colour, since it is not a fourth
+ *      timing. `CardTheme` also gained `abilityFontSize`, overriding
+ *      `ABILITY.size` in `renderer/geometry.ts` — a temporary dial for
+ *      finding the right printed size by eye, not a genuine per-card choice.
+ *      Absent on an older document, which opens with no bonus text and the
+ *      template's own measured size, exactly as it printed before.
+ *
  * Older documents are *repaired*, not rejected — see `sets/normalize.ts`. Only
  * a version newer than this build understands is refused.
  */
-export const SET_SCHEMA_VERSION = 16;
+export const SET_SCHEMA_VERSION = 18;
 
 /**
  * Where a set was copied from, if it was copied.

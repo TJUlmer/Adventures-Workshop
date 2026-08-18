@@ -16,17 +16,21 @@
     placeholder?: string;
     /** What `{{name}}` prints as — the figure this card belongs to. */
     subject?: string;
+    /** Ink for the Bonus ability line. Defaults to whatever `.ability` inherits. */
+    bonusInk?: string;
   }
 
   let {
     ability,
     placeholder = 'Ability text appears here.',
-    subject = 'Villain Name'
+    subject = 'Villain Name',
+    bonusInk
   }: Props = $props();
 
   const timings = $derived(usedTimings(ability));
   const hasPlain = $derived(ability.plain.trim().length > 0);
-  const empty = $derived(!hasPlain && timings.length === 0);
+  const hasBonus = $derived(ability.bonusAbility.trim().length > 0);
+  const empty = $derived(!hasPlain && !hasBonus && timings.length === 0);
 </script>
 
 {#snippet run(text: string)}
@@ -51,6 +55,10 @@
         {@render run(ability[timing])}
       </p>
     {/each}
+
+    {#if hasBonus}
+      <p class="line" style:color={bonusInk}>{@render run(ability.bonusAbility)}</p>
+    {/if}
   {/if}
 </div>
 

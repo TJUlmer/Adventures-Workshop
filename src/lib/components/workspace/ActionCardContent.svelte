@@ -7,6 +7,9 @@
    * added on demand and always print in the fixed Immediately → During Combat →
    * After Combat order, so the editor never shows a field the card will not use.
    */
+  import type { CardTheme } from '$lib/cards/style';
+  import type { StyleOrigin } from '$lib/cards/theme';
+  import { STYLE_ORIGIN_LABELS } from '$lib/cards/theme';
   import { COMBAT_SYMBOLS } from '$lib/cards/types';
   import type { ActionCard, CardOwner, CombatSymbol } from '$lib/cards/types';
   import { characterLabel, primaryCardName } from '$lib/characters/factory';
@@ -14,7 +17,7 @@
   import type { DeckId } from '$lib/decks/types';
   import { asId } from '$lib/core/id';
   import { CARD_SYMBOL_LABELS, CARD_SYMBOLS } from '$lib/renderer/assets';
-  import { characterForCard, deckOwner } from '$lib/sets/queries';
+  import { characterForCard, deckOwner, resolveStyleForCard, styleOriginForCard } from '$lib/sets/queries';
   import { workshop } from '$lib/state/workshop.svelte';
   import {
     Field,
@@ -52,6 +55,18 @@
    */
   const owner = $derived(characterForCard(workshop.adventure, card));
   const isHero = $derived(owner?.role === 'hero');
+
+  /**
+   * For the Bonus ability colour and the ability text size, both edited from
+   * inside `AbilityStack` alongside the fields they affect rather than
+   * tucked away in Design — see that component.
+   */
+  const styleTarget = $derived({ entity: 'card' as const, id: card.id });
+  const resolvedTheme = $derived(resolveStyleForCard(workshop.adventure, card));
+  function originFor(key: keyof CardTheme): string {
+    const origin: StyleOrigin = styleOriginForCard(workshop.adventure, card, key);
+    return STYLE_ORIGIN_LABELS[origin];
+  }
 
   /**
    * The four combat symbols, as a toggle rather than a menu.
@@ -186,6 +201,9 @@
       title="Ability"
       ability={card.ability}
       onchange={(patch) => edit((target) => Object.assign(target.ability, patch))}
+      target={styleTarget}
+      resolved={resolvedTheme}
+      {originFor}
     />
   </Section>
 {:else}
@@ -245,6 +263,9 @@
         hint="Printed above the floating separator."
         ability={card.ability}
         onchange={(patch) => edit((target) => Object.assign(target.ability, patch))}
+        target={styleTarget}
+        resolved={resolvedTheme}
+        {originFor}
       />
       <AbilityStack
         title="Defense side"
@@ -252,12 +273,19 @@
         hint="Printed below it. The separator moves up as this side fills."
         ability={card.defenseAbility}
         onchange={(patch) => edit((target) => Object.assign(target.defenseAbility, patch))}
+        target={styleTarget}
+        resolved={resolvedTheme}
+        {originFor}
+        textStyle={false}
       />
     {:else}
       <AbilityStack
         title="Ability"
         ability={card.ability}
         onchange={(patch) => edit((target) => Object.assign(target.ability, patch))}
+        target={styleTarget}
+        resolved={resolvedTheme}
+        {originFor}
       />
     {/if}
   </Section>

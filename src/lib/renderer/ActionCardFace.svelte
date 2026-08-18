@@ -52,6 +52,7 @@
     HERO_RIBBON_OWNER_LEFT,
     HERO_RIBBON_SYMBOL,
     HERO_RIBBON_VALUE,
+    inFace,
     inPanel,
     INTERIOR,
     INTERIOR_RADIUS,
@@ -92,6 +93,12 @@
   }
 
   const isHero = $derived(character?.role === 'hero');
+
+  /**
+   * Ability text size, overriding `ABILITY.size` — see `CardTheme.abilityFontSize`
+   * for why this is a live override rather than the constant itself.
+   */
+  const abilitySize = $derived(inFace(theme.abilityFontSize));
 
   /**
    * The character's name as the *ribbon* prints it.
@@ -417,12 +424,16 @@
               style:margin-left={pu(abilityGap)}
               style:padding-top={pu(abilityOffset)}
               style:width={pu(ABILITY.width)}
-              style:font-size={pu(ABILITY.size)}
+              style:font-size={pu(abilitySize)}
               style:line-height={ABILITY.lineHeight}
               style:letter-spacing="{ABILITY.tracking}em"
               style:color={theme.bodyInk}
             >
-              <AbilityText ability={card.ability} subject={ribbonName} />
+              <AbilityText
+                ability={card.ability}
+                subject={ribbonName}
+                bonusInk={theme.bonusAbilityInk}
+              />
             </div>
           </div>
         {:else}
@@ -431,12 +442,16 @@
             class="block-ability"
             style:margin-left={pu(TITLE.x - BODY_PANEL.x)}
             style:width={pu(ABILITY.x + ABILITY.width - TITLE.x)}
-            style:font-size={pu(ABILITY.size)}
+            style:font-size={pu(abilitySize)}
             style:line-height={ABILITY.lineHeight}
             style:letter-spacing="{ABILITY.tracking}em"
             style:color={theme.bodyInk}
           >
-            <AbilityText ability={card.ability} subject={ribbonName} />
+            <AbilityText
+              ability={card.ability}
+              subject={ribbonName}
+              bonusInk={theme.bonusAbilityInk}
+            />
           </div>
         {/if}
 
@@ -728,11 +743,16 @@
             class="block-ability"
             style:margin-left={pu(abilityGap)}
             style:width={pu(ABILITY.width)}
-            style:font-size={pu(ABILITY.size)}
+            style:font-size={pu(abilitySize)}
             style:line-height={ABILITY.lineHeight}
             style:letter-spacing="{ABILITY.tracking}em"
           >
-            <AbilityText {ability} placeholder="" subject={ribbonName} />
+            <AbilityText
+              {ability}
+              placeholder=""
+              subject={ribbonName}
+              bonusInk={theme.bonusAbilityInk}
+            />
           </div>
         </div>
       </div>
