@@ -128,14 +128,30 @@
   }
 
   /**
-   * The hero editor's tabs — one per printable thing, so the preview beside
-   * it can show exactly one at a time instead of stacking every identity,
-   * the deck back and the action-card-defaults sample together. Villain and
-   * minion editors stay a single flat page below; neither has more than one
-   * printable identity, so there is nothing here for them to gain.
+   * The editor's tabs — one per printable thing, so the preview beside it can
+   * show exactly one at a time instead of stacking them together.
+   *
+   * Every role gets these now. They were a hero-only affordance at first, on
+   * the reasoning that only a hero has more than one printable identity — but
+   * that counted character cards and overlooked the two things every figure
+   * has regardless: a deck back and an action-card-defaults sample. A villain
+   * was rendering both at once in the preview, which is the exact stacking
+   * these were introduced to stop.
+   *
+   * What is genuinely hero-only is the character card, so a villain or minion
+   * gets three tabs rather than four-plus: no `primary`, no `card:` entries,
+   * because there is no such sheet to print.
    */
-  const heroTabs = $derived.by(() => {
-    if (!character || character.role !== 'hero') return [];
+  const characterTabs = $derived.by(() => {
+    if (!character) return [];
+    if (character.role !== 'hero') {
+      return [
+        { value: 'identity', label: 'Identity' },
+        { value: 'cardback', label: 'Deck back' },
+        { value: 'defaults', label: 'Action card defaults' }
+      ];
+    }
+
     const tabs = [
       { value: 'identity', label: 'Identity' },
       { value: 'primary', label: primaryCardName(character) || 'Character card' }
@@ -320,9 +336,13 @@
   </WorkspaceHeader>
 
   <div class="body scroll-y">
-    {#if character.role === 'hero'}
-      <Tabs bind:value={characterEditorView.tab} tabs={heroTabs} label="Character editor sections" />
+    <Tabs
+      bind:value={characterEditorView.tab}
+      tabs={characterTabs}
+      label="Character editor sections"
+    />
 
+    {#if character.role === 'hero'}
       {#if characterEditorView.tab === 'identity'}
         <div class="tiles">
           <Section title="Identity" description="How the figure is presented on its sheet.">
@@ -567,12 +587,16 @@
           <CharacterCardPanel characterId={character.id} design={extra.characterCard} cardId={extra.id} />
         </Section>
       {/if}
+    {:else if characterEditorView.tab === 'cardback'}
+      {@render cardbackSection()}
+    {:else if characterEditorView.tab === 'defaults'}
+      {@render defaultsSection()}
     {:else}
       <!--
         Identity and Decks are both short, so they sit side by side rather than
         each taking a full width of the workspace to say very little. A villain
-        or minion has no character card, no sidekick, no further identities —
-        nothing here to tab, so this stays the plain page it always was.
+        or minion has no character card, no sidekick and no further identities,
+        so this tab carries the whole figure rather than one sheet of it.
       -->
       <div class="tiles">
         <Section title="Identity" description="How the figure is presented on its sheet.">
@@ -603,8 +627,6 @@
         </div>
       </div>
 
-      {@render cardbackSection()}
-      {@render defaultsSection()}
       {@render notesSection()}
     {/if}
   </div>

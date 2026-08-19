@@ -44,21 +44,29 @@
 
   /**
    * Which one thing the character workspace's active tab is about, so this
-   * panel shows exactly that rather than stacking every identity, the deck
-   * back and the action-card-defaults sample all at once. `null` outside a
-   * hero (nothing to choose between — see below), else the primary sheet, a
-   * specific additional card, the deck back, or the defaults sample.
+   * panel shows exactly that rather than stacking the deck back and the
+   * action-card-defaults sample together.
+   *
+   * Every role, not just a hero. This was hero-only while the tabs were, and
+   * the `null` it returned for a villain meant *both* the deck back and the
+   * defaults sample rendered at once — the stacking the tabs exist to stop.
+   * `null` now means only "no character is selected", i.e. a card is.
+   *
+   * The `card` kind stays hero-only, since a character card is the one
+   * printable thing a villain or minion does not have: any tab value that
+   * would select one falls through to the deck back for them.
    */
-  type HeroSlot =
+  type CharacterSlot =
     | { kind: 'card'; entry: HeroCharacterCard | null }
     | { kind: 'cardback' }
     | { kind: 'defaults' };
 
-  const heroSlot = $derived.by((): HeroSlot | null => {
-    if (!statCard) return null;
+  const characterSlot = $derived.by((): CharacterSlot | null => {
+    if (!cardback) return null;
     const tab = characterEditorView.tab;
-    if (tab === 'cardback' || tab === 'identity') return { kind: 'cardback' };
     if (tab === 'defaults') return { kind: 'defaults' };
+    if (tab === 'cardback' || tab === 'identity') return { kind: 'cardback' };
+    if (!statCard) return { kind: 'cardback' };
     if (tab.startsWith('card:')) {
       const id = tab.slice(5);
       return { kind: 'card', entry: statCard.additionalCards.find((entry) => entry.id === id) ?? null };
@@ -142,7 +150,7 @@
         saveExport(await renderCardImage(plate, card, { bleed }));
       } else if (statCard && format) {
         const label =
-          (heroSlot?.kind === 'card' ? heroSlot.entry?.name.trim() : '') ||
+          (characterSlot?.kind === 'card' ? characterSlot.entry?.name.trim() : '') ||
           primaryCardName(statCard) ||
           characterLabel(statCard);
         const blob = await renderPlateImage(plate, format, { bleed });
@@ -214,7 +222,7 @@
   </div>
 
   <div class="stage scroll-y" bind:this={stage}>
-    {#if statCard && heroSlot?.kind === 'card'}
+    {#if statCard && characterSlot?.kind === 'card'}
       <!--
         Exactly one sheet at a time, matching whichever tab the character
         workspace has open — labelled with its name only once there is more
@@ -223,21 +231,23 @@
       -->
       <span class="face-label">
         Character card{statCard.additionalCards.length > 0
-          ? ` — ${heroSlot.entry?.name.trim() || primaryCardName(statCard) || 'Untitled'}`
+          ? ` — ${characterSlot.entry?.name.trim() || primaryCardName(statCard) || 'Untitled'}`
           : ''}
       </span>
       <div class="card-slot" style:width="{zoom * 100}%">
         <CardRenderer
           card={null}
           {statCard}
-          statCardEntry={heroSlot.entry}
+          statCardEntry={characterSlot.entry}
           options={{ showBleed: bleeding, showGuides: showGuides && bleeding }}
           customSymbols={workshop.adventure.customSymbols}
         />
       </div>
     {/if}
 
-    {#if !statCard || heroSlot?.kind === 'cardback'}
+    <!-- `!cardback` is the card-selected case: no character, so this renders
+         the selected card rather than anybody's deck back. -->
+    {#if !cardback || characterSlot?.kind === 'cardback'}
       {#if statCard}<span class="face-label">Deck back</span>{/if}
       <div class="card-slot" style:width="{zoom * 100}%">
         <CardRenderer
@@ -270,7 +280,7 @@
       </div>
     {/if}
 
-    {#if cardback && sampleCard && (!statCard || heroSlot?.kind === 'defaults')}
+    {#if cardback && sampleCard && characterSlot?.kind === 'defaults'}
       <!--
         The figure's card style, shown on a card. Labelled as a sample so it is
         never mistaken for one of the set's own — it is not in the document and
@@ -307,11 +317,11 @@
       {/if}
 
       {@render exportButtons()}
-    {:else if statCard && heroSlot?.kind === 'card'}
+    {:else if statCard && characterSlot?.kind === 'card'}
       <div class="facts">
         <span class="fact type" style:--type-color="var(--role-{statCard.role})">Character card</span>
         <span class="fact">
-          {heroSlot.entry?.name.trim() || primaryCardName(statCard) || characterLabel(statCard)}
+          {characterSlot.entry?.name.trim() || primaryCardName(statCard) || characterLabel(statCard)}
         </span>
       </div>
 
