@@ -31,7 +31,7 @@
   } from '$lib/map/types';
   import type { MapNote, MapSpaceId } from '$lib/map/types';
   import { workshop } from '$lib/state/workshop.svelte';
-  import { Button, Icon, Slider, Switch, TextInput } from '$lib/ui';
+  import { Button, EmptyState, Icon, Slider, Switch, TextInput } from '$lib/ui';
 
   const set = $derived(workshop.adventure);
   const map = $derived(set.map);
@@ -324,6 +324,27 @@
 
   {#if exportError}<p class="error" role="alert">{exportError}</p>{/if}
 
+  <!--
+    Off reads as a feature waiting to be started rather than an empty page —
+    the same treatment the Components page already gives its own empty state.
+    The switch below is kept for turning the map back *off*, which is why it
+    only appears once there is a map to turn off; the call to action is the
+    way in. See ThreatTracker, which has the identical arrangement.
+  -->
+  {#if !map.enabled}
+    <EmptyState
+      icon="grid"
+      title="No map"
+      description="The board the adventure is played on — spaces, the paths between them, and the artwork under it all. Nothing is lost while it is off, and it stays out of exports."
+    >
+      {#snippet actions()}
+        <Button variant="primary" onclick={() => workshop.editMap((m) => (m.enabled = true))}>
+          <Icon name="plus" size={13} />
+          Add a map
+        </Button>
+      {/snippet}
+    </EmptyState>
+  {:else}
   <div class="panels">
     <section class="panel">
       <Switch
@@ -625,6 +646,7 @@
       </section>
     {/if}
   </div>
+  {/if}
 </div>
 
 <style>

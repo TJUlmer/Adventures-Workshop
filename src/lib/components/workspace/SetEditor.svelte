@@ -3,7 +3,8 @@
   import { resolveCardTheme } from '$lib/cards/theme';
   import { setLabel } from '$lib/sets/factory';
   import { workshop } from '$lib/state/workshop.svelte';
-  import { Button, Field, Icon, Section, TextArea, TextInput } from '$lib/ui';
+  import { navigation } from '$lib/state/navigation.svelte';
+  import { Button, Icon, Section } from '$lib/ui';
   import StylePanel from './StylePanel.svelte';
   import WorkspaceHeader from './WorkspaceHeader.svelte';
 
@@ -31,9 +32,18 @@
 <WorkspaceHeader
   eyebrow="Adventure set"
   title={setLabel(set)}
-  subtitle={set.subtitle || 'Set-level details and export metadata.'}
+  subtitle={set.subtitle || 'The base look every card in this set inherits.'}
   colorVar="--brand-gold"
-/>
+>
+  {#snippet actions()}
+    <!-- The name, subtitle, author and version moved to Settings — one home
+         each, rather than the same field live on two pages. -->
+    <Button size="sm" variant="ghost" onclick={() => navigation.go('settings')}>
+      <Icon name="settings" size={13} />
+      Set details
+    </Button>
+  {/snippet}
+</WorkspaceHeader>
 
 <div class="body scroll-y">
   {#if isEmpty}
@@ -74,32 +84,19 @@
     </Section>
   {/if}
 
-  <Section title="Set details" description="Shown on the set’s title card and in exports.">
-    <Field label="Name">
-      <TextInput bind:value={set.name} placeholder="Name this adventure" prominent />
-    </Field>
-
-    <Field label="Subtitle">
-      <TextInput bind:value={set.subtitle} placeholder="e.g. A three-act descent" />
-    </Field>
-
-    <Field label="Description">
-      <TextArea
-        bind:value={set.meta.description}
-        rows={3}
-        placeholder="What happens in this adventure?"
-      />
-    </Field>
-  </Section>
-
-  <Section title="Publication" description="Credit and versioning for the exported file." columns={2}>
-    <Field label="Author">
-      <TextInput bind:value={set.meta.author} placeholder="Your name" />
-    </Field>
-
-    <Field label="Version" hint="Your own release number — not the file schema.">
-      <TextInput bind:value={set.meta.version} placeholder="0.1.0" />
-    </Field>
+  <!--
+    Style first, because this page *is* the top of the cascade and that is
+    what the set-name pill is reached for. It used to be the fifth section
+    down, behind name, author, version and a tally — all of which are also
+    editable on Settings, so the same fields were live in two unrelated
+    places and the one thing only *this* page can do was the hardest to get
+    to. Metadata now lives on Settings alone; the header links across to it.
+  -->
+  <Section
+    title="Set style"
+    description="Defaults for every card in the set. Characters and individual cards can override any of it."
+  >
+    <StylePanel target={{ entity: 'set' }} resolved={resolvedTheme} {originFor} />
   </Section>
 
   <Section title="Contents" description="What this set currently holds.">
@@ -125,13 +122,6 @@
         <span class="tally-label">To print</span>
       </div>
     </div>
-  </Section>
-
-  <Section
-    title="Set style"
-    description="Defaults for every card in the set. Characters and individual cards can override any of it."
-  >
-    <StylePanel target={{ entity: 'set' }} resolved={resolvedTheme} {originFor} />
   </Section>
 
   <Section

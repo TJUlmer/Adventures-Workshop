@@ -35,6 +35,7 @@
   import {
     Button,
     ColorInput,
+    EmptyState,
     FillEditor,
     Icon,
     Select,
@@ -291,15 +292,33 @@
 
   {#if exportError}<p class="export-error">{exportError}</p>{/if}
 
+  <!--
+    Off reads as a feature waiting to be started, not as a page that failed to
+    load. It was a faded board behind a corner switch, which looks like "this
+    villain has no track yet" rather than "there is a whole board builder one
+    click away" — the same mistake the Components page already avoids, so this
+    borrows its `EmptyState` wholesale. The header switch stays: it is how the
+    track goes back *off*, which a call to action cannot express.
+  -->
   {#if !track.enabled}
-    <p class="disabled-note">
-      This adventure has no threat track. Turn it on to build one — nothing is lost while it is
-      off, and it stays out of exports.
-    </p>
-  {/if}
-
+    <EmptyState
+      icon="skull"
+      title="No threat track"
+      description="A printed strip the villain advances along as the adventure escalates. Nothing is lost while it is off, and it stays out of exports."
+    >
+      {#snippet actions()}
+        <Button
+          variant="primary"
+          onclick={() => workshop.editThreat((t) => (t.enabled = true))}
+        >
+          <Icon name="plus" size={13} />
+          Build a threat track
+        </Button>
+      {/snippet}
+    </EmptyState>
+  {:else}
   <!-- The board ---------------------------------------------------------- -->
-  <section class="board-frame" class:off={!track.enabled}>
+  <section class="board-frame">
     <ThreatBoard
       {track}
       villainName={villain ? characterLabel(villain) : ''}
@@ -757,6 +776,7 @@
       </p>
     {/if}
   </div>
+  {/if}
 </div>
 
 <style>
@@ -803,7 +823,6 @@
     color: var(--danger);
   }
 
-  .disabled-note,
   .hint {
     font-size: var(--text-xs);
     color: var(--text-muted);
@@ -821,10 +840,6 @@
     flex-direction: column;
     flex: none;
     gap: var(--space-3);
-  }
-
-  .board-frame.off {
-    opacity: 0.45;
   }
 
   .board-foot {

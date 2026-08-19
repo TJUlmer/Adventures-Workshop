@@ -172,11 +172,17 @@
     gap: var(--space-2);
   }
 
-  /* The palette stays quiet until the block is hovered or focused. */
+  /*
+   * Quiet at rest, full strength on hover or focus — but never invisible.
+   * It was `opacity: 0` until touched, which hid the whole custom-symbol
+   * feature from anyone who did not already know to hover an ability field:
+   * the palette is the only route to inserting a symbol at the caret, so a
+   * palette nobody sees is a feature nobody finds.
+   */
   .symbols {
     display: flex;
     gap: 1px;
-    opacity: 0;
+    opacity: 0.55;
     transition: opacity var(--duration-fast) var(--ease-out);
   }
 
