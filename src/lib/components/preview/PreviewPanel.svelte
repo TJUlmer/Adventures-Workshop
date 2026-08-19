@@ -100,6 +100,22 @@
   );
 
   /**
+   * The set's own layer of the cascade, previewed the same way a figure's
+   * defaults are — invented here, never saved or exported. Shown exactly
+   * when nothing is selected, which is exactly when `Workspace` falls
+   * through to `SetEditor`: the two are the only things that put nothing on
+   * screen, so `!cardback && !card` reliably means "looking at Set style."
+   */
+  const setSample = $derived.by(() => {
+    if (cardback || card) return null;
+    const sample = createCard('action', asId<DeckId>('sample'));
+    sample.title = 'Card title';
+    sample.ability.plain = 'Ability text appears here.';
+    return sample;
+  });
+  const setSampleTheme = $derived(resolveCardTheme(workshop.adventure.style, null, null));
+
+  /**
    * The template on screen. A selected character previews its deck back —
    * which for a hero is drawn on the action card's own bleed canvas rather
    * than the villain/minion back's trim-only one, so it is the one deck back
@@ -245,9 +261,15 @@
       </div>
     {/if}
 
-    <!-- `!cardback` is the card-selected case: no character, so this renders
-         the selected card rather than anybody's deck back. -->
-    {#if !cardback || characterSlot?.kind === 'cardback'}
+    <!--
+      `card` is the card-selected case: no character, so this renders the
+      selected card rather than anybody's deck back. Gated on `card` itself
+      rather than `!cardback`, which was also true with nothing selected at
+      all — `CardRenderer` draws a visible "No card selected" blank plate for
+      `card: null`, and that used to render underneath the set-level sample
+      below rather than giving way to it.
+    -->
+    {#if card || characterSlot?.kind === 'cardback'}
       {#if statCard}<span class="face-label">Deck back</span>{/if}
       <div class="card-slot" style:width="{zoom * 100}%">
         <CardRenderer
@@ -301,6 +323,23 @@
       </div>
     {/if}
 
+    {#if setSample}
+      <!-- Same idea one level up: the set's own defaults, previewed on a
+           card that belongs to no deck and is never saved. -->
+      <div class="sample">
+        <span class="sample-label">Set style defaults</span>
+        <div class="card-slot" style:width="{zoom * 100}%">
+          <CardRenderer
+            card={setSample}
+            theme={setSampleTheme}
+            options={{ showBleed: bleeding, showGuides: showGuides && bleeding }}
+            customSymbols={workshop.adventure.customSymbols}
+          />
+        </div>
+        <span class="sample-note">A preview of the set’s own defaults. Not part of the set.</span>
+      </div>
+    {/if}
+
     {#if card && meta}
       <div class="facts">
         <span class="fact type" style:--type-color="var({meta.colorVar})">{meta.label}</span>
@@ -345,6 +384,17 @@
           <span class="numeric">{dimensions.pixels} px</span>
         </div>
       {/if}
+    {:else if setSample}
+      <!--
+        No dimensions or export here — the sample has no fixed format of its
+        own (it never resolves `format`, which needs a real `card` or
+        `cardback`) and, like the figure-defaults sample above it, is not a
+        thing to export at all.
+      -->
+      <div class="facts">
+        <span class="fact type" style:--type-color="var(--brand-gold)">Set style</span>
+        <span class="fact">Defaults for every card in the set</span>
+      </div>
     {:else}
       <EmptyState
         icon="card"
@@ -456,6 +506,14 @@
     width: 100%;
     padding-top: var(--space-5);
     border-top: 1px dashed var(--border-subtle);
+  }
+
+  /* The divider separates this from a deck back rendered above it — with
+     nothing above (the set-level sample, on its own), it has nothing to
+     divide from. */
+  .sample:first-child {
+    border-top: none;
+    padding-top: 0;
   }
 
   .face-label,

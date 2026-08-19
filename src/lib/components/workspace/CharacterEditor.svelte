@@ -191,11 +191,18 @@
     return index >= 0 ? { entry: character.additionalCards[index]!, index } : null;
   });
 
-  /** Resets to the first tab on every character switch — a stale tab from a
-      previously-open hero would otherwise persist across an unrelated one. */
+  /**
+   * Resets to the first tab on every character switch — a stale tab from a
+   * previously-open hero would otherwise persist across an unrelated one.
+   *
+   * Unless something asked for a specific tab *on this switch* — see
+   * `characterEditorView`'s own `#pendingTab` doc comment for why that is a
+   * plain field consumed through a method, not a second `$state` read
+   * directly here.
+   */
   $effect(() => {
     void character?.id;
-    characterEditorView.tab = 'identity';
+    characterEditorView.tab = characterEditorView.consumePendingTab() ?? 'identity';
   });
 </script>
 

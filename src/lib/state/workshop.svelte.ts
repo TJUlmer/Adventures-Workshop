@@ -316,8 +316,10 @@ export class WorkshopStore {
     this.selection = selection;
   }
 
+  /** Selecting always means "take me to the editor" — that is what it is for. */
   selectSet(): void {
     this.selection = SET_SELECTION;
+    navigation.go('editor');
   }
 
   /** Selecting always means "take me to the editor" — that is what it is for. */

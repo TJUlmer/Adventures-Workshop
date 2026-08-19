@@ -25,6 +25,7 @@
   import { navigation } from '$lib/state/navigation.svelte';
   import { workshop } from '$lib/state/workshop.svelte';
   import { Icon } from '$lib/ui';
+  import StyleCascadePanel from './StyleCascadePanel.svelte';
 
   const set = $derived(workshop.adventure);
   const outline = $derived(workshop.outline);
@@ -149,35 +150,40 @@
       <section class="panel">
         <h2 class="panel-title">Roster</h2>
 
-        {#each [...outline.heroes, ...outline.villains, ...outline.minions, ...outline.others] as entry (entry.character.id)}
-          {@const meta = CHARACTER_ROLE_META[entry.character.role]}
-          <button
-            type="button"
-            class="roster-row"
-            onclick={() => workshop.selectCharacter(entry.character.id)}
-          >
-            <span class="portrait" class:empty={!hasArtwork(entry.character.artwork)}>
-              {#if hasArtwork(entry.character.artwork) && entry.character.artwork.source}
-                <img src={entry.character.artwork.source} alt="" />
-              {:else}
-                <Icon name="image" size={14} />
-              {/if}
-            </span>
+        <!-- Its own wrapper with a tighter gap than `.panel`'s own — every
+             row is a direct sibling, so without this the space between rows
+             was the same generous gap the panel uses between whole sections. -->
+        <div class="roster-list">
+          {#each [...outline.heroes, ...outline.villains, ...outline.minions, ...outline.others] as entry (entry.character.id)}
+            {@const meta = CHARACTER_ROLE_META[entry.character.role]}
+            <button
+              type="button"
+              class="roster-row"
+              onclick={() => workshop.selectCharacter(entry.character.id)}
+            >
+              <span class="portrait" class:empty={!hasArtwork(entry.character.artwork)}>
+                {#if hasArtwork(entry.character.artwork) && entry.character.artwork.source}
+                  <img src={entry.character.artwork.source} alt="" />
+                {:else}
+                  <Icon name="image" size={14} />
+                {/if}
+              </span>
 
-            <span class="roster-text">
-              <span class="roster-name">{characterLabel(entry.character)}</span>
-              <span class="roster-role" style:color="var({meta.colorVar})">{meta.label}</span>
-            </span>
+              <span class="roster-text">
+                <span class="roster-name">{characterLabel(entry.character)}</span>
+                <span class="roster-role" style:color="var({meta.colorVar})">{meta.label}</span>
+              </span>
 
-            <span class="roster-stats numeric">
-              <span title="Health">{entry.character.health ?? '—'} HP</span>
-              <span title="Move">{entry.character.move} mv</span>
-              <span title="Cards to print">{entry.printCount} cards</span>
-            </span>
-          </button>
-        {:else}
-          <p class="empty-line">No characters yet.</p>
-        {/each}
+              <span class="roster-stats numeric">
+                <span title="Health">{entry.character.health ?? '—'} HP</span>
+                <span title="Move">{entry.character.move} mv</span>
+                <span title="Cards to print">{entry.printCount} cards</span>
+              </span>
+            </button>
+          {:else}
+            <p class="empty-line">No characters yet.</p>
+          {/each}
+        </div>
       </section>
 
       <!-- What the set is made of --------------------------------------- -->
@@ -222,6 +228,8 @@
     </div>
 
     <div class="column">
+      <StyleCascadePanel {outline} />
+
       <!-- Health -------------------------------------------------------- -->
       <section class="panel">
         <h2 class="panel-title">Set health</h2>
@@ -562,12 +570,18 @@
   }
 
   /* -- roster ----------------------------------------------------------- */
+  .roster-list {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+  }
+
   .roster-row {
     display: grid;
     grid-template-columns: auto minmax(0, 1fr) auto;
     align-items: center;
-    gap: var(--space-3);
-    padding: var(--space-2);
+    gap: var(--space-2);
+    padding: var(--space-1) var(--space-2);
     border-radius: var(--radius-sm);
     text-align: left;
     transition: background-color var(--duration-fast) var(--ease-out);
@@ -580,8 +594,8 @@
   .portrait {
     display: grid;
     place-items: center;
-    width: 38px;
-    height: 38px;
+    width: 30px;
+    height: 30px;
     border-radius: var(--radius-sm);
     overflow: hidden;
     background: var(--surface-sunken);
