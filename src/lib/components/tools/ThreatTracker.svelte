@@ -46,6 +46,7 @@
   } from '$lib/ui';
   import ArtworkPanel from '../workspace/ArtworkPanel.svelte';
   import EditorSection from '../workspace/EditorSection.svelte';
+  import ReplacementPanel from '../workspace/ReplacementPanel.svelte';
 
   const set = $derived(workshop.adventure);
   const track = $derived(set.threat);
@@ -89,9 +90,6 @@
 
   /** The stock hex colour, matching `--grey-700` the board draws them in. */
   const SPACE_GREY = '#3d4450';
-
-  let replacementInput = $state<HTMLInputElement | null>(null);
-  let artError = $state<string | null>(null);
 
   // -- exporting ----------------------------------------------------------
 
@@ -138,27 +136,6 @@
       unmount(view);
       host.remove();
       exporting = false;
-    }
-  }
-
-  async function pickReplacement(
-    event: Event & { currentTarget: HTMLInputElement }
-  ): Promise<void> {
-    const file = event.currentTarget.files?.[0];
-    event.currentTarget.value = '';
-    if (!file) return;
-
-    artError = null;
-    try {
-      const source = await readArtworkFile(file);
-      workshop.editThreat((t) => {
-        t.replacement.source = source;
-        t.replacement.label = file.name;
-        // Choosing one is asking to see it.
-        t.useReplacement = true;
-      });
-    } catch (cause) {
-      artError = cause instanceof Error ? cause.message : 'Could not read that file.';
     }
   }
 
@@ -391,6 +368,35 @@
 
   <!-- Editors ------------------------------------------------------------ -->
   <div class="panels">
+    <!--
+      First, and the shared `ReplacementPanel` rather than the hand-built copy
+      that used to sit at the bottom of the right-hand column. It is the same
+      decision as on every other design surface — a finished image made
+      elsewhere, in place of composing one — so it is the same control in the
+      same position, learned once. The board above still shows the composition
+      while this is off.
+    -->
+    <ReplacementPanel
+      artwork={track.replacement}
+      enabled={track.useReplacement}
+      hint="A finished board made elsewhere, used instead of the one above. {THREAT_TRACK.label} — {THREAT_TRACK.bleed.width} × {THREAT_TRACK.bleed.height} px at 300 DPI."
+      replaces="Replaces the whole board, elements included."
+      landscape
+      onpick={(source, label) =>
+        workshop.editThreat((t) => {
+          t.replacement.source = source;
+          t.replacement.label = label;
+          t.useReplacement = true;
+        })}
+      ontoggle={(use) => workshop.editThreat((t) => (t.useReplacement = use))}
+      onclear={() =>
+        workshop.editThreat((t) => {
+          t.replacement.source = null;
+          t.replacement.label = '';
+          t.useReplacement = false;
+        })}
+    />
+
     <!--
       The three you work in while looking at the board, across rather than
       down: the board is a wide, short thing, so a single column under it left
@@ -688,75 +694,6 @@
         />
       </EditorSection>
 
-      <EditorSection
-        title="Replacement board"
-        hint="A finished board made elsewhere, used instead of the one above. {THREAT_TRACK.label} — {THREAT_TRACK.bleed.width} × {THREAT_TRACK.bleed.height} px at 300 DPI."
-      >
-        {#snippet actions()}
-          {#if hasArtwork(track.replacement)}
-            <Button
-              size="sm"
-              variant="ghost"
-              onclick={() =>
-                workshop.editThreat((t) => {
-                  t.replacement.source = null;
-                  t.replacement.label = '';
-                  t.useReplacement = false;
-                })}
-            >
-              Remove
-            </Button>
-          {/if}
-        {/snippet}
-
-        <input
-          bind:this={replacementInput}
-          class="sr-only"
-          type="file"
-          accept="image/*"
-          onchange={pickReplacement}
-        />
-
-        <div class="import">
-          <button
-            type="button"
-            class="thumb"
-            class:empty={!hasArtwork(track.replacement)}
-            title={hasArtwork(track.replacement) ? 'Replace image' : 'Choose image'}
-            onclick={() => replacementInput?.click()}
-          >
-            {#if hasArtwork(track.replacement) && track.replacement.source}
-              <img src={track.replacement.source} alt="" />
-            {:else}
-              <Icon name="image" size={18} />
-            {/if}
-          </button>
-
-          <div class="import-text">
-            <span class="filename">{track.replacement.label || 'No replacement board'}</span>
-            {#if artError}
-              <span class="error">{artError}</span>
-            {:else}
-              <span class="sub">Replaces the whole board, elements included.</span>
-            {/if}
-          </div>
-
-          <Button size="sm" onclick={() => replacementInput?.click()}>
-            <Icon name="upload" size={13} />
-            {hasArtwork(track.replacement) ? 'Replace' : 'Choose'}
-          </Button>
-        </div>
-
-        {#if hasArtwork(track.replacement)}
-          <Switch
-            label="Use the replacement"
-            hint="Off keeps the image but shows the board built here."
-            checked={track.useReplacement}
-            onchange={(use) => workshop.editThreat((t) => (t.useReplacement = use))}
-          />
-        {/if}
-      </EditorSection>
-
       <EditorSection title="Rules" hint="How the track advances, in your own words.">
         <TextArea
           value={track.rules}
@@ -965,62 +902,6 @@
 
   .note-size {
     grid-column: 1 / -1;
-  }
-
-  /* -- picking a replacement board -------------------------------------- */
-  .import {
-    display: grid;
-    grid-template-columns: auto minmax(0, 1fr) auto;
-    align-items: center;
-    gap: var(--space-3);
-  }
-
-  .thumb {
-    display: grid;
-    place-items: center;
-    width: 72px;
-    height: 40px;
-    flex: none;
-    border-radius: var(--radius-sm);
-    overflow: hidden;
-    background: var(--surface-inset);
-    border: 1px solid var(--border-default);
-    color: var(--text-muted);
-  }
-
-  .thumb.empty {
-    border-style: dashed;
-  }
-
-  .thumb img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-  }
-
-  .import-text {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-    min-width: 0;
-  }
-
-  .filename {
-    font-size: var(--text-sm);
-    color: var(--text-secondary);
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .sub {
-    font-size: var(--text-xs);
-    color: var(--text-muted);
-  }
-
-  .error {
-    font-size: var(--text-xs);
-    color: var(--danger);
   }
 
   .link {

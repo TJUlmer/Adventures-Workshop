@@ -10,10 +10,16 @@
     suggestedGroupName
   } from '$lib/characters/factory';
   import { ATTACK_TYPE_LABELS, ATTACK_TYPES } from '$lib/characters/types';
-  import type { CharacterAbility, CharacterRole } from '$lib/characters/types';
+  import type {
+    CharacterAbility,
+    CharacterCardDesign,
+    CharacterRole,
+    HeroCharacterCardId
+  } from '$lib/characters/types';
   import { CHARACTER_ROLE_META, SELECTABLE_ROLES } from '$lib/characters/types';
   import type { DeckId, DeckKind } from '$lib/decks/types';
   import { DECK_KIND_META, DECK_KINDS } from '$lib/decks/types';
+  import { hasArtwork } from '$lib/core/artwork';
   import { characterEditorView } from '$lib/state/character-editor-view.svelte';
   import { workshop } from '$lib/state/workshop.svelte';
   import {
@@ -32,6 +38,7 @@
   import AbilityField from './AbilityField.svelte';
   import CardbackPanel from './CardbackPanel.svelte';
   import CharacterCardPanel from './CharacterCardPanel.svelte';
+  import ReplacementPanel from './ReplacementPanel.svelte';
   import StylePanel from './StylePanel.svelte';
   import WorkspaceHeader from './WorkspaceHeader.svelte';
 
@@ -92,6 +99,16 @@
 
   function setRole(role: CharacterRole): void {
     if (character) character.role = role;
+  }
+
+  /**
+   * Whether a finished image stands in for this sheet, so there is nothing
+   * left to compose. `CharacterCardPanel` hides its own contents on the same
+   * condition; this is for the heading around it, which lives out here.
+   * Named as `CardEditor`'s `replacedEntirely` is, for the same state.
+   */
+  function sheetReplaced(design: CharacterCardDesign): boolean {
+    return design.useReplacement && hasArtwork(design.replacement);
   }
 
   function setDeckKind(deckId: DeckId, kind: string): void {
@@ -285,10 +302,52 @@
   </Section>
 {/snippet}
 
+{#snippet characterCardReplacement(design: CharacterCardDesign, cardId?: HeroCharacterCardId)}
+  <!--
+    First on the tab, above the name and stats, for the reason it is first
+    everywhere: it decides whether any of them print. `CharacterCardPanel`
+    below hides itself entirely while this is on.
+  -->
+  <ReplacementPanel
+    artwork={design.replacement}
+    enabled={design.useReplacement}
+    hint="A finished character card, used instead of composing one."
+    replaces="Replaces the whole printed sheet, template included."
+    onpick={(source, label) =>
+      workshop.editCharacterCard(
+        character!.id,
+        (card) => {
+          card.replacement.source = source;
+          card.replacement.label = label;
+          card.useReplacement = true;
+        },
+        cardId
+      )}
+    ontoggle={(use) =>
+      workshop.editCharacterCard(character!.id, (card) => (card.useReplacement = use), cardId)}
+    onclear={() =>
+      workshop.editCharacterCard(
+        character!.id,
+        (card) => {
+          card.replacement.source = null;
+          card.replacement.label = '';
+          card.useReplacement = false;
+        },
+        cardId
+      )}
+  />
+{/snippet}
+
 {#snippet cardbackSection()}
-  <Section title="Deck back" description="Printed on the back of every card in this figure’s decks.">
-    <CardbackPanel character={character!} />
-  </Section>
+  <!--
+    No Section around this. The replacement image is the first question on
+    every design surface — it decides whether anything below it applies — so
+    it is the first block everywhere, never nested one level in. The tab is
+    already called "Deck back", which is all the subject heading a wrapper
+    was supplying. See `CardEditor`, which sets the pattern.
+  -->
+  <p class="lede">Printed on the back of every card in this figure’s decks.</p>
+  <CardbackPanel character={character!} />
 {/snippet}
 
 {#snippet defaultsSection()}
@@ -389,6 +448,8 @@
 
         {@render notesSection()}
       {:else if characterEditorView.tab === 'primary'}
+        {@render characterCardReplacement(character.characterCard)}
+
         <div class="tiles">
           <Field label="Name" hint="Printed on this character's own sheet, and in “who may play this card.”">
             <TextInput
@@ -509,12 +570,20 @@
           {/if}
         </Section>
 
-        <Section
-          title="Character card design"
-          description="This sheet’s border, and what fills each of its three bands — its own, independent of any other card this hero has."
-        >
-          <CharacterCardPanel characterId={character.id} design={character.characterCard} />
-        </Section>
+        <!--
+          The whole block goes, not just its contents, while a replacement is
+          on — an empty titled section reads as something that failed to load.
+          The guard sits here rather than inside the panel because the heading
+          is out here too.
+        -->
+        {#if !sheetReplaced(character.characterCard)}
+          <Section
+            title="Character card design"
+            description="This sheet’s border, and what fills each of its three bands — its own, independent of any other card this hero has."
+          >
+            <CharacterCardPanel characterId={character.id} design={character.characterCard} />
+          </Section>
+        {/if}
       {:else if characterEditorView.tab === 'cardback'}
         {@render cardbackSection()}
       {:else if characterEditorView.tab === 'defaults'}
@@ -532,6 +601,8 @@
             Delete this character card
           </Button>
         </div>
+
+        {@render characterCardReplacement(extra.characterCard, extra.id)}
 
         <div class="tiles">
           <Field label="Name">
@@ -580,12 +651,14 @@
           <TextInput bind:value={extra.quote.attribution} placeholder="Who said it" />
         </Field>
 
-        <Section
-          title="Character card design"
-          description="This sheet’s border, and what fills each of its three bands — its own, independent of any other card this hero has."
-        >
-          <CharacterCardPanel characterId={character.id} design={extra.characterCard} cardId={extra.id} />
-        </Section>
+        {#if !sheetReplaced(extra.characterCard)}
+          <Section
+            title="Character card design"
+            description="This sheet’s border, and what fills each of its three bands — its own, independent of any other card this hero has."
+          >
+            <CharacterCardPanel characterId={character.id} design={extra.characterCard} cardId={extra.id} />
+          </Section>
+        {/if}
       {/if}
     {:else if characterEditorView.tab === 'cardback'}
       {@render cardbackSection()}
@@ -645,6 +718,14 @@
   .hint {
     font-size: var(--text-xs);
     color: var(--text-muted);
+  }
+
+  /* Carries what a Section's `description` used to say, now that the blocks
+     these sat in have been unwrapped so the replacement panel can be first. */
+  .lede {
+    font-size: var(--text-xs);
+    color: var(--text-muted);
+    line-height: var(--leading-normal);
   }
 
   .decks {

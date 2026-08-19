@@ -16,6 +16,12 @@
    * Shared between the primary identity's own sheet and every additional
    * card's — `cardId` says which. Each is independent: pairing two heroes on
    * one deck does not mean pairing their two sheets' colours.
+   *
+   * The finished-image escape hatch is *not* here. It belongs at the top of
+   * the tab, above the name and stats, because it decides whether any of them
+   * print at all — and it is the first block on every other design surface in
+   * the app. `CharacterEditor` renders it; this panel is only what composing
+   * a sheet involves, and hides itself entirely while a replacement is on.
    */
   import type { Fill } from '$lib/cards/style';
   import type { CharacterBandName, CharacterCardDesign, CharacterId, HeroCharacterCardId } from '$lib/characters/types';
@@ -26,7 +32,6 @@
   import { FillEditor } from '$lib/ui';
   import ArtworkPanel from './ArtworkPanel.svelte';
   import EditorSection from './EditorSection.svelte';
-  import ReplacementPanel from './ReplacementPanel.svelte';
 
   interface Props {
     characterId: CharacterId;
@@ -47,27 +52,6 @@
     workshop.editCharacterCard(characterId, mutate, cardId);
   }
 </script>
-
-<ReplacementPanel
-  artwork={design.replacement}
-  enabled={design.useReplacement}
-  title="Character card"
-  hint="A finished character card, used instead of composing one."
-  replaces="Replaces the whole printed sheet, template included."
-  onpick={(source, label) =>
-    edit((card) => {
-      card.replacement.source = source;
-      card.replacement.label = label;
-      card.useReplacement = true;
-    })}
-  ontoggle={(useReplacement) => edit((card) => (card.useReplacement = useReplacement))}
-  onclear={() =>
-    edit((card) => {
-      card.replacement.source = null;
-      card.replacement.label = '';
-      card.useReplacement = false;
-    })}
-/>
 
 {#if !design.useReplacement || !hasArtwork(design.replacement)}
   <FillEditor
