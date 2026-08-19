@@ -1,0 +1,66 @@
+# A running list of things that aren't obvious on first look.
+
+## Replacement images (this one's everywhere, not just one spot)
+- Almost every card can be swapped for one finished picture you made yourself instead. Look for a replacement image toggle in:
+1. Every individual card
+2. Each character's deck back
+3. An event card's reverse
+4. The initiative deck's back (Settings)
+5. The threat board — if you built the whole track in Photoshop, drop it in whole
+6. Box art
+
+## Styling cascades from set → character → card
+- Click your set's name at the top middle → set-level style. This is the base look for every card in the set, useful if all your characters should share a visual identity.
+- Select a villain or minion → their action card template on the right. Whatever you set here becomes the default for every card added to that character.
+- Style a single card directly → overrides just that card.
+Each level only overrides what you actually touch — leave something alone and it inherits from the level above.
+
+Anywhere you can pick a color, click the word "Solid" — it flips to a gradient (color, second color, angle). Small button, easy to miss.
+Select the - button next to that to return to the default state.
+
+## Cards & decks
+- The + next to Contents (top left of the Cards tab) adds a Deception card in one click. Assign it to a character afterward.
+- You can make your hero melee or ranged, as well as the fan-created lunge, reach, and large.
+- You aren't limited to one deck per character...when you select your hero, you can create a deck that's separate from the action deck--say a character has a special deck that gets set aside, or you have something akin to Pandora's MISERIES, you can separate those from the normal deck.
+
+## Threat track
+- You can add your own logo and your own background.
+- Click into each space individually. Every space and its banner can be fully customized on its own. You can build a lot of visual variety using nothing but the built-in tools.
+- Placed text (labels, notes) can be rotated, resized and repositioned.
+
+## Map
+- Spaces can be marked as starting spaces (1–5)
+- You can drop your own placed text on the map, same as the threat track, rotation included.
+- A space can be split into 2, 3, or 4 wedges, each its own color.
+
+## Components / figures
+- Every villain and minion defaults to 1 figure, but you can change that. A character can be given multiple figures. (Think a minion type that fields as a pack like raptors, swarms, whatever. Not sure how it'd play, but the option's there if someone wants to try it.)
+- You can create a token that's either a circle or any polygon from a triangle up to a 12-sided shape, and there's a two-sided option that splits your reference image left/right onto the front and back faces automatically.
+- You can adjust the diameter and thickness of each token.
+- The health dial is generated for you. Hand it a face image and a health range, and it builds the physical piece (mesh + Tabletop Simulator counter) without you needing to model or script anything.
+
+## Printing & exporting
+- Printer-friendly mode: black-and-white, no artwork, true size; built for cheap physical playtesting before you commit to color prints.
+- Print sheets carry a 100mm ruler in the margin. If your printer's "fit to page" setting shrinks the page even slightly, that ruler won't measure 100mm and you'll know before you cut anything.
+- PNG export can include bleed or not.
+
+## Collaboration
+- When viewing someone else's set (either from the gallery or from a link), you can select "Make a copy to work on" then make changes and submit them back to the original author.
+- The original author can approve or decline each change individually.
+- Any number of people can collaborate on one project, and each contributor will be credited.
+
+## Sharing & the gallery
+- Publishing a copy of someone else's set warns you first — if you meant to send changes back to the original author instead of putting your own version on the shelf, the app points you at the right button before you publish.
+- Copying a set never touches the original, and it's never silent about where it came from...every copy credits the set it was copied from.
+- By design, this is a local-first tool which means the sets and its data lives in your browser up until it's published. That means it works fully offline and is resilient to the cloud being flaky or down. If you'd like to back up/save your set to the cloud server but not make it public yet, simply publish with the "Anyone with the link" option for who can view it.
+- If you later decide you don't want that link working anymore--maybe you shared it with the wrong person, maybe it leaked somewhere you didn't intend, maybe you're just done sharing it--then update it with the "Only me -- link stops working" option. That revokes the link for that set.
+
+## Profile
+- You can change your display name by selecting the account menu button in the upper right. This will change for any past, present, or future published sets/contributions you have made.
+
+## Card customization
+- When creating a hero, you can make a hero with multiple figures by toggling the number of "figures on board" (ala Raptors or Wayward Sisters)
+- You can make a deck with multiple heroes by selecting "+1 character card" in the Identity tab to have multiple heroes with their own unique character cards
+- You can insert custom symbols by going to the Symbols page and uploading a transparent PNG. It will then be able to be added to action cards, character cards, or rules/event text by selecting it from the symbols options that appear next to the text boxes.
+- You can emulate the colored ability text (ala Geralt or Shakespeare) by utilizing the Bonus Ability field in the ability text. You can add a custom icon as well.
+- You can use unicode symbols anywhere there's text. You can just copy/paste from sources like https://unicodeplus.com/ or https://www.w3schools.com/charsets/ref_html_utf8.asp
