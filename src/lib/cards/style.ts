@@ -61,6 +61,85 @@ export const NO_PATTERN: PatternStyle = {
   scale: 1
 };
 
+/**
+ * A single, non-repeating image laid over the body panel — the artwork
+ * counterpart to `PatternStyle`'s tiled shape, for an author with one
+ * specific picture rather than a repeatable motif. Unlike `PatternStyle`,
+ * this keeps the picture's own printed colours (a transparent PNG shows its
+ * own art, not a recolourable mask) — the same convention every other piece
+ * of artwork in the app already follows, so there is no `color` field here.
+ *
+ * Placement and colour fields mirror `core/artwork.ts`'s `ArtTransform`/
+ * `ArtAdjustments` in shape and naming, but are declared fresh here rather
+ * than imported — this module takes no imports on purpose (see the file's
+ * own note above `PatternStyle`), so anything depending on `core/artwork.ts`
+ * belongs in a file that already does.
+ */
+export interface CustomPatternStyle {
+  /** Data URL. `null` until the author picks an image. */
+  source: string | null;
+  /** Original file name, so a missing source is still identifiable. */
+  label: string;
+  /**
+   * 1 = the picture's own default printed size — see `.custom-pattern` in
+   * each face component. Uniform, like `ArtTransform.scale`: one slider,
+   * one number, the picture keeps its own proportions.
+   */
+  scale: number;
+  /** 0..1, fraction across the panel — the same job `background-position` percentages do. */
+  offsetX: number;
+  offsetY: number;
+  /** Degrees. */
+  rotation: number;
+  /** 0..1. The picture's own opacity. */
+  opacity: number;
+  brightness: number;
+  contrast: number;
+  saturation: number;
+  /** Degrees of hue rotation. */
+  hue: number;
+  /** 0..1, mixes the image toward greyscale. */
+  grayscale: number;
+  /** 0..1, mixes the image toward sepia. */
+  sepia: number;
+}
+
+export const NO_CUSTOM_PATTERN: CustomPatternStyle = {
+  source: null,
+  label: '',
+  scale: 1,
+  offsetX: 0.5,
+  offsetY: 0.5,
+  rotation: 0,
+  opacity: 1,
+  brightness: 1,
+  contrast: 1,
+  saturation: 1,
+  hue: 0,
+  grayscale: 0,
+  sepia: 0
+};
+
+/**
+ * CSS `filter` for a custom pattern image — the same filter functions
+ * `core/artwork.ts`'s `artLayout()` builds for `Artwork.adjustments`, kept
+ * as a separate, smaller build here rather than shared, for the same
+ * no-imports reason `CustomPatternStyle` itself declares its own fields
+ * rather than reusing `ArtAdjustments`.
+ */
+export function customPatternFilter(style: CustomPatternStyle): string {
+  return [
+    `brightness(${style.brightness})`,
+    `contrast(${style.contrast})`,
+    `saturate(${style.saturation})`,
+    style.hue !== 0 ? `hue-rotate(${style.hue}deg)` : '',
+    style.grayscale > 0 ? `grayscale(${style.grayscale})` : '',
+    style.sepia > 0 ? `sepia(${style.sepia})` : ''
+  ]
+    .filter(Boolean)
+    .join(' ');
+}
+
 export const TEXTURES = [
   'none',
   'grain',
@@ -153,6 +232,8 @@ export interface CardTheme {
   abilityFontSize: number;
   /** Pattern laid over the body panel. */
   pattern: PatternStyle;
+  /** A single, non-repeating image laid over the body panel, alongside `pattern`. */
+  customPattern: CustomPatternStyle;
   /** Texture laid over the whole card face. */
   texture: TextureStyle;
 }
@@ -195,6 +276,7 @@ export const DEFAULT_CARD_THEME: CardTheme = {
   bonusIconSize: 2.1,
   abilityFontSize: 90,
   pattern: NO_PATTERN,
+  customPattern: NO_CUSTOM_PATTERN,
   texture: { kind: 'none', opacity: 0.3 }
 };
 
@@ -265,6 +347,7 @@ export const THEME_KEYS = [
   'bonusIconSize',
   'abilityFontSize',
   'pattern',
+  'customPattern',
   'texture'
 ] as const;
 

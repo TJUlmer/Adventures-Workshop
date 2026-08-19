@@ -12,7 +12,7 @@
    * waiting on a licensed lockup.
    */
   import type { CardTheme } from '$lib/cards/style';
-  import { fillCss } from '$lib/cards/style';
+  import { customPatternFilter, fillCss } from '$lib/cards/style';
   import type { EventCard } from '$lib/cards/types';
   import type { CustomSymbol } from '$lib/symbols/types';
   import { resolveCustomSymbolImages, richTextIsEmpty, sanitizeRichText } from '$lib/text/rich-text';
@@ -101,6 +101,21 @@
         style:background={theme.pattern.color}
         style:opacity={theme.pattern.opacity}
       ></div>
+    {/if}
+
+    {#if theme.customPattern.source}
+      <img
+        class="custom-pattern"
+        src={theme.customPattern.source}
+        alt=""
+        style:width="calc(70cqw * {theme.customPattern.scale})"
+        style:height="calc(70cqw * {theme.customPattern.scale})"
+        style:left="calc((100% - 70cqw * {theme.customPattern.scale}) * {theme.customPattern.offsetX})"
+        style:top="calc((100% - 70cqw * {theme.customPattern.scale}) * {theme.customPattern.offsetY})"
+        style:transform="rotate({theme.customPattern.rotation}deg)"
+        style:opacity={theme.customPattern.opacity}
+        style:filter={customPatternFilter(theme.customPattern)}
+      />
     {/if}
   </div>
 
@@ -220,6 +235,13 @@
     -webkit-mask-size: var(--pattern-tile) calc(var(--pattern-tile) * var(--pattern-aspect));
     mask-repeat: repeat;
     -webkit-mask-repeat: repeat;
+    pointer-events: none;
+  }
+
+  /* A real `<img>`, positioned to its own box — see ActionCardFace. */
+  .custom-pattern {
+    position: absolute;
+    object-fit: contain;
     pointer-events: none;
   }
 

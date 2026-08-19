@@ -7,12 +7,13 @@
    * and the labels change. An absent key means "inherit"; the controls make
    * that state visible and reversible rather than hiding it behind a default.
    */
-  import type { CardTheme, Fill, PatternStyle, TextureKind } from '$lib/cards/style';
+  import type { CardTheme, CustomPatternStyle, Fill, PatternStyle, TextureKind } from '$lib/cards/style';
   import { TEXTURE_LABELS, TEXTURES } from '$lib/cards/style';
+  import { readArtworkFile } from '$lib/core/image-import';
   import { PATTERN_NAMES, patternAspect, patternUrl } from '$lib/renderer/assets';
   import type { StyleTarget } from '$lib/state/workshop.svelte';
   import { workshop } from '$lib/state/workshop.svelte';
-  import { Button, ColorInput, FillEditor, Slider } from '$lib/ui';
+  import { Button, ColorInput, FillEditor, Icon, Slider } from '$lib/ui';
   import EditorSection from './EditorSection.svelte';
 
   /** One block each, so a page can place them independently. */
@@ -84,6 +85,26 @@
 
   function patchPattern(patch: Partial<PatternStyle>): void {
     workshop.setStyle(target, 'pattern', { ...resolved.pattern, ...patch });
+  }
+
+  function patchCustomPattern(patch: Partial<CustomPatternStyle>): void {
+    workshop.setStyle(target, 'customPattern', { ...resolved.customPattern, ...patch });
+  }
+
+  let customPatternInput = $state<HTMLInputElement | null>(null);
+  let customPatternError = $state<string | null>(null);
+
+  async function pickCustomPattern(event: Event & { currentTarget: HTMLInputElement }): Promise<void> {
+    const file = event.currentTarget.files?.[0];
+    event.currentTarget.value = '';
+    if (!file) return;
+
+    customPatternError = null;
+    try {
+      patchCustomPattern({ source: await readArtworkFile(file), label: file.name });
+    } catch (cause) {
+      customPatternError = cause instanceof Error ? cause.message : 'Could not read that file.';
+    }
   }
 
   function setTexture(kind: TextureKind): void {
@@ -208,6 +229,195 @@
 </EditorSection>
 {/if}
 
+{#if showPattern}
+<EditorSection title="Custom pattern" hint="One picture, not repeated — laid over the body panel.">
+  {#snippet actions()}
+    {#if resolved.customPattern.source}
+      <Button
+        size="sm"
+        variant="ghost"
+        onclick={() => patchCustomPattern({ source: null, label: '' })}
+      >
+        Clear
+      </Button>
+    {/if}
+  {/snippet}
+
+  <input
+    bind:this={customPatternInput}
+    class="sr-only"
+    type="file"
+    accept="image/*"
+    onchange={pickCustomPattern}
+  />
+
+  <div class="custom-pattern-slot">
+    <button
+      type="button"
+      class="custom-pattern-thumb"
+      class:empty={!resolved.customPattern.source}
+      title={resolved.customPattern.source ? 'Replace image' : 'Choose an image'}
+      onclick={() => customPatternInput?.click()}
+    >
+      {#if resolved.customPattern.source}
+        <img src={resolved.customPattern.source} alt="" />
+      {:else}
+        <Icon name="image" size={16} />
+      {/if}
+    </button>
+
+    <span class="filename">{resolved.customPattern.label || 'No image'}</span>
+
+    <Button size="sm" onclick={() => customPatternInput?.click()}>
+      <Icon name="upload" size={13} />
+      {resolved.customPattern.source ? 'Replace' : 'Choose'}
+    </Button>
+  </div>
+
+  {#if customPatternError}<p class="error">{customPatternError}</p>{/if}
+
+  {#if resolved.customPattern.source}
+    <div class="grid">
+      <Slider
+        label="Opacity"
+        value={resolved.customPattern.opacity}
+        min={0}
+        max={1}
+        step={0.01}
+        neutral={1}
+        format={(value) => `${Math.round(value * 100)}%`}
+        onchange={(opacity) => patchCustomPattern({ opacity })}
+      />
+      <Slider
+        label="Scale"
+        value={resolved.customPattern.scale}
+        min={0.1}
+        max={3}
+        step={0.05}
+        neutral={1}
+        format={(value) => `${value.toFixed(2)}×`}
+        onchange={(scale) => patchCustomPattern({ scale })}
+      />
+      <Slider
+        label="Rotation"
+        value={resolved.customPattern.rotation}
+        min={-180}
+        max={180}
+        step={1}
+        neutral={0}
+        format={(value) => `${value}°`}
+        onchange={(rotation) => patchCustomPattern({ rotation })}
+      />
+      <Slider
+        label="Horizontal position"
+        value={resolved.customPattern.offsetX}
+        min={0}
+        max={1}
+        step={0.01}
+        neutral={0.5}
+        format={(value) => `${Math.round(value * 100)}%`}
+        onchange={(offsetX) => patchCustomPattern({ offsetX })}
+      />
+      <Slider
+        label="Vertical position"
+        value={resolved.customPattern.offsetY}
+        min={0}
+        max={1}
+        step={0.01}
+        neutral={0.5}
+        format={(value) => `${Math.round(value * 100)}%`}
+        onchange={(offsetY) => patchCustomPattern({ offsetY })}
+      />
+    </div>
+  {/if}
+</EditorSection>
+{/if}
+
+{#if showPattern && resolved.customPattern.source}
+<EditorSection title="Custom pattern colour">
+  {#snippet actions()}
+    <Button
+      size="sm"
+      variant="ghost"
+      onclick={() =>
+        patchCustomPattern({
+          brightness: 1,
+          contrast: 1,
+          saturation: 1,
+          hue: 0,
+          grayscale: 0,
+          sepia: 0
+        })}
+    >
+      Reset
+    </Button>
+  {/snippet}
+
+  <div class="grid">
+    <Slider
+      label="Brightness"
+      value={resolved.customPattern.brightness}
+      min={0.2}
+      max={2}
+      step={0.01}
+      neutral={1}
+      format={(value) => `${Math.round(value * 100)}%`}
+      onchange={(brightness) => patchCustomPattern({ brightness })}
+    />
+    <Slider
+      label="Contrast"
+      value={resolved.customPattern.contrast}
+      min={0.2}
+      max={2}
+      step={0.01}
+      neutral={1}
+      format={(value) => `${Math.round(value * 100)}%`}
+      onchange={(contrast) => patchCustomPattern({ contrast })}
+    />
+    <Slider
+      label="Saturation"
+      value={resolved.customPattern.saturation}
+      min={0}
+      max={2}
+      step={0.01}
+      neutral={1}
+      format={(value) => `${Math.round(value * 100)}%`}
+      onchange={(saturation) => patchCustomPattern({ saturation })}
+    />
+    <Slider
+      label="Hue"
+      value={resolved.customPattern.hue}
+      min={-180}
+      max={180}
+      step={1}
+      neutral={0}
+      format={(value) => `${value}°`}
+      onchange={(hue) => patchCustomPattern({ hue })}
+    />
+    <Slider
+      label="Greyscale"
+      value={resolved.customPattern.grayscale}
+      min={0}
+      max={1}
+      step={0.01}
+      neutral={0}
+      format={(value) => `${Math.round(value * 100)}%`}
+      onchange={(grayscale) => patchCustomPattern({ grayscale })}
+    />
+    <Slider
+      label="Sepia"
+      value={resolved.customPattern.sepia}
+      min={0}
+      max={1}
+      step={0.01}
+      neutral={0}
+      format={(value) => `${Math.round(value * 100)}%`}
+      onchange={(sepia) => patchCustomPattern({ sepia })}
+    />
+  </div>
+</EditorSection>
+{/if}
+
 {#if showTexture}
 <EditorSection title="Texture" hint="A finish laid over the whole card face.">
   <div class="textures" role="group" aria-label="Texture">
@@ -305,6 +515,49 @@
       var(--grey-600) calc(50% - 1px) calc(50% + 1px),
       transparent calc(50% + 1px)
     );
+  }
+
+  .custom-pattern-slot {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: center;
+    gap: var(--space-3);
+  }
+
+  .custom-pattern-thumb {
+    display: grid;
+    place-items: center;
+    width: 46px;
+    height: 46px;
+    border-radius: var(--radius-sm);
+    overflow: hidden;
+    background: var(--surface-inset);
+    border: 1px solid var(--border-default);
+    color: var(--text-muted);
+  }
+
+  .custom-pattern-thumb.empty {
+    border-style: dashed;
+  }
+
+  .custom-pattern-thumb img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  .filename {
+    font-size: var(--text-sm);
+    color: var(--text-secondary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    min-width: 0;
+  }
+
+  .error {
+    font-size: var(--text-xs);
+    color: var(--danger);
   }
 
   .textures {

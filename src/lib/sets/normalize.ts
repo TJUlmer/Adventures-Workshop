@@ -24,8 +24,8 @@ import type {
   InitiativeCard,
   RulesCard
 } from '$lib/cards/types';
-import { solid } from '$lib/cards/style';
-import type { Fill } from '$lib/cards/style';
+import { NO_CUSTOM_PATTERN, solid } from '$lib/cards/style';
+import type { CustomPatternStyle, Fill } from '$lib/cards/style';
 import {
   createCardback,
   createCharacterCard,
@@ -94,6 +94,52 @@ function fill(value: unknown, fallback: Fill): Fill {
     color2: str(raw['color2'], raw['color']),
     angle: num(raw['angle'], 180)
   };
+}
+
+function customPatternStyle(value: unknown): CustomPatternStyle {
+  const raw = asRecord(value);
+  return {
+    source: typeof raw['source'] === 'string' ? raw['source'] : null,
+    label: str(raw['label']),
+    /*
+     * `scale` briefly split into independent `scaleX`/`scaleY` mid-development
+     * before going back to one uniform slider — never shipped either way, but
+     * a document saved during that window is still a real document someone
+     * has open. `scaleX` is read as the fallback (arbitrary, but no worse a
+     * guess than `scaleY` for a shape nothing can recover losslessly).
+     */
+    scale: num(raw['scale'], num(raw['scaleX'], NO_CUSTOM_PATTERN.scale)),
+    offsetX: num(raw['offsetX'], NO_CUSTOM_PATTERN.offsetX),
+    offsetY: num(raw['offsetY'], NO_CUSTOM_PATTERN.offsetY),
+    rotation: num(raw['rotation'], NO_CUSTOM_PATTERN.rotation),
+    opacity: num(raw['opacity'], NO_CUSTOM_PATTERN.opacity),
+    brightness: num(raw['brightness'], NO_CUSTOM_PATTERN.brightness),
+    contrast: num(raw['contrast'], NO_CUSTOM_PATTERN.contrast),
+    saturation: num(raw['saturation'], NO_CUSTOM_PATTERN.saturation),
+    hue: num(raw['hue'], NO_CUSTOM_PATTERN.hue),
+    grayscale: num(raw['grayscale'], NO_CUSTOM_PATTERN.grayscale),
+    sepia: num(raw['sepia'], NO_CUSTOM_PATTERN.sepia)
+  };
+}
+
+/**
+ * A style override is read generically elsewhere — `CardStyleOverride` is
+ * sparse by design, and `mergeCardStyle` treats an absent key as "inherit"
+ * — so there is deliberately no per-key normalize branch for most of
+ * `CardTheme`. `customPattern` is the one exception: unlike adding a new
+ * key (which an older document simply lacks, and resolves from the default
+ * theme for free), its own *shape* changed after shipping (it gained
+ * `rotation` and a colour grade, and `scale` itself went through a brief
+ * `scaleX`/`scaleY` detour on the way). A layer that already saved an older
+ * shape is not absent — the whole cascade key is present and wins outright
+ * — so every field the old shape lacked reads as `undefined` and crashes
+ * the first control that formats it as a number.
+ * Repairing it here, once, is what makes that self-heal on next load rather
+ * than needing every reader of `theme.customPattern` to guard itself.
+ */
+function repairStyleOverride(raw: Loose): Loose {
+  if (raw['customPattern'] === undefined) return raw;
+  return { ...raw, customPattern: customPatternStyle(raw['customPattern']) };
 }
 
 /** Fills in transform, adjustments and effects added after the first release. */
@@ -548,7 +594,7 @@ function normalizeCard(value: unknown): Card | null {
     artwork: artwork(raw['artwork']),
     replacement: artwork(raw['replacement']),
     useReplacement: bool(raw['useReplacement'], false),
-    style: asRecord(raw['style']),
+    style: repairStyleOverride(asRecord(raw['style'])),
     notes: str(raw['notes']),
     createdAt: str(raw['createdAt'], new Date().toISOString()),
     updatedAt: str(raw['updatedAt'], new Date().toISOString())
@@ -696,7 +742,7 @@ export function normalizeSet(value: AdventureSet): AdventureSet {
       additionalCards,
       printedName: str(character['printedName']),
       characterCard: normalizedCharacterCard,
-      style: asRecord(character['style']),
+      style: repairStyleOverride(asRecord(character['style'])),
       abilities: Array.isArray(character['abilities']) ? character['abilities'] : []
     };
   });
@@ -712,7 +758,7 @@ export function normalizeSet(value: AdventureSet): AdventureSet {
 
   return {
     ...value,
-    style: asRecord(raw['style']),
+    style: repairStyleOverride(asRecord(raw['style'])),
     characters,
     decks,
     cards,

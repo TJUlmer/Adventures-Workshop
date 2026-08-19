@@ -126,6 +126,12 @@ export type SetId = Id<'Set'>;
  *      the same way an older document already opened with the icon at its
  *      stock size.
  *
+ * `CardTheme` also later gained `customPattern`, a single non-repeating
+ * image laid over the body panel alongside the tiled `pattern`. Needs no
+ * version bump of its own, for the same reason `bonusIconSize` (v21) and
+ * `opacity` (v20) did not — a style override is already read back
+ * generically and merged key by key with a default for anything missing.
+ *
  * Older documents are *repaired*, not rejected — see `sets/normalize.ts`. Only
  * a version newer than this build understands is refused.
  */

@@ -16,7 +16,7 @@
    * line above the copies count.
    */
   import type { CardTheme } from '$lib/cards/style';
-  import { fillCss } from '$lib/cards/style';
+  import { customPatternFilter, fillCss } from '$lib/cards/style';
   import type { ActionCard } from '$lib/cards/types';
   import { abilityIsEmpty } from '$lib/cards/types';
   import { primaryCardName, resolvedHeroName } from '$lib/characters/factory';
@@ -320,6 +320,21 @@
         style:background={theme.pattern.color}
         style:opacity={theme.pattern.opacity}
       ></div>
+    {/if}
+
+    {#if theme.customPattern.source}
+      <img
+        class="custom-pattern"
+        src={theme.customPattern.source}
+        alt=""
+        style:width="calc(70cqw * {theme.customPattern.scale})"
+        style:height="calc(70cqw * {theme.customPattern.scale})"
+        style:left="calc((100% - 70cqw * {theme.customPattern.scale}) * {theme.customPattern.offsetX})"
+        style:top="calc((100% - 70cqw * {theme.customPattern.scale}) * {theme.customPattern.offsetY})"
+        style:transform="rotate({theme.customPattern.rotation}deg)"
+        style:opacity={theme.customPattern.opacity}
+        style:filter={customPatternFilter(theme.customPattern)}
+      />
     {/if}
 
     <!--
@@ -889,6 +904,24 @@
     -webkit-mask-size: var(--pattern-tile) calc(var(--pattern-tile) * var(--pattern-aspect));
     mask-repeat: repeat;
     -webkit-mask-repeat: repeat;
+    pointer-events: none;
+  }
+
+  /*
+   * A real `<img>` rather than a `background-image`, sized and positioned to
+   * its own box (not `inset: 0`) — `transform: rotate()`'s default origin is
+   * the element's own centre, so this is what makes rotation spin the
+   * picture in place rather than swinging it around the whole panel.
+   *
+   * Width and height are set to the same value (`scale` is uniform), so
+   * `object-fit: contain` — not `fill` — is what keeps a non-square picture
+   * from being squashed into that square box: it letterboxes inside it,
+   * preserving its own proportions, the same job `background-size: <width>
+   * auto` did before rotation forced a switch away from `background-image`.
+   */
+  .custom-pattern {
+    position: absolute;
+    object-fit: contain;
     pointer-events: none;
   }
 
