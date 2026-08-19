@@ -170,13 +170,18 @@ export interface CharacterBandStyle {
  * The only part of this card that goes through anything like the style
  * cascade, and it does not go through the cascade proper: the sheet is one
  * fixed layout and its chrome is supplied art, so what an author gets to
- * choose is the border's colour and what fills each of the three bands —
- * or, with `useReplacement` on, a finished sheet that skips composing one
- * entirely, the same escape hatch every other printed face already has.
+ * choose is the border's colour, the health badge's colour, and what fills
+ * each of the three bands — or, with `useReplacement` on, a finished sheet
+ * that skips composing one entirely, the same escape hatch every other
+ * printed face already has.
  */
 export interface CharacterCardDesign {
   /** The pink outline and the bars between the bands, in the printed art. */
   border: Fill;
+  /** The shield behind the START HEALTH number. The hero's own, never the sidekick's. */
+  healthBadge: Fill;
+  /** A small triangle notched into the shield, low in its body — its own decoration. */
+  healthBadgeAccent: Fill;
   hero: CharacterBandStyle;
   ability: CharacterBandStyle;
   sidekick: CharacterBandStyle;

@@ -191,6 +191,8 @@ function characterCard(value: unknown): CharacterCardDesign {
   };
   return {
     border: fill(raw['border'], defaults.border),
+    healthBadge: fill(raw['healthBadge'], defaults.healthBadge),
+    healthBadgeAccent: fill(raw['healthBadgeAccent'], defaults.healthBadgeAccent),
     ...(Object.fromEntries(CHARACTER_BAND_NAMES.map((name) => [name, band(name)])) as Pick<
       CharacterCardDesign,
       CharacterBandName

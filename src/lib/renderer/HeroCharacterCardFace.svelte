@@ -7,18 +7,24 @@
    *
    * The chrome is the supplied frame art laid over the top, and that is the
    * one decision everything else follows from. Nothing in it is redrawn — but
-   * it comes in two pieces rather than one, split by
+   * it comes in four pieces rather than one, split by
    * `tools/hero-card-assets.py`:
    *
-   *   border  the pink outline and the bars between the bands, as a **mask**,
-   *           because that colour is the one piece of this card's chrome an
-   *           author would want to choose
-   *   ink     every tab label, the two START HEALTH captions, the health
-   *           badge, the move arrow and the word MOVE — as a picture, already
-   *           in the colours they print, none of which is a choice
+   *   border       the pink outline and the bars between the bands, as a **mask**
+   *   badge        the shield behind the START HEALTH number — the hero's
+   *                own, never the sidekick's — as a **mask**
+   *   badgeAccent  a small triangle notched into the shield, low in its
+   *                body, printed as its own decorative colour — a separate
+   *                **mask**
+   *   ink          every tab label, the two START HEALTH captions, the move
+   *                arrow and the word MOVE — as a picture, already in the
+   *                colours they print, none of which is a choice
    *
-   * Under both go the three band fills and whatever artwork each carries; into
-   * the holes goes the copy.
+   * The first three are colours an author would want to choose, independently
+   * of one another; the fourth is not.
+   *
+   * Under all four go the three band fills and whatever artwork each
+   * carries; into the holes goes the copy.
    *
    * Read from the character directly rather than from a `Card`: attack type,
    * health, move and ability text already exist on `Character` for other
@@ -33,6 +39,7 @@
   import type { CustomSymbol } from '$lib/symbols/types';
   import { parseAbilityText } from '$lib/text/tokens';
   import CardArt from './CardArt.svelte';
+  import { fitScale } from './fit-text';
   import { ATTACK_TYPE_SIZES, ATTACK_TYPE_SYMBOLS, symbolUrl, TEMPLATE_ASSETS } from './assets';
   import {
     CHARACTER_ABILITY,
@@ -98,6 +105,8 @@
     !showSidekick ? 'quote' : sidekick.multiple ? 'multi' : 'sidekick'
   );
   const border = $derived(TEMPLATE_ASSETS.heroCharacterBorder[layout]);
+  const badge = $derived(TEMPLATE_ASSETS.heroCharacterBadge[layout]);
+  const badgeAccent = $derived(TEMPLATE_ASSETS.heroCharacterBadgeAccent[layout]);
   const ink = $derived(TEMPLATE_ASSETS.heroCharacterInk[layout]);
 
   /**
@@ -133,6 +142,56 @@
     CHARACTER_ABILITY.textLineHeight
   );
   const TEXT_GAP = TEXT_TOP - (CHARACTER_ABILITY.ruleY + CHARACTER_ABILITY.ruleHeight);
+
+  /**
+   * The vertical band the quote text may occupy, so it can be centred there
+   * and grow symmetrically as it wraps rather than only pushing down from a
+   * fixed top.
+   *
+   * Centred on where a single line sits today (`textCapTop`, read as the
+   * block's centre rather than its top) and bounded, symmetrically around
+   * that centre, by whichever gap is tighter: up to the quote marks, or down
+   * to the attribution line when there is one, or the band's own foot when
+   * there is not. Provisional margins — there is no printed multi-line
+   * sample on this panel to measure the ideal proportions off, so these were
+   * checked against the rendered card rather than the template.
+   */
+  const QUOTE_ONE_LINE_TOP = capTopToBoxTop(
+    CHARACTER_QUOTE.textCapTop,
+    CHARACTER_QUOTE.textSize,
+    CHARACTER_QUOTE.textLineHeight
+  );
+  const QUOTE_CENTER =
+    QUOTE_ONE_LINE_TOP + (CHARACTER_QUOTE.textSize * CHARACTER_QUOTE.textLineHeight) / 2;
+  const QUOTE_ATTRIBUTION_TOP = capTopToBoxTop(
+    CHARACTER_QUOTE.attributionCapTop,
+    CHARACTER_QUOTE.attributionSize
+  );
+  const QUOTE_ABOVE_MARGIN = QUOTE_CENTER - (CHARACTER_QUOTE.markY + 24);
+  const hasAttribution = $derived(identity.quote.attribution.trim().length > 0);
+  const QUOTE_HALF_HEIGHT = $derived(
+    Math.min(
+      QUOTE_ABOVE_MARGIN,
+      (hasAttribution ? QUOTE_ATTRIBUTION_TOP - 24 : CHARACTER_BANDS.bottom - 60) - QUOTE_CENTER
+    )
+  );
+
+  let abilityBox: HTMLDivElement | null = $state(null);
+  let quoteBox: HTMLDivElement | null = $state(null);
+
+  /** Re-fit whenever the printed ability text (name or copy) changes. */
+  $effect(() => {
+    const signature = identity.abilities.map((a) => `${a.name}|${a.text}`).join('\n');
+    void signature;
+    if (abilityBox) fitScale(abilityBox);
+  });
+
+  /** Re-fit whenever the printed quote, or the zone it has to fit in, changes. */
+  $effect(() => {
+    void identity.quote.text;
+    void QUOTE_HALF_HEIGHT;
+    if (quoteBox) fitScale(quoteBox);
+  });
 </script>
 
 {#if replaced}
@@ -178,39 +237,47 @@
 
 <!-- SPECIAL ABILITY -------------------------------------------------------- -->
 <div
+  bind:this={abilityBox}
   class="ability"
   style:left={px(CHARACTER_ABILITY.nameX)}
   style:top={py(NAME_TOP)}
   style:width={px(CHARACTER_ABILITY_PANEL.contentRight - CHARACTER_ABILITY.nameX)}
-  style:max-height={py(
+  style:height={py(
     CHARACTER_BANDS.ability.top + CHARACTER_BANDS.ability.height - NAME_TOP
   )}
-  style:gap={pu(CHARACTER_ABILITY.gap)}
+  style:gap="calc({pu(CHARACTER_ABILITY.gap)} * var(--fit-scale, 1))"
 >
   {#each identity.abilities.length ? identity.abilities : [null] as ability, index (index)}
     <div class="ability-entry">
       <div
         class="ability-name"
-        style:font-size={pu(CHARACTER_ABILITY.nameSize)}
+        style:font-size="calc({pu(CHARACTER_ABILITY.nameSize)} * var(--fit-scale, 1))"
         style:line-height="1"
       >
         {ability?.name.trim() || 'Ability Name'}
       </div>
 
+      <!--
+        The rule's own margins/size scale with `--fit-scale` too — not just
+        the text either side of it. Leaving them fixed while the type shrank
+        left a full-size rule and a fixed gap dominating a block that was
+        supposed to be getting smaller, which barely moved `scrollHeight` no
+        matter how far the font shrank.
+      -->
       <div
         class="ability-rule"
-        style:margin-top={pu(RULE_GAP)}
-        style:margin-left={pu(CHARACTER_ABILITY.ruleX - CHARACTER_ABILITY.nameX)}
-        style:width={pu(CHARACTER_ABILITY.ruleWidth)}
-        style:height={pu(CHARACTER_ABILITY.ruleHeight)}
+        style:margin-top="calc({pu(RULE_GAP)} * var(--fit-scale, 1))"
+        style:margin-left="calc({pu(CHARACTER_ABILITY.ruleX - CHARACTER_ABILITY.nameX)} * var(--fit-scale, 1))"
+        style:width="calc({pu(CHARACTER_ABILITY.ruleWidth)} * var(--fit-scale, 1))"
+        style:height="calc({pu(CHARACTER_ABILITY.ruleHeight)} * var(--fit-scale, 1))"
       ></div>
 
       <p
         class="ability-text"
         class:placeholder={ability === null}
-        style:margin-top={pu(TEXT_GAP)}
-        style:margin-left={pu(CHARACTER_ABILITY.textX - CHARACTER_ABILITY.nameX)}
-        style:font-size={pu(CHARACTER_ABILITY.textSize)}
+        style:margin-top="calc({pu(TEXT_GAP)} * var(--fit-scale, 1))"
+        style:margin-left="calc({pu(CHARACTER_ABILITY.textX - CHARACTER_ABILITY.nameX)} * var(--fit-scale, 1))"
+        style:font-size="calc({pu(CHARACTER_ABILITY.textSize)} * var(--fit-scale, 1))"
         style:line-height={CHARACTER_ABILITY.textLineHeight}
       >
         {#if ability?.text.trim()}
@@ -259,24 +326,24 @@
     &rdquo;
   </span>
 
-  <p
-    class="quote-text"
+  <div
+    bind:this={quoteBox}
+    class="quote-zone"
     style:left={px(CHARACTER_QUOTE.textX)}
-    style:top={py(
-      capTopToBoxTop(
-        CHARACTER_QUOTE.textCapTop,
-        CHARACTER_QUOTE.textSize,
-        CHARACTER_QUOTE.textLineHeight
-      )
-    )}
+    style:top={py(QUOTE_CENTER - QUOTE_HALF_HEIGHT)}
     style:width={px(CHARACTER_QUOTE.textWidth)}
-    style:font-size={pu(CHARACTER_QUOTE.textSize)}
-    style:line-height={CHARACTER_QUOTE.textLineHeight}
+    style:height={py(QUOTE_HALF_HEIGHT * 2)}
   >
-    {identity.quote.text.trim() || 'A memorable line goes here.'}
-  </p>
+    <p
+      class="quote-text"
+      style:font-size="calc({pu(CHARACTER_QUOTE.textSize)} * var(--fit-scale, 1))"
+      style:line-height={CHARACTER_QUOTE.textLineHeight}
+    >
+      {identity.quote.text.trim() || 'A memorable line goes here.'}
+    </p>
+  </div>
 
-  {#if identity.quote.attribution.trim()}
+  {#if hasAttribution}
     <p
       class="quote-attribution"
       style:right={px(1632 - CHARACTER_QUOTE.attributionRight)}
@@ -306,6 +373,12 @@
   tail to that edge.
 -->
 <div class="mask border" style:--border-art="url('{border}')" style:background={fillCss(design.border)}></div>
+<div class="mask badge" style:--badge-art="url('{badge}')" style:background={fillCss(design.healthBadge)}></div>
+<div
+  class="mask badge-accent"
+  style:--badge-accent-art="url('{badgeAccent}')"
+  style:background={fillCss(design.healthBadgeAccent)}
+></div>
 <img class="template" src={ink} alt="" />
 
 {@render attackRow(CHARACTER_BANDS.heroAttack, identity.attackType)}
@@ -440,12 +513,27 @@
   .mask {
     position: absolute;
     pointer-events: none;
-    mask-image: var(--border-art);
-    -webkit-mask-image: var(--border-art);
     mask-size: 100% 100%;
     -webkit-mask-size: 100% 100%;
     mask-repeat: no-repeat;
     -webkit-mask-repeat: no-repeat;
+  }
+
+  /* Each mask carries its own art — a shared `mask-image` rule cannot, since
+     a custom property set on one instance is not visible on a sibling. */
+  .mask.border {
+    mask-image: var(--border-art);
+    -webkit-mask-image: var(--border-art);
+  }
+
+  .mask.badge {
+    mask-image: var(--badge-art);
+    -webkit-mask-image: var(--badge-art);
+  }
+
+  .mask.badge-accent {
+    mask-image: var(--badge-accent-art);
+    -webkit-mask-image: var(--badge-accent-art);
   }
 
   /* -- band headings and the attack rows ---------------------------------- */
@@ -477,9 +565,10 @@
 
   /* -- special ability ----------------------------------------------------- */
   /*
-   * Bottom of the panel is the bound: an over-long ability truncates at the
-   * band's edge rather than printing across the sidekick's. Visible truncation
-   * is the signal that the text is too long.
+   * Bottom of the panel is the bound. `fitScale` (see `fit-text.ts`) shrinks
+   * the whole block first, down to its floor; `overflow: hidden` is only the
+   * backstop past that floor, same as it always was — visible clipping is
+   * still the honest signal that even the shrunk text does not fit.
    */
   .ability {
     position: absolute;
@@ -574,9 +663,22 @@
     color: #f6eada;
   }
 
+  /*
+   * The text's own box, centred vertically and grown symmetrically as it
+   * wraps — see `QUOTE_CENTER`/`QUOTE_HALF_HEIGHT` above — rather than
+   * top-anchored. `fitScale` (see `fit-text.ts`) shrinks the text first;
+   * `overflow: hidden` is only the backstop past its floor.
+   */
+  .quote-zone {
+    position: absolute;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+  }
+
   .quote-text,
   .quote-attribution {
-    position: absolute;
     margin: 0;
     font-family: var(--card-font-text);
     font-weight: var(--card-font-text-weight);
@@ -589,6 +691,7 @@
   }
 
   .quote-attribution {
+    position: absolute;
     white-space: nowrap;
     line-height: 1;
   }

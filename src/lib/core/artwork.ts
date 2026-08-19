@@ -56,6 +56,8 @@ export interface ArtAdjustments {
   grayscale: number;
   /** 0..1, mixes the image toward sepia. */
   sepia: number;
+  /** 0..1. The picture's own opacity — never the fill or mask behind it. */
+  opacity: number;
 }
 
 export const DEFAULT_ADJUSTMENTS: ArtAdjustments = {
@@ -65,7 +67,8 @@ export const DEFAULT_ADJUSTMENTS: ArtAdjustments = {
   hue: 0,
   blur: 0,
   grayscale: 0,
-  sepia: 0
+  sepia: 0,
+  opacity: 1
 };
 
 export const ART_MASKS = ['none', 'vignette', 'fade-bottom', 'fade-edges', 'oval'] as const;
@@ -161,6 +164,7 @@ export interface ArtLayout {
   top: string;
   transform: string;
   filter: string;
+  opacity: string;
 }
 
 export function artLayout(artwork: Artwork): ArtLayout {
@@ -190,7 +194,8 @@ export function artLayout(artwork: Artwork): ArtLayout {
     left: `${(-(crop.x / width) * 100).toFixed(4)}%`,
     top: `${(-(crop.y / height) * 100).toFixed(4)}%`,
     transform: parts.join(' '),
-    filter: filters.join(' ')
+    filter: filters.join(' '),
+    opacity: String(adjustments.opacity)
   };
 }
 

@@ -361,6 +361,16 @@
         format={pct}
         onchange={(sepia) => workshop.setAdjustments(target, { sepia })}
       />
+      <Slider
+        label="Opacity"
+        value={artwork.adjustments.opacity}
+        min={0}
+        max={1}
+        step={0.01}
+        neutral={1}
+        format={pct}
+        onchange={(opacity) => workshop.setAdjustments(target, { opacity })}
+      />
     </div>
   </EditorSection>
 

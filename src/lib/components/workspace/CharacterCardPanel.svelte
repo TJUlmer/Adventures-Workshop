@@ -76,6 +76,18 @@
     onchange={(border: Fill) => edit((card) => (card.border = border))}
   />
 
+  <FillEditor
+    label="Health badge"
+    value={design.healthBadge}
+    onchange={(healthBadge: Fill) => edit((card) => (card.healthBadge = healthBadge))}
+  />
+
+  <FillEditor
+    label="Health badge accent"
+    value={design.healthBadgeAccent}
+    onchange={(healthBadgeAccent: Fill) => edit((card) => (card.healthBadgeAccent = healthBadgeAccent))}
+  />
+
   {#each CHARACTER_BAND_NAMES as band (band)}
     <EditorSection title={BANDS[band].title} hint={BANDS[band].hint}>
       <FillEditor

@@ -62,6 +62,8 @@ export function createCharacterCard(): CharacterCardDesign {
   });
   return {
     border: solid('#dda0c7'),
+    healthBadge: solid('#293992'),
+    healthBadgeAccent: solid('#f9f6ee'),
     hero: band('#001722'),
     ability: band('#cfa058'),
     sidekick: band('#001722'),

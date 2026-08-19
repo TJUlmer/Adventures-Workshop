@@ -89,14 +89,15 @@ export const TEMPLATE_ASSETS = {
    */
   heroCardback: `${TEMPLATES}/hero_cardback_border.png`,
   /**
-   * A hero's character card, in two pieces per layout.
+   * A hero's character card, in three pieces per layout.
    *
    * `tools/hero-card-assets.py` splits each supplied frame into its **border**
-   * — the pink outline and the bars between the bands, which is the one colour
-   * on this card an author would want to choose, so it is a mask — and its
-   * **ink**: every tab label, the START HEALTH captions, the health badge, the
-   * move arrow and the word MOVE, which are already in the colours they print
-   * and are nobody's choice, so they stay a picture. The two do not overlap.
+   * — the pink outline and the bars between the bands — and its **badge** —
+   * the health badge behind the START HEALTH number — both colours an author
+   * would want to choose, so both are masks; and its **ink**: every tab
+   * label, the START HEALTH captions, the move arrow and the word MOVE, which
+   * are already in the colours they print and are nobody's choice, so they
+   * stay a picture. None of the three overlap.
    *
    * Three layouts, because each supplied frame is one flat picture with
    * nothing in it to switch off: a quote panel, a sidekick's two bands, and a
@@ -106,6 +107,21 @@ export const TEMPLATE_ASSETS = {
     quote: `${TEMPLATES}/hero_character_border.png`,
     sidekick: `${TEMPLATES}/hero_character_border_sidekick.png`,
     multi: `${TEMPLATES}/hero_character_border_multi.png`
+  },
+  /**
+   * The hero's own (upper) health badge only — never the sidekick's — the
+   * whole shield, its own natural taper included.
+   */
+  heroCharacterBadge: {
+    quote: `${TEMPLATES}/hero_character_badge.png`,
+    sidekick: `${TEMPLATES}/hero_character_badge_sidekick.png`,
+    multi: `${TEMPLATES}/hero_character_badge_multi.png`
+  },
+  /** A small triangle notched into the badge, printed as its own decorative colour. */
+  heroCharacterBadgeAccent: {
+    quote: `${TEMPLATES}/hero_character_badge_accent.png`,
+    sidekick: `${TEMPLATES}/hero_character_badge_accent_sidekick.png`,
+    multi: `${TEMPLATES}/hero_character_badge_accent_multi.png`
   },
   heroCharacterInk: {
     quote: `${TEMPLATES}/hero_character_ink.png`,

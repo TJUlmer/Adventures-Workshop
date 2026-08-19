@@ -1067,12 +1067,16 @@ export const CHARACTER_ABILITY = {
   /** Caps stand 68. */
   textSize: inFace(102),
   /**
-   * The one leading here with no artwork behind it — the template sets a
-   * single line, so there is no second baseline to measure against. Re-derive
-   * it by hand if the copy face ever changes; everything else on this card
-   * follows from `inFace`. Same situation as `INITIATIVE.bodyLineHeight`.
+   * No artwork behind this one — the template sets a single line, so there is
+   * no second baseline on *this* card to measure leading against. Reuses
+   * `ABILITY.lineHeight` instead of guessing: the action card's ability text
+   * is the same face (`--card-font-text`) and its leading *is* measured off a
+   * printed three-line sample, and a leading ratio is a multiple of nominal
+   * size — good at any size the same face is set, not just the one it was
+   * read off. (Previously a bare `1.3`, about 30% looser than this — visibly
+   * more empty space between rows than the face actually needs.)
    */
-  textLineHeight: 1.3,
+  textLineHeight: ABILITY.lineHeight,
   /** Gap between one ability block and the next. */
   gap: 60
 } as const;
@@ -1128,7 +1132,8 @@ export const CHARACTER_QUOTE = {
   markHeight: 94,
   textCapTop: 1790,
   textSize: inFace(92),
-  textLineHeight: 1.3,
+  /** Same reasoning as `CHARACTER_ABILITY.textLineHeight` — see there. */
+  textLineHeight: ABILITY.lineHeight,
   /** Measure the copy is centred in, inset from the card either side. */
   textX: 330,
   textWidth: 1487 - 330 - 186,

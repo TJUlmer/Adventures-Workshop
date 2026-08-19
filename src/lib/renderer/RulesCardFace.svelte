@@ -10,6 +10,7 @@
   import type { CustomSymbol } from '$lib/symbols/types';
   import { resolveCustomSymbolImages, richTextIsEmpty, sanitizeRichText } from '$lib/text/rich-text';
   import { patternAspect } from './assets';
+  import { fitScale } from './fit-text';
   import {
     capTopToBoxTop,
     px,
@@ -32,6 +33,14 @@
   const heading = $derived(card.heading.trim() || (card.type === 'event' ? 'Event' : 'Rules'));
   const body = $derived(resolveCustomSymbolImages(sanitizeRichText(card.body), customSymbols));
   const empty = $derived(richTextIsEmpty(card.body));
+
+  let bodyBox: HTMLDivElement | null = $state(null);
+
+  /** Re-fit whenever the printed body (post-sanitise, post-symbol-resolve) changes. */
+  $effect(() => {
+    void body;
+    if (bodyBox) fitScale(bodyBox);
+  });
 </script>
 
 <!--
@@ -89,6 +98,7 @@
 </div>
 
 <div
+  bind:this={bodyBox}
   class="body"
   style:left={px(RULES.body.x, FRAME)}
   style:top={py(
@@ -163,12 +173,14 @@
     position: absolute;
     font-family: var(--card-font-text);
     font-weight: var(--card-font-text-weight);
-    font-size: var(--copy-size);
+    /* `--fit-scale` shrinks long copy to fit; `overflow: hidden` is only the
+       backstop past its floor — see `fit-text.ts`. */
+    font-size: calc(var(--copy-size) * var(--fit-scale, 1));
     overflow: hidden;
   }
 
   .body :global(.sized) {
-    font-size: calc(var(--copy-size) * var(--size, 1));
+    font-size: calc(var(--copy-size) * var(--size, 1) * var(--fit-scale, 1));
   }
 
   .body :global(p) {

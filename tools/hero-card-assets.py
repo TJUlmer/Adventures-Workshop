@@ -22,6 +22,9 @@ Outputs, all alpha masks unless noted:
   hero_ribbon_point_edge.png     that point's outline
   hero_character_frame_multi.png the sidekick frame with its health badge gone
   hero_character_border*.png     each character frame's pink, as a mask
+  hero_character_badge*.png      …the hero's own health badge, as a mask
+  hero_character_badge_accent*.png …the small triangle notched into it, as a
+                                  separate mask
   hero_character_ink*.png        …and everything else in it, as a picture
 
 The ribbon's straight run is not written at all: it is a rectangle, and the
@@ -55,6 +58,11 @@ CREAM = (246, 234, 218)
 
 # The character card's border, in its own supplied art.
 BORDER_PINK = (221, 160, 199)
+
+# The health badge's fill, in its own supplied art — the same blue the
+# sidekick-badge removal below already matches, read off the hero's own
+# (upper) badge instead of the sidekick's (lower) one.
+BADGE_BLUE = (41, 57, 146)
 
 # The three character-card layouts, by the suffix their derived pieces take.
 CHARACTER_FRAMES = {
@@ -370,22 +378,84 @@ def main() -> None:
         TEMPLATES / "hero_character_frame_multi.png"
     )
 
-    # -- the character card, split into a border and its ink ---------------
+    # -- the character card, split into a border, two health-badge masks, and
+    #    ink -------------------------------------------------------------
     #
     # The frame is one flat picture, and everything in it is either the card's
-    # *border* — the pink outline and the bars between the bands — or something
-    # printed inside a band: a tab label, a START HEALTH caption, the health
-    # badge, the move arrow, the word MOVE. Only the first is a colour an
-    # author would want to choose, so it comes out as a mask and the rest stays
-    # a picture. Nothing overlaps, so the two can be laid down in either order.
+    # *border* — the pink outline and the bars between the bands — the health
+    # badge behind the START HEALTH number, a small triangular accent notched
+    # low into that badge, or something else printed inside a band: a tab
+    # label, the START HEALTH caption itself, the move arrow, the word MOVE.
+    # The first three are colours an author would want to choose
+    # independently, so they come out as masks and the rest stays a picture.
+    # Nothing overlaps, so all four can be laid down in any order.
+    #
+    # Also resampled onto the full bleed canvas here (`to_bleed`), the same as
+    # `hero_action_frame.png` already is above — this split used to save at the
+    # source template's own native resolution and leave the scale-up to the
+    # browser's `mask-size: 100% 100%` at render time, which is exactly the
+    # class of bug the ribbon-head notes above warn about: a non-integer
+    # runtime upscale of a hard alpha edge can lose enough coverage at the
+    # boundary to show whatever is behind it. Pre-resampling once here removes
+    # the runtime scale rather than patching around it.
+    #
+    # The resample itself softens what was a hard-edged mask into a few rows
+    # of partial alpha at every transition — harmless for `ink`, which is
+    # full-colour art that wants antialiasing anyway, but for a mask laid
+    # *over* a band fill, a partially-opaque edge blends the mask's own
+    # colour with the fill's rather than reading as a crisp line, which
+    # showed as a thin stray band between a band and the frame around it.
+    # `harden` restores the hard edge the source always had, the mask-only
+    # equivalent of `square_edges` above.
+    def harden(image: Image.Image) -> Image.Image:
+        alpha = np.array(image)[:, :, 3]
+        return mask_png(np.where(alpha >= 128, 255, 0))
+
     for name, source in CHARACTER_FRAMES.items():
         frame_art = load(source)
-        pink = np.abs(frame_art[:, :, :3] - np.array(BORDER_PINK)).sum(2) < 90
+        opaque = frame_art[:, :, 3] > 128
+        pink = (np.abs(frame_art[:, :, :3] - np.array(BORDER_PINK)).sum(2) < 90) & opaque
         border = np.where(pink, frame_art[:, :, 3], 0)
+
+        # The badge is a shield, whole — its own natural taper at the foot
+        # included, not split from the body above it. Matched by colour and
+        # kept to the *upper* half — the hero's own badge — and never left of
+        # column 1200, which is the START HEALTH caption's own column and
+        # must stay part of `ink`. Restricted to opaque source pixels, since
+        # an unrestricted match also catches the template's own transparent
+        # padding, which happens to read as the same blue once premultiplied.
+        badge = (np.abs(frame_art[:, :, :3] - np.array(BADGE_BLUE)).sum(2) < 60) & opaque
+        badge[frame_art.shape[0] // 2 :] = False
+        badge[:, :1200] = False
+        badge_rows = np.flatnonzero(badge.any(1))
+        badge_top, badge_bottom = int(badge_rows[0]), int(badge_rows[-1])
+
+        # A small near-white triangle is notched into the shield low in its
+        # body — its own printed decoration, not the shield's fill colour, so
+        # it comes out as a mask of its own rather than taking whatever the
+        # badge is coloured. Scoped to the shield's own row span (measured
+        # above, not guessed) so this cannot catch unrelated near-white ink
+        # elsewhere on the card.
+        accent = (frame_art[:, :, :3].min(2) > 235) & opaque
+        accent[:badge_top] = False
+        accent[badge_bottom + 1 :] = False
+        accent[:, :1200] = False
+
         ink = frame_art.copy()
         ink[pink, 3] = 0
-        mask_png(border).save(TEMPLATES / f"hero_character_border{name}.png")
-        Image.fromarray(ink.astype(np.uint8)).save(TEMPLATES / f"hero_character_ink{name}.png")
+        ink[badge, 3] = 0
+        ink[accent, 3] = 0
+
+        harden(to_bleed(mask_png(border))).save(TEMPLATES / f"hero_character_border{name}.png")
+        harden(to_bleed(mask_png(np.where(badge, frame_art[:, :, 3], 0)))).save(
+            TEMPLATES / f"hero_character_badge{name}.png"
+        )
+        harden(to_bleed(mask_png(np.where(accent, frame_art[:, :, 3], 0)))).save(
+            TEMPLATES / f"hero_character_badge_accent{name}.png"
+        )
+        to_bleed(Image.fromarray(ink.astype(np.uint8))).save(
+            TEMPLATES / f"hero_character_ink{name}.png"
+        )
 
     # -- what geometry.ts is checked against -------------------------------
     scale = BLEED[1] / height

@@ -27,7 +27,7 @@
 
   let {
     label,
-    value,
+    value = $bindable(''),
     placeholder,
     rows = 3,
     onremove,
@@ -36,6 +36,25 @@
   }: Props = $props();
 
   let field = $state<HTMLTextAreaElement | null>(null);
+
+  /*
+   * Enter was being silently swallowed for this field in some (but not all)
+   * of its mounting contexts — reproducible, but with no interceptor, remount
+   * or wrapping element found anywhere in this component or its ancestors to
+   * explain it. Rather than keep relying on the browser's own default
+   * newline-insertion, insert it explicitly: `execCommand('insertText', …)`
+   * is the same technique `RichTextEditor.svelte` already uses for
+   * programmatic insertion, and it dispatches a genuine `input` event, so the
+   * existing `oninput` handler below picks it up with no further wiring.
+   * Every modifier combination still inserts a newline, matching what a
+   * plain textarea already does natively — only IME composition is left
+   * alone, so composing non-Latin text is unaffected.
+   */
+  function handleKeydown(event: KeyboardEvent): void {
+    if (event.key !== 'Enter' || event.isComposing) return;
+    event.preventDefault();
+    document.execCommand('insertText', false, '\n');
+  }
 
   const SYMBOL_NAMES = Object.keys(CARD_SYMBOLS) as CardSymbolName[];
 
@@ -114,12 +133,13 @@
 
   <textarea
     bind:this={field}
+    bind:value
     class="input"
     {rows}
     {placeholder}
-    {value}
     aria-label={label}
     oninput={(event) => onchange(event.currentTarget.value)}
+    onkeydown={handleKeydown}
   ></textarea>
 </div>
 

@@ -105,10 +105,19 @@ export type SetId = Id<'Set'>;
  *      are. Absent on an older document, which opens with an empty registry
  *      and no `{{custom:…}}` tokens to resolve, exactly as before.
  *
+ * v20 — a character card's design gained `healthBadge` and `healthBadgeAccent`,
+ *      the START HEALTH shield's own colour and the small triangle notched
+ *      into it, independently of the border's. Absent on an older document,
+ *      which opens with both in their printed colours, exactly as before. Unrelated:
+ *      every `Artwork` gained an `opacity` adjustment, needing no version of
+ *      its own — `adjustments` was already read back key by key with a
+ *      default for anything missing, the same way an older document already
+ *      opened with no sepia or greyscale applied.
+ *
  * Older documents are *repaired*, not rejected — see `sets/normalize.ts`. Only
  * a version newer than this build understands is refused.
  */
-export const SET_SCHEMA_VERSION = 19;
+export const SET_SCHEMA_VERSION = 20;
 
 /**
  * Where a set was copied from, if it was copied.

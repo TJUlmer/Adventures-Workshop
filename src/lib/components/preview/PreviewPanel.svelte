@@ -11,7 +11,7 @@
   import { asId } from '$lib/core/id';
   import { deckLabel } from '$lib/decks/factory';
   import type { DeckId } from '$lib/decks/types';
-  import { formatForCard, renderCardImage, saveExport } from '$lib/export';
+  import { formatForCard, renderCardImage, renderPlateImage, saveExport, slugify } from '$lib/export';
   import { CardRenderer } from '$lib/renderer';
   import type { CardFormat } from '$lib/renderer/geometry';
   import { BLEED_MM, CARD_FORMATS, trimBox } from '$lib/renderer/geometry';
@@ -124,14 +124,34 @@
   let exporting = $state<string | null>(null);
   let exportError = $state<string | null>(null);
 
+  /**
+   * A regular card exports through `renderCardImage`, which already knows how
+   * to derive its own format and filename. The character card is not a
+   * `Card` — nothing in `set.cards` — so it takes the same underlying
+   * `renderPlateImage` a regular card's export ultimately calls, with the
+   * format and filename worked out here instead.
+   */
   async function exportPng(bleed: boolean): Promise<void> {
     const plate = stage?.querySelector<HTMLElement>('.plate');
-    if (!plate || !card) return;
+    if (!plate) return;
 
     exporting = bleed ? 'bleed' : 'trim';
     exportError = null;
     try {
-      saveExport(await renderCardImage(plate, card, { bleed }));
+      if (card) {
+        saveExport(await renderCardImage(plate, card, { bleed }));
+      } else if (statCard && format) {
+        const label =
+          (heroSlot?.kind === 'card' ? heroSlot.entry?.name.trim() : '') ||
+          primaryCardName(statCard) ||
+          characterLabel(statCard);
+        const blob = await renderPlateImage(plate, format, { bleed });
+        saveExport({
+          filename: `${slugify(label, 'character-card')}${bleed ? '-bleed' : ''}.png`,
+          mimeType: 'image/png',
+          blob
+        });
+      }
     } catch (cause) {
       exportError = cause instanceof Error ? cause.message : 'Export failed.';
     } finally {
@@ -139,6 +159,26 @@
     }
   }
 </script>
+
+{#snippet exportButtons()}
+  <div class="exports">
+    <Button size="sm" disabled={exporting !== null} onclick={() => exportPng(false)}>
+      <Icon name="download" size={13} />
+      {exporting === 'trim' ? 'Rendering…' : 'Export PNG'}
+    </Button>
+    <Button
+      size="sm"
+      variant="secondary"
+      disabled={exporting !== null}
+      onclick={() => exportPng(true)}
+    >
+      <Icon name="download" size={13} />
+      {exporting === 'bleed' ? 'Rendering…' : 'PNG — bleed'}
+    </Button>
+  </div>
+
+  {#if exportError}<p class="export-error">{exportError}</p>{/if}
+{/snippet}
 
 <div class="panel">
   <div class="head">
@@ -266,23 +306,23 @@
         </div>
       {/if}
 
-      <div class="exports">
-        <Button size="sm" disabled={exporting !== null} onclick={() => exportPng(false)}>
-          <Icon name="download" size={13} />
-          {exporting === 'trim' ? 'Rendering…' : 'Export PNG'}
-        </Button>
-        <Button
-          size="sm"
-          variant="secondary"
-          disabled={exporting !== null}
-          onclick={() => exportPng(true)}
-        >
-          <Icon name="download" size={13} />
-          {exporting === 'bleed' ? 'Rendering…' : 'PNG — bleed'}
-        </Button>
+      {@render exportButtons()}
+    {:else if statCard && heroSlot?.kind === 'card'}
+      <div class="facts">
+        <span class="fact type" style:--type-color="var(--role-{statCard.role})">Character card</span>
+        <span class="fact">
+          {heroSlot.entry?.name.trim() || primaryCardName(statCard) || characterLabel(statCard)}
+        </span>
       </div>
 
-      {#if exportError}<p class="export-error">{exportError}</p>{/if}
+      {#if dimensions}
+        <div class="size">
+          <span>{dimensions.label}</span>
+          <span class="numeric">{dimensions.pixels} px</span>
+        </div>
+      {/if}
+
+      {@render exportButtons()}
     {:else if cardback}
       <div class="facts">
         <span class="fact type" style:--type-color="var(--role-{cardback.role})">Deck back</span>

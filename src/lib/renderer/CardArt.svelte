@@ -46,6 +46,7 @@
         style:top={layout.top}
         style:transform={layout.transform}
         style:filter={layout.filter}
+        style:opacity={layout.opacity}
       />
     </div>
 
