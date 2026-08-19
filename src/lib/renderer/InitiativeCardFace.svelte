@@ -200,7 +200,8 @@
         immediately: '',
         duringCombat: '',
         afterCombat: '',
-        bonusAbility: ''
+        bonusAbility: '',
+        bonusIcon: ''
       }}
       placeholder="What happens right now."
       subject={actor}
@@ -265,7 +266,8 @@
         immediately: '',
         duringCombat: '',
         afterCombat: '',
-        bonusAbility: ''
+        bonusAbility: '',
+        bonusIcon: ''
       }}
       placeholder="What happens at the end of the round."
       subject={actor}

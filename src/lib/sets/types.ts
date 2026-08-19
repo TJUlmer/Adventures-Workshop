@@ -114,10 +114,22 @@ export type SetId = Id<'Set'>;
  *      default for anything missing, the same way an older document already
  *      opened with no sepia or greyscale applied.
  *
+ * v21 — an action card's `AbilityBlocks` gained `bonusIcon`, a larger icon
+ *      printed beside the Bonus ability paragraph in its own column rather
+ *      than inline with the text. Stored as the same `{{token}}` string an
+ *      inline symbol uses, so it resolves through the existing symbol
+ *      machinery. Absent on an older document, which opens with no bonus
+ *      icon, exactly as it printed before. Unrelated: `CardTheme` gained
+ *      `bonusIconSize`, the icon's printed height, needing no version of its
+ *      own — a style override was already read back generically and merged
+ *      key by key with a default for anything missing (`mergeCardStyle`),
+ *      the same way an older document already opened with the icon at its
+ *      stock size.
+ *
  * Older documents are *repaired*, not rejected — see `sets/normalize.ts`. Only
  * a version newer than this build understands is refused.
  */
-export const SET_SCHEMA_VERSION = 20;
+export const SET_SCHEMA_VERSION = 21;
 
 /**
  * Where a set was copied from, if it was copied.

@@ -19,6 +19,8 @@
     subject?: string;
     /** Ink for the Bonus ability line. Defaults to whatever `.ability` inherits. */
     bonusInk?: string;
+    /** `CardTheme.bonusIconSize` — the Bonus icon's height, in multiples of the ability text size. */
+    bonusIconSize?: number;
     /** The set's author-uploaded glyphs, for resolving `{{custom:…}}` tokens. */
     customSymbols?: CustomSymbol[];
   }
@@ -28,6 +30,7 @@
     placeholder = 'Ability text appears here.',
     subject = 'Villain Name',
     bonusInk,
+    bonusIconSize = 2.1,
     customSymbols = []
   }: Props = $props();
 
@@ -35,6 +38,22 @@
   const hasPlain = $derived(ability.plain.trim().length > 0);
   const hasBonus = $derived(ability.bonusAbility.trim().length > 0);
   const empty = $derived(!hasPlain && !hasBonus && timings.length === 0);
+
+  /**
+   * Resolved the same way an inline `{{token}}` is — `bonusIcon` is stored as
+   * that same token string rather than a separate reference type, so it runs
+   * through the same `CARD_SYMBOLS`/`CustomSymbol` lookup, just read once
+   * instead of per glyph in a run of text.
+   */
+  const bonusIconSrc = $derived.by(() => {
+    if (!ability.bonusIcon) return null;
+    const [segment] = parseAbilityText(ability.bonusIcon);
+    if (segment?.kind === 'symbol') return symbolUrl(segment.name);
+    if (segment?.kind === 'customSymbol') {
+      return customSymbols.find((s) => s.id === segment.id)?.source ?? null;
+    }
+    return null;
+  });
 </script>
 
 {#snippet run(text: string)}
@@ -66,7 +85,12 @@
     {/each}
 
     {#if hasBonus}
-      <p class="line" style:color={bonusInk}>{@render run(ability.bonusAbility)}</p>
+      <p class="line bonus" style:color={bonusInk}>
+        {#if bonusIconSrc}
+          <img class="bonus-icon" src={bonusIconSrc} alt="" style:height="{bonusIconSize}em" />
+        {/if}
+        <span>{@render run(ability.bonusAbility)}</span>
+      </p>
     {/if}
   {/if}
 </div>
@@ -91,6 +115,24 @@
 
   .placeholder {
     opacity: 0.4;
+  }
+
+  /*
+   * Unlike every other symbol in ability copy, the Bonus icon sits in its own
+   * column beside the paragraph rather than inline with it — a block-level
+   * decoration, not a text token, even though it is stored as one.
+   */
+  .line.bonus {
+    display: flex;
+    align-items: center;
+    gap: 0.35em;
+  }
+
+  .bonus-icon {
+    flex: 0 0 auto;
+    /* Height set inline from `CardTheme.bonusIconSize` — see the prop above. */
+    width: auto;
+    object-fit: contain;
   }
 
   /* The timing label is the same face; the colon and caps carry the emphasis. */

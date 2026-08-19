@@ -7,12 +7,16 @@
    * quicker to read — and an empty block still prints nothing, so the card is
    * unaffected either way.
    */
+  import { CARD_SYMBOLS, CARD_SYMBOL_LABELS } from '$lib/renderer/assets';
+  import type { CardSymbolName } from '$lib/renderer/assets';
   import type { CardTheme } from '$lib/cards/style';
   import { ABILITY_TIMING_LABELS, ABILITY_TIMINGS } from '$lib/cards/types';
   import type { AbilityBlocks } from '$lib/cards/types';
   import type { StyleTarget } from '$lib/state/workshop.svelte';
   import { workshop } from '$lib/state/workshop.svelte';
   import type { CustomSymbol } from '$lib/symbols/types';
+  import { customSymbolLabel } from '$lib/symbols/types';
+  import { customSymbolToken, symbolToken } from '$lib/text/tokens';
   import { ColorInput, Slider, TextArea } from '$lib/ui';
   import AbilityField from './AbilityField.svelte';
   import EditorSection from './EditorSection.svelte';
@@ -53,6 +57,8 @@
   }: Props = $props();
 
   const layer = $derived(workshop.styleFor(target) ?? {});
+
+  const SYMBOL_NAMES = Object.keys(CARD_SYMBOLS) as CardSymbolName[];
 </script>
 
 <EditorSection {title} {hint}>
@@ -91,6 +97,46 @@
     {customSymbols}
   />
 
+  <!--
+    A larger icon printed beside the Bonus ability paragraph, in its own
+    column rather than inline with the text — a select-one control, unlike
+    the insert-at-caret palette on the field above. Per side, not gated by
+    `textStyle`, since it travels with this side's own Bonus ability text.
+  -->
+  <div class="bonus-icon-picker" role="group" aria-label="Bonus ability icon">
+    <span class="bonus-icon-label">Bonus icon</span>
+    <button
+      type="button"
+      class="icon-choice"
+      class:active={!ability.bonusIcon}
+      onclick={() => onchange({ bonusIcon: '' })}
+    >
+      None
+    </button>
+    {#each SYMBOL_NAMES as name (name)}
+      <button
+        type="button"
+        class="icon-choice"
+        class:active={ability.bonusIcon === symbolToken(name)}
+        title={CARD_SYMBOL_LABELS[name]}
+        onclick={() => onchange({ bonusIcon: symbolToken(name) })}
+      >
+        <img src={CARD_SYMBOLS[name]} alt={CARD_SYMBOL_LABELS[name]} />
+      </button>
+    {/each}
+    {#each customSymbols.filter((s) => s.source) as symbol (symbol.id)}
+      <button
+        type="button"
+        class="icon-choice"
+        class:active={ability.bonusIcon === customSymbolToken(symbol.id)}
+        title={customSymbolLabel(symbol)}
+        onclick={() => onchange({ bonusIcon: customSymbolToken(symbol.id) })}
+      >
+        <img src={symbol.source} alt={customSymbolLabel(symbol)} />
+      </button>
+    {/each}
+  </div>
+
   {#if textStyle}
     <div class="text-style">
       <label class="ink">
@@ -112,6 +158,18 @@
         neutral={90}
         format={(value) => `${Math.round(value)}`}
         onchange={(abilityFontSize) => workshop.setStyle(target, 'abilityFontSize', abilityFontSize)}
+      />
+
+      <!-- The icon's size, not its choice — see `AbilityBlocks.bonusIcon` for that. -->
+      <Slider
+        label="Bonus icon size"
+        value={resolved.bonusIconSize}
+        min={1}
+        max={4}
+        step={0.1}
+        neutral={2.1}
+        format={(value) => value.toFixed(1)}
+        onchange={(bonusIconSize) => workshop.setStyle(target, 'bonusIconSize', bonusIconSize)}
       />
     </div>
   {/if}
@@ -143,6 +201,52 @@
     .timings {
       grid-template-columns: minmax(0, 1fr);
     }
+  }
+
+  .bonus-icon-picker {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+  }
+
+  .bonus-icon-label {
+    font-size: var(--text-2xs);
+    font-weight: var(--weight-semibold);
+    letter-spacing: var(--tracking-caps);
+    text-transform: uppercase;
+    color: var(--text-muted);
+  }
+
+  .icon-choice {
+    display: grid;
+    place-items: center;
+    min-width: 22px;
+    height: 22px;
+    padding-inline: var(--space-1);
+    border-radius: var(--radius-xs);
+    border: 1px solid transparent;
+    font-size: var(--text-2xs);
+    color: var(--text-muted);
+    transition:
+      background-color var(--duration-fast) var(--ease-out),
+      border-color var(--duration-fast) var(--ease-out);
+  }
+
+  .icon-choice:hover {
+    background: var(--surface-hover);
+  }
+
+  .icon-choice.active {
+    border-color: var(--accent);
+    background: var(--accent-soft);
+    color: var(--text-primary);
+  }
+
+  .icon-choice img {
+    width: 14px;
+    height: 14px;
+    object-fit: contain;
   }
 
   .text-style {

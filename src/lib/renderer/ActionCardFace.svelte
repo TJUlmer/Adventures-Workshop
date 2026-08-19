@@ -435,6 +435,7 @@
                 ability={card.ability}
                 subject={ribbonName}
                 bonusInk={theme.bonusAbilityInk}
+                bonusIconSize={theme.bonusIconSize}
                 {customSymbols}
               />
             </div>
@@ -454,6 +455,7 @@
               ability={card.ability}
               subject={ribbonName}
               bonusInk={theme.bonusAbilityInk}
+              bonusIconSize={theme.bonusIconSize}
               {customSymbols}
             />
           </div>
@@ -756,6 +758,7 @@
               placeholder=""
               subject={ribbonName}
               bonusInk={theme.bonusAbilityInk}
+              bonusIconSize={theme.bonusIconSize}
               {customSymbols}
             />
           </div>

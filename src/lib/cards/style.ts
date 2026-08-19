@@ -135,6 +135,15 @@ export interface CardTheme {
    */
   bonusAbilityInk: string;
   /**
+   * `AbilityBlocks.bonusIcon`'s printed height, in multiples of the ability
+   * text's own font size — the same unit `AbilityText.svelte`'s `.bonus-icon`
+   * already sizes itself in, just promoted from a fixed constant to a themed
+   * one. Shared across a split card's two sides, like `bonusAbilityInk` and
+   * `abilityFontSize` below, since it is a look rather than content — the
+   * icon *choice* stays per side, on `AbilityBlocks` itself.
+   */
+  bonusIconSize: number;
+  /**
    * Ability text size on an action card, in the same "artwork units" every
    * other measured size in `renderer/geometry.ts` is expressed in — see
    * `ABILITY.size` there, which this overrides. A temporary dial rather than
@@ -177,6 +186,13 @@ export const DEFAULT_CARD_THEME: CardTheme = {
   boost: solid('#3f474c'),
   boostInk: '#ffffff',
   bonusAbilityInk: '#ffffff',
+  /*
+   * A judgement call, not a measured constant — unlike most sizes in this
+   * app, there is no printed Adventures template this decoration is read
+   * off (it doesn't exist on a real card). Adjustable per set/character/card
+   * from here down for exactly that reason.
+   */
+  bonusIconSize: 2.1,
   abilityFontSize: 90,
   pattern: NO_PATTERN,
   texture: { kind: 'none', opacity: 0.3 }
@@ -246,6 +262,7 @@ export const THEME_KEYS = [
   'boost',
   'boostInk',
   'bonusAbilityInk',
+  'bonusIconSize',
   'abilityFontSize',
   'pattern',
   'texture'

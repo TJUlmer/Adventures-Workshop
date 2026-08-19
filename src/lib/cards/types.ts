@@ -34,6 +34,15 @@ export interface AbilityBlocks {
    * colour, which is what sets it apart on the card without a label.
    */
   bonusAbility: string;
+  /**
+   * A larger icon printed beside the Bonus ability paragraph, in its own
+   * column rather than inline with the text — unlike every other symbol in
+   * ability copy. Stored as the same `{{token}}` string an inline symbol
+   * would use (`{{attack}}`, `{{custom:<id>}}`), so it resolves through the
+   * same `parseAbilityText`/`CARD_SYMBOLS`/`CustomSymbol` machinery instead
+   * of a second symbol-reference type. Empty string prints no icon.
+   */
+  bonusIcon: string;
 }
 
 export const ABILITY_TIMINGS = ['immediately', 'duringCombat', 'afterCombat'] as const;
@@ -52,6 +61,7 @@ export function createAbilityBlocks(init: Partial<AbilityBlocks> = {}): AbilityB
     duringCombat: '',
     afterCombat: '',
     bonusAbility: '',
+    bonusIcon: '',
     ...init
   };
 }
