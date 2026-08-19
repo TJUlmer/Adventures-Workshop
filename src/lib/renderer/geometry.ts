@@ -1084,21 +1084,79 @@ export const CHARACTER_ABILITY = {
 /**
  * A swarm sidekick's token stack, where a single one has a health badge.
  *
- * Three discs at most, however many figures there are: the printed stack is a
- * picture of "several", and the number on the last one is what says how many.
- * Measured off `Hero_Character_Card_Template_multisidekick.png`, whose three
- * discs sit 1213..1473 — centred in the column the health badge occupies.
+ * Five discs at most, however many figures there are: the printed stack is a
+ * picture of "several", and the number on the last one is what says how
+ * many — matching the official card's own convention (a Squirrel Girl
+ * reference print shows a five-deep stack for a supply of 8), which this
+ * app under-capped at three for a while. `pitch` is tighter than the paired
+ * state's own 86 for the same reason: five discs read as a stack rather
+ * than a strip only with more overlap than two need.
  */
 export const CHARACTER_TOKENS = {
   centerX: 1343,
   centerY: 1990,
   diameter: 115,
   /** Centre to centre. They overlap by more than half a radius. */
-  pitch: 68,
+  pitch: 42,
   ring: 5,
-  max: 3,
+  max: 5,
   /** The count, on the last disc. Caps stand 49. */
   size: inFace(72)
+} as const;
+
+/**
+ * A swarm sidekick at exactly 2 health: precisely two tokens, each carrying
+ * its own small health badge, rather than the plain stack every other health
+ * shows. Always two discs regardless of how many copies there actually are —
+ * the count still prints as `×N` beside them.
+ *
+ * Measured off `Hero_Character_Card_Template_multisidekick_2health.png`.
+ * `pitch` is wider than the plain stack's (86 against 42): two discs read
+ * better with less overlap than five do. `badgeScale`/`badgeOffsetY` place
+ * a *reused* copy of the hero's own badge mask (`CHARACTER_HEALTH.centerX`,
+ * `.heroCenterY`) on each token via `transform`, not new art — see
+ * `HeroCharacterCardFace.svelte`'s `healthBadgeAt` snippet.
+ */
+export const CHARACTER_TOKENS_PAIRED = {
+  /** The pair's own midpoint — each disc sits `pitch / 2` either side. */
+  centerX: 1319,
+  pitch: 86,
+  /** Against the hero's own badge, 125×133. */
+  badgeScale: 0.3,
+  /**
+   * The mini badge's centre, relative to its token's own centre — flush
+   * with the top of the token's own grey fill, just inside its 5px ring
+   * (not the ring's own outer edge), at this scale.
+   */
+  badgeOffsetY: -33,
+  /** A little short of `CHARACTER_ATTACK_ROW.badgeRight` rather than flush
+   *  with it — flush read as crowding the border. */
+  countX: 1444
+} as const;
+
+/**
+ * A swarm sidekick at 3+ health: the token stack goes entirely, replaced by
+ * the single-tracked sidekick's own badge — shifted left — plus a `×N`.
+ *
+ * Measured off `Hero_Character_Card_Template_multisidekick_multihealth.png`.
+ * The badge is a reused, unscaled copy of the hero's own mask (see
+ * `healthBadgeAt`), moved from its native `CHARACTER_HEALTH.centerX` (1342)
+ * to `centerX` here — `CHARACTER_HEALTH.sidekickCenterY` is unchanged, only X
+ * moves. No `dividerX` here any more: the `multiHealth` layout's own `ink`
+ * (see `TEMPLATE_ASSETS.heroCharacterInk`) now carries both dividers this
+ * state needs, baked in rather than drawn.
+ */
+export const CHARACTER_HEALTH_SHIFTED = {
+  centerX: 1265,
+  countX: 1448,
+  /**
+   * Left edge of the new divider ahead of the shifted "START HEALTH" —
+   * ranged, lunge and reach's own lockups are wide enough to reach past
+   * this at their natural size (see `ATTACK_TYPE_SIZES`), which is what
+   * `HeroCharacterCardFace.svelte`'s `sidekickAttackScale` scales them
+   * down to clear, only in this one row and only when they need to.
+   */
+  dividerLeftX: 963
 } as const;
 
 /**

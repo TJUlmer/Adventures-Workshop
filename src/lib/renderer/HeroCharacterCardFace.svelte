@@ -50,9 +50,11 @@
     CHARACTER_CARD,
     CHARACTER_HEADING,
     CHARACTER_HEALTH,
+    CHARACTER_HEALTH_SHIFTED,
     CHARACTER_MOVE,
     CHARACTER_QUOTE,
     CHARACTER_TOKENS,
+    CHARACTER_TOKENS_PAIRED,
     capTopToBoxTop,
     digitMiddleToBoxTop,
     digitTopToBoxTop,
@@ -93,21 +95,60 @@
   const showSidekick = $derived(card ? false : sidekick.enabled);
 
   /**
-   * Which of the three layouts to lay over the card.
+   * A swarm sidekick prints one of three things below its attack row, keyed
+   * off its own `health` — a stat that used to go unread the moment
+   * `multiple` was on. `null`/absent reads as 1, the plain stack, so an
+   * older document with no opinion here renders exactly as it always did.
+   */
+  const sidekickHealthState = $derived.by(() => {
+    if (!sidekick.multiple) return 'single';
+    const health = sidekick.health ?? 1;
+    return health <= 1 ? 'plain' : health === 2 ? 'paired' : 'shifted';
+  });
+
+  /**
+   * Which of the four layouts to lay over the card.
    *
    * They differ only below the ability panel — a sidekick's two bands or a
-   * quote panel filling the same space — and a swarm sidekick differs again in
-   * one badge. Three sets of art rather than one with pieces switched off,
-   * because each is a single flat picture and there is nothing in it to
-   * switch.
+   * quote panel filling the same space — and a swarm sidekick differs again
+   * by health state: `multi` has no badge of its own (a token stack stands
+   * in), and `multiHealth` is the same frame with its "START HEALTH" caption,
+   * arc and dividers shifted to make room for the reused, shifted badge (see
+   * `healthBadgeAt`) — see `TEMPLATE_ASSETS.heroCharacterInk`'s own doc
+   * comment for how that fourth `ink` was derived. Four sets of art rather
+   * than one with pieces switched off, because each is a single flat picture
+   * and there is nothing in it to switch.
    */
   const layout = $derived(
-    !showSidekick ? 'quote' : sidekick.multiple ? 'multi' : 'sidekick'
+    !showSidekick
+      ? 'quote'
+      : !sidekick.multiple
+        ? 'sidekick'
+        : sidekickHealthState === 'shifted'
+          ? 'multiHealth'
+          : 'multi'
   );
   const border = $derived(TEMPLATE_ASSETS.heroCharacterBorder[layout]);
   const badge = $derived(TEMPLATE_ASSETS.heroCharacterBadge[layout]);
   const badgeAccent = $derived(TEMPLATE_ASSETS.heroCharacterBadgeAccent[layout]);
   const ink = $derived(TEMPLATE_ASSETS.heroCharacterInk[layout]);
+
+  /**
+   * At 3+ health, the sidekick's attack-type lockup shares its row with the
+   * new divider ahead of the shifted "START HEALTH" — ranged, lunge and
+   * reach are wide enough at their natural size to run into it (melee and
+   * large already clear it, so they're untouched). Scaled down only enough
+   * to clear `CHARACTER_HEALTH_SHIFTED.dividerLeftX` with a small margin,
+   * from the left edge it's already drawn from, so it never shrinks further
+   * than it has to.
+   */
+  const sidekickAttackScale = $derived.by(() => {
+    if (sidekickHealthState !== 'shifted') return 1;
+    const size = ATTACK_TYPE_SIZES[sidekick.attackType];
+    const left = CHARACTER_ATTACK.x - size.inset;
+    const safeRight = CHARACTER_HEALTH_SHIFTED.dividerLeftX - 8;
+    return left + size.width > safeRight ? (safeRight - left) / size.width : 1;
+  });
 
   /**
    * `design` is per-identity, not per-character: two names sharing one deck
@@ -395,9 +436,9 @@
 </span>
 
 {#if showSidekick}
-  {@render attackRow(CHARACTER_BANDS.sidekickAttack, sidekick.attackType)}
+  {@render attackRow(CHARACTER_BANDS.sidekickAttack, sidekick.attackType, sidekickAttackScale)}
 
-  {#if sidekick.multiple}
+  {#if sidekickHealthState === 'plain'}
     <!--
       A swarm has no health of its own, so the multi frame has no badge there
       and a stack of tokens stands in its place. This is the one piece of
@@ -428,8 +469,79 @@
     >
       ×{sidekick.count}
     </span>
+  {:else if sidekickHealthState === 'paired'}
+    <!--
+      Exactly two health, exactly two discs — always, whatever `count`
+      actually is. `×N` still carries the real count.
+    -->
+    {#each [-1, 1] as sign, index (index)}
+      {@const cx = CHARACTER_TOKENS_PAIRED.centerX + (sign * CHARACTER_TOKENS_PAIRED.pitch) / 2}
+      <span
+        class="token"
+        style:left={px(cx - CHARACTER_TOKENS.diameter / 2)}
+        style:top={py(CHARACTER_TOKENS.centerY - CHARACTER_TOKENS.diameter / 2)}
+        style:width={px(CHARACTER_TOKENS.diameter)}
+        style:height={py(CHARACTER_TOKENS.diameter)}
+        style:border-width={pu(CHARACTER_TOKENS.ring)}
+      ></span>
+    {/each}
+
+    {#each [-1, 1] as sign, index (index)}
+      {@const cx = CHARACTER_TOKENS_PAIRED.centerX + (sign * CHARACTER_TOKENS_PAIRED.pitch) / 2}
+      {@render healthBadgeAt(
+        cx,
+        CHARACTER_TOKENS.centerY + CHARACTER_TOKENS_PAIRED.badgeOffsetY,
+        CHARACTER_TOKENS_PAIRED.badgeScale,
+        sidekick.health ?? 2
+      )}
+    {/each}
+
+    <span
+      class="token-count"
+      style:left={px(CHARACTER_TOKENS_PAIRED.countX)}
+      style:top={py(digitMiddleToBoxTop(CHARACTER_TOKENS.centerY, CHARACTER_TOKENS.size))}
+      style:font-size={pu(CHARACTER_TOKENS.size)}
+    >
+      ×{sidekick.count}
+    </span>
+  {:else if sidekickHealthState === 'shifted'}
+    <!--
+      3+ health: the stack goes entirely, replaced by the single-tracked
+      sidekick's own badge — a reused, unscaled copy of the hero's own,
+      shifted left — plus the real count. The `multiHealth` layout's own
+      `ink` (not drawn here) already carries the caption, arc and both
+      dividers this state needs, shifted to match.
+    -->
+    {@render healthBadgeAt(
+      CHARACTER_HEALTH_SHIFTED.centerX,
+      CHARACTER_HEALTH.sidekickCenterY,
+      1,
+      sidekick.health ?? 0
+    )}
+
+    <span
+      class="token-count"
+      style:left={px(CHARACTER_HEALTH_SHIFTED.countX)}
+      style:top={py(digitMiddleToBoxTop(CHARACTER_HEALTH.sidekickCenterY, CHARACTER_TOKENS.size))}
+      style:font-size={pu(CHARACTER_TOKENS.size)}
+    >
+      ×{sidekick.count}
+    </span>
   {:else}
-    {@render healthValue(CHARACTER_HEALTH.sidekickCenterY, sidekick.health ?? 0)}
+    <!--
+      A single tracked sidekick's own badge was never a mask on this layout
+      — `hero_character_badge_sidekick.png` carries only the hero's own,
+      and the sidekick's was fixed ink instead (now erased from
+      `hero_character_ink_sidekick.png`). A reused, unscaled copy of the
+      hero's own badge, same as the shifted state uses, so it takes
+      `design.healthBadge` like every other badge on this card.
+    -->
+    {@render healthBadgeAt(
+      CHARACTER_HEALTH.centerX,
+      CHARACTER_HEALTH.sidekickCenterY,
+      1,
+      sidekick.health ?? 0
+    )}
   {/if}
 {/if}
 {/if}
@@ -463,7 +575,7 @@
   one — LUNGE and REACH are both wider than MELEE — loses its tail to the
   edge of that hole.
 -->
-{#snippet attackRow(band: { top: number; height: number }, kind: AttackType)}
+{#snippet attackRow(band: { top: number; height: number }, kind: AttackType, scale: number = 1)}
   {@const size = ATTACK_TYPE_SIZES[kind]}
   <div
     class="attack"
@@ -471,7 +583,7 @@
     style:top={py(band.top)}
     style:height={py(band.height)}
   >
-    <img src={ATTACK_TYPE_SYMBOLS[kind]} alt={kind} style:width={pu(size.width)} />
+    <img src={ATTACK_TYPE_SYMBOLS[kind]} alt={kind} style:width={pu(size.width * scale)} />
   </div>
 {/snippet}
 
@@ -481,6 +593,44 @@
     style:left={px(CHARACTER_HEALTH.centerX)}
     style:top={py(digitMiddleToBoxTop(centerY, CHARACTER_HEALTH.size))}
     style:font-size={pu(CHARACTER_HEALTH.size)}
+  >
+    {value}
+  </span>
+{/snippet}
+
+<!--
+  A second (or third) copy of the hero's own badge, moved wherever a swarm
+  sidekick's health states need one — full size and shifted left at 3+
+  health, shrunk onto a token at exactly 2. Not new art: `badge`/`badgeAccent`
+  are already resolved for the active `layout`, and `transform-origin` at the
+  mask's own native centre (`CHARACTER_HEALTH.centerX`/`.heroCenterY`) is
+  what lets a plain `translate` + `scale` move a copy of it anywhere without
+  the shape itself distorting off-centre.
+-->
+{#snippet healthBadgeAt(centerX: number, centerY: number, scale: number, value: number)}
+  {@const origin = `${px(CHARACTER_HEALTH.centerX)} ${py(CHARACTER_HEALTH.heroCenterY)}`}
+  {@const move = `translate(${pu(centerX - CHARACTER_HEALTH.centerX)}, ${pu(
+    centerY - CHARACTER_HEALTH.heroCenterY
+  )}) scale(${scale})`}
+  <div
+    class="mask badge"
+    style:--badge-art="url('{badge}')"
+    style:background={fillCss(design.healthBadge)}
+    style:transform-origin={origin}
+    style:transform={move}
+  ></div>
+  <div
+    class="mask badge-accent"
+    style:--badge-accent-art="url('{badgeAccent}')"
+    style:background={fillCss(design.healthBadgeAccent)}
+    style:transform-origin={origin}
+    style:transform={move}
+  ></div>
+  <span
+    class="health"
+    style:left={px(centerX)}
+    style:top={py(digitMiddleToBoxTop(centerY, CHARACTER_HEALTH.size * scale))}
+    style:font-size={pu(CHARACTER_HEALTH.size * scale)}
   >
     {value}
   </span>

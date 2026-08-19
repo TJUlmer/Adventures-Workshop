@@ -99,14 +99,47 @@ export const TEMPLATE_ASSETS = {
    * are already in the colours they print and are nobody's choice, so they
    * stay a picture. None of the three overlap.
    *
-   * Three layouts, because each supplied frame is one flat picture with
-   * nothing in it to switch off: a quote panel, a sidekick's two bands, and a
-   * derived third for a swarm sidekick with the lower health badge taken out.
+   * Four layouts, because each supplied frame is one flat picture with
+   * nothing in it to switch off: a quote panel, a sidekick's two bands, a
+   * derived third for a swarm sidekick with the lower health badge taken out,
+   * and a fourth for a swarm at 3+ health, whose `border` and `ink` both
+   * differ from the third to make room for the shifted badge — which is not
+   * itself baked into either; that state still has no badge of its own in
+   * the frame, and the badge shown there is a reused, transformed copy of
+   * the hero's own (see `HeroCharacterCardFace.svelte`'s `healthBadgeAt`).
+   *
+   * `multiHealth`'s `border` and `ink` are both derived, not supplied, from
+   * `Hero_Character_Card_Template_frame_multisidekick_multihealth.png` —
+   * which (unlike every other supplied template here) has no border-pink or
+   * badge-blue of its own for `tools/hero-card-assets.py`'s colour-matched
+   * split to run on directly. What it shows in the sidekick's attack row is
+   * a mix: the arc and all three dividers there turned out to belong to
+   * `border`, not `ink`, on every existing layout too — `hero_character_
+   * border_multi.png` already carries two, one on each side of the old
+   * (unshifted) "START HEALTH"/badge pair, at roughly 1045 and 1200. Both
+   * are erased — the whole card shares one continuous top edge at this
+   * row's own height, so the first erase stops short of it rather than
+   * cutting a notch out of a line every other band's divider also depends
+   * on — and the reference's own divider-arc-divider trio is spliced in at
+   * the shifted position, at the same alpha it carries, still tinted
+   * through `design.border` like the rest of it. That splice stops at 1461,
+   * short of where the card's own rounded corner already resumes, opaque
+   * and unchanged, in both files alike — going further would mean erasing
+   * real corner geometry and never quite putting all of it back, which is
+   * exactly what left the corner square the first time this was tried.
+   * Only the shifted "START HEALTH" caption itself is genuinely fixed ink,
+   * spliced into a copy of `hero_character_ink_multi.png` the same way.
+   * Both splices are scoped to the row's own content columns, so `multi`'s
+   * own "ATTACK" label and tab dividers, and the reference file's fallback
+   * "SIDEKICK" heading (drawn live from the character's own name everywhere
+   * else — baking it in here would double-print it), are left out
+   * entirely.
    */
   heroCharacterBorder: {
     quote: `${TEMPLATES}/hero_character_border.png`,
     sidekick: `${TEMPLATES}/hero_character_border_sidekick.png`,
-    multi: `${TEMPLATES}/hero_character_border_multi.png`
+    multi: `${TEMPLATES}/hero_character_border_multi.png`,
+    multiHealth: `${TEMPLATES}/hero_character_border_multihealth.png`
   },
   /**
    * The hero's own (upper) health badge only — never the sidekick's — the
@@ -115,18 +148,21 @@ export const TEMPLATE_ASSETS = {
   heroCharacterBadge: {
     quote: `${TEMPLATES}/hero_character_badge.png`,
     sidekick: `${TEMPLATES}/hero_character_badge_sidekick.png`,
-    multi: `${TEMPLATES}/hero_character_badge_multi.png`
+    multi: `${TEMPLATES}/hero_character_badge_multi.png`,
+    multiHealth: `${TEMPLATES}/hero_character_badge_multi.png`
   },
   /** A small triangle notched into the badge, printed as its own decorative colour. */
   heroCharacterBadgeAccent: {
     quote: `${TEMPLATES}/hero_character_badge_accent.png`,
     sidekick: `${TEMPLATES}/hero_character_badge_accent_sidekick.png`,
-    multi: `${TEMPLATES}/hero_character_badge_accent_multi.png`
+    multi: `${TEMPLATES}/hero_character_badge_accent_multi.png`,
+    multiHealth: `${TEMPLATES}/hero_character_badge_accent_multi.png`
   },
   heroCharacterInk: {
     quote: `${TEMPLATES}/hero_character_ink.png`,
     sidekick: `${TEMPLATES}/hero_character_ink_sidekick.png`,
-    multi: `${TEMPLATES}/hero_character_ink_multi.png`
+    multi: `${TEMPLATES}/hero_character_ink_multi.png`,
+    multiHealth: `${TEMPLATES}/hero_character_ink_multihealth.png`
   },
   /**
    * The printed back of the initiative deck. A finished image rather than a

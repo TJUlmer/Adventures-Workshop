@@ -513,8 +513,12 @@
               <!--
                 Copies drives which layout prints, not a separate toggle: one
                 copy is a single tracked figure — the health badge — and more
-                than one is an unnamed swarm — the token stack. `multiple` is
-                derived here rather than asked for directly.
+                than one is an unnamed swarm — the token stack, or a health
+                badge of its own once Starting health says the swarm carries
+                one worth printing. `multiple` is derived here rather than
+                asked for directly. Starting health is untouched by this —
+                switching between one copy and several never overwrites
+                whatever value is already there.
               -->
               <Field label="Copies" inline hint="One tracked figure, or several identical copies.">
                 <NumberInput
@@ -528,16 +532,14 @@
                 />
               </Field>
 
-              {#if !character.sidekick.multiple}
-                <Field label="Starting health" inline>
-                  <NumberInput
-                    value={character.sidekick.health ?? 0}
-                    min={1}
-                    max={40}
-                    onchange={(value) => (character.sidekick.health = value)}
-                  />
-                </Field>
-              {/if}
+              <Field label="Starting health" inline>
+                <NumberInput
+                  value={character.sidekick.health ?? 0}
+                  min={1}
+                  max={40}
+                  onchange={(value) => (character.sidekick.health = value)}
+                />
+              </Field>
             </div>
           {:else}
             <div class="tiles sidekick-fields">
