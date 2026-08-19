@@ -29,9 +29,8 @@
   import { hasArtwork } from '$lib/core/artwork';
   import { CHARACTER_BAND_RUNS, CHARACTER_CARD } from '$lib/renderer/geometry';
   import { workshop } from '$lib/state/workshop.svelte';
-  import { FillEditor } from '$lib/ui';
+  import { FillEditor, Section } from '$lib/ui';
   import ArtworkPanel from './ArtworkPanel.svelte';
-  import EditorSection from './EditorSection.svelte';
 
   interface Props {
     characterId: CharacterId;
@@ -44,7 +43,7 @@
 
   const BANDS: Readonly<Record<CharacterBandName, { title: string; hint: string }>> = {
     hero: { title: 'Name band', hint: 'The hero’s name and its attack row.' },
-    ability: { title: 'Special ability', hint: 'The panel between them.' },
+    ability: { title: 'Special ability band', hint: 'The panel between the name band and the sidekick band.' },
     sidekick: { title: 'Sidekick band', hint: 'Or the quote panel, when there is no sidekick.' }
   };
 
@@ -54,26 +53,37 @@
 </script>
 
 {#if !design.useReplacement || !hasArtwork(design.replacement)}
-  <FillEditor
-    label="Border"
-    value={design.border}
-    onchange={(border: Fill) => edit((card) => (card.border = border))}
-  />
+  <!--
+    Four blocks, not one — this sheet's colours, then each band on its own,
+    so the tab is something to scroll past rather than one long wall.
+  -->
+  <Section
+    title="Character card design"
+    description="This sheet’s border and the health badge, wherever this sheet uses them."
+  >
+    <div class="colours">
+      <FillEditor
+        label="Border"
+        value={design.border}
+        onchange={(border: Fill) => edit((card) => (card.border = border))}
+      />
 
-  <FillEditor
-    label="Health badge"
-    value={design.healthBadge}
-    onchange={(healthBadge: Fill) => edit((card) => (card.healthBadge = healthBadge))}
-  />
+      <FillEditor
+        label="Health badge"
+        value={design.healthBadge}
+        onchange={(healthBadge: Fill) => edit((card) => (card.healthBadge = healthBadge))}
+      />
 
-  <FillEditor
-    label="Health badge accent"
-    value={design.healthBadgeAccent}
-    onchange={(healthBadgeAccent: Fill) => edit((card) => (card.healthBadgeAccent = healthBadgeAccent))}
-  />
+      <FillEditor
+        label="Health badge accent"
+        value={design.healthBadgeAccent}
+        onchange={(healthBadgeAccent: Fill) => edit((card) => (card.healthBadgeAccent = healthBadgeAccent))}
+      />
+    </div>
+  </Section>
 
   {#each CHARACTER_BAND_NAMES as band (band)}
-    <EditorSection title={BANDS[band].title} hint={BANDS[band].hint}>
+    <Section title={BANDS[band].title} description={BANDS[band].hint}>
       <FillEditor
         label="Background"
         value={design[band].fill}
@@ -84,6 +94,20 @@
         target={{ entity: 'characterBand', id: characterId, band, cardId }}
         aspect={CHARACTER_CARD.width / (CHARACTER_BAND_RUNS[band].bottom - CHARACTER_BAND_RUNS[band].top)}
       />
-    </EditorSection>
+    </Section>
   {/each}
 {/if}
+
+<style>
+  .colours {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: var(--space-4);
+  }
+
+  @container workspace (max-width: 560px) {
+    .colours {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  }
+</style>

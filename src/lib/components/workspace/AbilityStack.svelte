@@ -17,7 +17,7 @@
   import type { CustomSymbol } from '$lib/symbols/types';
   import { customSymbolLabel } from '$lib/symbols/types';
   import { customSymbolToken, symbolToken } from '$lib/text/tokens';
-  import { ColorInput, Slider, TextArea } from '$lib/ui';
+  import { ColorInput, Slider } from '$lib/ui';
   import AbilityField from './AbilityField.svelte';
   import EditorSection from './EditorSection.svelte';
 
@@ -62,17 +62,36 @@
 </script>
 
 <EditorSection {title} {hint}>
-  <div class="plain">
-    {#if symbol}
+  {#if symbol}
+    <div class="plain">
       <img class="side-symbol" src={symbol} alt="" />
-    {/if}
-    <TextArea
+      <div class="plain-field">
+        <AbilityField
+          label="Ability text"
+          value={ability.plain}
+          rows={3}
+          placeholder="Plain ability text, printed with no label…"
+          onchange={(value) => onchange({ plain: value })}
+          {customSymbols}
+        />
+      </div>
+    </div>
+  {:else}
+    <!--
+      No side symbol, no icon column to reserve — a two-column grid here
+      would leave a gap held open for nothing, which is what left this a
+      few pixels narrower than Bonus ability below it. Full width, same as
+      every other block on this face.
+    -->
+    <AbilityField
+      label="Ability text"
       value={ability.plain}
       rows={3}
       placeholder="Plain ability text, printed with no label…"
-      oninput={(event) => onchange({ plain: event.currentTarget.value })}
+      onchange={(value) => onchange({ plain: value })}
+      {customSymbols}
     />
-  </div>
+  {/if}
 
   <div class="timings">
     {#each ABILITY_TIMINGS as timing (timing)}
@@ -118,10 +137,10 @@
         type="button"
         class="icon-choice"
         class:active={ability.bonusIcon === symbolToken(name)}
-        title={CARD_SYMBOL_LABELS[name]}
         onclick={() => onchange({ bonusIcon: symbolToken(name) })}
       >
-        <img src={CARD_SYMBOLS[name]} alt={CARD_SYMBOL_LABELS[name]} />
+        <img src={CARD_SYMBOLS[name]} alt="" />
+        {CARD_SYMBOL_LABELS[name]}
       </button>
     {/each}
     {#each customSymbols.filter((s) => s.source) as symbol (symbol.id)}
@@ -129,10 +148,10 @@
         type="button"
         class="icon-choice"
         class:active={ability.bonusIcon === customSymbolToken(symbol.id)}
-        title={customSymbolLabel(symbol)}
         onclick={() => onchange({ bonusIcon: customSymbolToken(symbol.id) })}
       >
-        <img src={symbol.source} alt={customSymbolLabel(symbol)} />
+        <img src={symbol.source} alt="" />
+        {customSymbolLabel(symbol)}
       </button>
     {/each}
   </div>
@@ -183,7 +202,13 @@
     gap: var(--space-3);
   }
 
+  .plain-field {
+    grid-column: 2;
+    min-width: 0;
+  }
+
   .side-symbol {
+    grid-column: 1;
     width: 22px;
     height: 22px;
     margin-top: var(--space-1);
@@ -219,28 +244,29 @@
   }
 
   .icon-choice {
-    display: grid;
-    place-items: center;
-    min-width: 22px;
-    height: 22px;
-    padding-inline: var(--space-1);
-    border-radius: var(--radius-xs);
-    border: 1px solid transparent;
-    font-size: var(--text-2xs);
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    height: 28px;
+    padding-inline: var(--space-2);
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border-subtle);
+    font-size: var(--text-xs);
     color: var(--text-muted);
     transition:
-      background-color var(--duration-fast) var(--ease-out),
+      color var(--duration-fast) var(--ease-out),
       border-color var(--duration-fast) var(--ease-out);
   }
 
   .icon-choice:hover {
-    background: var(--surface-hover);
+    color: var(--text-secondary);
+    border-color: var(--border-strong);
   }
 
   .icon-choice.active {
-    border-color: var(--accent);
-    background: var(--accent-soft);
     color: var(--text-primary);
+    border-color: var(--border-accent);
+    background: var(--accent-soft);
   }
 
   .icon-choice img {
@@ -251,7 +277,7 @@
 
   .text-style {
     display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: var(--space-3);
     padding-top: var(--space-1);
   }

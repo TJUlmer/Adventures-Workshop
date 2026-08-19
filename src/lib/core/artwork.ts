@@ -101,8 +101,6 @@ export interface Artwork {
   source: string | null;
   /** Original file name, so a missing source is still identifiable. */
   label: string;
-  /** Attribution, rendered in the card's fine print. */
-  credit: string;
   crop: CropRect;
   transform: ArtTransform;
   adjustments: ArtAdjustments;
@@ -116,7 +114,6 @@ export interface Artwork {
 export interface ArtworkInit {
   source?: string | null;
   label?: string;
-  credit?: string;
   crop?: Partial<CropRect>;
   transform?: Partial<ArtTransform>;
   adjustments?: Partial<ArtAdjustments>;
@@ -127,7 +124,6 @@ export function createArtwork(init: ArtworkInit = {}): Artwork {
   return {
     source: null,
     label: '',
-    credit: '',
     ...init,
     crop: { ...FULL_CROP, ...init.crop },
     transform: { ...DEFAULT_TRANSFORM, ...init.transform },

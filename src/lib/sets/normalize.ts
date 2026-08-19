@@ -148,7 +148,6 @@ function artwork(value: unknown): Artwork {
   return createArtwork({
     source: typeof raw['source'] === 'string' ? raw['source'] : null,
     label: str(raw['label']),
-    credit: str(raw['credit']),
     crop: asRecord(raw['crop']),
     transform: asRecord(raw['transform']),
     adjustments: asRecord(raw['adjustments']),

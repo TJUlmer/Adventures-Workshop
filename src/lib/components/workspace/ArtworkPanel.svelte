@@ -14,7 +14,7 @@
   import { CardArt } from '$lib/renderer';
   import type { EntityRef, StyleTarget } from '$lib/state/workshop.svelte';
   import { workshop } from '$lib/state/workshop.svelte';
-  import { Button, FillEditor, Icon, Slider, Switch, TextInput } from '$lib/ui';
+  import { Button, FillEditor, Icon, Slider, Switch } from '$lib/ui';
   import EditorSection from './EditorSection.svelte';
 
   interface Props {
@@ -389,52 +389,48 @@
       />
     {/if}
 
-    <div class="masks" role="group" aria-label="Edge mask">
-      {#each MASKS as option (option.value)}
-        <button
-          type="button"
-          class="mask-option"
-          class:selected={artwork.effects.mask === option.value}
-          onclick={() => workshop.setEffects(target, { mask: option.value })}
-        >
-          <span class="mask-preview" data-mask={option.value}></span>
-          {option.label}
-        </button>
-      {/each}
-    </div>
+    <div class="edge-layout">
+      <div class="masks" role="group" aria-label="Edge mask">
+        {#each MASKS as option (option.value)}
+          <button
+            type="button"
+            class="mask-option"
+            class:selected={artwork.effects.mask === option.value}
+            onclick={() => workshop.setEffects(target, { mask: option.value })}
+          >
+            <span class="mask-preview" data-mask={option.value}></span>
+            {option.label}
+          </button>
+        {/each}
+      </div>
 
-    <div class="grid">
       {#if artwork.effects.mask !== 'none'}
-        <Slider
-          label="Mask strength"
-          value={artwork.effects.maskStrength}
-          min={0}
-          max={1}
-          step={0.01}
-          neutral={0.6}
-          format={pct}
-          onchange={(maskStrength) => workshop.setEffects(target, { maskStrength })}
-        />
+        <div class="edge-sliders">
+          <Slider
+            label="Mask strength"
+            value={artwork.effects.maskStrength}
+            min={0}
+            max={1}
+            step={0.01}
+            neutral={0.6}
+            format={pct}
+            onchange={(maskStrength) => workshop.setEffects(target, { maskStrength })}
+          />
+          {#if artwork.effects.mask === 'vignette'}
+            <Slider
+              label="Vignette"
+              value={artwork.effects.vignette}
+              min={0}
+              max={1}
+              step={0.01}
+              neutral={0}
+              format={pct}
+              onchange={(vignette) => workshop.setEffects(target, { vignette })}
+            />
+          {/if}
+        </div>
       {/if}
-      <Slider
-        label="Vignette"
-        value={artwork.effects.vignette}
-        min={0}
-        max={1}
-        step={0.01}
-        neutral={0}
-        format={pct}
-        onchange={(vignette) => workshop.setEffects(target, { vignette })}
-      />
     </div>
-  </EditorSection>
-
-  <EditorSection title="Credit">
-    <TextInput
-      value={artwork.credit}
-      placeholder="Artist or source"
-      oninput={(event) => workshop.setArtworkCredit(target, event.currentTarget.value)}
-    />
   </EditorSection>
 {/if}
 
@@ -540,14 +536,38 @@
 
   .grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(150px, 200px));
     gap: var(--space-3) var(--space-5);
+  }
+
+  /* The mask choice sits to the left of its own sliders rather than above
+     them, so picking a mask and adjusting it read as one control, not two
+     stacked ones. */
+  .edge-layout {
+    display: flex;
+    gap: var(--space-5);
+    align-items: flex-start;
+  }
+
+  @container workspace (max-width: 480px) {
+    .edge-layout {
+      flex-direction: column;
+    }
   }
 
   .masks {
     display: flex;
-    flex-wrap: wrap;
+    flex-direction: column;
+    flex: 0 0 150px;
     gap: var(--space-2);
+  }
+
+  .edge-sliders {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    flex: 1 1 auto;
+    min-width: 0;
   }
 
   .mask-option {

@@ -165,26 +165,33 @@
           A scheme card has no value at all — that is what the symbol means —
           so the control goes rather than sitting at nought or disabled. The
           card keeps whatever it last held, so switching back restores it.
+          Boost keeps its own explicit column so losing Value doesn't shift
+          it left — an unplaced lone item would otherwise auto-flow into the
+          first track.
         -->
         {#if !isScheme}
-          <ValueControl
-            label="Value"
-            symbol={CARD_SYMBOLS[card.symbol ?? 'attack']}
-            value={card.symbolValue}
-            defaultValue={2}
-            max={9}
-            onchange={(value) => edit((target) => (target.symbolValue = value))}
-          />
+          <div class="value-slot">
+            <ValueControl
+              label="Value"
+              symbol={CARD_SYMBOLS[card.symbol ?? 'attack']}
+              value={card.symbolValue}
+              defaultValue={2}
+              max={9}
+              onchange={(value) => edit((target) => (target.symbolValue = value))}
+            />
+          </div>
         {/if}
 
-        <ValueControl
-          label="Boost"
-          value={card.boost}
-          defaultValue={1}
-          min={1}
-          max={9}
-          onchange={(boost) => edit((target) => (target.boost = boost))}
-        />
+        <div class="boost-slot">
+          <ValueControl
+            label="Boost"
+            value={card.boost}
+            defaultValue={1}
+            min={1}
+            max={9}
+            onchange={(boost) => edit((target) => (target.boost = boost))}
+          />
+        </div>
       </div>
     {/key}
 
@@ -302,14 +309,36 @@
 <style>
   .values {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+    grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: var(--space-2);
   }
 
   .hero-combat {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: var(--space-2);
     margin-bottom: var(--space-3);
+  }
+
+  /* Boost keeps this column even when Value isn't rendered (a scheme card),
+     so it never shifts left into Value's spot. */
+  .value-slot {
+    grid-column: 1;
+  }
+
+  .boost-slot {
+    grid-column: 2;
+  }
+
+  @container workspace (max-width: 480px) {
+    .values,
+    .hero-combat {
+      grid-template-columns: minmax(0, 1fr);
+    }
+
+    .value-slot,
+    .boost-slot {
+      grid-column: auto;
+    }
   }
 </style>

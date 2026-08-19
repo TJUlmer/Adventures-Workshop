@@ -765,13 +765,6 @@ export class WorkshopStore {
     this.touch();
   }
 
-  setArtworkCredit(ref: EntityRef, credit: string): void {
-    const artwork = this.artworkFor(ref);
-    if (!artwork) return;
-    artwork.credit = credit;
-    this.touch();
-  }
-
   setCrop(ref: EntityRef, patch: Partial<CropRect>): void {
     const artwork = this.artworkFor(ref);
     if (!artwork) return;

@@ -19,7 +19,6 @@
   import { CHARACTER_ROLE_META, SELECTABLE_ROLES } from '$lib/characters/types';
   import type { DeckId, DeckKind } from '$lib/decks/types';
   import { DECK_KIND_META, DECK_KINDS } from '$lib/decks/types';
-  import { hasArtwork } from '$lib/core/artwork';
   import { characterEditorView } from '$lib/state/character-editor-view.svelte';
   import { workshop } from '$lib/state/workshop.svelte';
   import {
@@ -46,11 +45,6 @@
     value: type,
     label: ATTACK_TYPE_LABELS[type]
   }));
-
-  const ABILITY_KIND_OPTIONS = [
-    { value: 'passive' as const, label: 'Passive' },
-    { value: 'triggered' as const, label: 'Triggered' }
-  ];
 
   function addAbilityTo(abilities: CharacterAbility[]): void {
     abilities.push(createCharacterAbility());
@@ -99,16 +93,6 @@
 
   function setRole(role: CharacterRole): void {
     if (character) character.role = role;
-  }
-
-  /**
-   * Whether a finished image stands in for this sheet, so there is nothing
-   * left to compose. `CharacterCardPanel` hides its own contents on the same
-   * condition; this is for the heading around it, which lives out here.
-   * Named as `CardEditor`'s `replacedEntirely` is, for the same state.
-   */
-  function sheetReplaced(design: CharacterCardDesign): boolean {
-    return design.useReplacement && hasArtwork(design.replacement);
   }
 
   function setDeckKind(deckId: DeckId, kind: string): void {
@@ -211,14 +195,13 @@
   onAdd: () => void,
   onRemove: (index: number) => void
 )}
-  <div class="ability-block">
-    <div class="ability-block-head">
-      <span class="ability-block-label">Special ability</span>
+  <Section title="Special ability" description="Prints on the character card, below the sidekick or quote panel.">
+    {#snippet actions()}
       <Button size="sm" variant="ghost" onclick={onAdd}>
         <Icon name="plus" size={13} />
         Add ability
       </Button>
-    </div>
+    {/snippet}
 
     {#if abilities.length === 0}
       <p class="hint">No abilities yet. The card prints a placeholder until one is added.</p>
@@ -228,13 +211,6 @@
           <li class="ability">
             <div class="ability-row">
               <TextInput bind:value={ability.name} placeholder="Ability name" prominent />
-              <div class="ability-kind">
-                <Select
-                  value={ability.kind}
-                  options={ABILITY_KIND_OPTIONS}
-                  onchange={(value) => (ability.kind = value)}
-                />
-              </div>
               <Button
                 size="sm"
                 variant="ghost"
@@ -257,7 +233,7 @@
         {/each}
       </ul>
     {/if}
-  </div>
+  </Section>
 {/snippet}
 
 {#snippet decksSection()}
@@ -471,29 +447,31 @@
           </Field>
         </div>
 
-        <Field label="Attack type">
-          <SegmentedControl
-            label="Attack type"
-            value={character.attackType}
-            segments={ATTACK_TYPE_OPTIONS}
-            onchange={(value) => (character.attackType = value)}
-          />
-        </Field>
+        <Section title="Combat stats" description="What this sheet's own attack row and health badge print.">
+          <div class="combat-row">
+            <Field label="Attack type">
+              <SegmentedControl
+                label="Attack type"
+                value={character.attackType}
+                segments={ATTACK_TYPE_OPTIONS}
+                onchange={(value) => (character.attackType = value)}
+              />
+            </Field>
 
-        <div class="stat-pair">
-          <Field label="Move" inline>
-            <NumberInput bind:value={character.move} min={0} max={12} />
-          </Field>
+            <Field label="Move">
+              <NumberInput bind:value={character.move} min={0} max={12} />
+            </Field>
 
-          <Field label="Starting health" inline>
-            <NumberInput
-              value={character.health ?? 0}
-              min={1}
-              max={40}
-              onchange={(value) => (character.health = value)}
-            />
-          </Field>
-        </div>
+            <Field label="Starting health">
+              <NumberInput
+                value={character.health ?? 0}
+                min={1}
+                max={40}
+                onchange={(value) => (character.health = value)}
+              />
+            </Field>
+          </div>
+        </Section>
 
         {@render abilityList(
           character.abilities,
@@ -577,20 +555,7 @@
           {/if}
         </Section>
 
-        <!--
-          The whole block goes, not just its contents, while a replacement is
-          on — an empty titled section reads as something that failed to load.
-          The guard sits here rather than inside the panel because the heading
-          is out here too.
-        -->
-        {#if !sheetReplaced(character.characterCard)}
-          <Section
-            title="Character card design"
-            description="This sheet’s border, and what fills each of its three bands — its own, independent of any other card this hero has."
-          >
-            <CharacterCardPanel characterId={character.id} design={character.characterCard} />
-          </Section>
-        {/if}
+        <CharacterCardPanel characterId={character.id} design={character.characterCard} />
       {:else if characterEditorView.tab === 'cardback'}
         {@render cardbackSection()}
       {:else if characterEditorView.tab === 'defaults'}
@@ -621,29 +586,31 @@
           </Field>
         </div>
 
-        <Field label="Attack type">
-          <SegmentedControl
-            label="Attack type"
-            value={extra.attackType}
-            segments={ATTACK_TYPE_OPTIONS}
-            onchange={(value) => (extra.attackType = value)}
-          />
-        </Field>
+        <Section title="Combat stats" description="What this sheet's own attack row and health badge print.">
+          <div class="combat-row">
+            <Field label="Attack type">
+              <SegmentedControl
+                label="Attack type"
+                value={extra.attackType}
+                segments={ATTACK_TYPE_OPTIONS}
+                onchange={(value) => (extra.attackType = value)}
+              />
+            </Field>
 
-        <div class="stat-pair">
-          <Field label="Move" inline>
-            <NumberInput bind:value={extra.move} min={0} max={12} />
-          </Field>
+            <Field label="Move">
+              <NumberInput bind:value={extra.move} min={0} max={12} />
+            </Field>
 
-          <Field label="Starting health" inline>
-            <NumberInput
-              value={extra.health ?? 0}
-              min={1}
-              max={40}
-              onchange={(value) => (extra.health = value)}
-            />
-          </Field>
-        </div>
+            <Field label="Starting health">
+              <NumberInput
+                value={extra.health ?? 0}
+                min={1}
+                max={40}
+                onchange={(value) => (extra.health = value)}
+              />
+            </Field>
+          </div>
+        </Section>
 
         {@render abilityList(
           extra.abilities,
@@ -658,14 +625,7 @@
           <TextInput bind:value={extra.quote.attribution} placeholder="Who said it" />
         </Field>
 
-        {#if !sheetReplaced(extra.characterCard)}
-          <Section
-            title="Character card design"
-            description="This sheet’s border, and what fills each of its three bands — its own, independent of any other card this hero has."
-          >
-            <CharacterCardPanel characterId={character.id} design={extra.characterCard} cardId={extra.id} />
-          </Section>
-        {/if}
+        <CharacterCardPanel characterId={character.id} design={extra.characterCard} cardId={extra.id} />
       {/if}
     {:else if characterEditorView.tab === 'cardback'}
       {@render cardbackSection()}
@@ -794,31 +754,6 @@
     min-width: 0;
   }
 
-  .ability-kind {
-    flex: 0 0 140px;
-  }
-
-  /* A card's own ability list sits inline rather than in a Section of its
-     own, so its "Add ability" action needs a header of its own to hang off. */
-  .ability-block {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-2);
-  }
-
-  .ability-block-head {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: var(--space-2);
-  }
-
-  .ability-block-label {
-    font-size: var(--text-xs);
-    font-weight: var(--weight-medium);
-    color: var(--text-default);
-  }
-
   .sidekick-fields {
     margin-top: var(--space-3);
   }
@@ -840,11 +775,24 @@
     min-width: 0;
   }
 
-  .stat-pair {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-    gap: var(--space-3);
-    margin-top: var(--space-3);
+  /*
+   * Attack type grows to fill the row; Move and Starting health sit beside
+   * it at their own compact width rather than dropping to a row of their own.
+   */
+  .combat-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    gap: var(--space-4);
+  }
+
+  .combat-row :global(.field) {
+    flex: 0 0 auto;
+  }
+
+  .combat-row :global(.field:first-child) {
+    flex: 1 1 260px;
+    min-width: 220px;
   }
 
   /*
