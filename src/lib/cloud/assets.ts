@@ -25,6 +25,10 @@
  */
 
 import { hashHex } from '$lib/core/hash';
+import { requestBlob } from './http';
+
+/** How many assets `fetchAndEmbedAssets` downloads at once. */
+const FETCH_CONCURRENCY = 6;
 
 /** A data URL found in a document, and what it decodes to. */
 export interface EmbeddedAsset {
@@ -169,4 +173,54 @@ export function collectPublishedAssets(document: unknown, prefix: string): strin
 /** Total bytes a set of assets will occupy, for showing before an upload. */
 export function totalBytes(assets: readonly EmbeddedAsset[]): number {
   return assets.reduce((sum, asset) => sum + asset.bytes.length, 0);
+}
+
+/**
+ * Re-embed every published asset in a document as a data URL, replacing the
+ * Storage references `publishSet`/`uploadAsset` left behind.
+ *
+ * Downloaded with bounded concurrency rather than one at a time: a set with a
+ * few dozen pieces of artwork was previously a few dozen sequential round
+ * trips, which is most of what made opening a shared set or a contribution
+ * feel slow. `FETCH_CONCURRENCY` workers pull from one shared cursor, so the
+ * total stays bounded whatever the document's own size.
+ *
+ * One missing picture must never cost the whole document, here exactly as it
+ * did in the sequential version: a failed fetch simply leaves that URL in
+ * place, which `hasArtwork` treats as present and shows as broken art —
+ * better than a set or an offer that refuses to open at all.
+ */
+export async function fetchAndEmbedAssets<T>(
+  document: T,
+  prefix: string,
+  onProgress?: (done: number, total: number) => void
+): Promise<T> {
+  const urls = prefix ? collectPublishedAssets(document, prefix) : [];
+  const mapping = new Map<string, string>();
+  let done = 0;
+  let cursor = 0;
+  onProgress?.(0, urls.length);
+
+  async function worker(): Promise<void> {
+    for (;;) {
+      const index = cursor++;
+      const url = urls[index];
+      if (url === undefined) return;
+      try {
+        const blob = await requestBlob(url);
+        const bytes = new Uint8Array(await blob.arrayBuffer());
+        mapping.set(url, toDataUrl(blob.type || 'application/octet-stream', bytes));
+      } catch {
+        // See doc comment above.
+      }
+      done += 1;
+      onProgress?.(done, urls.length);
+    }
+  }
+
+  await Promise.all(
+    Array.from({ length: Math.min(FETCH_CONCURRENCY, urls.length) }, () => worker())
+  );
+
+  return substituteStrings(document, mapping);
 }

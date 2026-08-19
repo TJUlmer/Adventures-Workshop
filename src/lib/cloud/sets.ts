@@ -17,10 +17,9 @@ import type { AdventureSet } from '$lib/sets/types';
 import { SET_SCHEMA_VERSION } from '$lib/sets/types';
 import {
   collectEmbeddedAssets,
-  collectPublishedAssets,
   extensionFor,
+  fetchAndEmbedAssets,
   substituteStrings,
-  toDataUrl,
   totalBytes
 } from './assets';
 import type { EmbeddedAsset } from './assets';
@@ -28,7 +27,7 @@ import { auth } from './auth.svelte';
 import { shortHash } from '$lib/core/hash';
 import { renderThumbnail } from './thumbnail';
 import { ASSET_BUCKET, cloudConfig } from './config';
-import { CloudError, endpoint, headers, request, requestBlob } from './http';
+import { CloudError, endpoint, headers, request } from './http';
 
 export type Visibility = 'private' | 'unlisted' | 'public';
 
@@ -543,28 +542,7 @@ export async function hydratePublishedSet(
     );
   }
 
-  const prefix = assetPrefix();
-  const urls = prefix ? collectPublishedAssets(row.document, prefix) : [];
-  const mapping = new Map<string, string>();
-
-  onProgress?.(0, urls.length);
-  for (const [index, url] of urls.entries()) {
-    try {
-      const blob = await requestBlob(url);
-      const bytes = new Uint8Array(await blob.arrayBuffer());
-      mapping.set(url, toDataUrl(blob.type || 'application/octet-stream', bytes));
-    } catch {
-      /*
-       * One missing picture must not cost the whole set. The URL is left in
-       * place: `hasArtwork` will treat it as present and the image will fail
-       * to load, which shows an author exactly which piece went missing —
-       * better than a set that silently arrives with blank art windows.
-       */
-    }
-    onProgress?.(index + 1, urls.length);
-  }
-
-  const document = substituteStrings(row.document, mapping);
+  const document = await fetchAndEmbedAssets(row.document, assetPrefix(), onProgress);
 
   /*
    * Back through `parseSetFile`, so a downloaded set passes the same validation

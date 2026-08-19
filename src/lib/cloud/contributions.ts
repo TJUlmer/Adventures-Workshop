@@ -12,14 +12,9 @@
  * all of it just to see that four cards changed.
  */
 import type { ChangeEntry } from '$lib/sets/contribution';
-import {
-  collectEmbeddedAssets,
-  collectPublishedAssets,
-  substituteStrings,
-  toDataUrl
-} from './assets';
+import { collectEmbeddedAssets, fetchAndEmbedAssets, substituteStrings } from './assets';
 import { auth } from './auth.svelte';
-import { CloudError, request, requestBlob } from './http';
+import { CloudError, request } from './http';
 import { assetPrefix, uploadAsset } from './sets';
 
 export type ContributionStatus = 'open' | 'accepted' | 'declined' | 'withdrawn';
@@ -172,24 +167,8 @@ export async function fetchContribution(
   const row = rows[0];
   if (!row) return null;
 
-  const prefix = assetPrefix();
-  const urls = prefix ? collectPublishedAssets(row.payload, prefix) : [];
-  const mapping = new Map<string, string>();
-
-  onProgress?.(0, urls.length);
-  for (const [index, url] of urls.entries()) {
-    try {
-      const blob = await requestBlob(url);
-      const bytes = new Uint8Array(await blob.arrayBuffer());
-      mapping.set(url, toDataUrl(blob.type || 'application/octet-stream', bytes));
-    } catch {
-      // One missing picture must not cost the whole offer. The URL is left in
-      // place, which shows the owner exactly which piece went missing.
-    }
-    onProgress?.(index + 1, urls.length);
-  }
-
-  return { ...row, payload: substituteStrings(row.payload, mapping) };
+  const payload = await fetchAndEmbedAssets(row.payload, assetPrefix(), onProgress);
+  return { ...row, payload };
 }
 
 /**
