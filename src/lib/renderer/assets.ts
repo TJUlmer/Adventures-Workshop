@@ -107,6 +107,10 @@ export const TEMPLATE_ASSETS = {
    * itself baked into either; that state still has no badge of its own in
    * the frame, and the badge shown there is a reused, transformed copy of
    * the hero's own (see `HeroCharacterCardFace.svelte`'s `healthBadgeAt`).
+   * `multi`'s own `border` also had the decorative arc (and its small
+   * accent mark) that normally frames a badge erased from it, straight out
+   * of the supplied file — a token stack stands in at that health instead,
+   * and the arc had nothing left to decorate.
    *
    * `multiHealth`'s `border` and `ink` are both derived, not supplied, from
    * `Hero_Character_Card_Template_frame_multisidekick_multihealth.png` —
