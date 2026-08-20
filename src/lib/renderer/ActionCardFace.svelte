@@ -46,6 +46,7 @@
     digitTopToBoxTop,
     DIVIDER,
     HERO_ART_WINDOW_HEIGHT,
+    HERO_BODY_PANEL_FOOT_CLEARANCE,
     HERO_BODY_PANEL_HEIGHT,
     HERO_POINT_BELOW,
     HERO_RIBBON,
@@ -309,6 +310,7 @@
     class="body"
     style:min-height={pu(isHero ? HERO_BODY_PANEL_HEIGHT : BODY_PANEL.height)}
     style:max-height={pu(BODY_PANEL_MAX_HEIGHT)}
+    style:padding-bottom={isHero ? pu(HERO_BODY_PANEL_FOOT_CLEARANCE) : undefined}
     style:background={fillCss(theme.body)}
   >
     {#if theme.pattern.name}
@@ -1156,6 +1158,19 @@
    * height would have to already know how many lines the title wrapped to.
    */
   .title {
+    /*
+     * A flex item with no explicit `position` still paints above an absolute
+     * sibling with `z-index: auto` in an ordinary document — flexbox gives
+     * `z-index: auto` items the same stacking as `position: relative` for
+     * exactly this reason — but that rule did not carry over into the
+     * `foreignObject` this face gets cloned into for rasterising (see
+     * `card-image.ts`), where `.pattern`/`.custom-pattern` painted over this,
+     * the rule and the ability copy below it instead. Pinning the stacking
+     * explicitly, the same three lines on all three, is what makes the
+     * screen preview and the export agree.
+     */
+    position: relative;
+    z-index: 1;
     display: -webkit-box;
     font-family: var(--card-font-name);
     font-weight: var(--card-font-name-weight);
@@ -1170,6 +1185,9 @@
 
   /* Now a flow sibling of `.title`, so it rides down when the title wraps. */
   .rule {
+    /* See `.title`'s own comment — same reason, same fix. */
+    position: relative;
+    z-index: 1;
     flex: none;
   }
 
@@ -1181,7 +1199,9 @@
    * rely on, so it can still shrink if the panel runs out of room.
    */
   .below-title {
+    /* See `.title`'s own comment — same reason, same fix. */
     position: relative;
+    z-index: 1;
     flex: 0 1 auto;
     display: flex;
     flex-direction: column;

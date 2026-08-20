@@ -28,7 +28,8 @@
   import type { Card } from '$lib/cards/types';
   import { CARD_TYPE_META } from '$lib/cards/types';
   import { hasArtwork } from '$lib/core/artwork';
-  import { resolveStyleForCard, styleOriginForCard } from '$lib/sets/queries';
+  import { ART_WINDOW, HERO_ART_WINDOW_HEIGHT } from '$lib/renderer/geometry';
+  import { characterForCard, resolveStyleForCard, styleOriginForCard } from '$lib/sets/queries';
   import { workshop } from '$lib/state/workshop.svelte';
   import { Button, Field, FillEditor, Icon, Section, Select, Tabs } from '$lib/ui';
   import ActionCardContent from './ActionCardContent.svelte';
@@ -54,6 +55,18 @@
 
   /** Read from the store rather than taken as a prop — see Workspace.svelte. */
   const card = $derived(workshop.selectedCard);
+
+  /**
+   * A hero's action card keeps its art window a different height than a
+   * villain's or a minion's — the divider sits lower, at `HERO_DIVIDER_Y`
+   * rather than `DIVIDER.y` (see `ActionCardFace`'s own `isHero` branch) — so
+   * the Placement drag preview needs its own aspect ratio to match, rather
+   * than `ArtworkPanel`'s default (`ART_WINDOW`'s own 1346×1061, correct only
+   * for the shorter, non-hero window).
+   */
+  const isHeroCard = $derived(
+    card?.type === 'action' && characterForCard(workshop.adventure, card)?.role === 'hero'
+  );
 
   let tab = $state<Tab>('content');
 
@@ -238,6 +251,7 @@
               styleTarget={{ entity: 'card', id: card.id }}
               resolved={resolvedTheme}
               bedOrigin={originFor('artBackground')}
+              aspect={isHeroCard ? ART_WINDOW.width / HERO_ART_WINDOW_HEIGHT : undefined}
             />
           </Section>
         {:else if card.type === 'event'}

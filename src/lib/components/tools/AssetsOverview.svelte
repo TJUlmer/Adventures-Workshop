@@ -18,7 +18,7 @@
   import type { Card } from '$lib/cards/types';
   import { CARD_TYPE_META, INITIATIVE_VARIANTS } from '$lib/cards/types';
   import { characterLabel } from '$lib/characters/factory';
-  import type { Character, CharacterRole } from '$lib/characters/types';
+  import type { Character, CharacterRole, HeroCharacterCard } from '$lib/characters/types';
   import { hasArtwork } from '$lib/core/artwork';
   import type { Deck, DeckKind } from '$lib/decks/types';
   import { tokenTextureUrl } from '$lib/export/token-model';
@@ -190,6 +190,39 @@
     return out;
   });
 
+  interface CharacterCardTile {
+    key: string;
+    character: Character;
+    /** `null` draws the primary identity; set, one of `additionalCards`. */
+    entry: HeroCharacterCard | null;
+    name: string;
+  }
+
+  /**
+   * One tile per printed character-card sheet — the primary identity, plus
+   * one per "+1 character card" — heroes only, since the sheet is a hero-only
+   * feature (see `HeroCharacterCardFace`). Character cards render through
+   * `CardRenderer`'s own `statCard`/`statCardEntry`, not through `set.cards`,
+   * so `groups` above never sees them; this is the same gap `Deck backs`
+   * already existed to fill for cardbacks.
+   */
+  const characterCardTiles = $derived.by(() => {
+    const out: CharacterCardTile[] = [];
+    for (const character of set.characters) {
+      if (character.role !== 'hero') continue;
+      out.push({ key: character.id, character, entry: null, name: characterLabel(character) });
+      for (const extra of character.additionalCards) {
+        out.push({
+          key: extra.id,
+          character,
+          entry: extra,
+          name: extra.name.trim() || 'Untitled'
+        });
+      }
+    }
+    return out;
+  });
+
   let size = $state(150);
 </script>
 
@@ -223,6 +256,41 @@
       title="Nothing to review yet"
       description="Cards, figures and the threat track all appear here once the set has some."
     />
+  {/if}
+
+  <!-- Character cards ------------------------------------------------------ -->
+  {#if characterCardTiles.length > 0}
+    <section class="group">
+      <h2 class="group-title">
+        Character cards
+        <span class="group-count numeric">{characterCardTiles.length}</span>
+      </h2>
+
+      <div class="gallery" style:--tile="{size}px">
+        {#each characterCardTiles as tileEntry (tileEntry.key)}
+          <figure class="tile">
+            <svelte:element
+              this={tile}
+              class="tile-card"
+              type={interactive ? 'button' : undefined}
+              role={interactive ? 'button' : undefined}
+              onclick={interactive ? () => workshop.selectCharacter(tileEntry.character.id) : undefined}
+            >
+              <CardRenderer
+                card={null}
+                statCard={tileEntry.character}
+                statCardEntry={tileEntry.entry}
+                customSymbols={set.customSymbols}
+              />
+            </svelte:element>
+            <figcaption class="tile-caption">
+              <span class="tile-name">{tileEntry.name}</span>
+              <span class="tile-meta">Character card</span>
+            </figcaption>
+          </figure>
+        {/each}
+      </div>
+    </section>
   {/if}
 
   <!-- Decks -------------------------------------------------------------- -->

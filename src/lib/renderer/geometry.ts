@@ -839,6 +839,24 @@ export const HERO_BODY_PANEL_HEIGHT =
   INTERIOR.y + INTERIOR.height - (HERO_DIVIDER_Y + DIVIDER.height);
 
 /**
+ * How much of the hero body panel's own foot its content has to leave clear
+ * of OWNER_LINE.
+ *
+ * `.stack` is `bottom: 0` against the interior, always — `HERO_BODY_PANEL_HEIGHT`
+ * only floors how far the panel may *shrink*, so a card with enough copy to
+ * fill it regardless reaches the interior's own bottom (2080) no matter what
+ * that floor is set to. Nothing about the hero frame keeps content off that
+ * corner the way a villain's does: that frame sweeps its own bottom right
+ * corner out to clear the printed count; the hero frame's corner takes the
+ * same radius as its other three (see `HERO_RIBBON`'s own doc comment). This
+ * is `padding-bottom` on `.body` instead — measured live, with the panel
+ * grown to its maximum by a long enough ability: reaching all the way to
+ * 2080 printed the body copy 83 bleed px into OWNER_LINE's own text, so 95
+ * clears that with a further margin past it, not just past zero.
+ */
+export const HERO_BODY_PANEL_FOOT_CLEARANCE = 95;
+
+/**
  * And the art window reaches down to meet it.
  *
  * Not optional: the window is a fixed height rather than "whatever is left",

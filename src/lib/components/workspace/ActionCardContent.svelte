@@ -112,17 +112,28 @@
 
 <!-- What the card is called and where it lives: four short fields, two by two. -->
 <Section title="Card" columns={2}>
-  <Field label={isHero ? 'Name override' : 'Name on the ribbon'}>
-    <TextInput
-      bind:value={card.name}
-      placeholder={isHero ? 'Leave blank to use the hero’s own name' : 'Villain name'}
-      prominent
-    />
-  </Field>
+  {#if isHero}
+    <!--
+      Card title first and prominent, ahead of Name override — the title is
+      what prints and what an author actually fills in; the override is the
+      edge case, blank on nearly every card (see its own placeholder).
+    -->
+    <Field label="Card title">
+      <TextInput bind:value={card.title} placeholder="Card title" prominent />
+    </Field>
 
-  <Field label="Card title">
-    <TextInput bind:value={card.title} placeholder="Card title" />
-  </Field>
+    <Field label="Name override">
+      <TextInput bind:value={card.name} placeholder="Leave blank to use the hero’s own name" />
+    </Field>
+  {:else}
+    <Field label="Name on the ribbon">
+      <TextInput bind:value={card.name} placeholder="Villain name" prominent />
+    </Field>
+
+    <Field label="Card title">
+      <TextInput bind:value={card.title} placeholder="Card title" />
+    </Field>
+  {/if}
 
   <Field label="Copies in deck">
     <NumberInput bind:value={card.quantity} min={1} max={20} />
