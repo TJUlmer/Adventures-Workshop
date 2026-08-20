@@ -39,7 +39,16 @@
 
   type Mode = 'place' | 'link' | 'move' | 'text';
   let mode = $state<Mode>('place');
+  /** The space the detail editor shows — always a member of `colorSelection` while it is non-empty. */
   let selected = $state<MapSpaceId | null>(null);
+  /**
+   * Every space a "Quick colour" swatch would paint. Kept in sync with
+   * `selected` rather than derived from it, so more than one space can be
+   * selected for colouring at once (see `selectSpace`) while the detail
+   * editor below — label, connections, split, zone swatches — still only
+   * ever has to make sense for the single space `selected` names.
+   */
+  let colorSelection = $state<Set<MapSpaceId>>(new Set());
   let linkFrom = $state<MapSpaceId | null>(null);
   let dragging = $state<MapSpaceId | null>(null);
   let board = $state<HTMLDivElement | null>(null);
@@ -141,6 +150,57 @@
   const selectedSpace = $derived(findSpace(map, selected));
 
   /**
+   * Select one space, or fold it into the running colour-selection.
+   *
+   * A plain click always means "just this one" — it replaces
+   * `colorSelection` outright, the same as it always implicitly did before
+   * there was a `colorSelection` to speak of. `additive` (a shift-click)
+   * toggles membership instead: added spaces become `selected` too, so the
+   * detail editor follows whichever was picked last; removing the space
+   * that was `selected` hands the editor to another member of what is left,
+   * or empties it out once none remain.
+   */
+  function selectSpace(id: MapSpaceId, additive: boolean): void {
+    if (!additive) {
+      selected = id;
+      colorSelection = new Set([id]);
+      return;
+    }
+    const next = new Set(colorSelection);
+    if (next.delete(id)) {
+      if (selected === id) {
+        const [remaining] = next;
+        selected = remaining ?? null;
+      }
+    } else {
+      next.add(id);
+      selected = id;
+    }
+    colorSelection = next;
+  }
+
+  function clearSelection(): void {
+    selected = null;
+    colorSelection = new Set();
+  }
+
+  /**
+   * Colour every zone of every space in `ids` the same picked colour — "the
+   * space's colour" as a whole, whatever it is currently split into, not
+   * just its first wedge.
+   */
+  function applyColorToSpaces(color: string, ids: Iterable<MapSpaceId>): void {
+    const idSet = new Set(ids);
+    if (idSet.size === 0) return;
+    workshop.editMap((m) => {
+      for (const space of m.spaces) {
+        if (!idSet.has(space.id)) continue;
+        space.zones = space.zones.map(() => solid(color));
+      }
+    });
+  }
+
+  /**
    * Pointer position in the model's own units.
    *
    * Both axes divide by the board's **width**, which is not a typo — see the
@@ -177,12 +237,15 @@
 
     if (mode === 'place') {
       if (hit) {
-        selected = hit;
+        // Shift-click adds to (or drops from) the running colour selection
+        // instead of replacing it — Place is the one mode this makes sense
+        // in, since Move and Link both give a click a different meaning.
+        selectSpace(hit, event.shiftKey);
         return;
       }
       const space = createMapSpace(point.x, point.y);
       workshop.editMap((m) => m.spaces.push(space));
-      selected = space.id;
+      selectSpace(space.id, false);
       return;
     }
 
@@ -229,7 +292,7 @@
     }
 
     if (hit) {
-      selected = hit;
+      selectSpace(hit, false);
       dragging = hit;
       (event.target as Element).setPointerCapture?.(event.pointerId);
     }
@@ -262,7 +325,13 @@
       // The paths go with it, or they would draw to a space that is not there.
       m.paths = m.paths.filter((path) => path.from !== id && path.to !== id);
     });
-    selected = null;
+    // Only this one space, not the rest of `colorSelection` — deleting is
+    // still a single-space action, gated on the detail editor being open.
+    const remaining = new Set(colorSelection);
+    remaining.delete(id);
+    colorSelection = remaining;
+    const [next] = remaining;
+    selected = next ?? null;
   }
 
   /**
@@ -526,12 +595,20 @@
           >
             <MapBoard
               {map}
-              highlight={selected ? [selected] : []}
+              highlight={Array.from(colorSelection)}
               linking={mode === 'link' ? linkFrom : null}
             />
           </div>
 
+          <!--
+            Two columns rather than one long stack: "Selected space" used to
+            sit below "Board" and "Placed text" both, which on a map with a
+            few placed labels pushed its own colour picker half a screen
+            below the fold — exactly the moment it is needed most, right
+            after clicking a space.
+          -->
           <aside class="side">
+            <div class="side-col">
             <div class="block">
               <h2 class="panel-title">Board</h2>
 
@@ -663,16 +740,59 @@
                 {/each}
               {/if}
             </div>
+            </div>
 
-            <div class="block">
+            <div class="block selected-block">
               <h2 class="panel-title">Selected space</h2>
 
-              {#if selectedSpace}
-                <p class="stats">
-                  {neighbours(map, selectedSpace.id).length} connected · at
-                  {(selectedSpace.x * 100).toFixed(1)}%, {(selectedSpace.y * 100).toFixed(1)}%
+              {#if colorSelection.size === 0}
+                <!-- The block keeps its place when nothing is selected, so the
+                     board does not jump sideways every time one is. -->
+                <p class="hint">
+                  Click a space on the board to edit it. Shift-click to select more
+                  than one.
                 </p>
+              {:else}
+                {#if colorSelection.size > 1}
+                  <p class="stats">{colorSelection.size} spaces selected</p>
+                {:else if selectedSpace}
+                  <p class="stats">
+                    {neighbours(map, selectedSpace.id).length} connected · at
+                    {(selectedSpace.x * 100).toFixed(1)}%, {(selectedSpace.y * 100).toFixed(1)}%
+                  </p>
+                {/if}
 
+                {#if usedColors.length > 0}
+                  <!--
+                    Click, not drag-to-edit like the Board panel's own
+                    swatches — this one paints the selection, so a plain
+                    button rather than a colour input is both the simpler
+                    control and the one that cannot be misread as "recolour
+                    this everywhere" the way that panel's swatches actually
+                    do.
+                  -->
+                  <div class="field">
+                    <span class="field-label">
+                      {colorSelection.size > 1
+                        ? `Colour all ${colorSelection.size} spaces`
+                        : 'Colour this space'}
+                    </span>
+                    <div class="swatches">
+                      {#each usedColors as color, index (index)}
+                        <button
+                          type="button"
+                          class="swatch-apply"
+                          style:background={color}
+                          title="Set to {color}"
+                          onclick={() => applyColorToSpaces(color, colorSelection)}
+                        ></button>
+                      {/each}
+                    </div>
+                  </div>
+                {/if}
+              {/if}
+
+              {#if colorSelection.size === 1 && selectedSpace}
                 <label class="field">
                   <span class="field-label">Label</span>
                   <TextInput
@@ -808,10 +928,12 @@
                   <Icon name="trash" size={13} />
                   Delete space
                 </Button>
-              {:else}
-                <!-- The block keeps its place when nothing is selected, so the
-                     board does not jump sideways every time one is. -->
-                <p class="hint">Click a space on the board to edit it.</p>
+              {/if}
+
+              {#if colorSelection.size > 1}
+                <Button size="sm" variant="ghost" onclick={clearSelection}>
+                  Clear selection
+                </Button>
               {/if}
             </div>
           </aside>
@@ -951,28 +1073,53 @@
    * minimum is `auto`, which is the content's intrinsic size — so the board
    * would refuse to shrink below its natural width and push the side panel off
    * the page instead of sharing the room with it.
+   *
+   * The side track is two 260px columns' worth (plus the gap between them),
+   * not one — see `.side` below.
    */
   .layout {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) 260px;
+    grid-template-columns: minmax(0, 1fr) 540px;
     gap: var(--space-4);
     align-items: start;
   }
 
-  /* Under about a laptop's width the two columns stop being two columns. */
+  /* Under about a laptop's width the columns stop being columns at all. */
   @media (max-width: 900px) {
     .layout {
       grid-template-columns: minmax(0, 1fr);
     }
+
+    .side {
+      flex-direction: column;
+    }
   }
 
+  /*
+   * Two columns, not one long stack — "Board" and "Placed text" share the
+   * left one (`.side-col`), "Selected space" is the right one on its own,
+   * so its own colour swatches sit beside the map rather than below
+   * whatever "Placed text" happens to be holding that day.
+   */
   .side {
     display: flex;
-    flex-direction: column;
+    align-items: flex-start;
     gap: var(--space-4);
     /* Follows the board down a long page rather than scrolling away from it. */
     position: sticky;
     top: var(--space-4);
+  }
+
+  .side-col,
+  .selected-block {
+    width: 260px;
+    flex: none;
+  }
+
+  .side-col {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
   }
 
   .block {
@@ -1081,5 +1228,20 @@
     border: 1px solid var(--border-default);
     border-radius: var(--radius-sm);
     background: none;
+  }
+
+  /* A plain button rather than a colour input — see the note above the
+     markup that uses this for why the two must not be the same control. */
+  .swatch-apply {
+    width: 34px;
+    height: 26px;
+    padding: 0;
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+  }
+
+  .swatch-apply:hover {
+    border-color: var(--border-strong);
   }
 </style>
