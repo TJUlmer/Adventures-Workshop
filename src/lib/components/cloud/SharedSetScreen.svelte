@@ -30,7 +30,12 @@
   import AssetsOverview from '$lib/components/tools/AssetsOverview.svelte';
   import { listContributors } from '$lib/cloud/contributions';
   import type { Contributor } from '$lib/cloud/contributions';
-  import { fetchAuthorName, fetchSetBySlug, hydratePublishedSet } from '$lib/cloud/sets';
+  import {
+    fetchAuthorName,
+    fetchParentSet,
+    fetchSetBySlug,
+    hydratePublishedSet
+  } from '$lib/cloud/sets';
   import type { PublishedSetWithDocument } from '$lib/cloud/sets';
   import { cloudEnabled } from '$lib/cloud/config';
   import PrintScreen from '$lib/print/PrintScreen.svelte';
@@ -86,11 +91,28 @@
   let forked = $state<string | null>(null);
   let forking = $state(false);
 
+  /**
+   * The whole set this one was sliced out of, for a hero- or villain-scoped
+   * publish.
+   *
+   * A scoped row keeps the same `local_id` as its master (`sets/scope.ts`), so
+   * the box is simply the `full` row beside it — nothing here is recorded at
+   * publish time and nothing can go stale. Null both for a set that *is* the
+   * whole thing and for one whose box was never published publicly, and the
+   * two are deliberately not distinguished: either way there is nowhere to go.
+   *
+   * The subtitle already reads "From {the box}", so this is not new
+   * information — it is the same fact made clickable, which is the whole of
+   * what was missing.
+   */
+  let parent = $state<{ slug: string; name: string } | null>(null);
+
   $effect(() => {
     const wanted = slug;
     loading = true;
     error = null;
     forked = null;
+    parent = null;
 
     void (async () => {
       try {
@@ -107,6 +129,12 @@
         // button, and nothing on the page should wait on a display name.
         void fetchAuthorName(found.owner_id).then((name) => (authorName = name));
         void listContributors(found.id).then((people) => (contributors = people));
+        /* Only a slice has a box to go back to, and like the credit above this
+           is fired off rather than awaited — a navigation aid must not hold up
+           the set it sits over. */
+        if (found.scope !== 'full') {
+          void fetchParentSet(found.owner_id, found.local_id).then((box) => (parent = box));
+        }
         set = await hydratePublishedSet(found, (done, total) => {
           progress = total > 0 ? `Fetching artwork ${done} of ${total}…` : null;
         });
@@ -153,6 +181,21 @@
         <span class="eyebrow">Shared adventure set</span>
         <h1 class="title">{set?.name ?? row?.name ?? 'Opening…'}</h1>
         {#if set?.subtitle}<p class="subtitle">{set.subtitle}</p>{/if}
+
+        <!--
+          The box this slice came out of. Sits directly under the subtitle
+          because that is the line that already names it — "From Forgotten
+          Pantheons" as prose, then the same thing as somewhere to go.
+        -->
+        {#if parent}
+          <!-- Bound through `@const`, because the `{#if}` cannot narrow a
+               reactive read for a callback that runs long after it. -->
+          {@const box = parent}
+          <button type="button" class="parent-link" onclick={() => navigation.openShared(box.slug)}>
+            <Icon name="layers" size={13} />
+            Open {box.name}
+          </button>
+        {/if}
 
         {#if set}
           <p class="stats">
@@ -330,6 +373,34 @@
 
   .stats {
     font-size: var(--text-xs);
+  }
+
+  /*
+   * `align-self: start` because `.titles` is a column flex container, and a
+   * button in one stretches to the column's full width by default — which put
+   * a full-bleed bar across the header for a two-word link.
+   */
+  .parent-link {
+    display: flex;
+    align-self: start;
+    align-items: center;
+    gap: var(--space-2);
+    margin-top: var(--space-2);
+    padding: var(--space-1) var(--space-3);
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-full);
+    background: transparent;
+    color: var(--text-muted);
+    font-size: var(--text-xs);
+    cursor: pointer;
+    transition:
+      border-color var(--duration-fast) var(--ease-out),
+      color var(--duration-fast) var(--ease-out);
+  }
+
+  .parent-link:hover {
+    border-color: var(--accent);
+    color: var(--text-default);
   }
 
   .credit {

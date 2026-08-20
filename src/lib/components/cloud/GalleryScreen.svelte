@@ -9,24 +9,53 @@
    * A tile opens the set the same way a share link does: through
    * `#/shared/<slug>`, which already knows how to fetch, hydrate, preview and
    * adopt one. There is no second path into a published set, so there is no
-   * second path to keep correct.
+   * second path to keep correct — and that holds for a character tile too,
+   * which opens the *listing* that character can be read in rather than
+   * inventing a per-character page with nothing behind it.
+   *
+   * **Two things are being browsed here, not one.** A set is a box someone
+   * published; a character is a person inside one. They are different
+   * questions ("what boxes are there" against "who is there to play"), they
+   * want different filters, and a hero published inside a box is invisible to
+   * the first question — which is exactly what the character mode exists to
+   * fix. The toggle is the honest way to say that; folding characters into the
+   * set grid would mean a tile that is sometimes a box and sometimes a person.
    */
   import { cloudEnabled } from '$lib/cloud/config';
-  import { listPublicSets } from '$lib/cloud/sets';
-  import type { GallerySet, GalleryQuery } from '$lib/cloud/sets';
+  import { listPublicCharacters, listPublicSets } from '$lib/cloud/sets';
+  import type {
+    GalleryCharacter,
+    GallerySet,
+    GallerySort,
+    ScopeFilter
+  } from '$lib/cloud/sets';
+  import { CHARACTER_ROLE_META, SELECTABLE_ROLES } from '$lib/characters/types';
+  import type { CharacterRole } from '$lib/characters/types';
   import { navigation } from '$lib/state/navigation.svelte';
-  import { Button, Icon, Select } from '$lib/ui';
+  import { Button, Icon, SegmentedControl, Select } from '$lib/ui';
 
   const PAGE = 36;
 
+  type Mode = 'sets' | 'characters';
+
+  let mode = $state<Mode>('sets');
   let sets = $state<GallerySet[]>([]);
+  let characters = $state<GalleryCharacter[]>([]);
   let loading = $state(true);
   let error = $state<string | null>(null);
   let search = $state('');
-  let sort = $state<'newest' | 'popular' | 'name'>('newest');
+  let sort = $state<GallerySort>('newest');
+  let scope = $state<ScopeFilter>('all');
+  /** `''` for every role. A `CharacterRole` otherwise. */
+  let role = $state<'' | CharacterRole>('');
   let offset = $state(0);
   /** Whether the last page came back full, which is the only "more" signal. */
   let maybeMore = $state(false);
+
+  const MODES = [
+    { value: 'sets' as const, label: 'Sets' },
+    { value: 'characters' as const, label: 'Characters' }
+  ];
 
   const SORTS = [
     { value: 'newest' as const, label: 'Newest' },
@@ -34,15 +63,65 @@
     { value: 'name' as const, label: 'Name' }
   ];
 
-  async function load(query: GalleryQuery, append = false): Promise<void> {
+  /*
+   * Named for what the *row* is, not for what is in it. "Heroes" would be the
+   * obvious label and it is the wrong one — in this list it means "rows
+   * published as one hero on their own", while the identical word in the role
+   * filter beside it means "characters whose role is hero". Two filters, one
+   * word, two answers is the kind of thing nobody debugs; they just stop
+   * trusting the control.
+   */
+  const SCOPES = [
+    { value: 'all' as const, label: 'Every listing' },
+    { value: 'full' as const, label: 'Whole sets' },
+    { value: 'hero' as const, label: 'Single heroes' },
+    { value: 'villain' as const, label: 'Villain sides' }
+  ];
+
+  const ROLES = [
+    { value: '' as const, label: 'Every role' },
+    ...SELECTABLE_ROLES.map((value) => ({
+      value,
+      label: CHARACTER_ROLE_META[value].plural
+    }))
+  ];
+
+  /** Everything the two listings are filtered by, as one value. */
+  interface Query {
+    mode: Mode;
+    search: string;
+    sort: GallerySort;
+    scope: ScopeFilter;
+    role: '' | CharacterRole;
+    offset: number;
+  }
+
+  async function load(query: Query, append = false): Promise<void> {
     loading = true;
     error = null;
     try {
-      const page = await listPublicSets({ ...query, limit: PAGE });
-      sets = append ? [...sets, ...page] : page;
-      /* A full page *might* mean more; a short one definitely means the end.
-         Counting exactly would cost a second query for a button's label. */
-      maybeMore = page.length === PAGE;
+      const { search: term, sort: order, offset: skip } = query;
+      if (query.mode === 'sets') {
+        const page = await listPublicSets({
+          search: term,
+          sort: order,
+          scope: query.scope,
+          limit: PAGE,
+          offset: skip
+        });
+        sets = append ? [...sets, ...page] : page;
+        maybeMore = page.length === PAGE;
+      } else {
+        const page = await listPublicCharacters({
+          search: term,
+          sort: order,
+          role: query.role,
+          limit: PAGE,
+          offset: skip
+        });
+        characters = append ? [...characters, ...page] : page;
+        maybeMore = page.length === PAGE;
+      }
     } catch (cause) {
       error = cause instanceof Error ? cause.message : 'Could not load the gallery.';
     } finally {
@@ -54,10 +133,15 @@
    * Debounced, because this runs on every keystroke in the search box and each
    * run is a request. 250ms is below the point a search feels laggy and above
    * the point a fast typist sends one query per letter.
+   *
+   * The whole query is built *outside* the timeout, which is what makes the
+   * effect depend on every control rather than only on whichever ones happened
+   * to be read before the first `await`. A filter read inside the callback
+   * would not be tracked, and the list would quietly stop responding to it.
    */
   let timer: ReturnType<typeof setTimeout> | undefined;
   $effect(() => {
-    const query = { search, sort };
+    const query: Query = { mode, search, sort, scope, role, offset: 0 };
     clearTimeout(timer);
     timer = setTimeout(() => {
       offset = 0;
@@ -68,10 +152,47 @@
 
   function more(): void {
     offset += PAGE;
-    void load({ search, sort, offset }, true);
+    void load({ mode, search, sort, scope, role, offset }, true);
   }
 
-  /** A stable colour per set, for the tile with no picture. */
+  /**
+   * The picture for a set tile.
+   *
+   * `cover_url` is the fallback the database derives from the document itself
+   * — see `0007_gallery_browse.sql`. It is there because most sets published
+   * with no thumbnail at all: the thumbnail was only ever looked for on the
+   * box or a character's portrait, and authors put their pictures on cards.
+   * Both ends are fixed now, but a fixed `renderThumbnail` only reaches sets
+   * published after it, and this reaches the ones already up there.
+   */
+  function setImage(set: GallerySet): string {
+    return set.thumbnail_url || set.cover_url;
+  }
+
+  function characterImage(character: GalleryCharacter): string {
+    return character.image_url || character.thumbnail_url || character.cover_url;
+  }
+
+  function roleLabel(value: string): string {
+    return value in CHARACTER_ROLE_META
+      ? CHARACTER_ROLE_META[value as CharacterRole].label
+      : value;
+  }
+
+  /**
+   * The box a character belongs to, when that is a *different* listing.
+   *
+   * The view reports the parent honestly, which for a character reached
+   * through their own box means the parent is the listing itself — so the
+   * check is here rather than in SQL. Without it every tile would carry a
+   * link back to the page it is already on.
+   */
+  function parentOf(character: GalleryCharacter): { slug: string; name: string } | null {
+    if (!character.parent_slug || character.parent_slug === character.slug) return null;
+    return { slug: character.parent_slug, name: character.parent_name ?? 'its set' };
+  }
+
+  /** A stable colour per tile, for one with no picture. */
   function tint(seed: string): string {
     let hash = 0;
     for (let index = 0; index < seed.length; index += 1) {
@@ -88,6 +209,28 @@
       .map((word) => word[0]?.toUpperCase() ?? '')
       .join('');
   }
+
+  const empty = $derived(mode === 'sets' ? sets.length === 0 : characters.length === 0);
+
+  /**
+   * Why the grid is empty — and the distinction is the whole point of writing
+   * this out. "No sets have been published yet" is *false* when five of them
+   * have and the filter is set to villain sides, and a reader who believes it
+   * stops looking. An empty result caused by a control has to name the
+   * control.
+   */
+  const emptyMessage = $derived.by(() => {
+    if (search.trim()) return `Nothing matches “${search.trim()}”.`;
+    if (mode === 'characters') {
+      if (role) {
+        return `Nothing published has a ${CHARACTER_ROLE_META[role].label.toLowerCase()} in it yet.`;
+      }
+      return 'No characters have been published yet.';
+    }
+    if (scope === 'hero') return 'Nobody has published a hero on their own yet.';
+    if (scope === 'villain') return 'Nobody has published a villain side on its own yet.';
+    return 'No sets have been published yet.';
+  });
 </script>
 
 <div class="screen">
@@ -110,14 +253,29 @@
     <p class="message">Sharing is not set up in this build.</p>
   {:else}
     <div class="controls">
+      <SegmentedControl bind:value={mode} segments={MODES} label="Browse" />
+
       <input
         class="search"
         type="search"
-        placeholder="Search by name…"
+        placeholder={mode === 'sets' ? 'Search sets and characters…' : 'Search characters…'}
         bind:value={search}
         aria-label="Search the gallery"
       />
-      <label class="sort">
+
+      {#if mode === 'sets'}
+        <label class="filter">
+          <span class="field-label">Show</span>
+          <Select bind:value={scope} options={SCOPES} />
+        </label>
+      {:else}
+        <label class="filter">
+          <span class="field-label">Role</span>
+          <Select bind:value={role} options={ROLES} />
+        </label>
+      {/if}
+
+      <label class="filter">
         <span class="field-label">Sort</span>
         <Select bind:value={sort} options={SORTS} />
       </label>
@@ -125,22 +283,20 @@
 
     {#if error}
       <p class="message error" role="alert">{error}</p>
-    {:else if loading && sets.length === 0}
+    {:else if loading && empty}
       <p class="message">Loading…</p>
-    {:else if sets.length === 0}
-      <p class="message">
-        {search.trim() ? `Nothing matches “${search.trim()}”.` : 'No sets have been published yet.'}
-      </p>
-    {:else}
+    {:else if empty}
+      <p class="message">{emptyMessage}</p>
+    {:else if mode === 'sets'}
       <ul class="grid">
         {#each sets as set (set.id)}
           <li>
             <button type="button" class="tile" onclick={() => navigation.openShared(set.slug)}>
               <span class="cover" style:background={tint(set.id)}>
-                {#if set.thumbnail_url}
+                {#if setImage(set)}
                   <!-- Lazy, because a gallery page is mostly pictures nobody has
                        scrolled to yet. -->
-                  <img src={set.thumbnail_url} alt="" loading="lazy" />
+                  <img src={setImage(set)} alt="" loading="lazy" />
                 {:else}
                   <span class="initials">{initials(set.name)}</span>
                 {/if}
@@ -200,14 +356,86 @@
           </li>
         {/each}
       </ul>
+    {:else}
+      <ul class="grid">
+        {#each characters as character (character.set_id + character.character_id)}
+          {@const parent = parentOf(character)}
+          <li>
+            <!--
+              The link to the parent set is its own control, so it sits *beside*
+              the tile's button rather than inside it — a button nested in a
+              button is invalid markup, and browsers resolve it by dropping one
+              of them. The wrapper is what lets both be clickable.
+            -->
+            <div class="tile-wrap">
+              <button
+                type="button"
+                class="tile"
+                onclick={() => navigation.openShared(character.slug)}
+              >
+                <span class="cover portrait" style:background={tint(character.character_id)}>
+                  {#if characterImage(character)}
+                    <img src={characterImage(character)} alt="" loading="lazy" />
+                  {:else}
+                    <span class="initials">{initials(character.name)}</span>
+                  {/if}
+                </span>
 
-      {#if maybeMore}
-        <div class="more">
-          <Button onclick={more} disabled={loading}>
-            {loading ? 'Loading…' : 'Show more'}
-          </Button>
-        </div>
-      {/if}
+                <span class="body">
+                  <span class="name-row">
+                    <span class="name">{character.name}</span>
+                    {#if character.role}
+                      <span
+                        class="role-badge"
+                        style:--role-tint="var(--role-{character.role}, var(--text-muted))"
+                      >
+                        {roleLabel(character.role)}
+                      </span>
+                    {/if}
+                  </span>
+
+                  <!--
+                    What opening this tile actually gets you. A character
+                    published on their own opens their own listing; one that
+                    only exists inside a box opens the box, and saying which
+                    beforehand is the difference between a link and a surprise.
+                  -->
+                  <span class="subtitle">
+                    {#if character.listing_scope === 'full'}
+                      In {character.listing_name}
+                    {:else}
+                      Published on their own
+                    {/if}
+                  </span>
+
+                  {#if character.view_count > 0}
+                    <span class="stats numeric">{character.view_count} views</span>
+                  {/if}
+                </span>
+              </button>
+
+              {#if parent}
+                <button
+                  type="button"
+                  class="parent-link"
+                  onclick={() => navigation.openShared(parent.slug)}
+                >
+                  <Icon name="layers" size={12} />
+                  Part of {parent.name}
+                </button>
+              {/if}
+            </div>
+          </li>
+        {/each}
+      </ul>
+    {/if}
+
+    {#if !error && !empty && maybeMore}
+      <div class="more">
+        <Button onclick={more} disabled={loading}>
+          {loading ? 'Loading…' : 'Show more'}
+        </Button>
+      </div>
     {/if}
   {/if}
 </div>
@@ -272,10 +500,12 @@
     font-size: var(--text-sm);
   }
 
-  .sort {
+  .filter {
     display: flex;
     flex-direction: column;
     gap: var(--space-2);
+    /* Wide enough for "Villain sides" without the select clipping it. */
+    min-width: 150px;
   }
 
   /*
@@ -292,10 +522,21 @@
     list-style: none;
   }
 
+  /*
+   * Stretch, so a tile with a parent link is the same height as one without
+   * and the grid rows stay level. `height: 100%` on the tile does the rest.
+   */
+  .tile-wrap {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+  }
+
   .tile {
     display: flex;
     flex-direction: column;
     width: 100%;
+    height: 100%;
     padding: 0;
     overflow: hidden;
     border: 1px solid var(--border-default);
@@ -316,6 +557,15 @@
     place-items: center;
     aspect-ratio: 4 / 3;
     overflow: hidden;
+  }
+
+  /*
+   * A character is a person, and a card's artwork is drawn upright — 4:3
+   * crops the top off a face. Taller, and the same ratio the card art itself
+   * is composed at.
+   */
+  .portrait {
+    aspect-ratio: 3 / 4;
   }
 
   .cover img {
@@ -352,7 +602,8 @@
     overflow-wrap: anywhere;
   }
 
-  .scope-badge {
+  .scope-badge,
+  .role-badge {
     flex: none;
     padding: 1px var(--space-2);
     border-radius: var(--radius-full);
@@ -362,6 +613,12 @@
     color: var(--text-muted);
     text-transform: uppercase;
     letter-spacing: var(--tracking-wide);
+  }
+
+  /* The roster's own colours, so a hero reads as a hero here too. */
+  .role-badge {
+    border-color: var(--role-tint);
+    color: var(--role-tint);
   }
 
   .subtitle,
@@ -387,6 +644,30 @@
 
   .author {
     font-size: var(--text-xs);
+    color: var(--text-default);
+  }
+
+  .parent-link {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    width: 100%;
+    margin-top: var(--space-2);
+    padding: var(--space-2) var(--space-3);
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-sm);
+    background: transparent;
+    color: var(--text-muted);
+    font-size: var(--text-xs);
+    text-align: left;
+    cursor: pointer;
+    transition:
+      border-color var(--duration-fast) var(--ease-out),
+      color var(--duration-fast) var(--ease-out);
+  }
+
+  .parent-link:hover {
+    border-color: var(--accent);
     color: var(--text-default);
   }
 

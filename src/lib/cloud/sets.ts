@@ -50,6 +50,20 @@ export interface PublishedSet {
   updated_at: string;
   /** Small cover for a gallery tile. Empty when the set has no artwork. */
   thumbnail_url: string;
+  /**
+   * A full-size picture out of the document, derived on the row by the
+   * database (`set_cover_image`, `0007_gallery_browse.sql`).
+   *
+   * Only ever read when `thumbnail_url` is empty, and it exists because that
+   * was the common case rather than the rare one: `coverArtwork` used to look
+   * for a picture only on the box or a character's portrait, and authors put
+   * theirs on cards, so most sets published with no cover at all. Both ends
+   * are fixed — but a fix in `renderThumbnail` only reaches sets published
+   * *after* it, and this reaches the ones already up there without asking
+   * their authors to re-publish. Unscaled, so it is a fallback and not a
+   * replacement; a re-publish supersedes it with a real 512px thumbnail.
+   */
+  cover_url: string;
   /** First time it went public. Null while it has never been listed. */
   published_at: string | null;
   view_count: number;
@@ -118,8 +132,8 @@ export interface PublishedSetWithDocument extends PublishedSet {
 /** Columns for a listing. Never `document` — that is the whole point of them. */
 const SUMMARY_COLUMNS =
   'id,owner_id,local_id,slug,name,subtitle,card_count,character_count,schema_version,' +
-  'revision,visibility,created_at,updated_at,thumbnail_url,published_at,view_count,change_note,' +
-  'forked_from,forked_from_revision,scope,character_id';
+  'revision,visibility,created_at,updated_at,thumbnail_url,cover_url,published_at,view_count,' +
+  'change_note,forked_from,forked_from_revision,scope,character_id';
 
 /**
  * The same, plus the author and — for a fork — the set it came from.
@@ -400,13 +414,62 @@ export async function listMyPublishedSets(): Promise<PublishedSet[]> {
   );
 }
 
+export type GallerySort = 'newest' | 'popular' | 'name';
+
+/** Which kind of listing a row is, as a filter. `all` writes no filter. */
+export type ScopeFilter = 'all' | 'full' | 'hero' | 'villain';
+
 export interface GalleryQuery {
-  /** Free text, matched against name and subtitle. */
+  /** Free text, matched against name, subtitle and every character's name. */
   search?: string;
-  sort?: 'newest' | 'popular' | 'name';
+  sort?: GallerySort;
+  /** Show only whole sets, only heroes, or only villain sides. */
+  scope?: ScopeFilter;
   limit?: number;
   /** Rows to skip, for paging. */
   offset?: number;
+}
+
+/**
+ * Free text as a `tsquery`, or `''` for a search that asks nothing.
+ *
+ * Every term becomes a **prefix** (`lou:*`), which is the whole point: this
+ * replaced an `ilike '*term*'` substring match, and the difference is exactly
+ * the bug it was reported as. A substring matches the middle of a word, so
+ * typing "d" returned "Oz A**d**venture" and typing "m" returned a hero whose
+ * subtitle is the words "Fro**m** {the box}" — both correct substring
+ * searches, neither one anything a person means. Matching word *beginnings*
+ * makes "d" find things starting with D and nothing else.
+ *
+ * Split on anything that is not a letter or a digit, which keeps the tokens
+ * safe as well as sensible: `to_tsquery` is a parser and throws on malformed
+ * input — an unbalanced quote or a bare `&` would be a failed request rather
+ * than an empty result — and a token of only letters and digits can never be
+ * malformed. Unicode-aware (`\p{L}`), so a name like Māui survives as one
+ * term rather than being cut in half.
+ */
+export function searchQuery(search: string): string {
+  return search
+    .split(/[^\p{L}\p{N}]+/u)
+    .filter(Boolean)
+    .map((term) => `${term.toLowerCase()}:*`)
+    .join(' & ');
+}
+
+/**
+ * A sort as PostgREST's `order`, shared by the set and character listings so
+ * the two cannot disagree about what "newest" means.
+ *
+ * `published_at` rather than `updated_at`, or "newest" would really mean "most
+ * recently edited" and a set could climb back to the top by having a typo
+ * fixed. `nullslast` because an unlisted row has never been published and has
+ * no date — it cannot reach either listing today, but a null sorting *first*
+ * is the kind of thing that only shows up once something does.
+ */
+function galleryOrder(sort: GallerySort, nameColumn = 'name'): string {
+  if (sort === 'popular') return 'view_count.desc,published_at.desc.nullslast';
+  if (sort === 'name') return `${nameColumn}.asc`;
+  return 'published_at.desc.nullslast';
 }
 
 /**
@@ -416,36 +479,24 @@ export interface GalleryQuery {
  * what decides, so this cannot accidentally widen what it returns. `hidden` is
  * likewise handled there: a moderated set is not something the client is
  * trusted to filter out.
- *
- * Ordered by `published_at` rather than `updated_at`, or "newest" would really
- * mean "most recently edited" and a set could climb back to the top by having a
- * typo fixed.
  */
 export async function listPublicSets(query: GalleryQuery = {}): Promise<GallerySet[]> {
-  const { search = '', sort = 'newest', limit = 36, offset = 0 } = query;
-
-  const order =
-    sort === 'popular'
-      ? 'view_count.desc,published_at.desc'
-      : sort === 'name'
-        ? 'name.asc'
-        : 'published_at.desc';
+  const { search = '', sort = 'newest', scope = 'all', limit = 36, offset = 0 } = query;
 
   const parts = [
     `select=${GALLERY_COLUMNS}`,
-    `order=${order}`,
+    `order=${galleryOrder(sort)}`,
     `limit=${limit}`,
     `offset=${offset}`
   ];
 
-  const term = search.trim();
-  if (term) {
-    /* `,` and `)` end a PostgREST filter, so a search for either would change
-       the shape of the query rather than be looked for. `*` is its wildcard and
-       has to survive, which is why this is a strip rather than an encode. */
-    const safe = term.replace(/[,()*]/g, ' ').trim();
-    if (safe) parts.push(`or=(name.ilike.*${safe}*,subtitle.ilike.*${safe}*)`);
-  }
+  /* Against `search_document`, which the database fills from name, subtitle
+     *and every character's name* — so a hero inside a box finds the box. See
+     `searchQuery` for why this is a prefix query and not a substring one. */
+  const tsquery = searchQuery(search);
+  if (tsquery) parts.push(`search_document=fts(simple).${encodeURIComponent(tsquery)}`);
+
+  if (scope !== 'all') parts.push(`scope=eq.${scope}`);
 
   /*
    * Deliberately anonymous, even for a signed-in author.
@@ -457,6 +508,134 @@ export async function listPublicSets(query: GalleryQuery = {}): Promise<GalleryS
    * gallery must do is be there.
    */
   return request<GallerySet[]>(`/rest/v1/sets?${parts.join('&')}`, { anonymous: true });
+}
+
+// -- Browsing by character ----------------------------------------------
+
+/**
+ * One published character, and the listing they can be read in.
+ *
+ * From the `gallery_characters` view, which is where the deduplication lives:
+ * a hero published both inside their box and on their own is one character
+ * with two listings, and the view picks the more specific one. See
+ * `0007_gallery_browse.sql`.
+ */
+export interface GalleryCharacter {
+  character_id: string;
+  name: string;
+  role: string;
+  /** The character's own picture, or one off their first card. May be empty. */
+  image_url: string;
+  /**
+   * The published row this character was read out of.
+   *
+   * Not a unique key on its own — a set contributes one row per character —
+   * but paired with `character_id` it is, which is what a keyed list needs.
+   */
+  set_id: string;
+  /** The published row that opening this character actually opens. */
+  slug: string;
+  listing_name: string;
+  listing_scope: 'full' | 'hero' | 'villain';
+  thumbnail_url: string;
+  cover_url: string;
+  published_at: string | null;
+  view_count: number;
+  /**
+   * The whole set this character belongs to, when it is public too.
+   *
+   * Equal to `slug`/`listing_name` for a character reached *through* their
+   * box, which is the case a caller has to check for rather than the view
+   * nulling it out — the view says what is true, and "the set this belongs
+   * to is the set you are looking at" is true.
+   */
+  parent_slug: string | null;
+  parent_name: string | null;
+}
+
+export interface CharacterQuery {
+  search?: string;
+  sort?: GallerySort;
+  /** `''` for every role. Otherwise `hero`, `villain` or `minion`. */
+  role?: string;
+  limit?: number;
+  offset?: number;
+}
+
+/**
+ * Every published character, filterable by role.
+ *
+ * The listing a set-shaped gallery could not give: a hero published inside a
+ * box is a row *of that box*, so "show me every hero" had no query behind it
+ * until `set_characters` existed. Reading a view rather than the table, for
+ * the deduplication described on `GalleryCharacter`.
+ *
+ * Searched on the character's own name only — this is a roster, and someone
+ * typing here is naming a person. The set-level search is the one that also
+ * looks at box names, and it is one toggle away.
+ *
+ * Anonymous, on the same footing as `listPublicSets` and for the same reason:
+ * a stale token empties the page for its owner while every stranger sees it
+ * fine.
+ */
+export async function listPublicCharacters(
+  query: CharacterQuery = {}
+): Promise<GalleryCharacter[]> {
+  const { search = '', sort = 'newest', role = '', limit = 36, offset = 0 } = query;
+
+  const parts = [
+    'select=*',
+    `order=${galleryOrder(sort)}`,
+    `limit=${limit}`,
+    `offset=${offset}`
+  ];
+
+  const term = search.trim();
+  if (term) {
+    /* `,` and `)` close a PostgREST filter list and `*` is its wildcard, so a
+       search containing one would change the query's shape rather than be
+       looked for. Stripped rather than escaped — there is no escape for them
+       in this syntax. Substring here, unlike the set search: a roster is a
+       short list of names and matching inside one is useful rather than
+       baffling. */
+    const safe = term.replace(/[,()*]/g, ' ').trim();
+    if (safe) parts.push(`name=ilike.*${encodeURIComponent(safe)}*`);
+  }
+
+  if (role) parts.push(`role=eq.${encodeURIComponent(role)}`);
+
+  return request<GalleryCharacter[]>(`/rest/v1/gallery_characters?${parts.join('&')}`, {
+    anonymous: true
+  });
+}
+
+/**
+ * The whole set a hero- or villain-scoped publish was sliced out of.
+ *
+ * A scoped row keeps the *same* `local_id` as its master (`sets/scope.ts`), so
+ * the box is simply the `full` row under the same owner and local id — no new
+ * column, and nothing recorded at publish that could go stale.
+ *
+ * Returns `null` for a set whose box was never published, or was published
+ * unlisted: this is a plain filtered select, so `sets_public_read` answers it,
+ * and a link nobody can follow is worse than no link. Never throws for the
+ * same reason `fetchAuthorName` does not — a navigation aid is not worth
+ * failing a page over.
+ */
+export async function fetchParentSet(
+  ownerId: string,
+  localId: string
+): Promise<{ slug: string; name: string } | null> {
+  try {
+    const rows = await request<{ slug: string; name: string }[]>(
+      `/rest/v1/sets?select=slug,name&owner_id=eq.${encodeURIComponent(ownerId)}` +
+        `&local_id=eq.${encodeURIComponent(localId)}&scope=eq.full&limit=1`,
+      { anonymous: true }
+    );
+    return rows[0] ?? null;
+  } catch {
+    return null;
+  }
 }
 
 /**

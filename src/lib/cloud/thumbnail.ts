@@ -13,6 +13,8 @@
  */
 import type { Artwork } from '$lib/core/artwork';
 import { hasArtwork } from '$lib/core/artwork';
+import type { Character } from '$lib/characters/types';
+import { cardsForCharacter } from '$lib/sets/queries';
 import type { AdventureSet } from '$lib/sets/types';
 
 /**
@@ -29,6 +31,31 @@ export const THUMBNAIL_MAX = 512;
 const QUALITY = 0.8;
 
 /**
+ * The picture that stands for one character — their portrait, or failing that
+ * the first picture off one of their own cards.
+ *
+ * That second half is the one that does the work, and it was missing for a
+ * long time. `Character.artwork` is a portrait field an author *may* fill and
+ * in practice does not: of the first six sets published to the gallery, every
+ * character in every one of them had it null, and every one of them had
+ * pictures on their cards. So the search that only ever looked at the
+ * portrait came up empty for four of the six, and their tiles fell back to
+ * drawing initials on a coloured square while the set itself was full of art.
+ *
+ * The first card in document order, which is the one its author put first —
+ * not a random or a "best" one. `character_image` in
+ * `supabase/migrations/0007_gallery_browse.sql` answers this same question in
+ * SQL for rows already published; the two must not drift.
+ */
+function characterCover(set: AdventureSet, character: Character): Artwork | null {
+  if (hasArtwork(character.artwork)) return character.artwork;
+  for (const card of cardsForCharacter(set, character.id)) {
+    if (hasArtwork(card.artwork)) return card.artwork;
+  }
+  return null;
+}
+
+/**
  * The picture that best stands for a set.
  *
  * Box art first, because that is what it is *for*. Failing that, the
@@ -38,12 +65,17 @@ const QUALITY = 0.8;
  * has no villain; a set mid-authoring may have neither), so this falls
  * through to the first character in the set with artwork at all, whatever
  * its role, rather than turning up nothing when a perfectly good picture is
- * sitting on a minion or a sidekick.
+ * sitting on a minion or a sidekick — and then, last, to any card in the set,
+ * so that a set whose only pictures are on cards nobody owns still gets one.
+ *
+ * Every step reads through `characterCover`, so "the villain's picture" means
+ * their portrait *or one of their cards*. Before that it meant the portrait
+ * alone, and a set with no box art therefore got no thumbnail at all.
  *
  * This is also why `sets/scope.ts`'s `computeScopedSet` drops `boxArt` from
  * every scoped document it builds, in both directions: with no box art to
  * catch on, a hero-scoped publish falls straight through to that hero's own
- * portrait and a villain-scoped one falls through to the villain's, with no
+ * picture and a villain-scoped one falls through to the villain's, with no
  * scope-awareness needed here at all. Change this order and that stops
  * being true.
  */
@@ -51,13 +83,27 @@ export function coverArtwork(set: AdventureSet): Artwork | null {
   if (hasArtwork(set.boxArt)) return set.boxArt;
 
   const villain = set.characters.find((character) => character.role === 'villain');
-  if (villain && hasArtwork(villain.artwork)) return villain.artwork;
+  if (villain) {
+    const cover = characterCover(set, villain);
+    if (cover) return cover;
+  }
 
   const hero = set.characters.find((character) => character.role === 'hero');
-  if (hero && hasArtwork(hero.artwork)) return hero.artwork;
+  if (hero) {
+    const cover = characterCover(set, hero);
+    if (cover) return cover;
+  }
 
   for (const character of set.characters) {
-    if (hasArtwork(character.artwork)) return character.artwork;
+    const cover = characterCover(set, character);
+    if (cover) return cover;
+  }
+
+  /* Set-level decks have no owner, so nothing above reaches their cards — an
+     events deck is exactly the case, and a set that is only events would
+     otherwise still come up blank. */
+  for (const card of set.cards) {
+    if (hasArtwork(card.artwork)) return card.artwork;
   }
 
   return null;
