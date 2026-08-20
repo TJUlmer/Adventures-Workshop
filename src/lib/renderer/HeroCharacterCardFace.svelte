@@ -537,7 +537,7 @@
       `design.healthBadge` like every other badge on this card.
     -->
     {@render healthBadgeAt(
-      CHARACTER_HEALTH.centerX,
+      CHARACTER_HEALTH.sidekickCenterX,
       CHARACTER_HEALTH.sidekickCenterY,
       1,
       sidekick.health ?? 0

@@ -1042,7 +1042,14 @@ export const CHARACTER_HEALTH = {
    * 524 and this.
    */
   heroCenterY: 513,
-  sidekickCenterY: 1986,
+  sidekickCenterY: 1983,
+  /**
+   * The single-tracked sidekick's own badge — a reused copy of the hero's
+   * own (see `healthBadgeAt`) — defaults to the same X as its source. Its
+   * own field rather than reading `centerX` directly, so it can move
+   * without taking the hero's own badge with it.
+   */
+  sidekickCenterX: 1342,
   /**
    * Set at 105 rather than the 146 that would fill the badge to the template's
    * own ink. The badge is the frame's shape and the number sits *inside* it;
@@ -1128,10 +1135,10 @@ export const CHARACTER_TOKENS_PAIRED = {
    * with the top of the token's own grey fill, just inside its 5px ring
    * (not the ring's own outer edge), at this scale.
    */
-  badgeOffsetY: -33,
+  badgeOffsetY: -36,
   /** A little short of `CHARACTER_ATTACK_ROW.badgeRight` rather than flush
    *  with it — flush read as crowding the border. */
-  countX: 1444
+  countX: 1450
 } as const;
 
 /**
