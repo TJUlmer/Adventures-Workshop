@@ -10,7 +10,6 @@ export { readFileAsText, saveExport } from './download';
 export type { CardImageOptions } from './card-image';
 export {
   formatForCard,
-  MAP_PRINT_WIDTH,
   renderCardImage,
   renderMapImage,
   renderPlateImage,

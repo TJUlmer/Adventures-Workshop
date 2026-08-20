@@ -170,10 +170,13 @@ export interface CharacterBandStyle {
  * The only part of this card that goes through anything like the style
  * cascade, and it does not go through the cascade proper: the sheet is one
  * fixed layout and its chrome is supplied art, so what an author gets to
- * choose is the border's colour, the health badge's colour, and what fills
- * each of the three bands — or, with `useReplacement` on, a finished sheet
- * that skips composing one entirely, the same escape hatch every other
- * printed face already has.
+ * choose is the border's colour, the health badge's colour and the value
+ * printed on it, what fills each of the three bands, the special ability
+ * text's own colour, the move value's — or, with `useReplacement` on, a
+ * finished sheet that skips composing one entirely, the same escape hatch
+ * every other printed face already has. Everything else — the tab labels,
+ * the START HEALTH captions — stays the printed art's own fixed ink;
+ * nobody asked to recolour a label.
  */
 export interface CharacterCardDesign {
   /** The pink outline and the bars between the bands, in the printed art. */
@@ -182,8 +185,14 @@ export interface CharacterCardDesign {
   healthBadge: Fill;
   /** A small triangle notched into the shield, low in its body — its own decoration. */
   healthBadgeAccent: Fill;
+  /** The START HEALTH value printed inside the badge — the hero's own and every reused copy of it. */
+  healthInk: Fill;
   /** The quote text, its attribution and its quotation marks — one colour for all three. */
   quoteInk: Fill;
+  /** The special ability's name, its rule and its body text — one colour for all three. */
+  abilityInk: Fill;
+  /** The move value: its digit, the arrow beside it and the word MOVE, together. */
+  moveInk: Fill;
   hero: CharacterBandStyle;
   ability: CharacterBandStyle;
   sidekick: CharacterBandStyle;

@@ -47,8 +47,39 @@ export type MapPathId = Id<'MapPath'>;
 /** Which side of the rim a start marker sits on. */
 export type MapStartSide = 'top' | 'right' | 'bottom' | 'left';
 
-/** Width ÷ height. The printed sample measures 1.447. */
-export const DEFAULT_MAP_ASPECT = 13 / 9;
+export type MapSize = 'small' | 'medium' | 'large';
+
+/**
+ * A board's shape, as one of three named presets rather than a free-form
+ * width and height an author dials in by hand — there is no ruler to hold
+ * an arbitrary pixel count to the way `DEFAULT_SPACE_DIAMETER` below is
+ * held to the printed sample, so a fixed set of known shapes is what
+ * a "size" control here can actually mean.
+ *
+ * `width`/`height` are the **exported PNG's own pixel dimensions**, not a
+ * physical size — the board's physical printed width is `MAP_WIDTH_MM`,
+ * the same for every preset so the map still lines up with the threat
+ * track sitting above it (see there). Picking a size changes the board's
+ * *shape* (its aspect ratio, so `mapHeightMm` prints a different height off
+ * the same fixed width) and how many pixels that shape rasterises to; it
+ * does not change how wide the board prints.
+ */
+export const MAP_SIZES: Readonly<Record<MapSize, { width: number; height: number }>> = {
+  small: { width: 1337, height: 742 },
+  medium: { width: 1337, height: 866 },
+  large: { width: 1637, height: 1131 }
+} as const;
+
+/**
+ * Width ÷ height of the `large` preset, 1.4475 — close to but not the same
+ * as the 1.447 measured off the printed sample this file's own header
+ * describes (13:9, 1.444, is the "designed" reading of that measurement).
+ * `large` is a fixed export-pixel choice rather than a re-derivation of
+ * that measurement, so the two are allowed to differ by this little; every
+ * map's own default follows `large` by construction (see
+ * `createAdventureMap`), so there is only one fallback to reason about.
+ */
+export const DEFAULT_MAP_ASPECT = MAP_SIZES.large.width / MAP_SIZES.large.height;
 
 /**
  * The board's printed width, in millimetres.
@@ -72,6 +103,11 @@ export function mapHeightMm(map: AdventureMap): number {
 /** Printed height of map and threat track stacked — the whole playing surface. */
 export function boardHeightMm(map: AdventureMap): number {
   return mapHeightMm(map) + THREAT_TRACK.mm.height;
+}
+
+/** The exported PNG's own pixel width, for this map's chosen `size`. */
+export function mapPrintWidth(map: AdventureMap): number {
+  return MAP_SIZES[map.size].width;
 }
 
 /** Space diameter as a fraction of the map's width. Measured: 0.0757. */
@@ -184,6 +220,15 @@ export function createMapNote(text = ''): MapNote {
 export interface AdventureMap {
   enabled: boolean;
   name: string;
+  /**
+   * Which of `MAP_SIZES` this board is exported at. Setting it also sets
+   * `aspect` to match — see `size`'s own picker in `MapEditor.svelte` — but
+   * the two are stored separately rather than `aspect` being derived at
+   * read time, so a document written before `size` existed keeps the exact
+   * `aspect` it always had (see `sets/normalize.ts`) instead of being
+   * snapped to whichever preset happens to read closest.
+   */
+  size: MapSize;
   /** Width ÷ height. The artwork behind it should match, or it letterboxes. */
   aspect: number;
   /** The painted board. Everything else is drawn over it. */
@@ -224,6 +269,7 @@ export function createAdventureMap(): AdventureMap {
   return {
     enabled: false,
     name: '',
+    size: 'large',
     aspect: DEFAULT_MAP_ASPECT,
     artwork: createArtwork(),
     background: solid('#2c2a26'),

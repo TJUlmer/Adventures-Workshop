@@ -339,8 +339,8 @@ export async function renderPlateImage(
  *
  * The board is a strip rather than a card — no bleed, no cut line — so it is
  * photographed whole at the one size it prints at, unless the caller asks for
- * narrower: Tabletop Simulator will not take a texture over 4096px, and the
- * printed strip is 5846.
+ * narrower: Tabletop Simulator will not take a texture over 4096px, well
+ * clear of the printed strip's own 1637.
  */
 export async function renderThreatTrackImage(
   board: HTMLElement,
@@ -352,31 +352,24 @@ export async function renderThreatTrackImage(
 }
 
 /**
- * Print width of the map, in pixels.
- *
- * The map is exactly as wide as the threat track — they are one board on the
- * table — so it borrows the strip's own print width rather than deriving a
- * second one from 495mm at 300 DPI and risking a rounding disagreement. Two
- * images that have to line up along an edge must come from one number.
- */
-export const MAP_PRINT_WIDTH = THREAT_TRACK.bleed.width;
-
-/**
  * Render the map to a PNG at its printed size.
  *
  * A board rather than a card: no bleed and no cut line, so it is photographed
- * whole. The height follows the aspect rather than being stored, because the
- * aspect is what the author set and a height would be a second copy of it.
+ * whole. The height follows `aspect` rather than being stored, because the
+ * aspect is what the author's chosen `size` sets and a height would be a
+ * second copy of it (see `map/types.ts`'s `MAP_SIZES`/`mapPrintWidth`,
+ * which `width` here is always called with).
  *
- * `width` exists for the same reason it does on the threat track — Tabletop
- * Simulator refuses a texture over 4096px and the printed board is 5846.
+ * `options.width` exists for the same reason it does on the threat track —
+ * Tabletop Simulator refuses a texture over 4096px — though every current
+ * `MAP_SIZES` preset is already well clear of that on its own.
  */
 export async function renderMapImage(
   board: HTMLElement,
   aspect: number,
+  width: number,
   options: { width?: number } = {}
 ): Promise<Blob> {
-  const width = MAP_PRINT_WIDTH;
   const height = Math.round(width / (aspect || 1));
   const image = await rasterise(board, width, height);
   return encode(image, { x: 0, y: 0, width, height }, options.width ?? width);

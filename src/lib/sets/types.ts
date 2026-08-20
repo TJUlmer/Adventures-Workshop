@@ -147,10 +147,42 @@ export type SetId = Id<'Set'>;
  *      its previous fixed cream — the same colour that variable's fallback
  *      always resolved to, so nothing visibly changes on load.
  *
+ * v24 — a character card's design gained `abilityInk` (the special ability's
+ *      name, rule and body text, one colour for all three) and `moveInk`
+ *      (the move value's own ink, starting with the digit and the arrow
+ *      beside it — see v25) — both previously fixed black, independently of
+ *      the border's colour, the same shape as `quoteInk` (v22). The arrow
+ *      came out of the printed `ink` art into its own mask for this — see
+ *      `tools/hero-card-assets.py`'s `split_move_ink` — so it could take a
+ *      colour at all. Absent on an older document, which opens with both in
+ *      their printed black, exactly as before.
+ *
+ * v25 — a character card's design gained `healthInk`, the START HEALTH
+ *      value's own colour — the hero's own badge and every reused copy of
+ *      it (a swarm sidekick's shifted or paired badges) — previously fixed
+ *      white, the same shape as `healthBadge`/`healthBadgeAccent` (v20).
+ *      Unrelated: `moveInk` (v24) now also covers the word MOVE, which
+ *      `split_move_ink` (renamed from `split_move_arrow`) pulls out of
+ *      `ink` alongside the arrow rather than leaving fixed — needs no
+ *      version bump of its own, since the field already existed and every
+ *      document already had an opinion about its colour. Absent on an
+ *      older document, `healthInk` opens in its printed white, exactly as
+ *      before.
+ *
+ * v26 — a map gained `size`, one of `MAP_SIZES`' three named board shapes
+ *      (`small`/`medium`/`large`), replacing a fixed single default aspect
+ *      with an author's own choice — see `map/types.ts`. Setting it also
+ *      sets `aspect` to match, but the two are stored separately: an older
+ *      document has no `size` and is labelled `large` for it, without
+ *      touching whatever `aspect` it already had, so a map already placed
+ *      against its own numbers does not shift under its spaces. Absent on
+ *      an older document otherwise, which opens exactly as it always
+ *      printed.
+ *
  * Older documents are *repaired*, not rejected — see `sets/normalize.ts`. Only
  * a version newer than this build understands is refused.
  */
-export const SET_SCHEMA_VERSION = 23;
+export const SET_SCHEMA_VERSION = 26;
 
 /**
  * Where a set was copied from, if it was copied.

@@ -9,9 +9,9 @@
    * row, and the sidekick block is its two bands or the quote panel that
    * stands in for them.
    *
-   * Everything else on this card is fixed art: the tab labels, the START
-   * HEALTH captions, the health badge, the move arrow and the word MOVE are
-   * printed in the colours they print in, and are nobody's choice.
+   * Everything else on this card is fixed art: the tab labels and the START
+   * HEALTH captions are printed in the colours they print in, and are
+   * nobody's choice.
    *
    * Shared between the primary identity's own sheet and every additional
    * card's — `cardId` says which. Each is independent: pairing two heroes on
@@ -78,6 +78,24 @@
         label="Health badge accent"
         value={design.healthBadgeAccent}
         onchange={(healthBadgeAccent: Fill) => edit((card) => (card.healthBadgeAccent = healthBadgeAccent))}
+      />
+
+      <FillEditor
+        label="Start Health value"
+        value={design.healthInk}
+        onchange={(healthInk: Fill) => edit((card) => (card.healthInk = healthInk))}
+      />
+
+      <FillEditor
+        label="Special ability text"
+        value={design.abilityInk}
+        onchange={(abilityInk: Fill) => edit((card) => (card.abilityInk = abilityInk))}
+      />
+
+      <FillEditor
+        label="Move value"
+        value={design.moveInk}
+        onchange={(moveInk: Fill) => edit((card) => (card.moveInk = moveInk))}
       />
     </div>
   </Section>

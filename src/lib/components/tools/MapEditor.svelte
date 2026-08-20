@@ -24,12 +24,13 @@
     findSpace,
     mapHeight,
     mapHeightMm,
+    MAP_SIZES,
     MAP_WIDTH_MM,
     neighbours,
     orphanSpaces,
     pathExists
   } from '$lib/map/types';
-  import type { MapNote, MapSpaceId, MapStartSide } from '$lib/map/types';
+  import type { MapNote, MapSize, MapSpaceId, MapStartSide } from '$lib/map/types';
   import { workshop } from '$lib/state/workshop.svelte';
   import { Button, EmptyState, Icon, Slider, Switch, TextInput } from '$lib/ui';
 
@@ -54,6 +55,80 @@
     { value: 'bottom', label: 'Bottom' },
     { value: 'left', label: 'Left' }
   ];
+
+  const SIZES: { value: MapSize; label: string }[] = [
+    { value: 'small', label: 'Small' },
+    { value: 'medium', label: 'Medium' },
+    { value: 'large', label: 'Large' }
+  ];
+
+  /** Sets `aspect` to match — see the doc comment on `AdventureMap.size`. */
+  function setSize(size: MapSize): void {
+    workshop.editMap((m) => {
+      m.size = size;
+      const preset = MAP_SIZES[size];
+      m.aspect = preset.width / preset.height;
+    });
+  }
+
+  /**
+   * Every distinct colour in use anywhere on the board, in first-seen order.
+   *
+   * Most spaces of one kind — water, say — share a colour on the printed
+   * sample, so this is what lets one of them be repicked once rather than
+   * hunted down across however many spaces, the outline and the paths
+   * happen to share it. The start-marker numeral's own colour is not part
+   * of this: it prints on a diamond rather than the board itself, and has
+   * its own picker beside "Marker side" in the selected space's own panel,
+   * where an author is already looking when they place one.
+   */
+  const usedColors = $derived.by(() => {
+    const seen = new Set<string>();
+    const order: string[] = [];
+    const add = (color: string | null) => {
+      if (!color) return;
+      const key = color.toLowerCase();
+      if (seen.has(key)) return;
+      seen.add(key);
+      order.push(color);
+    };
+    add(map.background.color);
+    add(map.spaceStroke);
+    add(map.pathColor);
+    for (const space of map.spaces) {
+      add(space.stroke);
+      for (const zone of space.zones) add(zone.color);
+    }
+    for (const note of map.notes) add(note.color);
+    return order;
+  });
+
+  /**
+   * Change every use of `from` to `to` in one go — what a swatch in
+   * `usedColors` actually does when repicked, rather than only changing the
+   * one place a plain colour input would.
+   *
+   * Case-insensitive match, since a colour picked once and one typed by
+   * hand into an older document can differ only in letter case and still be
+   * the same colour to look at.
+   */
+  function recolor(from: string, to: string): void {
+    const key = from.toLowerCase();
+    workshop.editMap((m) => {
+      if (m.background.color.toLowerCase() === key) m.background = solid(to);
+      if (m.spaceStroke.toLowerCase() === key) m.spaceStroke = to;
+      if (m.pathColor.toLowerCase() === key) m.pathColor = to;
+      for (const space of m.spaces) {
+        if (space.stroke && space.stroke.toLowerCase() === key) space.stroke = to;
+        space.zones = space.zones.map((zone) =>
+          zone.color.toLowerCase() === key ? { ...zone, color: to } : zone
+        );
+      }
+      for (const note of m.notes) {
+        if (note.color.toLowerCase() === key) note.color = to;
+      }
+    });
+  }
 
   const MODES: { value: Mode; label: string; hint: string }[] = [
     { value: 'place', label: 'Place', hint: 'Click the board to add a space' },
@@ -191,11 +266,8 @@
   }
 
   /**
-   * The map as one PNG, at its printed size.
-   *
-   * 5846px wide, which is 495mm at 300 DPI — the threat track's own print
-   * width, because the two share an edge on the table and two images that have
-   * to line up cannot each round their own way to it.
+   * The map as one PNG, at whichever `MAP_SIZES` preset `map.size` picked —
+   * see `mapPrintWidth`.
    */
   async function exportMap(): Promise<void> {
     exporting = true;
@@ -390,7 +462,45 @@
             </button>
           {/each}
           <span class="mode-hint">{MODES.find((m) => m.value === mode)?.hint}</span>
+
+          <!--
+            The one control worth reaching for as often as a mode — the
+            board is nothing without its picture — sitting in what would
+            otherwise be empty width on this row rather than pushing the
+            far taller "Board" block above the map to make room for it.
+          -->
+          <div class="board-art">
+            <input
+              class="hidden-file"
+              type="file"
+              accept="image/*"
+              bind:this={artInput}
+              onchange={pickArtwork}
+            />
+            <button
+              type="button"
+              class="art-chip"
+              onclick={() => artInput?.click()}
+              title={hasArtwork(map.artwork) ? 'Replace board artwork' : 'Choose board artwork'}
+            >
+              <Icon name="image" size={13} />
+              <span class="art-name">{map.artwork.label || 'Choose artwork'}</span>
+            </button>
+            {#if hasArtwork(map.artwork)}
+              <button
+                type="button"
+                class="unlink"
+                title="Remove board artwork"
+                aria-label="Remove board artwork"
+                onclick={clearArtwork}
+              >
+                <Icon name="minus" size={12} />
+              </button>
+            {/if}
+          </div>
         </div>
+
+        {#if artError}<p class="error" role="alert">{artError}</p>{/if}
 
         <!--
           Board on the left, controls on the right, so a colour can be changed
@@ -425,29 +535,26 @@
             <div class="block">
               <h2 class="panel-title">Board</h2>
 
-              <input
-                class="hidden-file"
-                type="file"
-                accept="image/*"
-                bind:this={artInput}
-                onchange={pickArtwork}
-              />
+              <div class="zones">
+                <span class="field-label">Size</span>
+                {#each SIZES as entry (entry.value)}
+                  <button
+                    type="button"
+                    class="mode"
+                    class:active={map.size === entry.value}
+                    title="{MAP_SIZES[entry.value].width} × {MAP_SIZES[entry.value].height} px exported"
+                    onclick={() => setSize(entry.value)}
+                  >
+                    {entry.label}
+                  </button>
+                {/each}
+              </div>
 
-              {#if hasArtwork(map.artwork)}
-                <p class="filename">{map.artwork.label || 'Board artwork'}</p>
-                <div class="row">
-                  <Button size="sm" onclick={() => artInput?.click()}>Replace</Button>
-                  <Button size="sm" variant="ghost" onclick={clearArtwork}>Remove</Button>
-                </div>
-              {:else}
-                <Button size="sm" onclick={() => artInput?.click()}>
-                  <Icon name="image" size={13} />
-                  Choose artwork
-                </Button>
-                <p class="hint">The painted board. Spaces and paths draw over it.</p>
-              {/if}
-
-              {#if artError}<p class="error" role="alert">{artError}</p>{/if}
+              <p class="hint">
+                {MAP_WIDTH_MM} × {mapHeightMm(map).toFixed(0)} mm printed — the threat
+                track's own width, because on the table they are one board — at
+                {MAP_SIZES[map.size].width} × {MAP_SIZES[map.size].height} px exported.
+              </p>
 
               <label class="field">
                 <span class="field-label">Behind the artwork</span>
@@ -461,22 +568,33 @@
                 />
               </label>
 
-              <label class="field">
-                <span class="field-label">Start marker numbers</span>
-                <input
-                  type="color"
-                  value={map.startInk}
-                  oninput={(event) => {
-                    const value = event.currentTarget.value;
-                    workshop.editMap((m) => (m.startInk = value));
-                  }}
-                />
-              </label>
-
-              <p class="hint">
-                {MAP_WIDTH_MM} × {mapHeightMm(map).toFixed(0)} mm printed — the threat
-                track's width, because on the table they are one board.
-              </p>
+              {#if usedColors.length > 0}
+                <div class="field">
+                  <span class="field-label">Colours used — repick one to change it everywhere</span>
+                  <div class="swatches">
+                    <!--
+                      Keyed by `index`, not by `color` — this swatch's own
+                      `value` is what changes on every drag frame inside the
+                      native picker, and keying by the value itself made
+                      each frame a *different* array entry, so Svelte tore
+                      down and rebuilt this exact input mid-drag, which
+                      closes the picker the instant it opens. Keyed by
+                      position instead, the same DOM node — and the same
+                      still-open picker — survives its own value changing
+                      under it, the same way every other colour input on
+                      this page already survives `map`'s own live updates.
+                    -->
+                    {#each usedColors as color, index (index)}
+                      <input
+                        type="color"
+                        value={color}
+                        aria-label="Recolour {color}"
+                        oninput={(event) => recolor(color, event.currentTarget.value)}
+                      />
+                    {/each}
+                  </div>
+                </div>
+              {/if}
             </div>
 
             <div class="block">
@@ -616,6 +734,26 @@
                       </button>
                     {/each}
                   </div>
+
+                  <!--
+                    One colour for every start marker's numeral, board-wide
+                    — same as `map.spaceStroke`/`pathColor` are — but its
+                    control lives here, beside the marker an author is
+                    already placing, rather than in the general Board panel
+                    where it would be the one colour with nothing else in
+                    that panel about markers at all.
+                  -->
+                  <label class="field">
+                    <span class="field-label">Marker number colour</span>
+                    <input
+                      type="color"
+                      value={map.startInk}
+                      oninput={(event) => {
+                        const value = event.currentTarget.value;
+                        workshop.editMap((m) => (m.startInk = value));
+                      }}
+                    />
+                  </label>
                 {/if}
 
                 <div class="field">
@@ -772,6 +910,43 @@
   }
 
   /*
+   * Pushed to the row's own far right rather than given a place in flow —
+   * `.modes` already wraps its buttons and hint left-to-right, and this is
+   * the one thing on the row that belongs at the *other* end of whatever
+   * width they left behind.
+   */
+  .board-art {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    margin-left: auto;
+  }
+
+  .art-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    max-width: 220px;
+    padding: var(--space-2) var(--space-3);
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-sm);
+    background: var(--surface-inset);
+    color: var(--text-secondary);
+    font-size: var(--text-xs);
+    cursor: pointer;
+  }
+
+  .art-chip:hover {
+    border-color: var(--border-strong);
+  }
+
+  .art-name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  /*
    * `minmax(0, 1fr)` for the board column, not `1fr`. A grid track's default
    * minimum is `auto`, which is the content's intrinsic size — so the board
    * would refuse to shrink below its natural width and push the side panel off
@@ -816,12 +991,6 @@
     flex-direction: column;
     gap: var(--space-2);
     width: 100%;
-  }
-
-  .row {
-    display: flex;
-    gap: var(--space-2);
-    flex-wrap: wrap;
   }
 
   .note-row {
@@ -870,13 +1039,6 @@
   .unlink:hover {
     border-color: var(--danger);
     color: var(--danger);
-  }
-
-  .filename {
-    margin: 0;
-    font-size: var(--text-xs);
-    color: var(--text-primary);
-    overflow-wrap: anywhere;
   }
 
   .hint {

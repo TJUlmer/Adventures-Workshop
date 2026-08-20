@@ -56,12 +56,25 @@ export const CARD_FORMATS = {
 } as const satisfies Record<string, CardFormat>;
 
 /**
- * The villain's threat track. A single printed strip rather than a card, at
- * 300 DPI like everything else, and drawn at trim size.
+ * The villain's threat track. A single printed strip rather than a card,
+ * drawn at trim size.
+ *
+ * `bleed` is an *export-resolution* choice, not a physical one — `mm`, the
+ * strip's real printed size, is untouched here and still what the map
+ * borrows for its own physical width (`MAP_WIDTH_MM`, in `map/types.ts`).
+ * `bleed` used to be 5846×827, true 300 DPI against that same 495mm. Now
+ * that the map has its own fixed export-pixel presets instead of borrowing
+ * this strip's (`MAP_SIZES`, also in `map/types.ts`), this was scaled down
+ * to `MAP_SIZES.large.width` (1637) instead — the map and the track are
+ * still the same *physical* board and the same DPI relative to it, only
+ * rasterised at fewer pixels now, roughly 84 DPI's worth. `ThreatBoard.svelte`'s
+ * own layout is entirely `cqw`-relative (see its own note on why), so
+ * nothing here moves a single step or slot — only how many pixels the
+ * exported PNG and TTS texture carry.
  */
 export const THREAT_TRACK = {
   mm: { width: 495, height: 70 },
-  bleed: { width: 5846, height: 827 },
+  bleed: { width: 1637, height: 232 },
   bleedMm: 0,
   label: '495 × 70 mm'
 } as const satisfies CardFormat;

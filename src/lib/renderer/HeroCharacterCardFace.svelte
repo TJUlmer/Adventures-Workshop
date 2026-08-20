@@ -7,7 +7,7 @@
    *
    * The chrome is the supplied frame art laid over the top, and that is the
    * one decision everything else follows from. Nothing in it is redrawn — but
-   * it comes in four pieces rather than one, split by
+   * it comes in five pieces rather than one, split by
    * `tools/hero-card-assets.py`:
    *
    *   border       the pink outline and the bars between the bands, as a **mask**
@@ -16,12 +16,14 @@
    *   badgeAccent  a small triangle notched into the shield, low in its
    *                body, printed as its own decorative colour — a separate
    *                **mask**
-   *   ink          every tab label, the two START HEALTH captions, the move
-   *                arrow and the word MOVE — as a picture, already in the
-   *                colours they print, none of which is a choice
+   *   moveInk      the double-headed arrow beside the move digit *and* the
+   *                word MOVE — one **mask**, coloured the same as the digit
+   *   ink          every tab label and the two START HEALTH captions — as a
+   *                picture, already in the colours they print, none of
+   *                which is a choice
    *
-   * The first three are colours an author would want to choose, independently
-   * of one another; the fourth is not.
+   * The first four are colours an author would want to choose, independently
+   * of one another; the fifth is not.
    *
    * Under all four go the three band fills and whatever artwork each
    * carries; into the holes goes the copy.
@@ -132,6 +134,8 @@
   const badge = $derived(TEMPLATE_ASSETS.heroCharacterBadge[layout]);
   const badgeAccent = $derived(TEMPLATE_ASSETS.heroCharacterBadgeAccent[layout]);
   const ink = $derived(TEMPLATE_ASSETS.heroCharacterInk[layout]);
+  /** Same mask at every layout — the move row does not vary between them. */
+  const moveInk = TEMPLATE_ASSETS.heroCharacterMoveInk;
 
   /**
    * At 3+ health, the sidekick's attack-type lockup shares its row with the
@@ -168,6 +172,27 @@
    */
   const heroName = $derived(identity.name.trim() || 'Hero');
   const sidekickName = $derived(sidekick.name.trim() || 'Sidekick');
+
+  /**
+   * How far the heading's box-top has to move *down*, per point of shrink,
+   * to hold its baseline fixed instead of its cap-top — see the `heading`
+   * snippet below for why.
+   *
+   * `capTopToBoxTop(capTop, size)` returns `capTop - (baselineRatio -
+   * cap) * size`, which puts the baseline itself at `capTop + cap * size`
+   * (cap-top plus one cap-height, the definition of a baseline). Holding
+   * that fixed while `size` scales by `--fit-scale` needs the box's *top*
+   * to move by `baselineRatio * size` for every point of shrink — not
+   * `capTopToBoxTop`'s own `(baselineRatio - cap)`, which is a different
+   * quantity and was tried here first, silently wrong by exactly `cap *
+   * size` (still visibly top-heavy, just less so). `baselineRatio` —
+   * half-leading plus ascent, at this heading's fixed `lineHeight: 1` — is
+   * inlined rather than read back out of `capTopToBoxTop`, since getting it
+   * from there is exactly the subtraction that produced the wrong constant.
+   */
+  const HEADING_BASELINE_RATIO =
+    (1 - (NAME_METRICS.ascent + NAME_METRICS.descent)) / 2 + NAME_METRICS.ascent;
+  const HEADING_SHRINK_DELTA = HEADING_BASELINE_RATIO * CHARACTER_HEADING.size;
 
   /** Where the ability block's three pieces sit, solved from the measured ink. */
   const NAME_TOP = capTopToBoxTop(
@@ -295,15 +320,23 @@
     CHARACTER_BANDS.ability.top + CHARACTER_BANDS.ability.height - NAME_TOP
   )}
   style:gap="calc({pu(CHARACTER_ABILITY.gap)} * var(--fit-scale, 1))"
+  style:color={fillCss(design.abilityInk)}
 >
   {#each identity.abilities.length ? identity.abilities : [null] as ability, index (index)}
     <div class="ability-entry">
+      <!--
+        A real ability with no name prints blank rather than falling back to
+        this placeholder — the name is optional, and a fallback would print
+        as though it were the author's own words. "Ability Name" is only
+        the *no abilities at all* hint, `ability === null`, same as the
+        placeholder text below it.
+      -->
       <div
         class="ability-name"
         style:font-size="calc({pu(CHARACTER_ABILITY.nameSize)} * var(--fit-scale, 1))"
         style:line-height="1"
       >
-        {ability?.name.trim() || 'Ability Name'}
+        {ability ? ability.name.trim() : 'Ability Name'}
       </div>
 
       <!--
@@ -312,14 +345,21 @@
         left a full-size rule and a fixed gap dominating a block that was
         supposed to be getting smaller, which barely moved `scrollHeight` no
         matter how far the font shrank.
+
+        Skipped entirely for a real, blank-named ability — a rule under a
+        name that prints nothing reads as underlining empty space, and its
+        own margin-top would leave a stray gap where the name isn't. Kept
+        for the *no abilities at all* placeholder, same as the name above it.
       -->
-      <div
-        class="ability-rule"
-        style:margin-top="calc({pu(RULE_GAP)} * var(--fit-scale, 1))"
-        style:margin-left="calc({pu(CHARACTER_ABILITY.ruleX - CHARACTER_ABILITY.nameX)} * var(--fit-scale, 1))"
-        style:width="calc({pu(CHARACTER_ABILITY.ruleWidth)} * var(--fit-scale, 1))"
-        style:height="calc({pu(CHARACTER_ABILITY.ruleHeight)} * var(--fit-scale, 1))"
-      ></div>
+      {#if ability === null || ability.name.trim()}
+        <div
+          class="ability-rule"
+          style:margin-top="calc({pu(RULE_GAP)} * var(--fit-scale, 1))"
+          style:margin-left="calc({pu(CHARACTER_ABILITY.ruleX - CHARACTER_ABILITY.nameX)} * var(--fit-scale, 1))"
+          style:width="calc({pu(CHARACTER_ABILITY.ruleWidth)} * var(--fit-scale, 1))"
+          style:height="calc({pu(CHARACTER_ABILITY.ruleHeight)} * var(--fit-scale, 1))"
+        ></div>
+      {/if}
 
       <p
         class="ability-text"
@@ -358,24 +398,23 @@
 {#if showSidekick}
   {@render heading(CHARACTER_BANDS.sidekick, sidekickName)}
 {:else}
-  <span
-    class="quote-mark"
+  <!--
+    Both marks, opening and closing, in one supplied picture spanning the
+    full row — the printed template's marks were never in any face this
+    project stands in for, so this used to be set as type in a browser
+    default serif instead. A mask like every other piece of coloured chrome
+    here, not a picture, so it still takes `design.quoteInk` the way the
+    text and the attribution beside it do.
+  -->
+  <div
+    class="mask quote-marks"
+    style:--quote-marks-art="url('{TEMPLATE_ASSETS.characterCardQuotations}')"
+    style:background={fillCss(design.quoteInk)}
     style:left={px(CHARACTER_QUOTE.markLeftX)}
     style:top={py(CHARACTER_QUOTE.markY)}
-    style:font-size={pu(CHARACTER_QUOTE.markHeight * 2)}
-    style:color={fillCss(design.quoteInk)}
-  >
-    &ldquo;
-  </span>
-  <span
-    class="quote-mark close"
-    style:right={px(1632 - CHARACTER_QUOTE.markRightX)}
-    style:top={py(CHARACTER_QUOTE.markY)}
-    style:font-size={pu(CHARACTER_QUOTE.markHeight * 2)}
-    style:color={fillCss(design.quoteInk)}
-  >
-    &rdquo;
-  </span>
+    style:width={px(CHARACTER_QUOTE.markRightX - CHARACTER_QUOTE.markLeftX)}
+    style:height={py(CHARACTER_QUOTE.markHeight)}
+  ></div>
 
   <div
     bind:this={quoteBox}
@@ -425,12 +464,17 @@
   to whichever lockup the template happened to show, so a longer one loses its
   tail to that edge.
 -->
-<div class="mask border" style:--border-art="url('{border}')" style:background={fillCss(design.border)}></div>
-<div class="mask badge" style:--badge-art="url('{badge}')" style:background={fillCss(design.healthBadge)}></div>
+<div class="mask full border" style:--border-art="url('{border}')" style:background={fillCss(design.border)}></div>
+<div class="mask full badge" style:--badge-art="url('{badge}')" style:background={fillCss(design.healthBadge)}></div>
 <div
-  class="mask badge-accent"
+  class="mask full badge-accent"
   style:--badge-accent-art="url('{badgeAccent}')"
   style:background={fillCss(design.healthBadgeAccent)}
+></div>
+<div
+  class="mask full move-ink"
+  style:--move-ink-art="url('{moveInk}')"
+  style:background={fillCss(design.moveInk)}
 ></div>
 <img class="template" src={ink} alt="" />
 
@@ -443,6 +487,7 @@
   style:top={py(digitTopToBoxTop(CHARACTER_MOVE.digitTop, CHARACTER_MOVE.size))}
   style:font-size={pu(CHARACTER_MOVE.size)}
   style:scale="{CHARACTER_MOVE.condense} 1"
+  style:color={fillCss(design.moveInk)}
 >
   {identity.move}
 </span>
@@ -567,18 +612,27 @@
     is not bounded the way a template word is. `overflow: hidden` is only the
     backstop past the shrink's own floor, same as `.ability`/`.quote-zone`.
   -->
+  <!--
+    `top` is `calc()`, not a plain px, so it can move as `--fit-scale`
+    shrinks: shrinking the font while holding `top` at its full-size value
+    (as this used to) holds the *cap-top* fixed and lets the baseline rise
+    with it, which reads as the word sinking into the top of its own row the
+    smaller it gets. Adding `HEADING_SHRINK_DELTA * (1 - fit-scale)` holds
+    the *baseline* fixed instead — at `--fit-scale: 1` the extra term is
+    zero, so a name that already fits is unaffected.
+  -->
   <span
     class="heading"
     use:fitWidth={word}
     style:left={px(CHARACTER_HEADING.x)}
-    style:top={py(
+    style:top="calc({py(
       capTopToBoxTop(
         band.top + CHARACTER_HEADING.capTop,
         CHARACTER_HEADING.size,
         1,
         NAME_METRICS
       )
-    )}
+    )} + {pu(HEADING_SHRINK_DELTA)} * (1 - var(--fit-scale, 1)))"
     style:width={px(CHARACTER_HEADING.right - CHARACTER_HEADING.x)}
     style:font-size="calc({pu(CHARACTER_HEADING.size)} * var(--fit-scale, 1))"
   >
@@ -615,6 +669,7 @@
     style:left={px(CHARACTER_HEALTH.centerX)}
     style:top={py(digitMiddleToBoxTop(centerY, CHARACTER_HEALTH.size))}
     style:font-size={pu(CHARACTER_HEALTH.size)}
+    style:color={fillCss(design.healthInk)}
   >
     {value}
   </span>
@@ -635,14 +690,14 @@
     centerY - CHARACTER_HEALTH.heroCenterY
   )}) scale(${scale})`}
   <div
-    class="mask badge"
+    class="mask full badge"
     style:--badge-art="url('{badge}')"
     style:background={fillCss(design.healthBadge)}
     style:transform-origin={origin}
     style:transform={move}
   ></div>
   <div
-    class="mask badge-accent"
+    class="mask full badge-accent"
     style:--badge-accent-art="url('{badgeAccent}')"
     style:background={fillCss(design.healthBadgeAccent)}
     style:transform-origin={origin}
@@ -653,6 +708,7 @@
     style:left={px(centerX)}
     style:top={py(digitMiddleToBoxTop(centerY, CHARACTER_HEALTH.size * scale))}
     style:font-size={pu(CHARACTER_HEALTH.size * scale)}
+    style:color={fillCss(design.healthInk)}
   >
     {value}
   </span>
@@ -675,8 +731,7 @@
     overflow: hidden;
   }
 
-  .template,
-  .mask {
+  .template {
     inset: 0;
     width: 100%;
     height: 100%;
@@ -689,6 +744,18 @@
     -webkit-mask-size: 100% 100%;
     mask-repeat: no-repeat;
     -webkit-mask-repeat: no-repeat;
+  }
+
+  /*
+   * Sized to the whole card — border, badge, badge-accent and move-ink are
+   * all cut from a full-card picture. `quote-marks` is not: it is its own
+   * supplied file, sized and positioned to just the row it fills, so it
+   * carries its own `left`/`top`/`width`/`height` inline instead.
+   */
+  .mask.full {
+    inset: 0;
+    width: 100%;
+    height: 100%;
   }
 
   /* Each mask carries its own art — a shared `mask-image` rule cannot, since
@@ -706,6 +773,16 @@
   .mask.badge-accent {
     mask-image: var(--badge-accent-art);
     -webkit-mask-image: var(--badge-accent-art);
+  }
+
+  .mask.move-ink {
+    mask-image: var(--move-ink-art);
+    -webkit-mask-image: var(--move-ink-art);
+  }
+
+  .mask.quote-marks {
+    mask-image: var(--quote-marks-art);
+    -webkit-mask-image: var(--quote-marks-art);
   }
 
   /* -- band headings and the attack rows ---------------------------------- */
@@ -743,12 +820,12 @@
    * backstop past that floor, same as it always was — visible clipping is
    * still the honest signal that even the shrunk text does not fit.
    */
+  /* Colour comes from `design.abilityInk`, inline — the rule below takes it too, via `currentColor`. */
   .ability {
     position: absolute;
     display: flex;
     flex-direction: column;
     overflow: hidden;
-    color: #000000;
   }
 
   .ability-entry {
@@ -818,7 +895,7 @@
     white-space: nowrap;
   }
 
-  .health,
+  /* `.health`'s own colour comes from `design.healthInk`, inline — `token-count` is a different value (a swarm's own count) and stays fixed. */
   .token-count {
     color: #ffffff;
   }
@@ -836,24 +913,9 @@
     background: #858585;
   }
 
-  .move {
-    color: #000000;
-  }
+  /* Colour comes from `design.moveInk`, inline — the same one the arrow mask beside it takes. */
 
   /* -- quote --------------------------------------------------------------- */
-  /*
-   * The printed marks are set in the artwork's own face, which is not one of
-   * the three here, so their box is positioned and their ink is left to
-   * whichever serif the browser has. Colour comes from `design.quoteInk`,
-   * inline below — the same one this text and its attribution take, so all
-   * three move together.
-   */
-  .quote-mark {
-    position: absolute;
-    font-family: Georgia, 'Times New Roman', serif;
-    line-height: 1;
-  }
-
   /*
    * The text's own box, centred vertically and grown symmetrically as it
    * wraps — see `QUOTE_CENTER`/`QUOTE_HALF_HEIGHT` above — rather than

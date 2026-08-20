@@ -16,6 +16,7 @@ import type { Card } from '$lib/cards/types';
 import { characterLabel } from '$lib/characters/factory';
 import type { Character } from '$lib/characters/types';
 import type { AdventureMap } from '$lib/map/types';
+import { mapPrintWidth } from '$lib/map/types';
 import CardRenderer from '$lib/renderer/CardRenderer.svelte';
 import type { CustomSymbol } from '$lib/symbols/types';
 import MapBoard from '$lib/renderer/MapBoard.svelte';
@@ -23,7 +24,7 @@ import ThreatBoard from '$lib/renderer/ThreatBoard.svelte';
 import type { CardFormat } from '$lib/renderer/geometry';
 import { THREAT_TRACK } from '$lib/renderer/geometry';
 import type { AdventureSet } from '$lib/sets/types';
-import { MAP_PRINT_WIDTH, renderMapImage, renderPlateImage, renderThreatTrackImage } from './card-image';
+import { renderMapImage, renderPlateImage, renderThreatTrackImage } from './card-image';
 import type { CardImageOptions } from './card-image';
 
 export interface StageJob {
@@ -102,8 +103,9 @@ export async function photographMapBoard(
 ): Promise<Blob | null> {
   if (!map.enabled) return null;
 
+  const width = mapPrintWidth(map);
   const host = document.createElement('div');
-  host.style.cssText = `position:fixed;left:-99999px;top:0;width:${MAP_PRINT_WIDTH}px;pointer-events:none`;
+  host.style.cssText = `position:fixed;left:-99999px;top:0;width:${width}px;pointer-events:none`;
   document.body.append(host);
 
   const view = mount(MapBoard, { target: host, props: { map } });
@@ -111,7 +113,7 @@ export async function photographMapBoard(
   try {
     await tick();
     const board = host.firstElementChild as HTMLElement | null;
-    return board ? await renderMapImage(board, map.aspect, options) : null;
+    return board ? await renderMapImage(board, map.aspect, width, options) : null;
   } finally {
     unmount(view);
     host.remove();

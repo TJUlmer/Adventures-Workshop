@@ -95,9 +95,13 @@ export const TEMPLATE_ASSETS = {
    * — the pink outline and the bars between the bands — and its **badge** —
    * the health badge behind the START HEALTH number — both colours an author
    * would want to choose, so both are masks; and its **ink**: every tab
-   * label, the START HEALTH captions, the move arrow and the word MOVE, which
-   * are already in the colours they print and are nobody's choice, so they
-   * stay a picture. None of the three overlap.
+   * label and the START HEALTH captions, which are already in the colours
+   * they print and are nobody's choice, so they stay a picture. The move
+   * arrow and the word MOVE used to live in `ink` too, on the same
+   * reasoning — but together they read as the move *value*, not as chrome,
+   * so `split_move_ink` pulls both out into `heroCharacterMoveInk`, their
+   * own mask, coloured with the digit they sit beside. None of the four
+   * overlap.
    *
    * Four layouts, because each supplied frame is one flat picture with
    * nothing in it to switch off: a quote panel, a sidekick's two bands, a
@@ -168,6 +172,25 @@ export const TEMPLATE_ASSETS = {
     multi: `${TEMPLATES}/hero_character_ink_multi.png`,
     multiHealth: `${TEMPLATES}/hero_character_ink_multihealth.png`
   },
+  /**
+   * The move value's own ink — the double-headed arrow *and* the word MOVE
+   * — pulled out of `heroCharacterInk` by `tools/hero-card-assets.py`'s
+   * `split_move_ink`, so both can take `design.moveInk` alongside the digit
+   * they sit beside. Both together, not the arrow alone: recolouring the
+   * move value means recolouring what names it too, not just the number.
+   *
+   * One file for every layout: the row this sits in does not move or change
+   * shape between them, confirmed pixel-for-pixel by the split itself.
+   */
+  heroCharacterMoveInk: `${TEMPLATES}/hero_character_move_ink.png`,
+  /**
+   * The sidekick band's opening and closing quotation marks, drawn as
+   * artwork rather than set as type — the printed template's marks are not
+   * in any face this project stands in for, so the app used a browser
+   * default serif's own glyphs until this was supplied. One file carries
+   * both, already spaced to the quote panel's own width.
+   */
+  characterCardQuotations: `${TEMPLATES}/character_card_quotations.png`,
   /**
    * The printed back of the initiative deck. A finished image rather than a
    * mask: the initiative deck belongs to the adventure, so unlike a figure's

@@ -238,7 +238,10 @@ function characterCard(value: unknown): CharacterCardDesign {
     border: fill(raw['border'], defaults.border),
     healthBadge: fill(raw['healthBadge'], defaults.healthBadge),
     healthBadgeAccent: fill(raw['healthBadgeAccent'], defaults.healthBadgeAccent),
+    healthInk: fill(raw['healthInk'], defaults.healthInk),
     quoteInk: fill(raw['quoteInk'], defaults.quoteInk),
+    abilityInk: fill(raw['abilityInk'], defaults.abilityInk),
+    moveInk: fill(raw['moveInk'], defaults.moveInk),
     ...(Object.fromEntries(CHARACTER_BAND_NAMES.map((name) => [name, band(name)])) as Pick<
       CharacterCardDesign,
       CharacterBandName
@@ -373,6 +376,12 @@ function adventureMap(value: unknown): AdventureMap {
   return {
     enabled: bool(raw['enabled'], defaults.enabled),
     name: str(raw['name']),
+    /* Absent on anything written before `size` existed, which read `aspect`
+       below verbatim rather than through a preset — defaulting to `large`
+       here is a label for that existing shape, not a repair of it. */
+    size: (['small', 'medium', 'large'] as const).includes(raw['size'] as never)
+      ? (raw['size'] as AdventureMap['size'])
+      : defaults.size,
     /* A zero or negative aspect would divide by nothing in `mapHeight`. */
     aspect: num(raw['aspect'], defaults.aspect) > 0 ? num(raw['aspect'], defaults.aspect) : defaults.aspect,
     artwork: artwork(raw['artwork']),
