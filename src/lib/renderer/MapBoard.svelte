@@ -97,10 +97,16 @@
    * A single-zone space short-circuits to a plain circle rather than a 360°
    * arc: an arc that starts and ends at the same point is degenerate and
    * renders as nothing at all, which would make every ordinary space invisible.
+   *
+   * `space.rotation` offsets both edges by the same amount, so it turns the
+   * whole split rather than resizing any one wedge — the point of a
+   * rotation control rather than moving the space's own zone boundaries by
+   * hand.
    */
   function wedge(space: MapSpace, index: number, count: number): string {
-    const start = (index / count) * Math.PI * 2 - Math.PI / 2;
-    const end = ((index + 1) / count) * Math.PI * 2 - Math.PI / 2;
+    const offset = (space.rotation * Math.PI) / 180;
+    const start = (index / count) * Math.PI * 2 - Math.PI / 2 + offset;
+    const end = ((index + 1) / count) * Math.PI * 2 - Math.PI / 2 + offset;
     const x1 = space.x + Math.cos(start) * radius;
     const y1 = space.y + Math.sin(start) * radius;
     const x2 = space.x + Math.cos(end) * radius;

@@ -355,6 +355,7 @@ function adventureMap(value: unknown): AdventureMap {
       )
         ? (space['startSide'] as MapSpace['startSide'])
         : 'top',
+      rotation: num(space['rotation'], 0),
       notes: str(space['notes'])
     };
   });
@@ -390,6 +391,9 @@ function adventureMap(value: unknown): AdventureMap {
     spaceStroke: str(raw['spaceStroke'], defaults.spaceStroke),
     pathColor: str(raw['pathColor'], defaults.pathColor),
     startInk: str(raw['startInk'], defaults.startInk),
+    palette: (Array.isArray(raw['palette']) ? raw['palette'] : []).filter(
+      (color): color is string => typeof color === 'string'
+    ),
     spaces,
     paths,
     notes: (Array.isArray(raw['notes']) ? raw['notes'] : []).map((entry) => {

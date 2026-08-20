@@ -179,10 +179,21 @@ export type SetId = Id<'Set'>;
  *      an older document otherwise, which opens exactly as it always
  *      printed.
  *
+ * v27 — a map space gained `rotation`, degrees clockwise applied to its
+ *      `zones`' own wedges (see `MapBoard.svelte`'s `wedge()`), so a split
+ *      space's colours can be turned without moving the space itself.
+ *      Absent on an older document, which opens at 0° — the same wedge
+ *      layout it always drew. The map itself gained `palette`, colours an
+ *      author has explicitly added to the "Colour this space" swatch via
+ *      its "+" button, on top of whatever the swatch already finds by
+ *      reading the board. Absent on an older document, which opens with an
+ *      empty one — nothing it showed before is lost, since that swatch
+ *      still reads the board directly regardless.
+ *
  * Older documents are *repaired*, not rejected — see `sets/normalize.ts`. Only
  * a version newer than this build understands is refused.
  */
-export const SET_SCHEMA_VERSION = 26;
+export const SET_SCHEMA_VERSION = 27;
 
 /**
  * Where a set was copied from, if it was copied.

@@ -163,6 +163,15 @@ export interface MapSpace {
    * per-space rather than a single map-wide direction.
    */
   startSide: MapStartSide;
+  /**
+   * Degrees clockwise, applied to `zones`' own wedges before they are drawn
+   * — see `MapBoard.svelte`'s `wedge()`. `label`/`start`'s own diamond are
+   * unaffected: a rotated space still reads its number upright and still
+   * starts its marker from the side it was told to, only the coloured split
+   * itself turns. Meaningless (and hidden in the editor) while `zones` is a
+   * single plain fill, since a circle has no seam to turn.
+   */
+  rotation: number;
   /** Author's note. Never printed. */
   notes: string;
 }
@@ -238,9 +247,29 @@ export interface AdventureMap {
   /** Diameter as a fraction of the map's width — one size for every space. */
   spaceDiameter: number;
   spaceStroke: string;
+  /**
+   * Not part of `palette`/the "colours used" swatch, on purpose: that
+   * swatch used to include this by simply reading it off the board like
+   * every space's own fill, and the very first time it happened to land on
+   * the same default as `spaceStroke`, repicking "the space outline"
+   * silently recoloured every path too — the two had been folded into one
+   * swatch entry because they shared a value, not because an author asked
+   * to change them together. Its own picker sits beside "Behind the
+   * artwork" instead, so recolouring paths is always a deliberate,
+   * separate choice.
+   */
   pathColor: string;
   /** Colour of the numeral printed on a start marker's diamond. */
   startInk: string;
+  /**
+   * Colours an author has explicitly added to the "Colour this space"
+   * swatch, over and above whatever `usedColors` (in `MapEditor.svelte`)
+   * already finds by reading the board — the "+" swatch appends here. Kept
+   * even once nothing on the board uses them any more: adding one is a
+   * deliberate choice to keep it on hand, not a record of the board's
+   * current state the way `usedColors` is, so nothing here prunes it back.
+   */
+  palette: string[];
   spaces: MapSpace[];
   paths: MapPath[];
   /** Free copy, placed by hand anywhere on the board. */
@@ -257,6 +286,7 @@ export function createMapSpace(x: number, y: number, fill?: Fill): MapSpace {
     label: '',
     start: null,
     startSide: 'top',
+    rotation: 0,
     notes: ''
   };
 }
@@ -277,6 +307,7 @@ export function createAdventureMap(): AdventureMap {
     spaceStroke: '#101010',
     pathColor: '#101010',
     startInk: '#f5f2ec',
+    palette: [],
     spaces: [],
     paths: [],
     notes: []

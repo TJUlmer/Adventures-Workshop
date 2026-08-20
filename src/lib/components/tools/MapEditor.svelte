@@ -54,6 +54,7 @@
   let board = $state<HTMLDivElement | null>(null);
   let artInput = $state<HTMLInputElement | null>(null);
   let artError = $state<string | null>(null);
+  let paletteInput = $state<HTMLInputElement | null>(null);
   let exporting = $state(false);
   let exportError = $state<string | null>(null);
   let selectedNote = $state<string | null>(null);
@@ -85,11 +86,19 @@
    *
    * Most spaces of one kind — water, say — share a colour on the printed
    * sample, so this is what lets one of them be repicked once rather than
-   * hunted down across however many spaces, the outline and the paths
-   * happen to share it. The start-marker numeral's own colour is not part
-   * of this: it prints on a diamond rather than the board itself, and has
-   * its own picker beside "Marker side" in the selected space's own panel,
-   * where an author is already looking when they place one.
+   * hunted down across however many spaces or the outline happen to share
+   * it. Two things this deliberately leaves out:
+   *
+   * - The start-marker numeral's own colour: it prints on a diamond rather
+   *   than the board itself, and has its own picker beside "Marker side" in
+   *   the selected space's own panel, where an author is already looking
+   *   when they place one.
+   * - `map.pathColor`: it used to be read here like everything else, and
+   *   the first time it happened to share `spaceStroke`'s own default the
+   *   two folded into one swatch entry — repicking "the space outline"
+   *   silently recoloured every path too, an accident of a shared value
+   *   rather than anything an author asked for. It has its own picker now,
+   *   beside "Behind the artwork".
    */
   const usedColors = $derived.by(() => {
     const seen = new Set<string>();
@@ -103,7 +112,6 @@
     };
     add(map.background.color);
     add(map.spaceStroke);
-    add(map.pathColor);
     for (const space of map.spaces) {
       add(space.stroke);
       for (const zone of space.zones) add(zone.color);
@@ -111,6 +119,31 @@
     for (const note of map.notes) add(note.color);
     return order;
   });
+
+  /**
+   * `usedColors` plus whatever an author has added by hand via the "+"
+   * swatch (`map.palette`) — what "Colour this space" actually offers.
+   * `usedColors` alone would cap the swatch at whatever already happens to
+   * be on the board, which is exactly the five-or-so colours too few an
+   * author starting a new region runs into.
+   */
+  const paletteColors = $derived.by(() => {
+    const seen = new Set(usedColors.map((color) => color.toLowerCase()));
+    const extra = map.palette.filter((color) => {
+      const key = color.toLowerCase();
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+    return [...usedColors, ...extra];
+  });
+
+  /** Add a colour to `map.palette`, unless it is already offered. */
+  function addToPalette(color: string): void {
+    const key = color.toLowerCase();
+    if (paletteColors.some((existing) => existing.toLowerCase() === key)) return;
+    workshop.editMap((m) => m.palette.push(color));
+  }
 
   /**
    * Change every use of `from` to `to` in one go — what a swatch in
@@ -126,7 +159,6 @@
     workshop.editMap((m) => {
       if (m.background.color.toLowerCase() === key) m.background = solid(to);
       if (m.spaceStroke.toLowerCase() === key) m.spaceStroke = to;
-      if (m.pathColor.toLowerCase() === key) m.pathColor = to;
       for (const space of m.spaces) {
         if (space.stroke && space.stroke.toLowerCase() === key) space.stroke = to;
         space.zones = space.zones.map((zone) =>
@@ -441,6 +473,14 @@
     });
   }
 
+  /** Turns a split space's wedges without moving the space itself. */
+  function setSpaceRotation(degrees: number): void {
+    if (!selectedSpace) return;
+    workshop.editMap(() => {
+      selectedSpace.rotation = degrees;
+    });
+  }
+
   function editNote(note: MapNote, mutate: (n: MapNote) => void): void {
     workshop.editMap(() => mutate(note));
   }
@@ -645,6 +685,23 @@
                 />
               </label>
 
+              <!--
+                Its own picker rather than a member of "Colours used" below
+                — see that swatch's own doc comment for why folding it back
+                in there is exactly the bug it was pulled out to fix.
+              -->
+              <label class="field">
+                <span class="field-label">Path colour</span>
+                <input
+                  type="color"
+                  value={map.pathColor}
+                  oninput={(event) => {
+                    const value = event.currentTarget.value;
+                    workshop.editMap((m) => (m.pathColor = value));
+                  }}
+                />
+              </label>
+
               {#if usedColors.length > 0}
                 <div class="field">
                   <span class="field-label">Colours used — repick one to change it everywhere</span>
@@ -762,34 +819,49 @@
                   </p>
                 {/if}
 
-                {#if usedColors.length > 0}
-                  <!--
-                    Click, not drag-to-edit like the Board panel's own
-                    swatches — this one paints the selection, so a plain
-                    button rather than a colour input is both the simpler
-                    control and the one that cannot be misread as "recolour
-                    this everywhere" the way that panel's swatches actually
-                    do.
-                  -->
-                  <div class="field">
-                    <span class="field-label">
-                      {colorSelection.size > 1
-                        ? `Colour all ${colorSelection.size} spaces`
-                        : 'Colour this space'}
-                    </span>
-                    <div class="swatches">
-                      {#each usedColors as color, index (index)}
-                        <button
-                          type="button"
-                          class="swatch-apply"
-                          style:background={color}
-                          title="Set to {color}"
-                          onclick={() => applyColorToSpaces(color, colorSelection)}
-                        ></button>
-                      {/each}
-                    </div>
+                <!--
+                  Click, not drag-to-edit like the Board panel's own
+                  swatches — this one paints the selection, so a plain
+                  button rather than a colour input is both the simpler
+                  control and the one that cannot be misread as "recolour
+                  this everywhere" the way that panel's swatches actually
+                  do. Reads `paletteColors`, not `usedColors` alone, so the
+                  "+" swatch below can offer a colour that is not on the
+                  board yet at all.
+                -->
+                <div class="field">
+                  <span class="field-label">
+                    {colorSelection.size > 1
+                      ? `Colour all ${colorSelection.size} spaces`
+                      : 'Colour this space'}
+                  </span>
+                  <div class="swatches">
+                    {#each paletteColors as color, index (index)}
+                      <button
+                        type="button"
+                        class="swatch-apply"
+                        style:background={color}
+                        title="Set to {color}"
+                        onclick={() => applyColorToSpaces(color, colorSelection)}
+                      ></button>
+                    {/each}
+                    <input
+                      class="hidden-file"
+                      type="color"
+                      bind:this={paletteInput}
+                      onchange={(event) => addToPalette(event.currentTarget.value)}
+                    />
+                    <button
+                      type="button"
+                      class="swatch-add"
+                      title="Add a colour to this swatch"
+                      aria-label="Add a colour to this swatch"
+                      onclick={() => paletteInput?.click()}
+                    >
+                      <Icon name="plus" size={13} />
+                    </button>
                   </div>
-                {/if}
+                </div>
               {/if}
 
               {#if colorSelection.size === 1 && selectedSpace}
@@ -910,6 +982,24 @@
                   {/each}
                 </div>
 
+                {#if selectedSpace.zones.length > 1}
+                  <!--
+                    A circle with one fill has no seam to turn — hidden
+                    until there is a split to rotate, same as "Marker side"
+                    only shows once there is a marker.
+                  -->
+                  <Slider
+                    label="Rotation"
+                    value={selectedSpace.rotation}
+                    min={-180}
+                    max={180}
+                    step={1}
+                    neutral={0}
+                    format={(v) => `${Math.round(v)}°`}
+                    onchange={(v) => setSpaceRotation(v)}
+                  />
+                {/if}
+
                 <div class="swatches">
                   {#each selectedSpace.zones as zone, index (index)}
                     <input
@@ -978,11 +1068,20 @@
     font-size: var(--text-lg);
   }
 
+  /*
+   * 1380px, not the 1100px this used to be — the side panel became two
+   * 260px columns rather than one (see `.side` below), which are 280px
+   * wider together than the cap ever accounted for. Left at 1100px, the
+   * board itself was the one thing that shrank to make room: its own
+   * effective ceiling dropped from about 824px to about 544px, and the map
+   * this whole page exists to show read as tiny. Raised by exactly the
+   * width the second column added, the board gets its old ceiling back.
+   */
   .panels {
     display: flex;
     flex-direction: column;
     gap: var(--space-5);
-    max-width: 1100px;
+    max-width: 1380px;
   }
 
   .panel {
@@ -1243,5 +1342,23 @@
 
   .swatch-apply:hover {
     border-color: var(--border-strong);
+  }
+
+  .swatch-add {
+    display: grid;
+    place-items: center;
+    width: 34px;
+    height: 26px;
+    padding: 0;
+    border: 1px dashed var(--border-default);
+    border-radius: var(--radius-sm);
+    background: none;
+    color: var(--text-muted);
+    cursor: pointer;
+  }
+
+  .swatch-add:hover {
+    border-color: var(--border-strong);
+    color: var(--text-secondary);
   }
 </style>
