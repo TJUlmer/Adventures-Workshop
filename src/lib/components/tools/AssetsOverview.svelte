@@ -258,6 +258,36 @@
     />
   {/if}
 
+  <!-- Deck backs --------------------------------------------------------- -->
+  {#if set.characters.length > 0}
+    <section class="group">
+      <h2 class="group-title">
+        Deck backs
+        <span class="group-count numeric">{set.characters.length}</span>
+      </h2>
+
+      <div class="gallery" style:--tile="{size}px">
+        {#each set.characters as character (character.id)}
+          <figure class="tile">
+            <svelte:element
+              this={tile}
+              class="tile-card"
+              type={interactive ? 'button' : undefined}
+              role={interactive ? 'button' : undefined}
+              onclick={interactive ? () => workshop.selectCharacter(character.id) : undefined}
+            >
+              <CardRenderer card={null} cardback={character} />
+            </svelte:element>
+            <figcaption class="tile-caption">
+              <span class="tile-name">{characterLabel(character)}</span>
+              <span class="tile-meta">Deck back</span>
+            </figcaption>
+          </figure>
+        {/each}
+      </div>
+    </section>
+  {/if}
+
   <!-- Character cards ------------------------------------------------------ -->
   {#if characterCardTiles.length > 0}
     <section class="group">
@@ -336,36 +366,6 @@
       </div>
     </section>
   {/each}
-
-  <!-- Deck backs --------------------------------------------------------- -->
-  {#if set.characters.length > 0}
-    <section class="group">
-      <h2 class="group-title">
-        Deck backs
-        <span class="group-count numeric">{set.characters.length}</span>
-      </h2>
-
-      <div class="gallery" style:--tile="{size}px">
-        {#each set.characters as character (character.id)}
-          <figure class="tile">
-            <svelte:element
-              this={tile}
-              class="tile-card"
-              type={interactive ? 'button' : undefined}
-              role={interactive ? 'button' : undefined}
-              onclick={interactive ? () => workshop.selectCharacter(character.id) : undefined}
-            >
-              <CardRenderer card={null} cardback={character} />
-            </svelte:element>
-            <figcaption class="tile-caption">
-              <span class="tile-name">{characterLabel(character)}</span>
-              <span class="tile-meta">Deck back</span>
-            </figcaption>
-          </figure>
-        {/each}
-      </div>
-    </section>
-  {/if}
 
   <!-- Threat track ------------------------------------------------------- -->
   {#if set.threat.enabled}

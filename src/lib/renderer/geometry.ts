@@ -1033,7 +1033,19 @@ export const CHARACTER_HEADING = {
   x: 282,
   capTop: 66,
   /** Caps stand 165 in both templates. */
-  size: inName(247.5)
+  size: inName(247.5),
+  /**
+   * Right edge of the shrink-to-fit box a long name has to stay inside.
+   *
+   * Neither template marks a right margin for this row — both only ever
+   * printed the fixed words HERO/SIDEKICK, never long enough to need one —
+   * so this mirrors `x`'s own inset from the card's printed edge rather
+   * than being read off the art. See the heading snippet in
+   * `HeroCharacterCardFace.svelte` for why it exists at all: content-driven
+   * sizing, not template geometry (`fit-text.ts`'s own exception to "nothing
+   * measures text at runtime").
+   */
+  right: CHARACTER_CARD.x + CHARACTER_CARD.width - (282 - CHARACTER_CARD.x)
 } as const;
 
 /**

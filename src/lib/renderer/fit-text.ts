@@ -45,3 +45,38 @@ export function fitScale(
     element.style.setProperty('--fit-scale', String(scale));
   }
 }
+
+/**
+ * The same technique as `fitScale`, on the perpendicular axis: for a run of
+ * text that is one line by design (`white-space: nowrap`, e.g. a heading
+ * that used to print a single fixed word), what author-length content
+ * overflows is width, never height.
+ */
+export function fitScaleWidth(
+  element: HTMLElement,
+  { min = 0.4, step = 0.02 }: FitTextOptions = {}
+): void {
+  let scale = 1;
+  element.style.setProperty('--fit-scale', '1');
+  while (element.scrollWidth > element.clientWidth + 0.5 && scale > min) {
+    scale = Math.max(min, scale - step);
+    element.style.setProperty('--fit-scale', String(scale));
+  }
+}
+
+/**
+ * A Svelte action wrapper for `fitScaleWidth`, for text set inside a
+ * `{#snippet}` rather than behind a `bind:this` — a snippet invoked more
+ * than once (the HERO and SIDEKICK bands share one) has no single element
+ * variable to bind to, but an action gets a fresh node per instance for
+ * free. `word` is the action's parameter so Svelte re-fits on every value
+ * change, not just on mount.
+ */
+export function fitWidth(node: HTMLElement, _word: string): { update(word: string): void } {
+  fitScaleWidth(node);
+  return {
+    update() {
+      fitScaleWidth(node);
+    }
+  };
+}

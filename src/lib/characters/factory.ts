@@ -1,5 +1,5 @@
 import { solid } from '$lib/cards/style';
-import { createArtwork } from '$lib/core/artwork';
+import { cloneArtwork, createArtwork } from '$lib/core/artwork';
 import { createId, now } from '$lib/core/id';
 import type {
   CardbackDesign,
@@ -14,7 +14,7 @@ import type {
   HeroQuote,
   HeroSidekick
 } from './types';
-import { CHARACTER_ROLE_META } from './types';
+import { CHARACTER_BAND_NAMES, CHARACTER_ROLE_META } from './types';
 
 /** A hero with no sidekick — the quote panel prints until one is turned on. */
 export function createHeroSidekick(): HeroSidekick {
@@ -70,6 +70,33 @@ export function createCharacterCard(): CharacterCardDesign {
     sidekick: band('#001722'),
     replacement: createArtwork(),
     useReplacement: false
+  };
+}
+
+/**
+ * A `CharacterCardDesign`, independent all the way down.
+ *
+ * `duplicateCharacter` used to shallow-spread a character, which leaves
+ * every field this function touches — `characterCard` itself, each band's
+ * `fill`/`artwork`, `replacement` — pointing at the *same* nested objects
+ * the original still holds. Editing the duplicate's ability band silently
+ * repainted the original's too, and vice versa: exactly the hazard
+ * `sets/normalize.ts`'s own `heroCharacterCard` doc comment already warns
+ * about ("a clone, via `characterCard` itself — never the same object
+ * twice"), just unguarded on this path.
+ */
+export function cloneCharacterCard(design: CharacterCardDesign): CharacterCardDesign {
+  const bands = Object.fromEntries(
+    CHARACTER_BAND_NAMES.map((name) => [
+      name,
+      { fill: { ...design[name].fill }, artwork: cloneArtwork(design[name].artwork) }
+    ])
+  ) as Pick<CharacterCardDesign, (typeof CHARACTER_BAND_NAMES)[number]>;
+
+  return {
+    ...design,
+    ...bands,
+    replacement: cloneArtwork(design.replacement)
   };
 }
 
@@ -139,11 +166,13 @@ export function duplicateCharacter(character: Character): Character {
     artwork: { ...character.artwork, crop: { ...character.artwork.crop } },
     sidekick: { ...character.sidekick },
     quote: { ...character.quote },
+    characterCard: cloneCharacterCard(character.characterCard),
     additionalCards: character.additionalCards.map((card) => ({
       ...card,
       id: createId<HeroCharacterCardId>('hchar'),
       abilities: card.abilities.map((ability) => ({ ...ability })),
-      quote: { ...card.quote }
+      quote: { ...card.quote },
+      characterCard: cloneCharacterCard(card.characterCard)
     })),
     style: { ...character.style },
     createdAt: timestamp,

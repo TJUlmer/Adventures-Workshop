@@ -39,7 +39,7 @@
   import type { CustomSymbol } from '$lib/symbols/types';
   import { parseAbilityText } from '$lib/text/tokens';
   import CardArt from './CardArt.svelte';
-  import { fitScale } from './fit-text';
+  import { fitScale, fitWidth } from './fit-text';
   import { ATTACK_TYPE_SIZES, ATTACK_TYPE_SYMBOLS, symbolUrl, TEMPLATE_ASSETS } from './assets';
   import {
     CHARACTER_ABILITY,
@@ -559,8 +559,17 @@
 {/if}
 
 {#snippet heading(band: { top: number; height: number }, word: string)}
+  <!--
+    `fitWidth` (see `fit-text.ts`) shrinks `--fit-scale` until the word's own
+    `scrollWidth` clears its fixed box — this snippet used to print only the
+    stock words HERO/SIDEKICK, which never came close to `CHARACTER_HEADING`'s
+    box, but it prints the character's actual name now, and an author's name
+    is not bounded the way a template word is. `overflow: hidden` is only the
+    backstop past the shrink's own floor, same as `.ability`/`.quote-zone`.
+  -->
   <span
     class="heading"
+    use:fitWidth={word}
     style:left={px(CHARACTER_HEADING.x)}
     style:top={py(
       capTopToBoxTop(
@@ -570,7 +579,8 @@
         NAME_METRICS
       )
     )}
-    style:font-size={pu(CHARACTER_HEADING.size)}
+    style:width={px(CHARACTER_HEADING.right - CHARACTER_HEADING.x)}
+    style:font-size="calc({pu(CHARACTER_HEADING.size)} * var(--fit-scale, 1))"
   >
     {word}
   </span>
@@ -701,6 +711,7 @@
   /* -- band headings and the attack rows ---------------------------------- */
   .heading {
     position: absolute;
+    overflow: hidden;
     font-family: var(--card-font-name);
     font-weight: var(--card-font-name-weight);
     line-height: 1;
