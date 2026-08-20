@@ -86,19 +86,20 @@
    *
    * Most spaces of one kind — water, say — share a colour on the printed
    * sample, so this is what lets one of them be repicked once rather than
-   * hunted down across however many spaces or the outline happen to share
-   * it. Two things this deliberately leaves out:
+   * hunted down across however many spaces happen to share it. Three
+   * things this deliberately leaves out:
    *
    * - The start-marker numeral's own colour: it prints on a diamond rather
    *   than the board itself, and has its own picker beside "Marker side" in
    *   the selected space's own panel, where an author is already looking
    *   when they place one.
-   * - `map.pathColor`: it used to be read here like everything else, and
-   *   the first time it happened to share `spaceStroke`'s own default the
-   *   two folded into one swatch entry — repicking "the space outline"
-   *   silently recoloured every path too, an accident of a shared value
-   *   rather than anything an author asked for. It has its own picker now,
-   *   beside "Behind the artwork".
+   * - `map.pathColor` and `map.spaceStroke`: both used to be read here like
+   *   every space's own fill, and the first time `pathColor` happened to
+   *   share `spaceStroke`'s own default, repicking "the space outline"
+   *   silently recoloured every path too — the two had folded into one
+   *   swatch entry because they shared a value, not because an author asked
+   *   to change them together. Neither is offered here any more; both stay
+   *   at their printed default.
    */
   const usedColors = $derived.by(() => {
     const seen = new Set<string>();
@@ -111,7 +112,6 @@
       order.push(color);
     };
     add(map.background.color);
-    add(map.spaceStroke);
     for (const space of map.spaces) {
       add(space.stroke);
       for (const zone of space.zones) add(zone.color);
@@ -158,7 +158,6 @@
     const key = from.toLowerCase();
     workshop.editMap((m) => {
       if (m.background.color.toLowerCase() === key) m.background = solid(to);
-      if (m.spaceStroke.toLowerCase() === key) m.spaceStroke = to;
       for (const space of m.spaces) {
         if (space.stroke && space.stroke.toLowerCase() === key) space.stroke = to;
         space.zones = space.zones.map((zone) =>
@@ -229,6 +228,22 @@
         if (!idSet.has(space.id)) continue;
         space.zones = space.zones.map(() => solid(color));
       }
+    });
+  }
+
+  /**
+   * Colour one wedge of a split space, from the same palette "Colour this
+   * space" reads — a space with more than one zone has no single colour of
+   * its own for that swatch to mean any more, so each wedge gets its own
+   * click-to-set row instead of author having to fall back to the eyedropper
+   * to match one zone's colour to another's.
+   */
+  function applyColorToZone(color: string, index: number): void {
+    if (!selectedSpace) return;
+    const zone = selectedSpace.zones[index];
+    if (!zone) return;
+    workshop.editMap(() => {
+      selectedSpace.zones[index] = { ...zone, color };
     });
   }
 
@@ -685,23 +700,6 @@
                 />
               </label>
 
-              <!--
-                Its own picker rather than a member of "Colours used" below
-                — see that swatch's own doc comment for why folding it back
-                in there is exactly the bug it was pulled out to fix.
-              -->
-              <label class="field">
-                <span class="field-label">Path colour</span>
-                <input
-                  type="color"
-                  value={map.pathColor}
-                  oninput={(event) => {
-                    const value = event.currentTarget.value;
-                    workshop.editMap((m) => (m.pathColor = value));
-                  }}
-                />
-              </label>
-
               {#if usedColors.length > 0}
                 <div class="field">
                   <span class="field-label">Colours used — repick one to change it everywhere</span>
@@ -833,7 +831,9 @@
                   <span class="field-label">
                     {colorSelection.size > 1
                       ? `Colour all ${colorSelection.size} spaces`
-                      : 'Colour this space'}
+                      : selectedSpace && selectedSpace.zones.length > 1
+                        ? 'Colour every zone'
+                        : 'Colour this space'}
                   </span>
                   <div class="swatches">
                     {#each paletteColors as color, index (index)}
@@ -1000,19 +1000,58 @@
                   />
                 {/if}
 
-                <div class="swatches">
-                  {#each selectedSpace.zones as zone, index (index)}
-                    <input
-                      type="color"
-                      value={zone.color}
-                      aria-label="Zone {index + 1} colour"
-                      oninput={(event) => {
-                        const value = event.currentTarget.value;
-                        workshop.editMap(() => (selectedSpace.zones[index] = solid(value)));
-                      }}
-                    />
-                  {/each}
-                </div>
+                {#if selectedSpace.zones.length > 1}
+                  <!--
+                    One row per wedge, each with its own quick-apply palette
+                    — "Colour every zone" above sets all of them at once,
+                    which is not the same request as matching *one* wedge to
+                    a colour another already has. Without a per-zone row,
+                    that meant opening this zone's own picker and using its
+                    eyedropper against another wedge on screen; a click here
+                    does the same thing in one step.
+                  -->
+                  <div class="zone-list">
+                    {#each selectedSpace.zones as zone, index (index)}
+                      <div class="field">
+                        <span class="field-label">Zone {index + 1}</span>
+                        <div class="swatches">
+                          {#each paletteColors as color, ci (ci)}
+                            <button
+                              type="button"
+                              class="swatch-apply"
+                              style:background={color}
+                              title="Set zone {index + 1} to {color}"
+                              onclick={() => applyColorToZone(color, index)}
+                            ></button>
+                          {/each}
+                          <input
+                            type="color"
+                            value={zone.color}
+                            aria-label="Zone {index + 1} colour"
+                            oninput={(event) => {
+                              const value = event.currentTarget.value;
+                              workshop.editMap(() => (selectedSpace.zones[index] = solid(value)));
+                            }}
+                          />
+                        </div>
+                      </div>
+                    {/each}
+                  </div>
+                {:else}
+                  <div class="swatches">
+                    {#each selectedSpace.zones as zone, index (index)}
+                      <input
+                        type="color"
+                        value={zone.color}
+                        aria-label="Zone {index + 1} colour"
+                        oninput={(event) => {
+                          const value = event.currentTarget.value;
+                          workshop.editMap(() => (selectedSpace.zones[index] = solid(value)));
+                        }}
+                      />
+                    {/each}
+                  </div>
+                {/if}
 
                 <Button variant="danger" size="sm" onclick={removeSelected}>
                   <Icon name="trash" size={13} />
@@ -1360,5 +1399,12 @@
   .swatch-add:hover {
     border-color: var(--border-strong);
     color: var(--text-secondary);
+  }
+
+  .zone-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    width: 100%;
   }
 </style>
