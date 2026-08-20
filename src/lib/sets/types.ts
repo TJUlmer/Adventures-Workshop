@@ -132,10 +132,17 @@ export type SetId = Id<'Set'>;
  * `opacity` (v20) did not — a style override is already read back
  * generically and merged key by key with a default for anything missing.
  *
+ * v22 — a character card's design gained `quoteInk`, the colour of the quote
+ *      text, its attribution and its quotation marks — previously fixed ink
+ *      (cream marks, white text), independently of the border's colour, the
+ *      same shape as `healthBadge`/`healthBadgeAccent` (v20). Absent on an
+ *      older document, which opens with the quote panel in its printed
+ *      colours, exactly as before.
+ *
  * Older documents are *repaired*, not rejected — see `sets/normalize.ts`. Only
  * a version newer than this build understands is refused.
  */
-export const SET_SCHEMA_VERSION = 21;
+export const SET_SCHEMA_VERSION = 22;
 
 /**
  * Where a set was copied from, if it was copied.

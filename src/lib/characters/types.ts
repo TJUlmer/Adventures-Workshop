@@ -182,6 +182,8 @@ export interface CharacterCardDesign {
   healthBadge: Fill;
   /** A small triangle notched into the shield, low in its body — its own decoration. */
   healthBadgeAccent: Fill;
+  /** The quote text, its attribution and its quotation marks — one colour for all three. */
+  quoteInk: Fill;
   hero: CharacterBandStyle;
   ability: CharacterBandStyle;
   sidekick: CharacterBandStyle;

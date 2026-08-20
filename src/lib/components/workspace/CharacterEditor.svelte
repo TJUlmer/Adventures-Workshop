@@ -1,6 +1,6 @@
 <script lang="ts">
   import { deckSize } from '$lib/cards/factory';
-  import type { CardTheme } from '$lib/cards/style';
+  import type { CardTheme, Fill } from '$lib/cards/style';
   import { ACTION_SURFACES, resolveCardTheme } from '$lib/cards/theme';
   import {
     characterLabel,
@@ -24,6 +24,7 @@
   import {
     Button,
     Field,
+    FillEditor,
     Icon,
     NumberInput,
     Section,
@@ -542,7 +543,7 @@
               </Field>
             </div>
           {:else}
-            <div class="tiles sidekick-fields">
+            <div class="tiles sidekick-fields quote-fields">
               <Field label="Quote">
                 <TextArea
                   bind:value={character.quote.text}
@@ -553,6 +554,12 @@
               <Field label="Attribution">
                 <TextInput bind:value={character.quote.attribution} placeholder="Who said it" />
               </Field>
+              <FillEditor
+                label="Quote colour"
+                value={character.characterCard.quoteInk}
+                onchange={(quoteInk: Fill) =>
+                  workshop.editCharacterCard(character.id, (card) => (card.quoteInk = quoteInk))}
+              />
             </div>
           {/if}
         </Section>
@@ -620,12 +627,20 @@
           (abilityIndex) => removeAbilityFrom(extra.abilities, abilityIndex)
         )}
 
-        <Field label="Quote">
-          <TextArea bind:value={extra.quote.text} rows={2} placeholder="A memorable line goes here." />
-        </Field>
-        <Field label="Attribution">
-          <TextInput bind:value={extra.quote.attribution} placeholder="Who said it" />
-        </Field>
+        <div class="tiles quote-fields">
+          <Field label="Quote">
+            <TextArea bind:value={extra.quote.text} rows={2} placeholder="A memorable line goes here." />
+          </Field>
+          <Field label="Attribution">
+            <TextInput bind:value={extra.quote.attribution} placeholder="Who said it" />
+          </Field>
+          <FillEditor
+            label="Quote colour"
+            value={extra.characterCard.quoteInk}
+            onchange={(quoteInk: Fill) =>
+              workshop.editCharacterCard(character.id, (card) => (card.quoteInk = quoteInk), extra.id)}
+          />
+        </div>
 
         <CharacterCardPanel characterId={character.id} design={extra.characterCard} cardId={extra.id} />
       {/if}
@@ -758,6 +773,22 @@
 
   .sidekick-fields {
     margin-top: var(--space-3);
+  }
+
+  /*
+   * Quote and Attribution alone leave a third column's worth of space unused
+   * at a normal workspace width — Quote colour fills it rather than sitting
+   * in `CharacterCardPanel`'s own colour group, since it is this row's own
+   * text it is colouring, not a band.
+   */
+  .quote-fields {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  @container workspace (max-width: 620px) {
+    .quote-fields {
+      grid-template-columns: minmax(0, 1fr);
+    }
   }
 
   .extra-head {

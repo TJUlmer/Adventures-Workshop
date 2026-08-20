@@ -261,12 +261,20 @@
   ></div>
 
   {#if hasArtwork(design[band].artwork)}
+    <!--
+      Same `bleed` as the fill behind it, for the same reason: the border
+      drawn over both covers every join and corner, so nothing here needs to
+      stop short at the band's nominal edge. Without it, the artwork sat
+      exactly at that nominal boundary while the fill ran past it, leaving a
+      hairline of fill colour showing along whichever edge the border's own
+      window didn't land on precisely.
+    -->
     <div
       class="band-art"
-      style:left={px(CHARACTER_CARD.x)}
-      style:top={py(run.top)}
-      style:width={px(CHARACTER_CARD.width)}
-      style:height={py(run.bottom - run.top)}
+      style:left={px(CHARACTER_CARD.x - bleed)}
+      style:top={py(run.top - bleed)}
+      style:width={px(CHARACTER_CARD.width + bleed * 2)}
+      style:height={py(run.bottom - run.top + bleed * 2)}
     >
       <CardArt artwork={design[band].artwork} background="transparent" />
     </div>
@@ -355,6 +363,7 @@
     style:left={px(CHARACTER_QUOTE.markLeftX)}
     style:top={py(CHARACTER_QUOTE.markY)}
     style:font-size={pu(CHARACTER_QUOTE.markHeight * 2)}
+    style:color={fillCss(design.quoteInk)}
   >
     &ldquo;
   </span>
@@ -363,6 +372,7 @@
     style:right={px(1632 - CHARACTER_QUOTE.markRightX)}
     style:top={py(CHARACTER_QUOTE.markY)}
     style:font-size={pu(CHARACTER_QUOTE.markHeight * 2)}
+    style:color={fillCss(design.quoteInk)}
   >
     &rdquo;
   </span>
@@ -379,6 +389,7 @@
       class="quote-text"
       style:font-size="calc({pu(CHARACTER_QUOTE.textSize)} * var(--fit-scale, 1))"
       style:line-height={CHARACTER_QUOTE.textLineHeight}
+      style:color={fillCss(design.quoteInk)}
     >
       {identity.quote.text.trim() || 'A memorable line goes here.'}
     </p>
@@ -392,6 +403,7 @@
         capTopToBoxTop(CHARACTER_QUOTE.attributionCapTop, CHARACTER_QUOTE.attributionSize)
       )}
       style:font-size={pu(CHARACTER_QUOTE.attributionSize)}
+      style:color={fillCss(design.quoteInk)}
     >
       — {identity.quote.attribution}
     </p>
@@ -734,11 +746,22 @@
     align-items: flex-start;
   }
 
+  /*
+   * In flow, clamped to two lines rather than the single `nowrap` line this
+   * used to be pinned to — same treatment as the action card's own `.title`,
+   * for the same reason: a name long enough to want a third line reads the
+   * two-line ellipsis as the honest "this does not fit" signal, and `fitScale`
+   * (see `abilityBox`, above) already shrinks the whole block first if a
+   * wrapped name makes it taller than the panel has room for.
+   */
   .ability-name {
+    display: -webkit-box;
     font-family: var(--card-font-name);
     font-weight: var(--card-font-name-weight);
     text-transform: uppercase;
-    white-space: nowrap;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
     overflow: hidden;
     text-overflow: ellipsis;
     max-width: 100%;
@@ -810,13 +833,14 @@
   /*
    * The printed marks are set in the artwork's own face, which is not one of
    * the three here, so their box is positioned and their ink is left to
-   * whichever serif the browser has. Nothing else on the card depends on them.
+   * whichever serif the browser has. Colour comes from `design.quoteInk`,
+   * inline below — the same one this text and its attribution take, so all
+   * three move together.
    */
   .quote-mark {
     position: absolute;
     font-family: Georgia, 'Times New Roman', serif;
     line-height: 1;
-    color: #f6eada;
   }
 
   /*
@@ -839,7 +863,6 @@
     font-family: var(--card-font-text);
     font-weight: var(--card-font-text-weight);
     font-style: italic;
-    color: #ffffff;
   }
 
   .quote-text {

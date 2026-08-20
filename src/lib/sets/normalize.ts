@@ -238,6 +238,7 @@ function characterCard(value: unknown): CharacterCardDesign {
     border: fill(raw['border'], defaults.border),
     healthBadge: fill(raw['healthBadge'], defaults.healthBadge),
     healthBadgeAccent: fill(raw['healthBadgeAccent'], defaults.healthBadgeAccent),
+    quoteInk: fill(raw['quoteInk'], defaults.quoteInk),
     ...(Object.fromEntries(CHARACTER_BAND_NAMES.map((name) => [name, band(name)])) as Pick<
       CharacterCardDesign,
       CharacterBandName
