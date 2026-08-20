@@ -39,6 +39,7 @@
       <img
         src={artwork.source}
         alt=""
+        draggable="false"
         style:object-fit={fit}
         style:width={layout.width}
         style:height={layout.height}
@@ -80,6 +81,17 @@
     object-fit: fill;
     max-width: none;
     transform-origin: center;
+    /*
+     * An <img> is draggable by default in every browser -- the browser's own
+     * "drag this picture out" gesture fires on the same mousedown-then-move
+     * ArtworkPanel's pointer-based reposition drag listens for, and wins:
+     * the image nudges a pixel or two, then the cursor shows the browser's
+     * own "nothing here accepts a drop" icon and the rest of the gesture is
+     * swallowed by native drag-and-drop instead of reaching `pointermove`.
+     * `draggable="false"` on the element is the primary fix; Safari also
+     * wants the CSS property.
+     */
+    -webkit-user-drag: none;
   }
 
   .vignette {
