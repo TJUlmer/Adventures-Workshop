@@ -325,15 +325,39 @@
     {/if}
 
     {#if theme.customPattern.source}
+      <!--
+        `left`/`top` are percentages of this element's own *containing
+        block* (`.body`), but `cqw` is a percentage of the nearest
+        container-query ancestor, which is the whole plate, not `.body` —
+        two different reference widths in what looked like one `calc()`.
+        At `.body` narrower than the plate (the usual case) the two only
+        happened to roughly agree at a small scale; past it, growing
+        `scale` shrank the `100% - 70cqw*scale` slack term against the
+        wrong (smaller) width, so the image raced past `.body`'s own
+        bounds and the offset math pushed it visibly sideways well before
+        the slider neared its own maximum.
+
+        Fixed by never mixing the two: `width` is a percentage of `.body`
+        alone, `aspect-ratio: 1` derives a matching height without a
+        second, height-relative percentage to keep in step with it, and
+        `left`/`top` position the `offsetX`/`offsetY` point of `.body`
+        itself, with `translate()` pulling the image back by that same
+        fraction of its *own* rendered box (a percentage in `transform`
+        resolves against the element, not the container) — the standard
+        anchor-point trick, and unlike the old subtraction it never needs
+        to know the image's absolute size to stay centred.
+      -->
       <img
         class="custom-pattern"
         src={theme.customPattern.source}
         alt=""
-        style:width="calc(70cqw * {theme.customPattern.scale})"
-        style:height="calc(70cqw * {theme.customPattern.scale})"
-        style:left="calc((100% - 70cqw * {theme.customPattern.scale}) * {theme.customPattern.offsetX})"
-        style:top="calc((100% - 70cqw * {theme.customPattern.scale}) * {theme.customPattern.offsetY})"
-        style:transform="rotate({theme.customPattern.rotation}deg)"
+        style:width="calc(70% * {theme.customPattern.scale})"
+        style:aspect-ratio="1"
+        style:left="{(theme.customPattern.offsetX * 100).toFixed(3)}%"
+        style:top="{(theme.customPattern.offsetY * 100).toFixed(3)}%"
+        style:transform="translate({(-theme.customPattern.offsetX * 100).toFixed(3)}%, {(
+          -theme.customPattern.offsetY * 100
+        ).toFixed(3)}%) rotate({theme.customPattern.rotation}deg)"
         style:opacity={theme.customPattern.opacity}
         style:filter={customPatternFilter(theme.customPattern)}
       />
@@ -911,18 +935,30 @@
 
   /*
    * A real `<img>` rather than a `background-image`, sized and positioned to
-   * its own box (not `inset: 0`) — `transform: rotate()`'s default origin is
-   * the element's own centre, so this is what makes rotation spin the
-   * picture in place rather than swinging it around the whole panel.
+   * its own box (not `inset: 0`) — `transform: translate()`'s percentages
+   * resolve against the element's own box, which is what lets it recentre
+   * without knowing its own size, and rotation's default origin is the same
+   * box's centre, so it spins the picture in place rather than swinging it
+   * around the whole panel.
    *
-   * Width and height are set to the same value (`scale` is uniform), so
-   * `object-fit: contain` — not `fill` — is what keeps a non-square picture
-   * from being squashed into that square box: it letterboxes inside it,
-   * preserving its own proportions, the same job `background-size: <width>
-   * auto` did before rotation forced a switch away from `background-image`.
+   * `aspect-ratio: 1` keeps the box square (`scale` is uniform) without a
+   * second, height-relative percentage to keep in step with `width`'s — see
+   * the markup's own comment. `object-fit: contain`, not `fill`, is what
+   * keeps a non-square picture from being squashed into that square box: it
+   * letterboxes inside it, preserving its own proportions, the same job
+   * `background-size: <width> auto` did before rotation forced a switch away
+   * from `background-image`.
+   *
+   * `max-width: none` overrides the global `img { max-width: 100% }` reset
+   * (`base.css`) — the same fix `CardArt.svelte`'s own `.clip img` already
+   * needed. Without it, `scale` past roughly 1.4 kept computing a wider
+   * `width`, but the image itself silently stopped growing at exactly 100%
+   * of `.body`, capped rather than rendered — indistinguishable, at a
+   * glance, from the slider simply not doing anything past that point.
    */
   .custom-pattern {
     position: absolute;
+    max-width: none;
     object-fit: contain;
     pointer-events: none;
   }

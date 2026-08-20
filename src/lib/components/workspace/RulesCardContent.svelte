@@ -2,8 +2,13 @@
   /** Rules card content: a heading and rich body copy. */
   import type { EventCard, RulesCard } from '$lib/cards/types';
   import { createHeadingPlacement, isProseCard } from '$lib/cards/types';
+  import { characterLabel } from '$lib/characters/factory';
+  import { deckLabel } from '$lib/decks/factory';
+  import type { DeckId } from '$lib/decks/types';
+  import { asId } from '$lib/core/id';
+  import { deckOwner } from '$lib/sets/queries';
   import { workshop } from '$lib/state/workshop.svelte';
-  import { Button, NumberInput, RichTextEditor, Slider, TextArea, TextInput } from '$lib/ui';
+  import { Button, NumberInput, RichTextEditor, Select, Slider, TextArea, TextInput } from '$lib/ui';
   import EditorSection from './EditorSection.svelte';
 
   interface Props {
@@ -18,6 +23,27 @@
       if (isProseCard(target)) mutate(target);
     });
   }
+
+  /**
+   * Every deck of this card's own kind — a rules card can only move to
+   * another rules deck, an event card to another event deck — so this
+   * doesn't offer the mismatched-kind moves `ActionCardContent`'s own
+   * unfiltered list technically allows. With one character's rules deck the
+   * lone option, there was nothing to pick from and no reason to show a
+   * picker at all; the moment a second exists, an author had no way through
+   * this editor to say which one a given card belongs to.
+   */
+  const deckOptions = $derived(
+    workshop.adventure.decks
+      .filter((deck) => deck.kind === card.type)
+      .map((deck) => {
+        const owner = deckOwner(workshop.adventure, deck);
+        return {
+          value: deck.id as string,
+          label: owner ? `${deckLabel(deck)} · ${characterLabel(owner)}` : deckLabel(deck)
+        };
+      })
+  );
 
   /** Only an event card prints a designed reverse, so only it can place one. */
   const backHeading = $derived(card.type === 'event' ? card.backHeading : null);
@@ -114,6 +140,17 @@
     <span class="field-label">Copies in deck</span>
     <NumberInput bind:value={card.quantity} min={1} max={20} />
   </label>
+
+  {#if deckOptions.length > 1}
+    <label class="stack">
+      <span class="field-label">Deck</span>
+      <Select
+        value={card.deckId as string}
+        options={deckOptions}
+        onchange={(next) => workshop.moveCard(card.id, asId<DeckId>(next))}
+      />
+    </label>
+  {/if}
 </EditorSection>
 
 <EditorSection title="Notes" hint="Working notes. Never printed.">

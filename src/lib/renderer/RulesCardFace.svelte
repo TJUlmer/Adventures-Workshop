@@ -75,15 +75,18 @@
   {/if}
 
   {#if theme.customPattern.source}
+    <!-- Percentage/cqw mismatch — see ActionCardFace's own custom-pattern for why. -->
     <img
       class="custom-pattern"
       src={theme.customPattern.source}
       alt=""
-      style:width="calc(70cqw * {theme.customPattern.scale})"
-      style:height="calc(70cqw * {theme.customPattern.scale})"
-      style:left="calc((100% - 70cqw * {theme.customPattern.scale}) * {theme.customPattern.offsetX})"
-      style:top="calc((100% - 70cqw * {theme.customPattern.scale}) * {theme.customPattern.offsetY})"
-      style:transform="rotate({theme.customPattern.rotation}deg)"
+      style:width="calc(70% * {theme.customPattern.scale})"
+      style:aspect-ratio="1"
+      style:left="{(theme.customPattern.offsetX * 100).toFixed(3)}%"
+      style:top="{(theme.customPattern.offsetY * 100).toFixed(3)}%"
+      style:transform="translate({(-theme.customPattern.offsetX * 100).toFixed(3)}%, {(
+        -theme.customPattern.offsetY * 100
+      ).toFixed(3)}%) rotate({theme.customPattern.rotation}deg)"
       style:opacity={theme.customPattern.opacity}
       style:filter={customPatternFilter(theme.customPattern)}
     />
@@ -168,9 +171,15 @@
     -webkit-mask-repeat: repeat;
   }
 
-  /* A real `<img>`, positioned to its own box — see ActionCardFace. */
+  /*
+   * A real `<img>`, positioned to its own box — see ActionCardFace.
+   * `max-width: none` overrides the global `img { max-width: 100% }` reset
+   * (`base.css`), which otherwise silently caps this at 100% of its own
+   * container regardless of `scale`.
+   */
   .custom-pattern {
     position: absolute;
+    max-width: none;
     object-fit: contain;
   }
 
