@@ -62,6 +62,7 @@ import type { Figure, FigureId, FigureKind } from '$lib/figures/types';
 import { createFigure } from '$lib/figures/types';
 import type { CustomSymbol, CustomSymbolId } from '$lib/symbols/types';
 import { createCustomSymbol } from '$lib/symbols/types';
+import { getLastWriteError, readStorageEstimate } from '$lib/storage/indexeddb';
 import type { LibraryEntry } from '$lib/storage/library';
 import {
   deleteSet as deleteSetFromLibrary,
@@ -302,7 +303,30 @@ export class WorkshopStore {
       this.library = await readIndex();
       return true;
     }
-    this.markSaveFailed('Could not save — storage is full. Export the set to keep your work.');
+
+    // `idbPut`'s own boolean can't distinguish a genuinely full quota from a
+    // blocked database, a browser policy, or anything else a transaction can
+    // abort for — `getLastWriteError` reads the real `DOMException` the
+    // write actually failed with, and `readStorageEstimate` says whether
+    // usage was anywhere near quota when it happened. Neither changes what
+    // the status bar says (asserting a cause the code can't confirm is worse
+    // than a plain one), but both go to the console, because a report of
+    // "storage is full" that survived the IndexedDB migration needs a real
+    // cause behind it before it can be fixed rather than guessed at again.
+    const error = getLastWriteError();
+    const estimate = await readStorageEstimate();
+    console.error('[workshop] Save failed.', {
+      error,
+      usageBytes: estimate?.usageBytes ?? null,
+      quotaBytes: estimate?.quotaBytes ?? null
+    });
+
+    const quotaExceeded = error?.name === 'QuotaExceededError';
+    this.markSaveFailed(
+      quotaExceeded
+        ? 'Could not save — storage is full. Export the set to keep your work.'
+        : 'Could not save. Export the set to keep your work.'
+    );
     return false;
   }
 

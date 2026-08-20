@@ -86,22 +86,55 @@ export async function idbGetAll<T>(store: string): Promise<T[]> {
 }
 
 /**
+ * The real cause of the most recent `idbPut` failure, for a caller that wants
+ * to know *why* rather than just that it happened — the status bar's "storage
+ * is full" wording was asserting a specific cause `idbPut`'s own boolean
+ * result can't actually distinguish from "no database", a blocked open, or
+ * any other reason a transaction aborts. `idbPut` itself keeps returning a
+ * plain boolean regardless — this is purely additive, read only by a caller
+ * that already knows the write just failed.
+ */
+let lastWriteError: { name: string; message: string } | null = null;
+
+export function getLastWriteError(): { name: string; message: string } | null {
+  return lastWriteError;
+}
+
+/**
  * Write one record. `false` covers everything from "no database" to a quota
  * genuinely exceeded — IndexedDB has a ceiling too, just a far larger one —
  * so a caller that reports "could not save" on `false` is still correct.
  */
 export async function idbPut(store: string, key: string, value: unknown): Promise<boolean> {
   const db = await open();
-  if (!db) return false;
+  if (!db) {
+    lastWriteError = { name: 'NoDatabase', message: 'IndexedDB is unavailable or failed to open.' };
+    return false;
+  }
 
   return new Promise((resolve) => {
     const tx = db.transaction(store, 'readwrite');
     tx.objectStore(store).put(value, key);
     // `oncomplete`, not the request's own `onsuccess`: a transaction can still
     // fail after an individual request inside it reports success.
-    tx.oncomplete = () => resolve(true);
-    tx.onerror = () => resolve(false);
-    tx.onabort = () => resolve(false);
+    tx.oncomplete = () => {
+      lastWriteError = null;
+      resolve(true);
+    };
+    tx.onerror = () => {
+      const error = tx.error;
+      lastWriteError = error
+        ? { name: error.name, message: error.message }
+        : { name: 'UnknownError', message: 'Transaction failed with no reported error.' };
+      resolve(false);
+    };
+    tx.onabort = () => {
+      const error = tx.error;
+      lastWriteError = error
+        ? { name: error.name, message: error.message }
+        : { name: 'AbortError', message: 'Transaction aborted with no reported error.' };
+      resolve(false);
+    };
   });
 }
 
