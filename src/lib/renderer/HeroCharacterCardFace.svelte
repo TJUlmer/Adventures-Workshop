@@ -752,6 +752,12 @@
     margin: 0;
     font-family: var(--card-font-text);
     font-weight: var(--card-font-text-weight);
+    /* Preserve author line breaks, same as the action card's AbilityText —
+       without this, a literal newline in the text collapses to a single
+       space like any other run of whitespace in HTML, which is what made
+       Enter look broken: the underlying text was always correct, only the
+       render of it wasn't. */
+    white-space: pre-wrap;
   }
 
   .ability-symbol {

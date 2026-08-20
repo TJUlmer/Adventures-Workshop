@@ -42,18 +42,28 @@
    * of its mounting contexts — reproducible, but with no interceptor, remount
    * or wrapping element found anywhere in this component or its ancestors to
    * explain it. Rather than keep relying on the browser's own default
-   * newline-insertion, insert it explicitly: `execCommand('insertText', …)`
-   * is the same technique `RichTextEditor.svelte` already uses for
-   * programmatic insertion, and it dispatches a genuine `input` event, so the
-   * existing `oninput` handler below picks it up with no further wiring.
-   * Every modifier combination still inserts a newline, matching what a
-   * plain textarea already does natively — only IME composition is left
-   * alone, so composing non-Latin text is unaffected.
+   * newline-insertion, insert it explicitly.
+   *
+   * The first attempt at this used `execCommand('insertText', …)` — it
+   * worked wherever it was tested, then turned out not to insert anything at
+   * all in a browser where `execCommand` doesn't support `insertText` on a
+   * plain (non-contenteditable) form control, which several do not: Enter
+   * was still swallowed, just from a different cause than the one this was
+   * written to fix. `setRangeText()` is the standards-track replacement for
+   * exactly this — splice text into a range and place the caret — and,
+   * unlike `execCommand`, is not itself an event: it has to be followed by a
+   * manually-dispatched `input` event for the existing `oninput` handler
+   * below to see the change at all. Every modifier combination still inserts
+   * a newline, matching what a plain textarea already does natively — only
+   * IME composition is left alone, so composing non-Latin text is
+   * unaffected.
    */
   function handleKeydown(event: KeyboardEvent): void {
     if (event.key !== 'Enter' || event.isComposing) return;
+    const element = event.currentTarget as HTMLTextAreaElement;
     event.preventDefault();
-    document.execCommand('insertText', false, '\n');
+    element.setRangeText('\n', element.selectionStart, element.selectionEnd, 'end');
+    element.dispatchEvent(new Event('input', { bubbles: true }));
   }
 
   const SYMBOL_NAMES = Object.keys(CARD_SYMBOLS) as CardSymbolName[];
