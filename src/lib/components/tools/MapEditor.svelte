@@ -29,7 +29,7 @@
     orphanSpaces,
     pathExists
   } from '$lib/map/types';
-  import type { MapNote, MapSpaceId } from '$lib/map/types';
+  import type { MapNote, MapSpaceId, MapStartSide } from '$lib/map/types';
   import { workshop } from '$lib/state/workshop.svelte';
   import { Button, EmptyState, Icon, Slider, Switch, TextInput } from '$lib/ui';
 
@@ -47,6 +47,13 @@
   let exporting = $state(false);
   let exportError = $state<string | null>(null);
   let selectedNote = $state<string | null>(null);
+
+  const START_SIDES: { value: MapStartSide; label: string }[] = [
+    { value: 'top', label: 'Top' },
+    { value: 'right', label: 'Right' },
+    { value: 'bottom', label: 'Bottom' },
+    { value: 'left', label: 'Left' }
+  ];
 
   const MODES: { value: Mode; label: string; hint: string }[] = [
     { value: 'place', label: 'Place', hint: 'Click the board to add a space' },
@@ -285,6 +292,14 @@
     });
   }
 
+  /** Which side of the rim the selected space's start diamond sits on. */
+  function setStartSide(side: MapStartSide): void {
+    if (!selectedSpace) return;
+    workshop.editMap(() => {
+      selectedSpace.startSide = side;
+    });
+  }
+
   function editNote(note: MapNote, mutate: (n: MapNote) => void): void {
     workshop.editMap(() => mutate(note));
   }
@@ -446,6 +461,18 @@
                 />
               </label>
 
+              <label class="field">
+                <span class="field-label">Start marker numbers</span>
+                <input
+                  type="color"
+                  value={map.startInk}
+                  oninput={(event) => {
+                    const value = event.currentTarget.value;
+                    workshop.editMap((m) => (m.startInk = value));
+                  }}
+                />
+              </label>
+
               <p class="hint">
                 {MAP_WIDTH_MM} × {mapHeightMm(map).toFixed(0)} mm printed — the threat
                 track's width, because on the table they are one board.
@@ -573,6 +600,23 @@
                     None
                   </button>
                 </div>
+
+                {#if selectedSpace.start !== null}
+                  <div class="zones">
+                    <span class="field-label">Marker side</span>
+                    {#each START_SIDES as entry (entry.value)}
+                      <button
+                        type="button"
+                        class="mode"
+                        class:active={selectedSpace.startSide === entry.value}
+                        title="Draw the diamond on the {entry.label.toLowerCase()} of the space"
+                        onclick={() => setStartSide(entry.value)}
+                      >
+                        {entry.label}
+                      </button>
+                    {/each}
+                  </div>
+                {/if}
 
                 <div class="field">
                   <span class="field-label">Connections</span>

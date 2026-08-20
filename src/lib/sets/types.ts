@@ -139,10 +139,18 @@ export type SetId = Id<'Set'>;
  *      older document, which opens with the quote panel in its printed
  *      colours, exactly as before.
  *
+ * v23 — a map's start marker gained `startSide`, which edge of the rim its
+ *      diamond sits on, replacing a single hardcoded upper-left corner; and
+ *      the map gained `startInk`, the numeral's own colour, replacing an
+ *      unwired CSS variable no document had ever set. Absent on an older
+ *      document, which opens with every marker at `'top'` and the numeral in
+ *      its previous fixed cream — the same colour that variable's fallback
+ *      always resolved to, so nothing visibly changes on load.
+ *
  * Older documents are *repaired*, not rejected — see `sets/normalize.ts`. Only
  * a version newer than this build understands is refused.
  */
-export const SET_SCHEMA_VERSION = 22;
+export const SET_SCHEMA_VERSION = 23;
 
 /**
  * Where a set was copied from, if it was copied.

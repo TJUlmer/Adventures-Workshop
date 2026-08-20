@@ -347,6 +347,11 @@ function adventureMap(value: unknown): AdventureMap {
         typeof space['start'] === 'number' && space['start'] >= 1 && space['start'] <= 5
           ? Math.round(space['start'])
           : null,
+      startSide: (['top', 'right', 'bottom', 'left'] as const).includes(
+        space['startSide'] as never
+      )
+        ? (space['startSide'] as MapSpace['startSide'])
+        : 'top',
       notes: str(space['notes'])
     };
   });
@@ -375,6 +380,7 @@ function adventureMap(value: unknown): AdventureMap {
     spaceDiameter: num(raw['spaceDiameter'], defaults.spaceDiameter),
     spaceStroke: str(raw['spaceStroke'], defaults.spaceStroke),
     pathColor: str(raw['pathColor'], defaults.pathColor),
+    startInk: str(raw['startInk'], defaults.startInk),
     spaces,
     paths,
     notes: (Array.isArray(raw['notes']) ? raw['notes'] : []).map((entry) => {

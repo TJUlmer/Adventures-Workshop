@@ -44,6 +44,9 @@ import { THREAT_TRACK } from '$lib/renderer/geometry';
 export type MapSpaceId = Id<'MapSpace'>;
 export type MapPathId = Id<'MapPath'>;
 
+/** Which side of the rim a start marker sits on. */
+export type MapStartSide = 'top' | 'right' | 'bottom' | 'left';
+
 /** Width ÷ height. The printed sample measures 1.447. */
 export const DEFAULT_MAP_ASPECT = 13 / 9;
 
@@ -118,6 +121,12 @@ export interface MapSpace {
    * marker is that it reads from across the table without obscuring the space.
    */
   start: number | null;
+  /**
+   * Which side of the rim the marker sits on. Only meaningful while `start`
+   * is set. A start space can fall on any edge of the board, so this is
+   * per-space rather than a single map-wide direction.
+   */
+  startSide: MapStartSide;
   /** Author's note. Never printed. */
   notes: string;
 }
@@ -185,6 +194,8 @@ export interface AdventureMap {
   spaceDiameter: number;
   spaceStroke: string;
   pathColor: string;
+  /** Colour of the numeral printed on a start marker's diamond. */
+  startInk: string;
   spaces: MapSpace[];
   paths: MapPath[];
   /** Free copy, placed by hand anywhere on the board. */
@@ -200,6 +211,7 @@ export function createMapSpace(x: number, y: number, fill?: Fill): MapSpace {
     stroke: null,
     label: '',
     start: null,
+    startSide: 'top',
     notes: ''
   };
 }
@@ -218,6 +230,7 @@ export function createAdventureMap(): AdventureMap {
     spaceDiameter: DEFAULT_SPACE_DIAMETER,
     spaceStroke: '#101010',
     pathColor: '#101010',
+    startInk: '#f5f2ec',
     spaces: [],
     paths: [],
     notes: []

@@ -20,8 +20,25 @@
    */
   import { fillCss } from '$lib/cards/style';
   import CardArt from './CardArt.svelte';
-  import type { AdventureMap, MapSpace, MapSpaceId } from '$lib/map/types';
+  import type { AdventureMap, MapSpace, MapSpaceId, MapStartSide } from '$lib/map/types';
   import { findSpace, mapHeight } from '$lib/map/types';
+
+  /** Where each side points, in degrees clockwise from twelve o'clock's opposite (SVG's 0° is three o'clock). */
+  const START_ANGLE: Record<MapStartSide, number> = {
+    top: -90,
+    right: 0,
+    bottom: 90,
+    left: 180
+  };
+
+  /**
+   * Half the marker's un-rotated side length, as a fraction of the space's own
+   * radius. The diamond's tip-to-tip span works out to `half * sqrt(2) * 2`,
+   * so this reads as roughly 28% of the space's *diameter* — small enough to
+   * read as a corner mark rather than a second disc sitting on the rim, which
+   * is what the previous 0.30 (42% of the diameter) drew.
+   */
+  const START_MARKER_HALF = 0.20;
 
   interface Props {
     map: AdventureMap;
@@ -145,15 +162,15 @@
 
         {#if space.start !== null}
           <!--
-            A diamond straddling the rim at the upper left, which is where the
-            printed board puts it. A square turned 45° about its own centre —
-            the centre sits *on* the circle's edge, so half the marker overlaps
-            the space and half hangs outside it, exactly as printed.
+            A diamond straddling the rim on the space's chosen side. A square
+            turned 45° about its own centre — the centre sits *on* the
+            circle's edge, so half the marker overlaps the space and half
+            hangs outside it, exactly as printed.
           -->
-          {@const angle = (-135 * Math.PI) / 180}
+          {@const angle = (START_ANGLE[space.startSide] * Math.PI) / 180}
           {@const mx = space.x + Math.cos(angle) * radius}
           {@const my = space.y + Math.sin(angle) * radius}
-          {@const half = radius * 0.30}
+          {@const half = radius * START_MARKER_HALF}
           <g class="start" transform="rotate(45 {mx} {my})">
             <rect
               x={mx - half}
@@ -167,6 +184,16 @@
             The numeral is drawn upright, outside the rotated group — rotating
             the diamond would take its digit with it and stand the number on
             its corner.
+
+            Coloured with `style:fill` rather than a class, because an SVG
+            presentation attribute loses to *any* matching stylesheet rule —
+            `.space text` (an element selector tacked onto the group's own
+            class) outranks a single class on the element itself regardless of
+            source order, which is what painted every numeral the same
+            near-black as `.space text`'s own fill and made it vanish against
+            a diamond drawn in the same ink. An inline style beats stylesheet
+            specificity outright, and it is also what lets `map.startInk` be
+            a real per-map setting instead of an unwired CSS variable.
           -->
           <text
             class="start-number"
@@ -175,6 +202,7 @@
             font-size={half * 1.5}
             text-anchor="middle"
             dominant-baseline="central"
+            style:fill={map.startInk}
           >
             {space.start}
           </text>
@@ -249,8 +277,12 @@
     height: 100%;
   }
 
+  /*
+   * Fill is set inline via `style:fill` on the element, not here — see the
+   * comment above the `<text class="start-number">` markup for why a class
+   * rule can't be trusted to win against `.space text` below.
+   */
   .start-number {
-    fill: var(--map-start-ink, #f5f2ec);
     font-family: var(--card-font-name, sans-serif);
     font-weight: 700;
   }
