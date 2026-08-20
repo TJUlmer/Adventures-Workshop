@@ -37,7 +37,8 @@
 
   const set = $derived(workshop.adventure);
 
-  let publishedId = $state<string | null>(null);
+  /** Every published row for this set, whatever scope — see `load`. */
+  let publishedIds = $state<string[]>([]);
   let offers = $state<ContributionSummary[]>([]);
   let open = $state<Contribution | null>(null);
   let reviewed = $state<ReviewedEntry[]>([]);
@@ -49,9 +50,16 @@
   let done = $state<string | null>(null);
 
   /*
-   * Which published row this set is. Matched on `local_id`, the set's id in
-   * this library — the row id belongs to the server, and it is the row id that
-   * a contribution was addressed to.
+   * Which published rows this set is. Matched on `local_id`, the set's id in
+   * this library — the row id belongs to the server, and it is the row id
+   * that a contribution was addressed to. A `.filter`, not a `.find`: scoped
+   * publishing means the whole set, a villain-side slice and any number of
+   * hero slices can all share this `local_id` as separate rows, and a
+   * contribution against any one of them belongs in this same inbox — the
+   * owner reviews it here, against whichever set they currently have open,
+   * regardless of which published row a contributor actually forked from.
+   * `workshop.applyContribution` was never aware of that distinction in the
+   * first place; see `sets/contribution.ts`.
    */
   async function load(): Promise<void> {
     loading = true;
@@ -59,8 +67,10 @@
     try {
       if (!auth.signedIn) return;
       const mine = await listMyPublishedSets();
-      publishedId = mine.find((row) => row.local_id === set.id)?.id ?? null;
-      offers = publishedId ? await listContributions(publishedId) : [];
+      const rows = mine.filter((row) => row.local_id === set.id);
+      publishedIds = rows.map((row) => row.id);
+      const lists = await Promise.all(rows.map((row) => listContributions(row.id)));
+      offers = lists.flat();
     } catch (cause) {
       error = cause instanceof Error ? cause.message : 'Could not load contributions.';
     } finally {
@@ -187,7 +197,7 @@
     <p class="message">Loading…</p>
   {:else if error}
     <p class="message error" role="alert">{error}</p>
-  {:else if !publishedId}
+  {:else if publishedIds.length === 0}
     <EmptyState
       icon="upload"
       title="This set is not published"

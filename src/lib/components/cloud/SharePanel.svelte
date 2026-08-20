@@ -7,6 +7,8 @@
    * document is local, publishing copies it, and nothing here ever writes back
    * into the set the author is editing.
    */
+  import { characterLabel } from '$lib/characters/factory';
+  import type { CharacterId } from '$lib/characters/types';
   import { auth } from '$lib/cloud/auth.svelte';
   import { cloudEnabled } from '$lib/cloud/config';
   import {
@@ -18,6 +20,8 @@
     unpublishSet
   } from '$lib/cloud/sets';
   import type { PublishedSet, Visibility } from '$lib/cloud/sets';
+  import { charactersByRole } from '$lib/sets/queries';
+  import type { PublishScope } from '$lib/sets/scope';
   import type { AdventureSet } from '$lib/sets/types';
   import { Button, Icon, Select, TextInput } from '$lib/ui';
   import SignInPanel from './SignInPanel.svelte';
@@ -28,13 +32,62 @@
 
   let { set }: Props = $props();
 
-  let published = $state<PublishedSet | null>(null);
+  /**
+   * Every row this author has published under this set's `local_id` — the
+   * whole set, maybe a villain-side slice, maybe one per hero. Scoped
+   * publishing means "is this set published, and as what" is a list rather
+   * than a single optional row; `published` below picks the one row the
+   * scope selector currently has in view.
+   */
+  let mine = $state<PublishedSet[]>([]);
   let status = $state<string | null>(null);
   let error = $state<string | null>(null);
   let busy = $state(false);
   let copied = $state(false);
   let size = $state<{ assets: number; bytes: number } | null>(null);
   let changeNote = $state('');
+
+  /** A `PublishScope` as one string, for the `<select>` this drives. */
+  function scopeKeyOf(scope: PublishScope): string {
+    return scope.kind === 'hero' ? `hero:${scope.characterId}` : scope.kind;
+  }
+
+  const heroes = $derived(charactersByRole(set, 'hero'));
+  /* Villain-side content — the villain, its minions, the threat track, the
+     map, every set-level deck — is one bundle, never split further; see
+     `sets/scope.ts`. Offered only when there is something in it to publish. */
+  const hasVillainSide = $derived(
+    charactersByRole(set, 'villain').length > 0 || charactersByRole(set, 'minion').length > 0
+  );
+
+  const scopeOptions = $derived([
+    { value: 'full', label: 'Whole set' },
+    ...heroes.map((hero) => ({ value: `hero:${hero.id}`, label: characterLabel(hero) })),
+    ...(hasVillainSide ? [{ value: 'villain', label: 'Villain side' }] : [])
+  ]);
+
+  let selectedScope = $state<PublishScope>({ kind: 'full' });
+
+  /*
+   * Falls back to "Whole set" whenever the current selection stops naming a
+   * real option — the set just opened (a stale selection from a previous one
+   * would otherwise persist), or the hero it named was deleted mid-session.
+   */
+  $effect(() => {
+    const key = scopeKeyOf(selectedScope);
+    if (!scopeOptions.some((option) => option.value === key)) {
+      selectedScope = { kind: 'full' };
+    }
+  });
+
+  /** The published row the scope selector currently has in view, if any. */
+  const published = $derived(
+    mine.find(
+      (row) =>
+        row.scope === selectedScope.kind &&
+        row.character_id === (selectedScope.kind === 'hero' ? selectedScope.characterId : '')
+    ) ?? null
+  );
 
   /**
    * A throwaway account may share by link but not post to the gallery. The
@@ -83,20 +136,22 @@
   }
 
   /**
-   * Find this set among the author's published ones.
+   * Every row this author has published for this set, whatever scope.
    *
    * Matched on `local_id`, which is the set's id in *their* library — the row
    * id belongs to the server. It is what makes re-publishing update the set
-   * someone already has a link to.
+   * someone already has a link to, and — now that more than one row can share
+   * a `local_id` — what lets a hero's own row and the villain-side row and the
+   * full-set row all be found here at once.
    */
   async function refresh(): Promise<void> {
     if (!auth.signedIn) {
-      published = null;
+      mine = [];
       return;
     }
     try {
-      const mine = await listMyPublishedSets();
-      published = mine.find((row) => row.local_id === set.id) ?? null;
+      const rows = await listMyPublishedSets();
+      mine = rows.filter((row) => row.local_id === set.id);
     } catch (cause) {
       error = cause instanceof Error ? cause.message : 'Could not check for a published copy.';
     }
@@ -111,7 +166,8 @@
 
   $effect(() => {
     void set.id;
-    void publishSize(set).then((value) => (size = value));
+    void selectedScope;
+    void publishSize(set, selectedScope).then((value) => (size = value));
   });
 
   async function guard(action: () => Promise<void>): Promise<void> {
@@ -152,6 +208,7 @@
         // takes the default, because changing visibility is its own control.
         visibility: published?.visibility ?? wanted,
         changeNote,
+        scope: selectedScope,
         onProgress: (progress) => {
           status =
             progress.stage === 'assets'
@@ -159,7 +216,9 @@
               : 'Saving the set…';
         }
       });
-      published = row;
+      // Replace this scope's row if it already had one, otherwise add it —
+      // the other rows in `mine` (other heroes, the villain side) are untouched.
+      mine = [...mine.filter((entry) => entry.id !== row.id), row];
       // Cleared on success: a note describes one update, not the set.
       changeNote = '';
       status = 'Published.';
@@ -170,14 +229,14 @@
     guard(async () => {
       if (!published) return;
       await setVisibility(published.id, value);
-      published = { ...published, visibility: value };
+      mine = mine.map((entry) => (entry.id === published.id ? { ...entry, visibility: value } : entry));
     });
 
   const withdraw = () =>
     guard(async () => {
       if (!published) return;
       await unpublishSet(published.id);
-      published = null;
+      mine = mine.filter((entry) => entry.id !== published.id);
       status = 'Withdrawn.';
       setTimeout(() => (status = null), 2500);
     });
@@ -205,6 +264,27 @@
         onsignedin={refresh}
       />
     {:else}
+      <!--
+        Only worth showing once there is an actual choice — a set with no
+        hero and no villain has nothing to slice, and a single-item picker is
+        clutter over a fact. `scopeKeyOf`/`selectedScope` still default to the
+        whole set either way.
+      -->
+      {#if scopeOptions.length > 1}
+        <label class="option">
+          <span class="option-label">Publish</span>
+          <Select
+            value={scopeKeyOf(selectedScope)}
+            options={scopeOptions}
+            disabled={busy}
+            onchange={(key) => {
+              if (key === 'full' || key === 'villain') selectedScope = { kind: key };
+              else selectedScope = { kind: 'hero', characterId: key.slice(5) as CharacterId };
+            }}
+          />
+        </label>
+      {/if}
+
       {#if published}
         <p class="line">
           Published as <strong>{published.name}</strong> · revision {published.revision}

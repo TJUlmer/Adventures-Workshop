@@ -12,6 +12,7 @@ import { resolveCardTheme, styleOrigin } from '$lib/cards/theme';
 import type { Card, CardId } from '$lib/cards/types';
 import type { Character, CharacterId, CharacterRole } from '$lib/characters/types';
 import type { Deck, DeckId } from '$lib/decks/types';
+import type { Figure } from '$lib/figures/types';
 import type { AdventureSet, CharacterEntry, DeckEntry, SetOutline } from './types';
 
 // -- Lookups ------------------------------------------------------------
@@ -46,6 +47,11 @@ export function decksForCharacter(set: AdventureSet, characterId: CharacterId): 
 export function cardsForCharacter(set: AdventureSet, characterId: CharacterId): Card[] {
   const owned = new Set(decksForCharacter(set, characterId).map((deck) => deck.id));
   return set.cards.filter((card) => owned.has(card.deckId));
+}
+
+/** Figures assigned to a character — a dial, a token, a sculpt. */
+export function figuresForCharacter(set: AdventureSet, characterId: CharacterId): Figure[] {
+  return set.figures.filter((figure) => figure.characterId === characterId);
 }
 
 export function deckOwner(set: AdventureSet, deck: Deck): Character | null {

@@ -15,7 +15,7 @@
   import { listContributions, openContributionCounts, tallyContributors } from '$lib/cloud/contributions';
   import type { ContributorTally } from '$lib/cloud/contributions';
   import { fetchSetSummaryBySlug, listMyPublishedSets } from '$lib/cloud/sets';
-  import type { SetSummary } from '$lib/cloud/sets';
+  import type { PublishedSet, SetSummary } from '$lib/cloud/sets';
   import { characterLabel } from '$lib/characters/factory';
   import { CHARACTER_ROLE_META } from '$lib/characters/types';
   import { hasArtwork } from '$lib/core/artwork';
@@ -61,40 +61,54 @@
   );
 
   /*
-   * Offers waiting on this set, and everyone whose offer already landed. One
-   * call answers `waiting` for the whole library, so that half is a map
-   * lookup rather than a request per set; the contributor tally needs the
-   * *published row* id either way, so both wait on the same lookup.
+   * Every row this author has published for this set, whatever scope — the
+   * whole set, maybe a villain-side slice, maybe one per hero. Scoped
+   * publishing means more than one row can share this set's `local_id`, so
+   * this is a filtered list rather than a single `.find`, both for the
+   * "published on its own" line below and for the offers/contributors
+   * tallies, which now aggregate across every row rather than only the first
+   * match — a contribution against a hero-scoped publish would otherwise be
+   * invisible here whenever that row was not the one `.find` happened to hit.
    */
+  let mine = $state<PublishedSet[]>([]);
   let waiting = $state(0);
   let contributors = $state<ContributorTally[]>([]);
 
   $effect(() => {
     void set.id;
     void auth.signedIn;
+    mine = [];
     waiting = 0;
     contributors = [];
     if (!cloudEnabled() || !auth.signedIn) return;
 
     void (async () => {
       try {
-        const mine = await listMyPublishedSets();
-        const row = mine.find((entry) => entry.local_id === set.id);
-        if (!row) return;
+        const rows = (await listMyPublishedSets()).filter((entry) => entry.local_id === set.id);
+        mine = rows;
+        if (rows.length === 0) return;
 
-        const [counts, accepted] = await Promise.all([
+        const [counts, ...accepted] = await Promise.all([
           openContributionCounts(),
-          listContributions(row.id, 'accepted')
+          ...rows.map((row) => listContributions(row.id, 'accepted'))
         ]);
-        waiting = counts.get(row.id) ?? 0;
-        contributors = tallyContributors(accepted);
+        waiting = rows.reduce((total, row) => total + (counts.get(row.id) ?? 0), 0);
+        contributors = tallyContributors(accepted.flat());
       } catch {
         // A badge is never worth an error message.
+        mine = [];
         waiting = 0;
         contributors = [];
       }
     })();
   });
+
+  /** What a published slice reads as — the villain side, or a hero by name. */
+  function scopeLabel(row: PublishedSet): string {
+    if (row.scope === 'villain') return 'Villain side';
+    const character = set.characters.find((entry) => entry.id === row.character_id);
+    return character ? characterLabel(character) : row.name;
+  }
 </script>
 
 <div class="home scroll-y">
@@ -138,6 +152,23 @@
               — the original is now at revision {upstream?.revision}
             </span>
           {/if}
+        </p>
+      {/if}
+
+      <!--
+        The reverse of the line above: not what this set came from, but what
+        has been published *out of* it on its own — a hero someone can try
+        without the rest of the box, or the villain side by itself. Only the
+        non-`'full'` rows; the whole-set publish is what `SharePanel` already
+        manages and has nothing to say for itself here.
+      -->
+      {#if mine.some((row) => row.scope !== 'full')}
+        <p class="lineage">
+          Published on its own:
+          {#each mine.filter((row) => row.scope !== 'full') as row, index (row.id)}
+            {#if index > 0}·{/if}
+            <a href="#/shared/{row.slug}">{scopeLabel(row)}</a>
+          {/each}
         </p>
       {/if}
     </div>

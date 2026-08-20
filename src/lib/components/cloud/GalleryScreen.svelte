@@ -147,7 +147,18 @@
               </span>
 
               <span class="body">
-                <span class="name">{set.name || 'Untitled Adventure'}</span>
+                <span class="name-row">
+                  <span class="name">{set.name || 'Untitled Adventure'}</span>
+                  <!--
+                    A scoped publish reads as a smaller, related thing next to
+                    a box tile, not as another box — the badge is what says so
+                    at a glance, before anyone reads down to the "From …" line
+                    the subtitle already carries (see `sets/scope.ts`).
+                  -->
+                  {#if set.scope !== 'full'}
+                    <span class="scope-badge">{set.scope === 'hero' ? 'Hero' : 'Villain'}</span>
+                  {/if}
+                </span>
                 {#if set.subtitle}<span class="subtitle">{set.subtitle}</span>{/if}
 
                 <span class="by">
@@ -328,10 +339,29 @@
     min-width: 0;
   }
 
+  .name-row {
+    display: flex;
+    align-items: baseline;
+    gap: var(--space-2);
+    flex-wrap: wrap;
+  }
+
   .name {
     font-size: var(--text-sm);
     font-weight: 600;
     overflow-wrap: anywhere;
+  }
+
+  .scope-badge {
+    flex: none;
+    padding: 1px var(--space-2);
+    border-radius: var(--radius-full);
+    border: 1px solid var(--border-default);
+    font-size: var(--text-2xs);
+    font-weight: var(--weight-medium);
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: var(--tracking-wide);
   }
 
   .subtitle,

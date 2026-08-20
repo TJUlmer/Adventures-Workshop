@@ -13,6 +13,8 @@
  */
 import { parseSetFile, serializeSet } from '$lib/export/json';
 import { setStats } from '$lib/sets/queries';
+import { computeScopedSet } from '$lib/sets/scope';
+import type { PublishScope } from '$lib/sets/scope';
 import type { AdventureSet } from '$lib/sets/types';
 import { SET_SCHEMA_VERSION } from '$lib/sets/types';
 import {
@@ -62,6 +64,16 @@ export interface PublishedSet {
   forked_from: string | null;
   /** The revision copied. Stays put as the original moves on. */
   forked_from_revision: number | null;
+  /**
+   * Which slice of `local_id` this row is — the whole set, one hero, or the
+   * villain side. See `sets/scope.ts`. `character_id` names which hero for a
+   * `'hero'` row; empty for the other two, never `null` (a unique constraint
+   * treats every `null` as distinct, so a non-null sentinel is what keeps two
+   * `'full'` publishes of the same set from ever coexisting — see
+   * `supabase/migrations/0006_scoped_publishing.sql`).
+   */
+  scope: 'full' | 'hero' | 'villain';
+  character_id: string;
 }
 
 /** Just enough of a published set to say whether it has moved on. */
@@ -107,7 +119,7 @@ export interface PublishedSetWithDocument extends PublishedSet {
 const SUMMARY_COLUMNS =
   'id,owner_id,local_id,slug,name,subtitle,card_count,character_count,schema_version,' +
   'revision,visibility,created_at,updated_at,thumbnail_url,published_at,view_count,change_note,' +
-  'forked_from,forked_from_revision';
+  'forked_from,forked_from_revision,scope,character_id';
 
 /**
  * The same, plus the author and — for a fork — the set it came from.
@@ -154,6 +166,8 @@ export interface PublishOptions {
    * matters to them; "rebalanced the villain's deck" does.
    */
   changeNote?: string;
+  /** Publish the whole set (the default), one hero, or the villain side. */
+  scope?: PublishScope;
   onProgress?: (progress: PublishProgress) => void;
 }
 
@@ -241,6 +255,18 @@ export async function publishSet(
   const user = auth.user;
   if (!user) throw new CloudError('Sign in to publish a set.', 401);
 
+  const scope = options.scope ?? { kind: 'full' };
+
+  /*
+   * Computed once, and read from everywhere below instead of `set` — this is
+   * what actually gets published. For `{ kind: 'full' }` it is `set` itself,
+   * repaired through the same `normalizeSet` pass as the other two scopes, so
+   * every call below can read `scoped` unconditionally rather than branching
+   * on whether scoping is happening. `set.id` keeps being used for asset
+   * paths and `local_id` below, deliberately — see those call sites.
+   */
+  const scoped = computeScopedSet(set, scope);
+
   /*
    * Serialise and re-parse rather than sending the live object.
    *
@@ -249,11 +275,19 @@ export async function publishSet(
    * validates. Publishing anything else would mean a second serialisation to
    * keep correct, and the two would drift.
    */
-  const envelope: unknown = JSON.parse(serializeSet(set));
+  const envelope: unknown = JSON.parse(serializeSet(scoped));
 
   const assets = await collectEmbeddedAssets(envelope);
   options.onProgress?.({ stage: 'assets', done: 0, total: assets.length });
 
+  /*
+   * Uploaded under the *master's* id, not the scoped document's — it has none
+   * of its own, by design (`sets/scope.ts`). This is also what keeps asset
+   * dedup working across scopes: a hero's artwork uploaded once when the
+   * whole set was published is reused, not re-uploaded, when that hero is
+   * later published on its own, since the path is the same content hash
+   * under the same master id either way.
+   */
   const mapping = new Map<string, string>();
   for (const [index, asset] of assets.entries()) {
     mapping.set(asset.dataUrl, await uploadAsset(asset, user.id, set.id));
@@ -271,18 +305,18 @@ export async function publishSet(
    */
   let thumbnailUrl = '';
   try {
-    const thumbnail = await renderThumbnail(set);
+    const thumbnail = await renderThumbnail(scoped);
     if (thumbnail) thumbnailUrl = await uploadBlob(thumbnail, user.id, set.id, 'thumb');
   } catch {
     thumbnailUrl = '';
   }
 
-  const stats = setStats(set);
+  const stats = setStats(scoped);
   const row = {
     owner_id: user.id,
     local_id: set.id,
-    name: set.name,
-    subtitle: set.subtitle,
+    name: scoped.name,
+    subtitle: scoped.subtitle,
     card_count: stats.printCount,
     character_count: stats.characterCount,
     schema_version: SET_SCHEMA_VERSION,
@@ -301,29 +335,25 @@ export async function publishSet(
      * chose here. `set.origin` is written once when the copy is taken and never
      * again, so re-publishing a fork cannot quietly re-parent it — and a set
      * with no origin sends nulls, which is what clears the columns if one is
-     * ever removed by hand.
+     * ever removed by hand. Reads `scoped.origin`, which is always exactly
+     * `set.origin` — `computeScopedSet` never touches it — so a hero sliced out
+     * of a set that was itself forked from someone else's box still carries
+     * that lineage.
      */
-    forked_from: set.origin?.setId ?? null,
-    forked_from_revision: set.origin?.revision ?? null
+    forked_from: scoped.origin?.setId ?? null,
+    forked_from_revision: scoped.origin?.revision ?? null,
+    scope: scope.kind,
+    character_id: scope.kind === 'hero' ? scope.characterId : ''
   };
 
   /*
    * Upsert on `(owner_id, local_id, scope, character_id)`, which is what makes
-   * re-publishing update the set someone already shared rather than mint a
-   * second row with a new slug — and a link that had been handed out would
-   * quietly stop being the current version.
-   *
-   * The table's own unique constraint is on all four columns — a leftover
-   * from a scoped-publishing feature that never shipped past its migration
-   * (see `SharePanel.svelte`'s history) — even though this function only ever
-   * writes `scope`/`character_id` by omission, which takes the column
-   * defaults ('full' / ''). PostgREST's upsert requires the on_conflict list
-   * to name an actual constraint exactly, so naming only two of the four
-   * columns here — matching what this function *writes* rather than what the
-   * table *has* — fails every publish with "no unique or exclusion
-   * constraint matching the ON CONFLICT specification". Every row this
-   * function ever writes carries the same scope/character_id defaults, so
-   * this is still a two-column key in every publish that happens through it.
+   * re-publishing update the same slice someone already shared rather than
+   * mint a second row with a new slug — and a link that had been handed out
+   * would quietly stop being the current version. Widened from plain
+   * `(owner_id, local_id)` in `0006_scoped_publishing.sql`, specifically so a
+   * hero-scoped publish and the full-set publish of the same document can
+   * coexist as two rows instead of colliding into one.
    *
    * `slug` is left out of the payload on purpose so the existing one survives.
    */
@@ -344,9 +374,18 @@ export async function publishSet(
   return published;
 }
 
-/** How much a publish would upload, for showing before one starts. */
-export async function publishSize(set: AdventureSet): Promise<{ assets: number; bytes: number }> {
-  const assets = await collectEmbeddedAssets(JSON.parse(serializeSet(set)));
+/**
+ * How much a publish would upload, for showing before one starts.
+ *
+ * Takes the same `scope` `publishSet` would — a hero-scoped publish uploads
+ * only that hero's own assets, and a size preview computed off the whole set
+ * regardless of scope would overstate it every time.
+ */
+export async function publishSize(
+  set: AdventureSet,
+  scope: PublishScope = { kind: 'full' }
+): Promise<{ assets: number; bytes: number }> {
+  const assets = await collectEmbeddedAssets(JSON.parse(serializeSet(computeScopedSet(set, scope))));
   return { assets: assets.length, bytes: totalBytes(assets) };
 }
 
