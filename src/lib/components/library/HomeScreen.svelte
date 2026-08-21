@@ -1,13 +1,22 @@
 <script lang="ts">
   /**
-   * The global level: every set you have, and the way into a new one.
+   * Home: every set you have, what needs your attention, and the way into a
+   * new one.
    *
-   * This is the only screen that exists outside a set, which is what makes the
-   * rest of the app able to assume a set is always open.
+   * This is the only screen that exists outside a set, which is what makes
+   * the rest of the app able to assume a set is always open — and, now that
+   * it is also the first thing anyone sees, the reason for the attention
+   * strip and the published/unpublished split below: this is the page that
+   * has to say what is worth doing next, not just list what exists.
+   *
+   * The set-level page still called "Home" until this replaced it is now
+   * `SetHome.svelte`, labelled "Edit" (`SET_PAGE_META.home`) — two different
+   * screens with unrelated jobs cannot both be called Home.
    */
   import { parseSetFile } from '$lib/export/json';
   import { CHARACTER_ROLE_META, SELECTABLE_ROLES } from '$lib/characters/types';
   import type { CharacterId, CharacterRole } from '$lib/characters/types';
+  import { auth } from '$lib/cloud/auth.svelte';
   import { openContributionCounts } from '$lib/cloud/contributions';
   import { cloudEnabled } from '$lib/cloud/config';
   import { fetchSetSummaryBySlug, listMyPublishedSets } from '$lib/cloud/sets';
@@ -60,9 +69,31 @@
 
   let attention = $state<Map<SetId, SetAttention>>(new Map());
 
+  /**
+   * Which local sets this author has published at least once, under any
+   * scope — the split the shelf below groups by. `null` rather than an empty
+   * `Set` until the fetch actually answers: signed out, offline, or cloud
+   * disabled all mean "unknown," not "nothing is published," and the two
+   * must not look the same — an empty answer would put every set in this
+   * library under "Unpublished" even for an author who simply is not signed
+   * in yet.
+   */
+  let publishedLocalIds = $state<Set<string> | null>(null);
+
   $effect(() => {
     const current = entries;
+    const signedIn = auth.signedIn;
     if (!cloudEnabled()) return;
+    /*
+     * Read before the guard below returns, not inside it — `auth.signedIn`
+     * has to be tracked whether or not this author happens to be signed in
+     * right now, or signing in while this screen is open would never
+     * re-trigger the fetch that turns "unknown" into a real split.
+     */
+    if (!signedIn) {
+      publishedLocalIds = null;
+      return;
+    }
 
     void (async () => {
       const waitingByLocalId = new Map<string, number>();
@@ -71,6 +102,7 @@
           listMyPublishedSets(),
           openContributionCounts()
         ]);
+        publishedLocalIds = new Set(published.map((row) => row.local_id));
         for (const row of published) {
           const open = counts.get(row.id) ?? 0;
           if (open > 0) {
@@ -79,7 +111,10 @@
         }
       } catch {
         // A badge is never worth an error message — see `SetHome`'s own
-        // silent fallback for the identical fetch.
+        // silent fallback for the identical fetch. `publishedLocalIds` is
+        // simply left at whatever it already was — `null` on a first
+        // failure, so the shelf still falls back to one flat list rather
+        // than guessing.
       }
 
       const forked = current.filter(
@@ -179,6 +214,23 @@
         entry.subtitle.toLowerCase().includes(term) ||
         (entry.characters ?? []).some((character) => character.name.toLowerCase().includes(term))
     );
+  });
+
+  /**
+   * `filteredSets`, split by whether this author has published it — `null`
+   * while that is not yet known (see `publishedLocalIds`), so the shelf below
+   * falls back to one flat list rather than a two-way split it cannot
+   * actually answer.
+   */
+  const groupedSets = $derived.by(() => {
+    if (publishedLocalIds === null) return null;
+    const ids = publishedLocalIds;
+    const published: typeof filteredSets = [];
+    const unpublished: typeof filteredSets = [];
+    for (const entry of filteredSets) {
+      (ids.has(entry.id) ? published : unpublished).push(entry);
+    }
+    return { published, unpublished };
   });
 
   /**
@@ -295,6 +347,88 @@
     flash(`Imported “${result.set.name}”.`);
   }
 </script>
+
+{#snippet setCard(entry: LibraryEntry)}
+  <li class="card">
+    <button type="button" class="open" onclick={() => void workshop.openSet(entry.id)}>
+      <span class="card-title-row">
+        <span class="card-title">{entry.name || 'Untitled Adventure'}</span>
+        {#if (attention.get(entry.id)?.waiting ?? 0) > 0}
+          <span class="pill waiting">{attention.get(entry.id)?.waiting} pending</span>
+        {/if}
+      </span>
+      {#if entry.subtitle}<span class="card-subtitle">{entry.subtitle}</span>{/if}
+
+      <!--
+        A copy says so before it is opened. `originAuthor` is absent rather
+        than empty on a set authored here, and empty on one copied from a
+        published set whose author had no display name — so the badge
+        distinguishes the two. The revision rides beside it for the same
+        reason `SetHome`'s own lineage line carries one: it is what tells two
+        forks of the same set apart on a shelf that otherwise shows the same
+        name twice. The "now at" clause is the same out-of-sync fact
+        `SetHome`'s own lineage line shows once a set is open — surfaced here
+        so it does not take opening the set to notice.
+      -->
+      {#if entry.originAuthor !== undefined}
+        <span class="lineage">
+          {entry.originAuthor ? `Based on ${entry.originAuthor}’s set` : 'Based on a published set'}
+          {#if entry.originRevision !== undefined}
+            <span class="numeric">· revision {entry.originRevision}</span>
+          {/if}
+          {#if (attention.get(entry.id)?.behindBy ?? 0) > 0}
+            <span class="behind">
+              — the original is now
+              {attention.get(entry.id)?.behindBy}
+              {(attention.get(entry.id)?.behindBy ?? 0) === 1 ? 'revision' : 'revisions'} ahead
+            </span>
+          {/if}
+        </span>
+      {/if}
+
+      <span class="stats">
+        <span class="stat"><b class="numeric">{entry.characterCount}</b> characters</span>
+        <span class="stat"><b class="numeric">{entry.cardCount}</b> cards</span>
+      </span>
+
+      <span class="meta">
+        <span>{formatDate(entry.updatedAt)}</span>
+        <span class="numeric">{formatSize(entry.bytes)}</span>
+      </span>
+    </button>
+
+    <div class="card-actions">
+      <button
+        type="button"
+        class="ghost"
+        title="Duplicate"
+        aria-label="Duplicate set"
+        onclick={() => void workshop.duplicateSet(entry.id)}
+      >
+        <Icon name="copy" size={13} />
+      </button>
+
+      {#if confirmingDelete === entry.id}
+        <button type="button" class="ghost danger" onclick={() => void workshop.removeSet(entry.id)}>
+          Delete
+        </button>
+        <button type="button" class="ghost" onclick={() => (confirmingDelete = null)}>
+          Cancel
+        </button>
+      {:else}
+        <button
+          type="button"
+          class="ghost"
+          title="Delete"
+          aria-label="Delete set"
+          onclick={() => (confirmingDelete = entry.id)}
+        >
+          <Icon name="trash" size={13} />
+        </button>
+      {/if}
+    </div>
+  </li>
+{/snippet}
 
 <div class="library">
   <header class="head">
@@ -440,90 +574,30 @@
           : 'No characters in any set yet.'}
       </p>
     {:else if mode === 'sets'}
-      <ul class="grid">
-        {#each filteredSets as entry (entry.id)}
-          <li class="card">
-            <button type="button" class="open" onclick={() => void workshop.openSet(entry.id)}>
-              <span class="card-title-row">
-                <span class="card-title">{entry.name || 'Untitled Adventure'}</span>
-                {#if (attention.get(entry.id)?.waiting ?? 0) > 0}
-                  <span class="pill waiting">{attention.get(entry.id)?.waiting} pending</span>
-                {/if}
-              </span>
-              {#if entry.subtitle}<span class="card-subtitle">{entry.subtitle}</span>{/if}
-
-              <!--
-                A copy says so before it is opened. `originAuthor` is absent
-                rather than empty on a set authored here, and empty on one
-                copied from a published set whose author had no display name —
-                so the badge distinguishes the two. The revision rides beside
-                it for the same reason `SetHome`'s own lineage line carries
-                one: it is what tells two forks of the same set apart on a
-                shelf that otherwise shows the same name twice. The "now at"
-                clause is the same out-of-sync fact `SetHome`'s own lineage
-                line shows once a set is open — surfaced here so it does not
-                take opening the set to notice.
-              -->
-              {#if entry.originAuthor !== undefined}
-                <span class="lineage">
-                  {entry.originAuthor ? `Based on ${entry.originAuthor}’s set` : 'Based on a published set'}
-                  {#if entry.originRevision !== undefined}
-                    <span class="numeric">· revision {entry.originRevision}</span>
-                  {/if}
-                  {#if (attention.get(entry.id)?.behindBy ?? 0) > 0}
-                    <span class="behind">
-                      — the original is now
-                      {attention.get(entry.id)?.behindBy}
-                      {(attention.get(entry.id)?.behindBy ?? 0) === 1 ? 'revision' : 'revisions'} ahead
-                    </span>
-                  {/if}
-                </span>
-              {/if}
-
-              <span class="stats">
-                <span class="stat"><b class="numeric">{entry.characterCount}</b> characters</span>
-                <span class="stat"><b class="numeric">{entry.cardCount}</b> cards</span>
-              </span>
-
-              <span class="meta">
-                <span>{formatDate(entry.updatedAt)}</span>
-                <span class="numeric">{formatSize(entry.bytes)}</span>
-              </span>
-            </button>
-
-            <div class="card-actions">
-              <button
-                type="button"
-                class="ghost"
-                title="Duplicate"
-                aria-label="Duplicate set"
-                onclick={() => void workshop.duplicateSet(entry.id)}
-              >
-                <Icon name="copy" size={13} />
-              </button>
-
-              {#if confirmingDelete === entry.id}
-                <button type="button" class="ghost danger" onclick={() => void workshop.removeSet(entry.id)}>
-                  Delete
-                </button>
-                <button type="button" class="ghost" onclick={() => (confirmingDelete = null)}>
-                  Cancel
-                </button>
-              {:else}
-                <button
-                  type="button"
-                  class="ghost"
-                  title="Delete"
-                  aria-label="Delete set"
-                  onclick={() => (confirmingDelete = entry.id)}
-                >
-                  <Icon name="trash" size={13} />
-                </button>
-              {/if}
-            </div>
-          </li>
-        {/each}
-      </ul>
+      {#if groupedSets}
+        {#if groupedSets.published.length > 0}
+          <h2 class="section-title">Published <span class="numeric">· {groupedSets.published.length}</span></h2>
+          <ul class="grid">
+            {#each groupedSets.published as entry (entry.id)}
+              {@render setCard(entry)}
+            {/each}
+          </ul>
+        {/if}
+        {#if groupedSets.unpublished.length > 0}
+          <h2 class="section-title">Unpublished <span class="numeric">· {groupedSets.unpublished.length}</span></h2>
+          <ul class="grid">
+            {#each groupedSets.unpublished as entry (entry.id)}
+              {@render setCard(entry)}
+            {/each}
+          </ul>
+        {/if}
+      {:else}
+        <ul class="grid">
+          {#each filteredSets as entry (entry.id)}
+            {@render setCard(entry)}
+          {/each}
+        </ul>
+      {/if}
     {:else}
       <ul class="grid characters">
         {#each filteredCharacters as character (character.setId + character.id)}
@@ -725,10 +799,22 @@
     padding: var(--space-7) var(--space-9) var(--space-10);
   }
 
+  .section-title {
+    margin: 0 0 var(--space-3);
+    font-size: var(--text-sm);
+    font-weight: var(--weight-semibold);
+    color: var(--text-secondary);
+  }
+
   .grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
     gap: var(--space-4);
+    margin-bottom: var(--space-6);
+  }
+
+  .grid:last-child {
+    margin-bottom: 0;
   }
 
   /* Character tiles are a plain row, so they need less width to read well

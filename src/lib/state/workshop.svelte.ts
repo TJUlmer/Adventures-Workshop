@@ -291,7 +291,7 @@ export class WorkshopStore {
   async closeSet(): Promise<void> {
     await this.refreshLibrary();
     await rememberLastOpen(null);
-    navigation.openLibrary();
+    navigation.openHome();
   }
 
   async removeSet(id: SetId): Promise<void> {

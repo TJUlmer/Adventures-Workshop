@@ -134,7 +134,7 @@
   /**
    * This machine's Tabletop Simulator Saved Objects folder — typed in once,
    * remembered in `storage/settings.ts`, and read back here on mount the same
-   * way `LibraryScreen` reads its storage estimate: fired off rather than
+   * way `HomeScreen` reads its storage estimate: fired off rather than
    * awaited, since there is nothing useful to show before it resolves.
    *
    * Read from a browser page rather than asked of the operating system,

@@ -32,7 +32,7 @@ the rich-text sanitiser are all hand-rolled for this reason. Reach for a library
 only after establishing that hand-rolling is genuinely unreasonable.
 
 **Local-first, offline, no backend.** The library — every set, indexed for the
-Library screen — lives in IndexedDB, in `src/lib/storage/`; every user asset
+Home screen — lives in IndexedDB, in `src/lib/storage/`; every user asset
 (artwork, models, replacement images) is embedded as a data URL so a set
 survives being handed to someone else as one file. Static chrome is served
 from `public/assets` as stable URLs, never bundler-imported.
@@ -60,7 +60,7 @@ so an interrupted migration leaves the old data in place to pick up next time
 rather than losing it. `App.svelte` gates its first paint on that migration
 and the session restore it is part of (`sessionReady`), because both are async
 where they used to resolve before Svelte rendered at all, and rendering the
-routes unconditionally in the meantime would show the library screen and then
+routes unconditionally in the meantime would show the Home screen and then
 jump to whatever set was actually open.
 
 Downscaling large images stays worth doing independently of which store backs
@@ -543,6 +543,69 @@ space bordering two areas as a circle cut into wedges, and two, three and
 four-way splits all appear. One entry short-circuits to a plain circle, because
 a 360° arc is degenerate and renders as nothing at all.
 
+### Home
+
+`components/library/HomeScreen.svelte` (still under `library/` — see below) is
+`navigation.svelte.ts`'s `{ kind: 'home' }` view, and is what used to be called
+the library screen. The rename tracks a real change, not a relabel for its own
+sake: the library screen only ever listed sets; Home also says what needs
+doing before you open one, which is a different job and needed a name that
+says so. `storage/library.ts` — the IndexedDB-backed collection of sets, and
+`components/library/`, the folder — keep the old name on purpose: "library" is
+still the right word for the data, it was only ever the wrong word for the
+page looking at it. Renaming the folder to `home/` would have collided with
+`components/home/`, which is the *other* Home — see below.
+
+Two things are worth knowing before you open one:
+
+- **Contributions waiting on a decision**, and **a fork whose original has
+  moved on since it was copied.** `SetHome` (see below) already answered both
+  questions for whichever one set happened to be open — `behindBy`, via
+  `fetchSetSummaryBySlug(set.origin.slug)`, and `waiting`, via
+  `listMyPublishedSets`/`openContributionCounts`. Home generalises the same
+  two calls across every set in the library at once (two calls total, not one
+  per set for the ones that scale that way; `fetchSetSummaryBySlug` is
+  genuinely per-set, so those go out in parallel) rather than reimplementing
+  either question, and renders the result as a strip above the shelf plus an
+  inline note on the affected tile — the same "the original is now at
+  revision N" wording `SetHome`'s own lineage line already uses, so the two
+  places say the same thing about the same fact.
+
+The shelf itself splits into **Published** and **Unpublished**, by whether
+`listMyPublishedSets()` has a row for that local id under any scope. The
+split is `null` rather than an empty set until that call has actually
+answered *while signed in* — signed out, offline, and "signed in with zero
+published sets" all have to read differently, because the first two are not
+answers to "is this published," they are the absence of one. Getting this
+wrong once already happened: reading only whether the fetch had returned,
+not whether the visitor was signed in, put every set in the library under
+"Unpublished" for a signed-out author whose sets were, in fact, published —
+the local document has no way to know that on its own, only the server does,
+and only for someone it recognises. `auth.signedIn` is read synchronously at
+the top of the effect for the same reason it always has to be: reading it
+only inside the `async` closure would make signing in *while the screen is
+open* invisible to Svelte's dependency tracking, and the split would never
+un-stick from "unknown."
+
+`TitleBar` carries a "Home" button beside "Gallery" now, for the same reason
+the gallery already paired the two: leaving a set used to mean finding
+`SetNav`'s small back-chevron in the tab strip, which this replaces rather
+than sits beside — two controls both meaning "leave this set" is redundant
+chrome, not a convenience. `workshop.closeSet()`, not a bare
+`navigation.openHome()`, is still what the button calls, because leaving a
+set is what refreshes the library index and clears "last open," not merely a
+view change.
+
+Renaming the top-level page freed "Home" for exactly one thing, so the
+set-level page that used to answer to it — `components/home/SetHome.svelte`,
+the roster and completeness dashboard for one open set — needed a new label.
+`SET_PAGE_META.home.label` is `'Edit'` now; the underlying `SetPage` key
+stays `'home'`, since nothing reads that string except as an enum value and
+renaming it would be churn with no visible effect. The component's own
+filename and folder (`components/home/`) are unchanged for the same reason
+`storage/library.ts` is: they name what the thing *is* — a set's own home —
+not what a nav label currently calls it.
+
 ### Sharing and the gallery
 
 A set with no villain and no minions is a **gap, not a blocker**
@@ -632,7 +695,8 @@ it records and the lineage the row carries were never touched by the flag, and
 a copy already taken always showed its way back to the library. Back on now
 that the heroes release has shipped.
 
-A copy's own lineage badge follows it to the shelf. `LibraryScreen` already
+A copy's own lineage badge follows it to the shelf. `HomeScreen` (then
+`LibraryScreen`; renamed when Home absorbed the library page) already
 showed `originAuthor` (denormalised into `storage/library.ts`'s `LibraryEntry`
 index, the same reason every field there is denormalised — a tile per set
 would otherwise mean loading every document in the library to draw a list of

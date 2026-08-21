@@ -3,8 +3,9 @@
    * Secondary navigation inside a set.
    *
    * "Cards" is the editor — the three-pane workspace. The rest are set-level
-   * tools. The way back out to the library is here too, because leaving a set
-   * is a navigation act, not a file act.
+   * tools. The way back out used to live here too, as a back-chevron ahead of
+   * the tabs — moved to `TitleBar`'s "Home" button instead, once that existed
+   * beside "Gallery", rather than duplicated in both places.
    */
   import { SET_PAGE_META } from '$lib/state/navigation.svelte';
   import type { SetPage } from '$lib/state/navigation.svelte';
@@ -42,18 +43,6 @@
 </script>
 
 <nav class="set-nav" aria-label="Set sections">
-  <button
-    type="button"
-    class="back"
-    title="Back to the library"
-    onclick={() => void workshop.closeSet()}
-  >
-    <Icon name="chevronRight" size={13} />
-    <span class="back-label">Library</span>
-  </button>
-
-  <span class="divider"></span>
-
   {#each pages as page (page)}
     {@const meta = SET_PAGE_META[page]}
     <button
@@ -78,42 +67,6 @@
     height: 100%;
     padding-inline: var(--space-3);
     overflow-x: auto;
-  }
-
-  .back {
-    display: inline-flex;
-    align-items: center;
-    gap: var(--space-1);
-    height: 26px;
-    padding-inline: var(--space-2);
-    border-radius: var(--radius-sm);
-    font-size: var(--text-xs);
-    color: var(--text-muted);
-    transition:
-      background-color var(--duration-fast) var(--ease-out),
-      color var(--duration-fast) var(--ease-out);
-  }
-
-  /* The chevron points back the way you came. */
-  .back :global(.icon) {
-    rotate: 180deg;
-  }
-
-  .back:hover {
-    background: var(--surface-hover);
-    color: var(--text-primary);
-  }
-
-  .back-label {
-    white-space: nowrap;
-  }
-
-  .divider {
-    width: 1px;
-    height: 16px;
-    margin-inline: var(--space-2);
-    background: var(--border-default);
-    flex: none;
   }
 
   .tab {

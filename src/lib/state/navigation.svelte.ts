@@ -1,9 +1,9 @@
 /**
  * Where the app is.
  *
- * Two levels, mirroring the mental model: outside a set there is the library;
- * inside one there is a set of pages. Everything else — which card is selected,
- * what the preview shows — hangs off the store, not off navigation.
+ * Two levels, mirroring the mental model: outside a set there is Home; inside
+ * one there is a set of pages. Everything else — which card is selected, what
+ * the preview shows — hangs off the store, not off navigation.
  */
 
 /** Pages available while a set is open. */
@@ -31,7 +31,7 @@ export interface SetPageMeta {
 }
 
 export const SET_PAGE_META: Readonly<Record<SetPage, SetPageMeta>> = {
-  home: { label: 'Home', hint: 'What this set is and how complete it is', icon: 'grid' },
+  home: { label: 'Edit', hint: 'What this set is and how complete it is', icon: 'grid' },
   editor: { label: 'Cards', hint: 'Edit a card or a character', icon: 'card' },
   threat: { label: 'Threat track', hint: 'The villain’s threat track', icon: 'skull' },
   map: { label: 'Map', hint: 'The board the adventure is played on', icon: 'grid' },
@@ -69,8 +69,8 @@ export const SET_PAGE_META: Readonly<Record<SetPage, SetPageMeta>> = {
 } as const;
 
 export type View =
-  | { kind: 'library' }
-  /** The community gallery. Outside a set, like the library. */
+  | { kind: 'home' }
+  /** The community gallery. Outside a set, like Home. */
   | { kind: 'gallery' }
   | { kind: 'set'; page: SetPage }
   /**
@@ -128,13 +128,13 @@ export function readSharedSlug(): string | null {
 }
 
 class Navigation {
-  view = $state<View>({ kind: 'library' });
+  view = $state<View>({ kind: 'home' });
 
   readonly inSet = $derived(this.view.kind === 'set');
   readonly page = $derived(this.view.kind === 'set' ? this.view.page : null);
 
-  openLibrary(): void {
-    this.view = { kind: 'library' };
+  openHome(): void {
+    this.view = { kind: 'home' };
   }
 
   openGallery(): void {
@@ -206,7 +206,7 @@ class Navigation {
      * Remember where this was opened from, so leaving goes back there rather
      * than to a fixed screen. Someone who reached a set from the gallery is
      * mid-browse and expects to land back in the grid; someone who pasted a
-     * link has nowhere to go but the library. Only recorded on the way *in*,
+     * link has nowhere to go but Home. Only recorded on the way *in*,
      * or re-entering a shared view from a shared view would overwrite it.
      */
     if (this.view.kind !== 'shared') this.#returnTo = this.view;
@@ -227,8 +227,8 @@ class Navigation {
     history.pushState(null, '', wanted);
   }
 
-  /** Wherever `openShared` was called from. The library if it was nowhere. */
-  #returnTo: View = { kind: 'library' };
+  /** Wherever `openShared` was called from. Home if it was nowhere. */
+  #returnTo: View = { kind: 'home' };
 
   /**
    * Leave a share link.
@@ -238,9 +238,9 @@ class Navigation {
    *
    * `to` overrides where it lands. Without it the viewer goes back where they
    * came from, which is right for "Done" and wrong for anything that names its
-   * destination: "Go to my library" after taking a copy sent people to the
-   * gallery, because that is where they had opened the set from. A button that
-   * says where it goes has to go there.
+   * destination: "Go to Home" after taking a copy sent people to the gallery,
+   * because that is where they had opened the set from. A button that says
+   * where it goes has to go there.
    *
    * The `/shared/{slug}` tail is stripped from `pathname` rather than the
    * whole path being reset to `/` — a sub-path deploy's own base path is

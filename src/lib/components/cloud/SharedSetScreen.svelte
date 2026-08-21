@@ -304,9 +304,9 @@
               </p>
               <Button
                 variant="primary"
-                onclick={() => navigation.leaveShared({ kind: 'library' })}
+                onclick={() => navigation.leaveShared({ kind: 'home' })}
               >
-                Go to my library
+                Go to Home
               </Button>
             {:else}
               <Button variant="primary" disabled={forking} onclick={fork}>

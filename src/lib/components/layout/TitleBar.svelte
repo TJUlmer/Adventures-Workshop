@@ -76,17 +76,18 @@
     {/if}
 
     <!--
-      Both the library and the gallery live here now, as a pair — the same
-      "where else could I be" pairing the library itself offers, so leaving a
-      set does not mean hunting for the small back-chevron in the set's own
-      tab strip (`SetNav`) to find either one. `workshop.closeSet`, not a bare
-      `navigation.openLibrary`, for the same reason `SetNav`'s own back button
-      uses it: leaving a set is what refreshes the library index and clears
+      Both Home and the gallery live here now, as a pair — the same "where
+      else could I be" pairing Home itself offers. This replaces `SetNav`'s
+      old back-chevron rather than sitting beside it: two controls that both
+      mean "leave this set" is redundant chrome, not a convenience, and this
+      one is where an author is already looking. `workshop.closeSet`, not a
+      bare `navigation.openHome`, for the reason `SetNav`'s own back button
+      used it — leaving a set is what refreshes the library index and clears
       "last open", not just a view change.
     -->
     <Button size="sm" variant="ghost" title="Your sets" onclick={() => void workshop.closeSet()}>
       <Icon name="grid" size={14} />
-      My library
+      Home
     </Button>
 
     <!--

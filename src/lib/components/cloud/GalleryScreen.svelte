@@ -329,9 +329,9 @@
         with.
       </p>
     </div>
-    <Button variant="ghost" onclick={() => navigation.openLibrary()}>
+    <Button variant="ghost" onclick={() => navigation.openHome()}>
       <Icon name="chevronRight" size={13} />
-      My library
+      Home
     </Button>
   </header>
 

@@ -28,8 +28,8 @@ import type { WorkshopStore } from './workshop.svelte';
  *
  * Async now, where this used to resolve before the first paint: IndexedDB
  * has no synchronous API to have kept it on. `App.svelte` gates its first
- * render on this rather than showing the library and then jumping, which is
- * what awaiting it here without a caller-side gate would have looked like.
+ * render on this rather than showing Home and then jumping, which is what
+ * awaiting it here without a caller-side gate would have looked like.
  */
 export async function restoreSession(store: WorkshopStore): Promise<void> {
   // Not awaited: this only lowers the odds of a rare, silent eviction under
@@ -63,7 +63,7 @@ export async function restoreSession(store: WorkshopStore): Promise<void> {
     await rememberLastOpen(null);
   }
 
-  navigation.openLibrary();
+  navigation.openHome();
 }
 
 export function useAutosave(store: WorkshopStore, delayMs = 500): void {
@@ -79,7 +79,7 @@ export function useAutosave(store: WorkshopStore, delayMs = 500): void {
     const set = store.adventure;
     const json = serializeSet(set);
 
-    // Nothing to save while the library is on screen.
+    // Nothing to save while Home is on screen.
     if (!inSet) return;
 
     const handle = setTimeout(() => {

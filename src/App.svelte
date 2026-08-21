@@ -2,9 +2,9 @@
   /**
    * Routing.
    *
-   * Everything lives inside a set: the library is the only screen outside one,
-   * and every other page assumes a set is open. That assumption is what lets
-   * the rest of the app read `workshop.adventure` without guarding it.
+   * Everything lives inside a set: Home is the only screen outside one, and
+   * every other page assumes a set is open. That assumption is what lets the
+   * rest of the app read `workshop.adventure` without guarding it.
    */
   import SetHome from '$lib/components/home/SetHome.svelte';
   import AppShell from '$lib/components/layout/AppShell.svelte';
@@ -16,7 +16,7 @@
   import AuthorProfileScreen from '$lib/components/cloud/AuthorProfileScreen.svelte';
   import GalleryScreen from '$lib/components/cloud/GalleryScreen.svelte';
   import SharedSetScreen from '$lib/components/cloud/SharedSetScreen.svelte';
-  import LibraryScreen from '$lib/components/library/LibraryScreen.svelte';
+  import HomeScreen from '$lib/components/library/HomeScreen.svelte';
   import PrintScreen from '$lib/print/PrintScreen.svelte';
   import { auth } from '$lib/cloud/auth.svelte';
   import { readSharedSlug } from '$lib/state/navigation.svelte';
@@ -38,10 +38,10 @@
    * and every edit from here on is written back on a debounce.
    *
    * `restoreSession` is async now that it reads IndexedDB, where this used to
-   * resolve before Svelte ever rendered. `navigation.view` defaults to the
-   * library, so rendering the routes below unconditionally while this is
-   * still in flight would show the library and then jump to whatever set was
-   * actually open — `sessionReady` gates the first paint on it instead.
+   * resolve before Svelte ever rendered. `navigation.view` defaults to Home,
+   * so rendering the routes below unconditionally while this is still in
+   * flight would show Home and then jump to whatever set was actually open —
+   * `sessionReady` gates the first paint on it instead.
    *
    * `openDeepLink` (below) now has to run inside this `.then` rather than
    * straight after, for the same reason: it used to follow a *synchronous*
@@ -133,8 +133,8 @@
     <GalleryScreen />
   {:else if navigation.view.kind === 'author'}
     <AuthorProfileScreen id={navigation.view.id} />
-  {:else if navigation.view.kind === 'library'}
-    <LibraryScreen />
+  {:else if navigation.view.kind === 'home'}
+    <HomeScreen />
   {:else if currentPage === 'print'}
     <!--
       Outside the shell on purpose: printing is the one thing the app does where

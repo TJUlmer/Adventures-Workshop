@@ -11,8 +11,8 @@
  * the actual room a set with dozens of images needs.
  *
  * Sets are stored one key per document, with a small index alongside — same
- * split as before, and for the same reason: the library screen needs names
- * and counts for a dozen sets, and reading a dozen documents, each carrying
+ * split as before, and for the same reason: the Home screen needs names and
+ * counts for a dozen sets, and reading a dozen documents, each carrying
  * embedded artwork, just to draw a list would be wasteful and slow.
  *
  * Every function here is now async, `indexeddb.ts`'s doing rather than a
@@ -39,7 +39,7 @@ const LEGACY_KEY = 'adventures-workshop:document:v1';
 const INDEX_KEY = 'library-index';
 const LAST_OPEN_KEY = 'last-open';
 
-/** What the library screen needs, without loading a whole document. */
+/** What the Home screen needs, without loading a whole document. */
 export interface LibraryEntry {
   id: SetId;
   name: string;
@@ -75,7 +75,7 @@ export interface LibraryEntry {
    * The share token this copy was forked from — `SetOrigin.slug`, denormalised
    * for the same reason `originRevision` is, but for a different reader:
    * `originRevision` is enough to *print* the lineage line, but asking "has
-   * the original moved on" (`LibraryScreen`'s out-of-sync check, via
+   * the original moved on" (`HomeScreen`'s out-of-sync check, via
    * `fetchSetSummaryBySlug`) needs the slug to ask with. Absent on an
    * original and on any index row written before this existed.
    */
@@ -88,12 +88,12 @@ export interface LibraryEntry {
    * hundred KB apiece, and this index exists specifically so a shelf of a
    * dozen sets does not mean holding a dozen documents in memory just to draw
    * a list — copying that much image data into the very structure built to
-   * avoid it would be self-defeating. `LibraryScreen`'s Characters view uses
+   * avoid it would be self-defeating. `HomeScreen`'s Characters view uses
    * initials instead, same fallback the gallery already draws for a set with
    * no picture.
    *
    * Denormalised for the same reason every other field here is. Absent on an
-   * index row written before this existed; `LibraryScreen` reads it as `??
+   * index row written before this existed; `HomeScreen` reads it as `??
    * []`, not as a sign the set has no characters.
    */
   characters?: LibraryCharacterEntry[];
