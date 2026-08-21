@@ -13,10 +13,9 @@
   import type {
     CharacterAbility,
     CharacterCardDesign,
-    CharacterRole,
     HeroCharacterCardId
   } from '$lib/characters/types';
-  import { CHARACTER_ROLE_META, SELECTABLE_ROLES } from '$lib/characters/types';
+  import { CHARACTER_ROLE_META } from '$lib/characters/types';
   import type { DeckId, DeckKind } from '$lib/decks/types';
   import { DECK_KIND_META, DECK_KINDS } from '$lib/decks/types';
   import { characterEditorView } from '$lib/state/character-editor-view.svelte';
@@ -70,12 +69,6 @@
   const character = $derived(workshop.selectedCharacter);
   const decks = $derived(character ? workshop.decksFor(character.id) : []);
 
-  const roleSegments = SELECTABLE_ROLES.map((role) => ({
-    value: role,
-    label: CHARACTER_ROLE_META[role].label,
-    colorVar: CHARACTER_ROLE_META[role].colorVar
-  }));
-
   const deckKindOptions = DECK_KINDS.map((kind) => ({
     value: kind,
     label: DECK_KIND_META[kind].label
@@ -90,10 +83,6 @@
 
   function originFor(key: keyof CardTheme): string {
     return workshop.adventure.style[key] !== undefined ? 'set' : 'template';
-  }
-
-  function setRole(role: CharacterRole): void {
-    if (character) character.role = role;
   }
 
   function setDeckKind(deckId: DeckId, kind: string): void {
@@ -364,6 +353,20 @@
 {#if character && resolvedTheme}
   {@const meta = CHARACTER_ROLE_META[character.role]}
 
+  <!--
+    `character.role` has no editor here, and that is deliberate rather than an
+    omission — it used to be a `SegmentedControl` right below this header, and
+    it was removed. A role is what put a character in a sidebar group in the
+    first place (`workshop.addCharacter(role)`), and it never changes
+    afterward; nothing in the app writes `character.role` outside that one
+    call. The toggle's failure mode was silent and one-way: switching a hero
+    to villain moved them into the Villains group and, in a heroes set, that
+    group does not exist — the character simply vanished, with no control left
+    anywhere to bring them back short of switching the whole set back to an
+    adventure. Retyping a character from scratch under the right heading in
+    the sidebar is rare enough, and cheap enough, that it did not need a
+    dedicated control risking that.
+  -->
   <WorkspaceHeader
     eyebrow={meta.label}
     title={characterLabel(character)}
@@ -408,15 +411,6 @@
                   ? suggestedGroupName(character) || 'Name this hero'
                   : 'Name this character'}
                 prominent
-              />
-            </Field>
-
-            <Field label="Role">
-              <SegmentedControl
-                label="Character role"
-                value={character.role}
-                segments={roleSegments}
-                onchange={setRole}
               />
             </Field>
 
@@ -663,15 +657,6 @@
 
           <Field label="Shortened name" hint="Used on the action card ribbon. Blank uses the full name.">
             <TextInput bind:value={character.subtitle} placeholder="e.g. Geralt" />
-          </Field>
-
-          <Field label="Role">
-            <SegmentedControl
-              label="Character role"
-              value={character.role}
-              segments={roleSegments}
-              onchange={setRole}
-            />
           </Field>
 
           <Field label="Figures" inline note="on board" hint="Identical figures this entry places.">

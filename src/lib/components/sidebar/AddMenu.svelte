@@ -24,12 +24,17 @@
   );
 
   /*
-   * A heroes set offers four fewer things to add, and the four it drops are
-   * the four the sidebar has stopped drawing — a menu that can add something
-   * with nowhere to appear is a menu that loses people's work. Dropped rather
-   * than disabled: a row explaining why you cannot add a villain, in a set
-   * that never mentions villains anywhere else, raises a question nobody
-   * asked. Settings is where the kind is explained, and it says what it hides.
+   * A heroes set offers five fewer things to add. Four of them — Villain,
+   * Minion, Initiative card, Event card — are dropped because the sidebar has
+   * stopped drawing anywhere for them to appear; a menu that can add something
+   * with nowhere to go is a menu that loses people's work. The fifth,
+   * Deception card, is dropped for a different reason: it is an Adventures
+   * preset (the card that survives being discarded, which only matters
+   * against an opponent reading your discards), not something a heroes set
+   * has no room for. Dropped rather than disabled either way: a row
+   * explaining why you cannot add a villain, in a set that never mentions
+   * villains anywhere else, raises a question nobody asked. Settings is where
+   * the kind is explained, and it says what it hides.
    */
   const heroesSet = $derived(workshop.isHeroesSet);
 
@@ -57,12 +62,20 @@
             run: () => workshop.addCharacter('minion')
           }
         ] satisfies Entry[])),
-    {
-      label: 'Deception card',
-      hint: 'The preset every deck carries',
-      icon: 'copy',
-      run: () => workshop.addDeceptionCard()
-    },
+    /* Deception is an Adventures preset — the card that sends a discarded
+       card back into its own deck rather than the discard pile, which only
+       matters against an opponent reading your discards. A heroes set has no
+       such opponent, so it joins the adventure-only group below. */
+    ...(heroesSet
+      ? []
+      : ([
+          {
+            label: 'Deception card',
+            hint: 'The preset every deck carries',
+            icon: 'copy',
+            run: () => workshop.addDeceptionCard()
+          }
+        ] satisfies Entry[])),
     ...(heroesSet
       ? []
       : ([
