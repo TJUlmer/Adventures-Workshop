@@ -1,11 +1,37 @@
 import { mkdir, readdir, rm, rmdir, writeFile } from 'node:fs/promises';
 import { dirname, join, relative, resolve, sep } from 'node:path';
-import { fileURLToPath, pathToFileURL, URL } from 'node:url';
+import { fileURLToPath, URL } from 'node:url';
 import { defineConfig } from 'vite';
 import type { Plugin } from 'vite';
 import { svelte } from '@sveltejs/vite-plugin-svelte';
 
 const EXPORTS_DIR = fileURLToPath(new URL('./exports', import.meta.url));
+
+/**
+ * An absolute OS path, as the `file://` address Tabletop Simulator actually
+ * wants — which is not what `pathToFileURL(path).href` gives, and cost a
+ * real, failed import to learn. `pathToFileURL` builds a real WHATWG URL:
+ * forward slashes throughout and every space percent-encoded, because that
+ * is what a URL is. TTS does not decode this address as one — `FaceURL`,
+ * `DiffuseURL` and `MeshURL` are read straight into an OS file call, so
+ * `%20` is read as the three literal characters `%20`, not as a space, and a
+ * Windows path's own backslashes are what it expects a folder split to look
+ * like. So the correct transformation here is close to none at all: wrap the
+ * raw path in `file:///` (or `file://` plus the path's own leading `/` on a
+ * POSIX system, which already supplies one of the three) and change nothing
+ * else about it.
+ *
+ * This went unnoticed for as long as it did because nothing ever exercised
+ * it: every export written here landed under this repository's own
+ * `EXPORTS_DIR`, and that path happens to contain no spaces, so `%20` never
+ * appeared in a URL anyone actually pointed Tabletop Simulator at. The path
+ * that does — Tabletop Simulator's own Saved Objects folder — always
+ * contains one, in "My Games".
+ */
+function rawFileUrl(absolutePath: string): string {
+  const rooted = absolutePath.startsWith('/') ? absolutePath : `/${absolutePath}`;
+  return `file://${rooted}`;
+}
 
 /** Where the page asks about, and posts to. */
 const ENDPOINT = '/__workshop/export';
@@ -136,7 +162,7 @@ function exportsFolder(): Plugin {
 
         // The probe: "is there somewhere to write, and what is it called?"
         if (request.method === 'GET') {
-          send(200, { directory: EXPORTS_DIR, url: pathToFileURL(EXPORTS_DIR).href });
+          send(200, { directory: EXPORTS_DIR, url: rawFileUrl(EXPORTS_DIR) });
           return;
         }
 
@@ -211,7 +237,7 @@ function exportsFolder(): Plugin {
         request.on('end', () => {
           void mkdir(dirname(target), { recursive: true })
             .then(() => writeFile(target, Buffer.concat(chunks)))
-            .then(() => send(200, { path: target, url: pathToFileURL(target).href }))
+            .then(() => send(200, { path: target, url: rawFileUrl(target) }))
             .catch((error: unknown) =>
               send(500, { error: error instanceof Error ? error.message : 'Could not write it.' })
             );

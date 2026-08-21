@@ -81,32 +81,14 @@ export interface TtsBundleOptions {
 }
 
 /**
- * A filesystem path, as a `file://` URL — the same shape `pathToFileURL`
- * gives the dev-server route, built by hand because there is no filesystem
- * API to ask in a browser.
- *
- * Two things this has to get right, both because the one path this exists
- * for is guaranteed to hit them: Tabletop Simulator's own Saved Objects
- * folder always has a space in it ("My Games"), and on Windows it starts
- * with a drive letter rather than a leading slash. `encodeURI` (not
- * `encodeURIComponent`) is what handles the first — it leaves `:` and `/`
- * alone and escapes only what is actually unsafe in a URL, where escaping
- * every segment individually would turn `C:` into `C%3A` and break the drive
- * letter. The second is why a bare leading slash is added before encoding
- * when the path does not already have one: `file://` plus a Windows path
- * gives the correct three slashes before the drive letter (`file:///C:/…`),
- * and `file://` plus a Unix path that already starts with `/` gives the
- * same three without doubling up (`file:///Users/…`).
- */
-/**
  * A path exactly as the author typed it, minus one trailing slash or
  * backslash — the form every other piece of text here builds on, so that a
  * path copied from a file manager (which may or may not end in one) reads
  * the same in the instructions whichever way it arrived.
  *
  * `fileUrlFromPath` and `howToImport`'s prose both go through this rather
- * than each stripping the slash their own way, which is what a first pass at
- * this got wrong: the *URL* trimmed it and came out correct while the
+ * than each stripping the slash their own way, which is what an earlier pass
+ * at this got wrong: the *URL* trimmed it and came out correct while the
  * *sentence beside it* concatenated the untrimmed path straight onto `root`,
  * printing a doubled backslash the moment someone's path happened to end in
  * one — invisible in testing with a path that did not, and wrong the first
@@ -116,10 +98,53 @@ function trimTrailingSlash(raw: string): string {
   return raw.trim().replace(/[/\\]+$/, '');
 }
 
+/**
+ * A filesystem path, as the `file://` address Tabletop Simulator actually
+ * wants — which turned out not to be a URL at all in the sense either
+ * `encodeURI` or Node's own `pathToFileURL` produce, and cost a real, failed
+ * import to learn.
+ *
+ * `FaceURL`/`DiffuseURL`/`MeshURL` are read straight into an OS file call
+ * without being decoded first — TTS does not treat `file:///` as the start
+ * of a URI whose `%20` means a space and whose `/` means "next folder"
+ * regardless of platform; it treats whatever follows as the literal path,
+ * backslashes and spaces included. So the correct transformation from a
+ * typed path to what TTS wants is closer to *none at all* than to proper URI
+ * encoding: this only ever strips the one trailing separator and prepends
+ * `file:///` (or `file://` + the path's own leading `/` on a Unix path,
+ * which already supplies one of the three).
+ *
+ * This is also why `urlFor`, below, cannot simply join every path onto this
+ * with `/` the way a real URL would be joined — the segments it appends are
+ * always `/`-separated internally (`models/health-dial.obj`), and gluing
+ * that straight onto a `\`-separated Windows path would read to TTS as one
+ * long filename containing a literal slash, not as a folder split. See
+ * `exportTabletopSimulator`'s own construction of `urlFor` for the join.
+ */
 function fileUrlFromPath(raw: string): string {
-  const normalized = trimTrailingSlash(raw).replace(/\\/g, '/');
-  const rooted = normalized.startsWith('/') ? normalized : `/${normalized}`;
-  return `file://${encodeURI(rooted)}`;
+  const trimmed = trimTrailingSlash(raw);
+  const rooted = trimmed.startsWith('/') ? trimmed : `/${trimmed}`;
+  return `file://${rooted}`;
+}
+
+/**
+ * Append a relative path onto a `file:///`-wrapped raw OS path, in whichever
+ * separator that path itself already uses.
+ *
+ * Every relative path this app builds internally (`models/health-dial.obj`,
+ * `sheets/…`) is `/`-separated, because that is the one separator that means
+ * the same thing in a ZIP entry, on every OS, and in a real URL — it is only
+ * once it lands next to a *raw* Windows path, which `fileUrlFromPath` and the
+ * dev server's own answer both are, that gluing it on with a bare `/` stops
+ * being correct: Tabletop Simulator does not decode this address, so a `/`
+ * next to `\`-separated segments reads as one filename containing a literal
+ * slash rather than as another folder down. Converting the relative path's
+ * own separators to match is what keeps every segment, typed and generated
+ * alike, in the one form the whole path is being read as.
+ */
+function joinFileUrl(base: string, relative: string): string {
+  const sep = base.includes('\\') ? '\\' : '/';
+  return `${base}${sep}${relative.split('/').join(sep)}`;
 }
 
 export interface TtsBundleResult {
@@ -561,15 +586,19 @@ export async function exportTabletopSimulator(
   const root = `${slugify(set.name, 'adventure-set')}-tts`;
   const savedObjectsPath = options.savedObjectsPath?.trim() || null;
 
-  /* The dev server, when there is one, wins — it writes the files for real
-     rather than only addressing a folder the author has to put them in by
-     hand. See `TtsBundleOptions.savedObjectsPath`. */
-  const base = folder
-    ? `${folder.url}/${root}`
-    : savedObjectsPath
-      ? `${fileUrlFromPath(savedObjectsPath)}/${root}`
-      : PLACEHOLDER_BASE;
-  const urlFor = (path: string): string => `${base}/${path}`;
+  /*
+   * The dev server, when there is one, wins — it writes the files for real
+   * rather than only addressing a folder the author has to put them in by
+   * hand. See `TtsBundleOptions.savedObjectsPath`.
+   *
+   * `rawRoot` tracks whether `base` is a genuine raw-path `file://` address
+   * (either one) or the placeholder, which is not an address at all and is
+   * joined with a plain `/` same as it always was — it is getting replaced
+   * by hand regardless of which slash it wears.
+   */
+  const rawRoot = folder ? folder.url : savedObjectsPath ? fileUrlFromPath(savedObjectsPath) : null;
+  const base = rawRoot ? joinFileUrl(rawRoot, root) : PLACEHOLDER_BASE;
+  const urlFor = (path: string): string => (rawRoot ? joinFileUrl(base, path) : `${base}/${path}`);
 
   const files: OutputFile[] = [];
   const taken = new Set<string>();
