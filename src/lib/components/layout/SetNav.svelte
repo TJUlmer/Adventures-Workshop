@@ -24,6 +24,20 @@
     'settings'
   ];
 
+  /**
+   * The threat track is the villain's, so a heroes set does not show its tab.
+   *
+   * The map deliberately stays: heroes need somewhere to fight each other, and
+   * `MAP_SIZES` offers boards smaller than an adventure's for exactly that.
+   *
+   * Hiding the tab cannot strand anyone on the page it hides — `setKind` sends
+   * an author back to Home if they are standing on it when they switch. And
+   * nothing is deleted: switch back to an adventure and the track is as it was.
+   */
+  const pages = $derived(
+    workshop.isHeroesSet ? PAGES.filter((page) => page !== 'threat') : PAGES
+  );
+
   const current = $derived(navigation.page);
 </script>
 
@@ -40,7 +54,7 @@
 
   <span class="divider"></span>
 
-  {#each PAGES as page (page)}
+  {#each pages as page (page)}
     {@const meta = SET_PAGE_META[page]}
     <button
       type="button"

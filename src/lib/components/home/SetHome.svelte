@@ -20,6 +20,7 @@
   import { CHARACTER_ROLE_META } from '$lib/characters/types';
   import { hasArtwork } from '$lib/core/artwork';
   import { assessSet, healthSummary } from '$lib/sets/health';
+  import { SET_KIND_META } from '$lib/sets/types';
   import { setLabel } from '$lib/sets/factory';
   import { threatTotal } from '$lib/threat/types';
   import { navigation } from '$lib/state/navigation.svelte';
@@ -124,7 +125,13 @@
     </div>
 
     <div class="identity">
-      <span class="eyebrow">Adventure set</span>
+      <!--
+        Says which kind of set this is, in the one place an author looks to see
+        how it is doing — because the kind is *why* the checklist below asks for
+        what it asks for, and a heroes set that never mentions being one reads
+        as an adventure with things mysteriously missing.
+      -->
+      <span class="eyebrow">{SET_KIND_META[set.kind].label}</span>
       <h1 class="title">{setLabel(set)}</h1>
       {#if set.subtitle}<p class="subtitle">{set.subtitle}</p>{/if}
 

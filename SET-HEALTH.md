@@ -29,32 +29,63 @@ any number of polish items.
   rules text, no way to track health, nothing driving the villain's turn.
 - **Polish** — presentation and credits. Never blocks anything.
 
+## The set's kind decides which checks apply
+
+A set is an **adventure** or a **heroes set** (`AdventureSet.kind`, see
+`sets/types.ts`). Four checks belong to an adventure alone and are skipped
+entirely for a heroes set — not softened, skipped:
+
+| Skipped for a heroes set | Why |
+| --- | --- |
+| No villain | There is no antagonist by definition. |
+| No minions | Same. |
+| No initiative deck | It exists to drive the villain's turn. |
+| No threat track | It exists for the villain to advance along. |
+
+This is the whole reason the kind exists. Before it, a finished heroes set —
+every hero drawn, dials and figures listed, a map — read "Playable, still
+rough" forever, with four items on its list that could never be actioned.
+Measured on Lucy & Piper: four gaps as an adventure, none as a heroes set.
+
+**The map is deliberately not in that list.** Heroes need somewhere to fight
+each other, which is why `MAP_SIZES` offers boards smaller than an adventure's.
+
+A heroes set gains one check of its own: *No heroes* is a **blocker**, on the
+same reasoning that makes "No cards" one — a heroes set is its heroes.
+
 ## Every check
 
 ### Blockers
 
 | Check | Fires when |
 | --- | --- |
-| No villain | No character has the `villain` role. |
-| No minions | No character has the `minion` role. |
+| No villain | No character has the `villain` role. *Adventure only.* |
+| No minions | No character has the `minion` role. *Adventure only.* |
+| No heroes | No character has the `hero` role. *Heroes set only.* |
 | No cards | The set has no cards at all. |
 
 ### Gaps
 
 | Check | Fires when |
 | --- | --- |
-| No initiative deck | No deck of kind `initiative` exists. |
-| No threat track | `threat.enabled` is off. |
-| No health dial | A villain or minion has no component of kind `dial` assigned to it. |
-| No figure or token | A villain or minion has no component of kind `figure` or `token` assigned to it. |
+| No initiative deck | No deck of kind `initiative` exists. *Adventure only.* |
+| No threat track | `threat.enabled` is off. *Adventure only.* |
+| No health dial | A fielded character has no component of kind `dial` assigned to it. |
+| No figure or token | A fielded character has no component of kind `figure` or `token` assigned to it. |
 | Unnamed character | Any character's name is blank. |
 | Untitled cards | A card still falls back to its "Untitled …" label. |
 | Cards without artwork | An **action** card has no artwork. Other templates carry none, so they are not counted. |
 | Cards with no rules text | Action: both ability blocks empty. Initiative: Right Now *and* End of Round empty. Rules and event: empty body. |
 
 The dial and figure checks count **per character**, not per set — one dial does
-not cover three minions. They only look at villains and minions, since those are
-the figures that go on the board.
+not cover three minions. "Fielded" means every role that goes on the board:
+heroes, villains and minions. Only a sidekick is excluded, because it is a stat
+line on someone else's sheet rather than a piece with its own health.
+
+Heroes were missing from that list until the kind was added, so a hero was
+never once asked for a dial or a figure in any set. Invisible while heroes were
+a minority of an adventure's roster; it would have meant the two checks that
+matter most never ran at all in a heroes set.
 
 ### Polish
 

@@ -59,7 +59,8 @@ import {
   createThreatStep,
   createThreatTrack
 } from '$lib/threat/types';
-import type { AdventureSet, SetOrigin } from './types';
+import { SET_KINDS } from './types';
+import type { AdventureSet, SetKind, SetOrigin } from './types';
 
 /** Anything loaded from JSON is untrusted shape-wise. */
 type Loose = Record<string, unknown>;
@@ -777,6 +778,9 @@ export function normalizeSet(value: AdventureSet): AdventureSet {
 
   return {
     ...value,
+    /* Read back from the raw value, never defaulted blind — a set authored
+       before `kind` existed opens as an adventure, which is what it was. */
+    kind: SET_KINDS.includes(raw['kind'] as SetKind) ? (raw['kind'] as SetKind) : 'adventure',
     style: repairStyleOverride(asRecord(raw['style'])),
     characters,
     decks,

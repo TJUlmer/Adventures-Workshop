@@ -190,10 +190,63 @@ export type SetId = Id<'Set'>;
  *      empty one — nothing it showed before is lost, since that swatch
  *      still reads the board directly regardless.
  *
+ * v28 — a set gained `kind`, one of `SET_KINDS`: an *adventure*, which is
+ *      everything the app has ever made, or a *heroes set*, a box of
+ *      playable figures with no villain to face. The kind only ever hides
+ *      what a heroes set has no use for — the villain and minion rosters,
+ *      the initiative deck, events, the threat track — and changes which
+ *      completeness checks apply; nothing about a card, a character or a
+ *      map is stored differently because of it. Absent on an older
+ *      document, which opens as `adventure` and is therefore untouched:
+ *      every set authored before this existed was an adventure by the only
+ *      definition there was.
+ *
  * Older documents are *repaired*, not rejected — see `sets/normalize.ts`. Only
  * a version newer than this build understands is refused.
  */
-export const SET_SCHEMA_VERSION = 27;
+export const SET_SCHEMA_VERSION = 28;
+
+/**
+ * What a set is for.
+ *
+ * `adventure` is the original and stays the default everywhere — a villain,
+ * its minions, the threat track it advances along and the board it is fought
+ * on. `heroes` is a box of playable figures on their own: no antagonist, and
+ * so no initiative deck driving one, no events and no threat track.
+ *
+ * A map belongs to *both*, deliberately. Heroes need somewhere to fight each
+ * other, which is why `MAP_SIZES` offers boards smaller than an adventure's.
+ */
+export const SET_KINDS = ['adventure', 'heroes'] as const;
+export type SetKind = (typeof SET_KINDS)[number];
+
+export interface SetKindMeta {
+  readonly label: string;
+  readonly /** One line for a chooser. Says what the box *is*. */ summary: string;
+  /** What the app does differently. Written for someone who has never seen it. */
+  readonly detail: string;
+  readonly icon: string;
+}
+
+export const SET_KIND_META: Readonly<Record<SetKind, SetKindMeta>> = {
+  adventure: {
+    label: 'Adventure',
+    summary: 'Heroes face a villain and its minions.',
+    detail:
+      'The full box: heroes, a villain, minions, an initiative deck that drives ' +
+      'the villain’s turn, event cards, a threat track and a map.',
+    icon: 'skull'
+  },
+  heroes: {
+    label: 'Heroes set',
+    summary: 'A box of heroes, with no villain to face.',
+    detail:
+      'Just heroes and their cards — plus rule cards and a map if you want them. ' +
+      'Villains, minions, the initiative deck, events and the threat track are ' +
+      'hidden, because a heroes set has nothing to use them for.',
+    icon: 'users'
+  }
+} as const;
 
 /**
  * Where a set was copied from, if it was copied.
@@ -257,6 +310,15 @@ export interface SetMeta {
 export interface AdventureSet {
   readonly id: SetId;
   readonly schemaVersion: number;
+  /**
+   * Whether this is an adventure or a box of heroes. See `SET_KINDS`.
+   *
+   * Presentation and completeness only — it hides sections a heroes set has
+   * no use for and changes which checks `assessSet` applies. Nothing is stored
+   * differently because of it, which is what makes switching back and forth
+   * lossless: everything a hidden section held is still in the document.
+   */
+  kind: SetKind;
   name: string;
   subtitle: string;
   meta: SetMeta;

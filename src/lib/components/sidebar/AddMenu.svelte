@@ -23,6 +23,16 @@
     workshop.adventure.characters.filter((character) => character.role === 'villain').length
   );
 
+  /*
+   * A heroes set offers four fewer things to add, and the four it drops are
+   * the four the sidebar has stopped drawing — a menu that can add something
+   * with nowhere to appear is a menu that loses people's work. Dropped rather
+   * than disabled: a row explaining why you cannot add a villain, in a set
+   * that never mentions villains anywhere else, raises a question nobody
+   * asked. Settings is where the kind is explained, and it says what it hides.
+   */
+  const heroesSet = $derived(workshop.isHeroesSet);
+
   const entries = $derived<Entry[]>([
     {
       label: 'Hero',
@@ -30,43 +40,55 @@
       icon: 'users',
       run: () => workshop.addCharacter('hero')
     },
-    {
-      label: 'Villain',
-      hint: villainCount >= 2 ? 'Two villains is the limit' : 'A figure with its own deck',
-      icon: 'skull',
-      disabled: villainCount >= 2,
-      run: () => workshop.addCharacter('villain')
-    },
-    {
-      label: 'Minion',
-      hint: 'Rank-and-file figure',
-      icon: 'users',
-      run: () => workshop.addCharacter('minion')
-    },
+    ...(heroesSet
+      ? []
+      : ([
+          {
+            label: 'Villain',
+            hint: villainCount >= 2 ? 'Two villains is the limit' : 'A figure with its own deck',
+            icon: 'skull',
+            disabled: villainCount >= 2,
+            run: () => workshop.addCharacter('villain')
+          },
+          {
+            label: 'Minion',
+            hint: 'Rank-and-file figure',
+            icon: 'users',
+            run: () => workshop.addCharacter('minion')
+          }
+        ] satisfies Entry[])),
     {
       label: 'Deception card',
       hint: 'The preset every deck carries',
       icon: 'copy',
       run: () => workshop.addDeceptionCard()
     },
-    {
-      label: 'Initiative card',
-      hint: 'Drives the villain’s turn',
-      icon: 'hourglass',
-      run: () => workshop.addInitiativeCard()
-    },
+    ...(heroesSet
+      ? []
+      : ([
+          {
+            label: 'Initiative card',
+            hint: 'Drives the villain’s turn',
+            icon: 'hourglass',
+            run: () => workshop.addInitiativeCard()
+          }
+        ] satisfies Entry[])),
     {
       label: 'Rules card',
       hint: 'Reference text',
       icon: 'book',
       run: () => workshop.addRulesCard()
     },
-    {
-      label: 'Event card',
-      hint: 'Dealt out mid-fight',
-      icon: 'sparkle',
-      run: () => workshop.addEventCard()
-    }
+    ...(heroesSet
+      ? []
+      : ([
+          {
+            label: 'Event card',
+            hint: 'Dealt out mid-fight',
+            icon: 'sparkle',
+            run: () => workshop.addEventCard()
+          }
+        ] satisfies Entry[]))
   ]);
 
   function choose(entry: Entry): void {

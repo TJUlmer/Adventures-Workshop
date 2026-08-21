@@ -7,16 +7,32 @@
    */
   import { parseSetFile } from '$lib/export/json';
   import { cloudEnabled } from '$lib/cloud/config';
+  import type { SetKind } from '$lib/sets/types';
   import { navigation } from '$lib/state/navigation.svelte';
   import { workshop } from '$lib/state/workshop.svelte';
   import { saveSet } from '$lib/storage/library';
   import { readStorageEstimate } from '$lib/storage/indexeddb';
   import type { StorageEstimate } from '$lib/storage/indexeddb';
   import { Button, EmptyState, Icon } from '$lib/ui';
+  import NewSetDialog from './NewSetDialog.svelte';
 
   let fileInput = $state<HTMLInputElement | null>(null);
   let message = $state<string | null>(null);
   let confirmingDelete = $state<string | null>(null);
+
+  /**
+   * Whether the "what are you making?" chooser is up.
+   *
+   * New sets go through it rather than straight to `createSet`, so the kind is
+   * a decision made once and up front instead of a default discovered later —
+   * see `NewSetDialog`.
+   */
+  let choosingKind = $state(false);
+
+  function startSet(kind: SetKind): void {
+    choosingKind = false;
+    void workshop.createSet(undefined, kind);
+  }
 
   const entries = $derived(workshop.library);
 
@@ -106,7 +122,7 @@
         <Icon name="upload" size={14} />
         Import
       </Button>
-      <Button variant="primary" onclick={() => void workshop.createSet()}>
+      <Button variant="primary" onclick={() => (choosingKind = true)}>
         <Icon name="plus" size={14} />
         New set
       </Button>
@@ -122,10 +138,10 @@
       <EmptyState
         icon="book"
         title="No sets yet"
-        description="A set holds a villain, its minions, and every card that goes with them."
+        description="A set is a box: either an adventure — heroes against a villain and its minions — or a box of heroes on their own."
       >
         {#snippet actions()}
-          <Button variant="primary" onclick={() => void workshop.createSet()}>
+          <Button variant="primary" onclick={() => (choosingKind = true)}>
             <Icon name="plus" size={14} />
             Create your first set
           </Button>
@@ -204,6 +220,12 @@
     {/if}
   </div>
 </div>
+
+<NewSetDialog
+  open={choosingKind}
+  onchoose={startSet}
+  oncancel={() => (choosingKind = false)}
+/>
 
 <style>
   .library {

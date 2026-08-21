@@ -102,7 +102,7 @@ import {
   rulesDecks as getRulesDecks,
   setStats
 } from '$lib/sets/queries';
-import type { AdventureSet, SetId } from '$lib/sets/types';
+import type { AdventureSet, SetId, SetKind } from '$lib/sets/types';
 import type { Selection } from './selection';
 import { SET_SELECTION } from './selection';
 
@@ -233,9 +233,16 @@ export class WorkshopStore {
     this.library = await readIndex();
   }
 
-  /** Create a set, put it in the library, and open it. */
-  async createSet(name = 'Untitled Adventure'): Promise<AdventureSet> {
-    const set = createEmptySet({ name });
+  /**
+   * Create a set, put it in the library, and open it.
+   *
+   * `name` defaults to undefined rather than to a string, so `createEmptySet`
+   * gets to name it after the kind — "Untitled Heroes" for a heroes set. A
+   * default written here would silently call every new heroes set an
+   * adventure.
+   */
+  async createSet(name?: string, kind: SetKind = 'adventure'): Promise<AdventureSet> {
+    const set = createEmptySet({ ...(name === undefined ? {} : { name }), kind });
     await saveSetToLibrary(set);
     await this.refreshLibrary();
     this.load(set);
@@ -513,16 +520,85 @@ export class WorkshopStore {
     this.touch();
   }
 
+  // -- What kind of set this is -----------------------------------------
+
+  /** True while the open set is a box of heroes rather than an adventure. */
+  readonly isHeroesSet = $derived(this.adventure.kind === 'heroes');
+
+  /**
+   * Why switching to a heroes set is not allowed, or `null` when it is.
+   *
+   * A heroes set hides the villain and minion rosters, so a set holding either
+   * would hide characters the author cannot then reach — invisible, but still
+   * in the document, still exported, still counted. Refusing is the honest
+   * answer; silently hiding them is the one that produces bug reports.
+   *
+   * Returns the *reason*, not a boolean, because the caller has to say what is
+   * in the way and how much of it. "You can't do that" is not an explanation.
+   */
+  heroesSetBlockedBy(): string | null {
+    const villains = this.adventure.characters.filter((c) => c.role === 'villain').length;
+    const minions = this.adventure.characters.filter((c) => c.role === 'minion').length;
+    if (villains === 0 && minions === 0) return null;
+
+    const parts: string[] = [];
+    if (villains > 0) parts.push(`${villains} villain${villains === 1 ? '' : 's'}`);
+    if (minions > 0) parts.push(`${minions} minion${minions === 1 ? '' : 's'}`);
+
+    return (
+      `This set has ${parts.join(' and ')}. A heroes set has nowhere to show ` +
+      `${parts.length > 1 ? 'them' : 'that'}, so ${parts.length > 1 ? 'they' : 'it'} would ` +
+      'stay in the set without being editable. Delete or move ' +
+      `${parts.length > 1 ? 'them' : 'it'} first, then switch.`
+    );
+  }
+
+  /**
+   * Change what kind of set this is.
+   *
+   * Answers whether it happened rather than throwing — the caller is a control
+   * that has to explain a refusal, not recover from an error. Switching *to*
+   * an adventure is always allowed: it only ever reveals sections, and an
+   * empty villain roster is exactly what a new adventure starts with.
+   */
+  setKind(kind: SetKind): boolean {
+    if (kind === this.adventure.kind) return true;
+    if (kind === 'heroes' && this.heroesSetBlockedBy() !== null) return false;
+
+    this.adventure.kind = kind;
+    /*
+     * A hidden page must not stay open under it — `SetNav` drops the tab, but
+     * dropping a tab does not move whoever is standing on it, and they would
+     * be left on a page with no way back to it.
+     *
+     * Unreachable today: this is only called from Settings, so the open page
+     * is always `settings`. Kept because it costs a comparison and the thing
+     * it guards against is the kind of gap a later deep link or shortcut opens
+     * without anyone thinking about this function.
+     */
+    if (kind === 'heroes' && navigation.page === 'threat') navigation.go('home');
+    this.touch();
+    return true;
+  }
+
   // -- Characters -------------------------------------------------------
 
-  /** An adventure supports at most two villains. */
+  /**
+   * An adventure supports at most one villain — and a heroes set none at all,
+   * which is what keeps the roster from growing something the sidebar has
+   * stopped drawing.
+   */
   canAddVillain(): boolean {
+    if (this.isHeroesSet) return false;
     return this.adventure.characters.filter((c) => c.role === 'villain').length < MAX_VILLAINS;
   }
 
   /** Adds the figure and the action deck it will need. */
   addCharacter(role: CharacterRole): Character | null {
     if (role === 'villain' && !this.canAddVillain()) return null;
+    /* Refused rather than hidden. A heroes set draws no minion roster, so one
+       added here would exist with nowhere to edit it — see `setKind`. */
+    if (role === 'minion' && this.isHeroesSet) return null;
 
     const character = createCharacter(role);
     this.adventure.characters.push(character);

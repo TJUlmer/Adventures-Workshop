@@ -37,51 +37,82 @@ function wantsArtwork(card: Card): boolean {
 
 export function assessSet(set: AdventureSet): SetHealth {
   const issues: SetIssue[] = [];
+  const heroesSet = set.kind === 'heroes';
 
   /*
-   * A villain and its minions are what an *adventure* is played against — but
-   * a set of heroes is a box in its own right, and telling someone who has
-   * built one that their set is unplayable is simply wrong. So both are gaps
-   * rather than blockers: still worth saying, never a reason to stop.
+   * Four checks an adventure owes and a heroes set does not.
+   *
+   * These used to run against every set as `gap`s, on the reasoning that a box
+   * of heroes is still a box and should not be called unplayable. That was
+   * half right: it stopped saying "broken", but it went on asking for a
+   * villain, minions, an initiative deck and a threat track that a finished
+   * heroes set will never have — so one could be complete in every way its
+   * author cared about and still read "Playable, still rough" forever, with
+   * four items on the list that could not be actioned.
+   *
+   * A kind is what makes the difference expressible: skipped entirely here,
+   * rather than softened. The map is deliberately *not* in this group — heroes
+   * need somewhere to fight each other, which is why `MAP_SIZES` offers boards
+   * smaller than an adventure's.
    */
-  if (set.characters.every((character) => character.role !== 'villain')) {
-    issues.push({
-      severity: 'gap',
-      message: 'No villain — an adventure needs one, a box of heroes does not.'
-    });
-  }
+  if (!heroesSet) {
+    if (set.characters.every((character) => character.role !== 'villain')) {
+      issues.push({
+        severity: 'gap',
+        message: 'No villain — an adventure needs one, a box of heroes does not.'
+      });
+    }
 
-  if (set.characters.every((character) => character.role !== 'minion')) {
-    issues.push({
-      severity: 'gap',
-      message: 'No minions — an adventure wants at least one.'
-    });
+    if (set.characters.every((character) => character.role !== 'minion')) {
+      issues.push({
+        severity: 'gap',
+        message: 'No minions — an adventure wants at least one.'
+      });
+    }
+
+    if (!set.decks.some((deck) => deck.kind === 'initiative')) {
+      issues.push({
+        severity: 'gap',
+        message: 'No initiative deck — nothing drives the villain’s turn.'
+      });
+    }
+
+    if (!set.threat.enabled) {
+      issues.push({
+        severity: 'gap',
+        message: 'No threat track — the villain has nothing to advance.'
+      });
+    }
   }
 
   if (set.cards.length === 0) {
     issues.push({ severity: 'blocker', message: 'No cards yet.' });
   }
 
-  if (!set.decks.some((deck) => deck.kind === 'initiative')) {
-    issues.push({ severity: 'gap', message: 'No initiative deck — nothing drives the villain’s turn.' });
+  /* A heroes set with nobody in it is as empty as an adventure with no cards,
+     and saying so is more use than listing what is missing from a blank. */
+  if (heroesSet && set.characters.every((character) => character.role !== 'hero')) {
+    issues.push({ severity: 'blocker', message: 'No heroes yet — a heroes set is its heroes.' });
   }
 
   if (!set.map.enabled) {
     issues.push({ severity: 'gap', message: 'No map — there is nowhere to play.' });
   }
 
-  if (!set.threat.enabled) {
-    issues.push({ severity: 'gap', message: 'No threat track — the villain has nothing to advance.' });
-  }
-
   /*
    * Every figure on the board needs two things in the box: something to stand
    * there, and a dial to track its health. Counted per character rather than
    * set-wide, because one dial does not cover three minions.
+   *
+   * **Heroes are fielded too**, and were missing from this list — so a hero
+   * was never once asked for a dial or a figure, in any set. That was
+   * invisible while heroes were a minority of an adventure's roster and is the
+   * whole roster of a heroes set, where it would have meant the two checks
+   * that matter most never ran at all. A sidekick is deliberately still out:
+   * it is a stat line on someone else's sheet, not a piece with its own
+   * health.
    */
-  const fielded = set.characters.filter(
-    (character) => character.role === 'villain' || character.role === 'minion'
-  );
+  const fielded = set.characters.filter((character) => character.role !== 'sidekick');
   const componentsFor = (character: Character, kinds: readonly FigureKind[]): boolean =>
     set.figures.some(
       (figure) => figure.characterId === character.id && kinds.includes(figure.kind)

@@ -78,6 +78,13 @@ function heroSlice(set: AdventureSet, characterId: CharacterId): AdventureSet {
 
   return {
     ...set,
+    /*
+     * A hero on their own *is* a heroes set, whatever the box they came out
+     * of — every villain-side thing is stripped below, so publishing this as
+     * an adventure would describe it as missing a villain, minions, an
+     * initiative deck and a threat track it was never meant to carry.
+     */
+    kind: 'heroes',
     name: character ? characterLabel(character) : set.name,
     subtitle: `From ${set.name || 'an Adventures set'}`,
     characters: character ? [character] : [],

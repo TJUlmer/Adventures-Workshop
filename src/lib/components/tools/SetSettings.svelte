@@ -8,8 +8,11 @@
    */
   import { hasArtwork } from '$lib/core/artwork';
   import { readArtworkFile } from '$lib/core/image-import';
+  import { SET_KINDS, SET_KIND_META } from '$lib/sets/types';
+  import type { SetKind } from '$lib/sets/types';
   import { workshop } from '$lib/state/workshop.svelte';
   import { Button, Icon, TextArea, TextInput } from '$lib/ui';
+  import type { IconName } from '$lib/ui/Icon.svelte';
   import EditorSection from '../workspace/EditorSection.svelte';
   import ReplacementPanel from '../workspace/ReplacementPanel.svelte';
 
@@ -17,6 +20,22 @@
 
   let boxInput = $state<HTMLInputElement | null>(null);
   let error = $state<string | null>(null);
+
+  /**
+   * Why the heroes option cannot be chosen, or `null` when it can.
+   *
+   * Read every time rather than cached, because it depends on the roster and
+   * an author may go and delete a villain while this page is open.
+   */
+  const heroesBlocked = $derived(workshop.heroesSetBlockedBy());
+
+  /** Set once a switch is refused, and cleared the moment one succeeds. */
+  let kindRefusal = $state<string | null>(null);
+
+  function chooseKind(kind: SetKind): void {
+    if (kind === set.kind) return;
+    kindRefusal = workshop.setKind(kind) ? null : workshop.heroesSetBlockedBy();
+  }
 
   async function pickBoxArt(event: Event & { currentTarget: HTMLInputElement }): Promise<void> {
     const file = event.currentTarget.files?.[0];
@@ -41,6 +60,55 @@
   </header>
 
   <div class="panels">
+    <!--
+      First on the page, because it is the setting that changes the most: which
+      sections the workspace draws at all, and what the set is measured against
+      on Home. Two cards rather than a dropdown — each says in full what it
+      means, where a menu would make the author pick a word and find out later.
+    -->
+    <EditorSection
+      title="What kind of set is this?"
+      hint="Changes which sections you see. Nothing you have made is deleted either way."
+    >
+      <div class="kinds">
+        {#each SET_KINDS as kind (kind)}
+          {@const meta = SET_KIND_META[kind]}
+          {@const chosen = set.kind === kind}
+          {@const blocked = kind === 'heroes' && heroesBlocked !== null && !chosen}
+          <button
+            type="button"
+            class="kind"
+            class:chosen
+            class:blocked
+            aria-pressed={chosen}
+            onclick={() => chooseKind(kind)}
+          >
+            <span class="kind-head">
+              <Icon name={meta.icon as IconName} size={15} />
+              <span class="kind-label">{meta.label}</span>
+              {#if chosen}<span class="kind-current">Current</span>{/if}
+            </span>
+            <span class="kind-summary">{meta.summary}</span>
+            <span class="kind-detail">{meta.detail}</span>
+          </button>
+        {/each}
+      </div>
+
+      <!--
+        The refusal, spelled out. It names what is in the way and how many,
+        because "that isn't allowed" leaves an author to guess which of their
+        characters is the problem.
+      -->
+      {#if kindRefusal}
+        <p class="kind-refusal" role="alert">
+          <Icon name="skull" size={13} />
+          <span>{kindRefusal}</span>
+        </p>
+      {:else if heroesBlocked && set.kind === 'adventure'}
+        <p class="kind-note">{heroesBlocked}</p>
+      {/if}
+    </EditorSection>
+
     <EditorSection title="Identity">
       <label class="stack">
         <span class="field-label">Name</span>
@@ -165,6 +233,105 @@
     flex-direction: column;
     gap: var(--space-6);
     padding: var(--space-7) var(--space-8) var(--space-10);
+  }
+
+  /*
+   * Two cards side by side, wrapping rather than shrinking: each carries a
+   * paragraph, and two narrow columns of prose are harder to compare than two
+   * stacked ones.
+   */
+  .kinds {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-3);
+  }
+
+  .kind {
+    flex: 1 1 260px;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    padding: var(--space-4);
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-md);
+    background: var(--surface-inset);
+    color: inherit;
+    text-align: left;
+    cursor: pointer;
+    transition:
+      border-color var(--duration-fast) var(--ease-out),
+      background var(--duration-fast) var(--ease-out);
+  }
+
+  .kind:hover:not(.chosen) {
+    border-color: var(--border-strong);
+  }
+
+  .kind.chosen {
+    border-color: var(--accent);
+    background: var(--surface-raised);
+  }
+
+  /*
+   * Dimmed, not `disabled`. A disabled button explains nothing and cannot be
+   * clicked to find out why — this one stays clickable precisely so pressing
+   * it produces the sentence saying what is in the way.
+   */
+  .kind.blocked {
+    opacity: 0.55;
+  }
+
+  .kind-head {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+  }
+
+  .kind-label {
+    font-size: var(--text-sm);
+    font-weight: var(--weight-semibold);
+    color: var(--text-primary);
+  }
+
+  .kind-current {
+    margin-left: auto;
+    padding: 1px var(--space-2);
+    border-radius: var(--radius-full);
+    background: var(--accent);
+    color: var(--grey-1000, #10100f);
+    font-size: var(--text-2xs);
+    font-weight: var(--weight-semibold);
+    text-transform: uppercase;
+    letter-spacing: var(--tracking-wide);
+  }
+
+  .kind-summary {
+    font-size: var(--text-sm);
+    color: var(--text-default);
+  }
+
+  .kind-detail,
+  .kind-note {
+    font-size: var(--text-xs);
+    line-height: var(--leading-relaxed, 1.6);
+    color: var(--text-muted);
+  }
+
+  .kind-note {
+    margin-top: var(--space-3);
+  }
+
+  .kind-refusal {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-2);
+    margin-top: var(--space-3);
+    padding: var(--space-3);
+    border: 1px solid var(--danger);
+    border-radius: var(--radius-sm);
+    font-size: var(--text-xs);
+    line-height: var(--leading-relaxed, 1.6);
+    color: var(--text-default);
   }
 
   .eyebrow {

@@ -1,11 +1,24 @@
 <script lang="ts">
   /**
    * The set hierarchy: Set → Character → Deck → Cards, grouped as
-   * Villain / Minions / Initiative.
+   * Heroes / Villain / Minions / Initiative / Rules / Events.
    *
    * Everything shown here comes from `workshop.outline`, a single derived view
    * of the document. The sidebar keeps no state of its own beyond which groups
    * are open.
+   *
+   * **A heroes set draws four fewer groups.** Villains, Minions, Initiative
+   * and Events are all things a box with no antagonist has nothing to put in,
+   * and an empty group inviting you to "Create the villain" is worse than no
+   * group — it reads as a step you have forgotten. Hidden, never dropped: the
+   * document is untouched, and switching back to an adventure shows whatever
+   * was there. Adding to those rosters is refused at the store rather than
+   * merely hidden here, so nothing can arrive with nowhere to edit it — see
+   * `workshop.setKind`.
+   *
+   * Unassigned stays visible in both. It is where cards go when their owner is
+   * deleted, and hiding it is the one thing here that could actually strand
+   * someone's work.
    */
   import { INITIATIVE_VARIANTS } from '$lib/cards/types';
   import type { InitiativeVariant } from '$lib/cards/types';
@@ -19,6 +32,7 @@
   import SidebarGroup from './SidebarGroup.svelte';
 
   const outline = $derived(workshop.outline);
+  const heroesSet = $derived(workshop.isHeroesSet);
 
   /**
    * How the two initiative variants read in the tree. `card` is the model's
@@ -123,87 +137,95 @@
       {/if}
     </SidebarGroup>
 
-    <!-- Villain --------------------------------------------------------- -->
-    <SidebarGroup title="Villains" icon="skull" count={outline.villains.length} tint="--role-villain">
-      {#snippet actions()}
-        {#if workshop.canAddVillain()}
+    <!--
+      Villain, Minions and Initiative: an adventure only.
+      A heroes set has no antagonist, so none of the three has anything to
+      hold and an empty "Create the villain" prompt would read as a step the
+      author had missed rather than one that does not apply.
+    -->
+    {#if !heroesSet}
+      <!-- Villain --------------------------------------------------------- -->
+      <SidebarGroup title="Villains" icon="skull" count={outline.villains.length} tint="--role-villain">
+        {#snippet actions()}
+          {#if workshop.canAddVillain()}
+            <button
+              type="button"
+              class="group-action"
+              title="Add villain"
+              onclick={() => workshop.addCharacter('villain')}
+            >
+              <Icon name="plus" size={12} />
+            </button>
+          {/if}
+        {/snippet}
+
+        {#if outline.villains.length === 0}
+          <button type="button" class="prompt" onclick={() => workshop.addCharacter('villain')}>
+            <Icon name="plus" size={12} />
+            Create the villain
+          </button>
+        {:else}
+          {#each outline.villains as entry (entry.character.id)}
+            {@render characterBlock(entry)}
+          {/each}
+        {/if}
+      </SidebarGroup>
+
+      <!-- Minions --------------------------------------------------------- -->
+      <SidebarGroup title="Minions" icon="users" count={outline.minions.length} tint="--role-minion">
+        {#snippet actions()}
           <button
             type="button"
             class="group-action"
-            title="Add villain"
-            onclick={() => workshop.addCharacter('villain')}
+            title="Add minion"
+            onclick={() => workshop.addCharacter('minion')}
           >
             <Icon name="plus" size={12} />
           </button>
+        {/snippet}
+
+        {#if outline.minions.length === 0}
+          <button type="button" class="prompt" onclick={() => workshop.addCharacter('minion')}>
+            <Icon name="plus" size={12} />
+            Add a minion
+          </button>
+        {:else}
+          {#each outline.minions as entry (entry.character.id)}
+            {@render characterBlock(entry)}
+          {/each}
         {/if}
-      {/snippet}
+      </SidebarGroup>
 
-      {#if outline.villains.length === 0}
-        <button type="button" class="prompt" onclick={() => workshop.addCharacter('villain')}>
-          <Icon name="plus" size={12} />
-          Create the villain
-        </button>
-      {:else}
-        {#each outline.villains as entry (entry.character.id)}
-          {@render characterBlock(entry)}
-        {/each}
-      {/if}
-    </SidebarGroup>
+      <!-- Initiative ------------------------------------------------------ -->
+      <SidebarGroup
+        title="Initiative"
+        icon="hourglass"
+        count={outline.initiative.length}
+        tint="--section-initiative"
+      >
+        {#snippet actions()}
+          <button
+            type="button"
+            class="group-action"
+            title="Add initiative card"
+            onclick={() => workshop.addInitiativeCard()}
+          >
+            <Icon name="plus" size={12} />
+          </button>
+        {/snippet}
 
-    <!-- Minions --------------------------------------------------------- -->
-    <SidebarGroup title="Minions" icon="users" count={outline.minions.length} tint="--role-minion">
-      {#snippet actions()}
-        <button
-          type="button"
-          class="group-action"
-          title="Add minion"
-          onclick={() => workshop.addCharacter('minion')}
-        >
-          <Icon name="plus" size={12} />
-        </button>
-      {/snippet}
-
-      {#if outline.minions.length === 0}
-        <button type="button" class="prompt" onclick={() => workshop.addCharacter('minion')}>
-          <Icon name="plus" size={12} />
-          Add a minion
-        </button>
-      {:else}
-        {#each outline.minions as entry (entry.character.id)}
-          {@render characterBlock(entry)}
-        {/each}
-      {/if}
-    </SidebarGroup>
-
-    <!-- Initiative ------------------------------------------------------ -->
-    <SidebarGroup
-      title="Initiative"
-      icon="hourglass"
-      count={outline.initiative.length}
-      tint="--section-initiative"
-    >
-      {#snippet actions()}
-        <button
-          type="button"
-          class="group-action"
-          title="Add initiative card"
-          onclick={() => workshop.addInitiativeCard()}
-        >
-          <Icon name="plus" size={12} />
-        </button>
-      {/snippet}
-
-      {#if outline.initiative.length === 0}
-        <button type="button" class="prompt" onclick={() => workshop.addInitiativeCard()}>
-          <Icon name="plus" size={12} />
-          Build the initiative deck
-        </button>
-      {:else}
-        {#each outline.initiative as entry (entry.deck.id)}
-          {@render initiativeBlock(entry)}
-        {/each}
-      {/if}
-    </SidebarGroup>
+        {#if outline.initiative.length === 0}
+          <button type="button" class="prompt" onclick={() => workshop.addInitiativeCard()}>
+            <Icon name="plus" size={12} />
+            Build the initiative deck
+          </button>
+        {:else}
+          {#each outline.initiative as entry (entry.deck.id)}
+            {@render initiativeBlock(entry)}
+          {/each}
+        {/if}
+      </SidebarGroup>
+    {/if}
 
     <!-- Rules ----------------------------------------------------------- -->
     <SidebarGroup title="Rules" icon="book" count={outline.rules.length} tint="--section-rules">
@@ -230,30 +252,33 @@
       {/if}
     </SidebarGroup>
 
-    <!-- Events ---------------------------------------------------------- -->
-    <SidebarGroup title="Events" icon="sparkle" count={outline.events.length} tint="--section-event">
-      {#snippet actions()}
-        <button
-          type="button"
-          class="group-action"
-          title="Add event card"
-          onclick={() => workshop.addEventCard()}
-        >
-          <Icon name="plus" size={12} />
-        </button>
-      {/snippet}
+    <!-- Events: an adventure only, like the three above. -->
+    {#if !heroesSet}
+      <!-- Events ---------------------------------------------------------- -->
+      <SidebarGroup title="Events" icon="sparkle" count={outline.events.length} tint="--section-event">
+        {#snippet actions()}
+          <button
+            type="button"
+            class="group-action"
+            title="Add event card"
+            onclick={() => workshop.addEventCard()}
+          >
+            <Icon name="plus" size={12} />
+          </button>
+        {/snippet}
 
-      {#if outline.events.length === 0}
-        <button type="button" class="prompt" onclick={() => workshop.addEventCard()}>
-          <Icon name="plus" size={12} />
-          Add an event card
-        </button>
-      {:else}
-        {#each outline.events as entry (entry.deck.id)}
-          {@render deckBlock(entry, null, 0)}
-        {/each}
-      {/if}
-    </SidebarGroup>
+        {#if outline.events.length === 0}
+          <button type="button" class="prompt" onclick={() => workshop.addEventCard()}>
+            <Icon name="plus" size={12} />
+            Add an event card
+          </button>
+        {:else}
+          {#each outline.events as entry (entry.deck.id)}
+            {@render deckBlock(entry, null, 0)}
+          {/each}
+        {/if}
+      </SidebarGroup>
+    {/if}
 
     <!-- Sidekicks and heroes: only when the author has added any --------- -->
     {#if outline.others.length > 0}
