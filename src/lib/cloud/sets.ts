@@ -65,6 +65,16 @@ export interface PublishedSet {
    * replacement; a re-publish supersedes it with a real 512px thumbnail.
    */
   cover_url: string;
+  /**
+   * Whether `cover_url` is a full print plate, bleed and all.
+   *
+   * True only when the cover fell through to a hero's finished replacement
+   * deck back, which is supplied on the action card's own bleed canvas — a
+   * villain's or minion's back is drawn at trim size and has none. A reader
+   * wants the card as it is cut, so a picture that says this has to be
+   * trimmed before it is shown.
+   */
+  cover_bleeds: boolean;
   /** First time it went public. Null while it has never been listed. */
   published_at: string | null;
   view_count: number;
@@ -133,8 +143,8 @@ export interface PublishedSetWithDocument extends PublishedSet {
 /** Columns for a listing. Never `document` — that is the whole point of them. */
 const SUMMARY_COLUMNS =
   'id,owner_id,local_id,slug,name,subtitle,card_count,character_count,schema_version,' +
-  'revision,visibility,created_at,updated_at,thumbnail_url,cover_url,published_at,view_count,' +
-  'change_note,forked_from,forked_from_revision,scope,character_id';
+  'revision,visibility,created_at,updated_at,thumbnail_url,cover_url,cover_bleeds,published_at,' +
+  'view_count,change_note,forked_from,forked_from_revision,scope,character_id';
 
 /**
  * The same, plus the author and — for a fork — the set it came from.
@@ -555,6 +565,8 @@ export interface GalleryCharacter {
   role: string;
   /** Their deck back, or failing that a portrait or card art. May be empty. */
   image_url: string;
+  /** Whether `image_url` is a full print plate. See `GallerySet.cover_bleeds`. */
+  image_bleeds: boolean;
   /**
    * A picture of their character card, photographed at publish.
    *
@@ -576,6 +588,8 @@ export interface GalleryCharacter {
   listing_scope: 'full' | 'hero' | 'villain';
   thumbnail_url: string;
   cover_url: string;
+  /** Whether `cover_url` bleeds. See `GallerySet.cover_bleeds`. */
+  cover_bleeds: boolean;
   published_at: string | null;
   view_count: number;
   /**

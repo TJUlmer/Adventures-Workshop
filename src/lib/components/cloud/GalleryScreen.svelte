@@ -31,14 +31,60 @@
   } from '$lib/cloud/sets';
   import { CHARACTER_ROLE_META, SELECTABLE_ROLES } from '$lib/characters/types';
   import type { CharacterRole } from '$lib/characters/types';
+  import { CARD_FORMATS, trimBox } from '$lib/renderer/geometry';
   import { navigation } from '$lib/state/navigation.svelte';
   import { Button, Icon, SegmentedControl, Select } from '$lib/ui';
 
   const PAGE = 36;
 
+  /**
+   * How much to enlarge a bleeding plate so its cut line fills the tile.
+   *
+   * A hero's replacement deck back is supplied on the action card's full
+   * 1632×2222 bleed canvas, so showing the file as it stands shows 3.28mm of
+   * printer's margin all the way round — the part that exists to be
+   * guillotined off. Scaling about the centre pushes that margin outside the
+   * tile's own `overflow: hidden`, which crops it away without resampling
+   * anything, and it works because the bleed is symmetric on all four edges.
+   *
+   * **There are two factors, not one, and which applies depends on the tile's
+   * shape.** `object-fit: cover` fits whichever axis leaves the image covering
+   * the box, so the scale has to undo the bleed on *that* axis:
+   *
+   *   * A tile at the card's own aspect (the character grid) covers by height,
+   *     so the height ratio is the one that matters — and because the box is
+   *     the trim's own shape, it comes out exact: the visible region is the
+   *     trim box to the pixel, with nothing over-cropped.
+   *   * A tile wider than the card (the 4:3 set grid) covers by width instead.
+   *     Using the height ratio there leaves the plate 1516px wide against a
+   *     1478px trim — bleed still showing down both sides. Measured, not
+   *     assumed.
+   *
+   * Both derived rather than typed in, so a change to `BLEED_MM` or to the
+   * format's canvas carries through.
+   */
+  const CARD_BLEED = CARD_FORMATS.action.bleed;
+  const CARD_TRIM = trimBox(CARD_FORMATS.action);
+  const TRIM_SCALE_TALL = CARD_BLEED.height / CARD_TRIM.height;
+  const TRIM_SCALE_WIDE = CARD_BLEED.width / CARD_TRIM.width;
+
+  /**
+   * A character tile's picture box, as the printed card's own shape.
+   *
+   * Matching the card's aspect is what makes the crop above lossless — a
+   * trimmed deck back fills the box with nothing left over. The 3:4 this used
+   * to be would have cut a further 5% off the top and bottom of every card.
+   */
+  const CARD_ASPECT = `${CARD_FORMATS.action.mm.width} / ${CARD_FORMATS.action.mm.height}`;
+
   type Mode = 'sets' | 'characters';
 
-  let mode = $state<Mode>('sets');
+  /*
+   * Characters first. The gallery is browsed to find someone to play, and a
+   * roster answers that directly where a shelf of boxes asks you to open one
+   * and look — most published rows are single figures anyway.
+   */
+  let mode = $state<Mode>('characters');
   let sets = $state<GallerySet[]>([]);
   let characters = $state<GalleryCharacter[]>([]);
   let loading = $state(true);
@@ -193,6 +239,26 @@
     return character.image_url || character.thumbnail_url || character.cover_url;
   }
 
+  /**
+   * Whether the picture `characterImage` settled on carries bleed.
+   *
+   * Follows the same fallback in the same order, because the answer belongs to
+   * whichever candidate actually won.
+   *
+   * **A thumbnail follows `cover_bleeds`, and that is not an approximation.**
+   * `renderThumbnail` downscales whatever `coverArtwork` picks, and
+   * `set_cover_picture` is written to mirror `coverArtwork` step for step — so
+   * the two always choose the same artwork, and a plain downscale keeps the
+   * bleed as the same proportion of the frame. The tempting reading is that a
+   * thumbnail is a finished picture and never bleeds; that was true only while
+   * the cover was box art or a portrait, and stopped being true the moment
+   * covers started falling through to deck backs.
+   */
+  function characterImageBleeds(character: GalleryCharacter): boolean {
+    if (character.image_url) return character.image_bleeds;
+    return character.cover_bleeds;
+  }
+
   function roleLabel(value: string): string {
     return value in CHARACTER_ROLE_META
       ? CHARACTER_ROLE_META[value as CharacterRole].label
@@ -312,11 +378,20 @@
         {#each sets as set (set.id)}
           <li>
             <button type="button" class="tile" onclick={() => navigation.openShared(set.slug)}>
-              <span class="cover" style:background={tint(set.id)}>
+              <span
+                class="cover"
+                style:--trim-scale={TRIM_SCALE_WIDE}
+                style:background={tint(set.id)}
+              >
                 {#if setImage(set)}
                   <!-- Lazy, because a gallery page is mostly pictures nobody has
-                       scrolled to yet. -->
-                  <img src={setImage(set)} alt="" loading="lazy" />
+                       scrolled to yet.
+
+                       `cover_bleeds` governs the thumbnail as well as the
+                       cover, because both are the same artwork — see
+                       `characterImageBleeds` for why a thumbnail is not
+                       automatically bleed-free. -->
+                  <img src={setImage(set)} class:trimmed={set.cover_bleeds} alt="" loading="lazy" />
                 {:else}
                   <span class="initials">{initials(set.name)}</span>
                 {/if}
@@ -396,9 +471,19 @@
                 onfocusin={() => peek(character.character_id)}
                 onclick={() => navigation.openShared(character.slug)}
               >
-                <span class="cover portrait" style:background={tint(character.character_id)}>
+                <span
+                  class="cover"
+                  style:aspect-ratio={CARD_ASPECT}
+                  style:--trim-scale={TRIM_SCALE_TALL}
+                  style:background={tint(character.character_id)}
+                >
                   {#if characterImage(character)}
-                    <img src={characterImage(character)} alt="" loading="lazy" />
+                    <img
+                      src={characterImage(character)}
+                      class:trimmed={characterImageBleeds(character)}
+                      alt=""
+                      loading="lazy"
+                    />
                   {:else}
                     <span class="initials">{initials(character.name)}</span>
                   {/if}
@@ -695,19 +780,28 @@
     }
   }
 
-  /*
-   * A character is a person, and a card's artwork is drawn upright — 4:3
-   * crops the top off a face. Taller, and the same ratio the card art itself
-   * is composed at.
-   */
-  .portrait {
-    aspect-ratio: 3 / 4;
-  }
+  /* A character tile's own aspect is set inline, from the printed card's `mm`
+     — see `CARD_ASPECT`. It is not written here because a number copied out of
+     `geometry.ts` is a number that stops agreeing with it. */
 
   .cover img {
     width: 100%;
     height: 100%;
     object-fit: cover;
+  }
+
+  /*
+   * Crop a full print plate down to its cut line.
+   *
+   * A scale rather than a clip or an inset: `object-fit: cover` has already
+   * fitted and centred the plate, and the bleed is a symmetric margin on all
+   * four edges, so enlarging about the centre pushes exactly that margin out
+   * past the tile's own `overflow: hidden`. Nothing is resampled and no
+   * geometry is duplicated — the only number involved is `TRIM_SCALE`, which
+   * comes from `trimBox`.
+   */
+  .cover img.trimmed {
+    transform: scale(var(--trim-scale));
   }
 
   .initials {

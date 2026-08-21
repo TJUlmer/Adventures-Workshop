@@ -77,7 +77,20 @@ as $$
 $$;
 
 /*
- * The picture that stands for one character.
+ * The picture that stands for one character, and whether it carries bleed —
+ * `{"url": …, "bleeds": …}`.
+ *
+ * Both from one function, because the two have to be answered about the
+ * *same* candidate. Split in two they would each re-walk the chain below and
+ * could disagree the moment either changed, reporting "no bleed" about a
+ * picture the other one did not pick.
+ *
+ * Only one case bleeds, and only for a hero: a finished replacement deck
+ * back, which is supplied on the action card's own 1632×2222 bleed canvas.
+ * A villain's or minion's back uses `CARD_FORMATS.cardback`, which declares
+ * `bleedMm: 0` and is drawn at trim size — so the same field on two roles
+ * means two different things. Everything further down the chain is artwork
+ * placed *inside* a card rather than a print plate, and has no bleed at all.
  *
  * **Their deck back first**, and that is the ordering worth explaining. A
  * deck back is the one picture in a set drawn deliberately to *be* that
@@ -100,8 +113,8 @@ $$;
  * mirrors `cloud/thumbnail.ts`'s `characterCover` deliberately — the two
  * answer the same question and must not drift.
  */
-create or replace function public.character_image(doc jsonb, character_id text)
-returns text
+create or replace function public.character_picture(doc jsonb, character_id text)
+returns jsonb
 language sql
 immutable
 set search_path = ''
@@ -114,26 +127,47 @@ as $$
       ) c
      where c ->> 'id' = character_id
      limit 1
+  ),
+  plain as (
+    select coalesce(
+      (select nullif(c -> 'cardback' -> 'artwork' ->> 'source', '') from self),
+      (select nullif(c -> 'artwork' ->> 'source', '') from self),
+      (select nullif(cd -> 'artwork' ->> 'source', '')
+         from jsonb_array_elements(
+                case jsonb_typeof(doc -> 'cards')
+                  when 'array' then doc -> 'cards' else '[]'::jsonb end
+              ) cd
+         join jsonb_array_elements(
+                case jsonb_typeof(doc -> 'decks')
+                  when 'array' then doc -> 'decks' else '[]'::jsonb end
+              ) dk
+           on dk ->> 'id' = cd ->> 'deckId'
+        where dk ->> 'ownerId' = character_id
+          and nullif(cd -> 'artwork' ->> 'source', '') is not null
+        limit 1)
+    ) as url
   )
   select coalesce(
-    (select nullif(c -> 'cardback' -> 'replacement' ->> 'source', '')
-       from self where (c -> 'cardback' ->> 'useReplacement')::boolean is true),
-    (select nullif(c -> 'cardback' -> 'artwork' ->> 'source', '') from self),
-    (select nullif(c -> 'artwork' ->> 'source', '') from self),
-    (select nullif(cd -> 'artwork' ->> 'source', '')
-       from jsonb_array_elements(
-              case jsonb_typeof(doc -> 'cards')
-                when 'array' then doc -> 'cards' else '[]'::jsonb end
-            ) cd
-       join jsonb_array_elements(
-              case jsonb_typeof(doc -> 'decks')
-                when 'array' then doc -> 'decks' else '[]'::jsonb end
-            ) dk
-         on dk ->> 'id' = cd ->> 'deckId'
-      where dk ->> 'ownerId' = character_id
-        and nullif(cd -> 'artwork' ->> 'source', '') is not null
-      limit 1)
+    (select jsonb_build_object(
+              'url', nullif(c -> 'cardback' -> 'replacement' ->> 'source', ''),
+              'bleeds', c ->> 'role' = 'hero')
+       from self
+      where (c -> 'cardback' ->> 'useReplacement')::boolean is true
+        and nullif(c -> 'cardback' -> 'replacement' ->> 'source', '') is not null),
+    (select jsonb_build_object('url', url, 'bleeds', false)
+       from plain where url is not null)
   );
+$$;
+
+/* The plain-URL reading of the above, so nothing that only wants a picture
+   has to know about bleed. */
+create or replace function public.character_image(doc jsonb, character_id text)
+returns text
+language sql
+immutable
+set search_path = ''
+as $$
+  select public.character_picture(doc, character_id) ->> 'url';
 $$;
 
 /*
@@ -147,19 +181,26 @@ $$;
  * the moment the author re-publishes and a real 512px thumbnail lands on the
  * row beside it.
  *
- * `character_image(doc, null)` finds nothing and coalesces onward, which is
+ * `character_picture(doc, null)` finds nothing and coalesces onward, which is
  * what makes the villain and hero steps safe to write without first checking
  * that the set has one.
+ *
+ * Built on `character_picture` rather than beside it, so "does this bleed"
+ * travels with whichever candidate actually won. Answering the two questions
+ * in two functions would mean two walks of this chain, free to disagree the
+ * moment either changed — reporting "no bleed" about a picture the other one
+ * did not pick.
  */
-create or replace function public.set_cover_image(doc jsonb)
-returns text
+create or replace function public.set_cover_picture(doc jsonb)
+returns jsonb
 language sql
 immutable
 set search_path = ''
 as $$
   select coalesce(
-    nullif(doc -> 'boxArt' ->> 'source', ''),
-    public.character_image(
+    (select jsonb_build_object('url', nullif(doc -> 'boxArt' ->> 'source', ''), 'bleeds', false)
+      where nullif(doc -> 'boxArt' ->> 'source', '') is not null),
+    public.character_picture(
       doc,
       (select c ->> 'id'
          from jsonb_array_elements(
@@ -167,7 +208,7 @@ as $$
              when 'array' then doc -> 'characters' else '[]'::jsonb end
          ) c
         where c ->> 'role' = 'villain' limit 1)),
-    public.character_image(
+    public.character_picture(
       doc,
       (select c ->> 'id'
          from jsonb_array_elements(
@@ -175,7 +216,7 @@ as $$
              when 'array' then doc -> 'characters' else '[]'::jsonb end
          ) c
         where c ->> 'role' = 'hero' limit 1)),
-    (select nullif(cd -> 'artwork' ->> 'source', '')
+    (select jsonb_build_object('url', nullif(cd -> 'artwork' ->> 'source', ''), 'bleeds', false)
        from jsonb_array_elements(
          case jsonb_typeof(doc -> 'cards')
            when 'array' then doc -> 'cards' else '[]'::jsonb end
@@ -183,6 +224,15 @@ as $$
       where nullif(cd -> 'artwork' ->> 'source', '') is not null
       limit 1)
   );
+$$;
+
+create or replace function public.set_cover_image(doc jsonb)
+returns text
+language sql
+immutable
+set search_path = ''
+as $$
+  select public.set_cover_picture(doc) ->> 'url';
 $$;
 
 -- ---------------------------------------------------------------------------
@@ -209,6 +259,10 @@ alter table public.sets
    * only ever read when `thumbnail_url` is empty.
    */
   add column if not exists cover_url text not null default '',
+  /* Whether `cover_url` is a full print plate rather than a finished picture —
+     see `character_picture`. The gallery trims one that says so, since the
+     bleed is the part that exists to be guillotined off. */
+  add column if not exists cover_bleeds boolean not null default false,
   /*
    * A picture of each hero's character card, keyed by character id.
    *
@@ -261,6 +315,8 @@ create table if not exists public.set_characters (
      it rather than alphabetically by accident. */
   position integer not null default 0,
   image_url text not null default '',
+  /* Whether `image_url` is a full print plate. See `sets.cover_bleeds`. */
+  image_bleeds boolean not null default false,
   /* A picture of this character's own card, copied out of
      `sets.character_cards`. Empty for everyone but a hero, and for a hero
      published by a build older than the one that started rendering them. */
@@ -297,6 +353,7 @@ set search_path = ''
 as $$
 declare
   doc jsonb;
+  cover jsonb;
   character_names text;
 begin
   if tg_op = 'UPDATE'
@@ -322,7 +379,9 @@ begin
     || to_tsvector('simple', character_names)
     || to_tsvector('simple', coalesce(new.subtitle, ''));
 
-  new.cover_url := coalesce(public.set_cover_image(doc), '');
+  cover := public.set_cover_picture(doc);
+  new.cover_url := coalesce(cover ->> 'url', '');
+  new.cover_bleeds := coalesce((cover ->> 'bleeds')::boolean, false);
 
   return new;
 end;
@@ -374,18 +433,21 @@ begin
 
   delete from public.set_characters where set_id = new.id;
 
-  insert into public.set_characters (set_id, character_id, name, role, position, image_url, card_url)
+  insert into public.set_characters
+    (set_id, character_id, name, role, position, image_url, image_bleeds, card_url)
   select new.id,
          entry.c ->> 'id',
          public.character_display_name(entry.c),
          coalesce(entry.c ->> 'role', ''),
          (entry.ordinality - 1)::integer,
-         coalesce(public.character_image(doc, entry.c ->> 'id'), ''),
+         coalesce(picture ->> 'url', ''),
+         coalesce((picture ->> 'bleeds')::boolean, false),
          coalesce(new.character_cards ->> (entry.c ->> 'id'), '')
     from jsonb_array_elements(
            case jsonb_typeof(doc -> 'characters')
              when 'array' then doc -> 'characters' else '[]'::jsonb end
-         ) with ordinality as entry(c, ordinality)
+         ) with ordinality as entry(c, ordinality),
+         lateral public.character_picture(doc, entry.c ->> 'id') as picture
    where nullif(entry.c ->> 'id', '') is not null
   on conflict (set_id, character_id) do nothing;
 
@@ -457,6 +519,7 @@ select distinct on (s.owner_id, s.local_id, sc.character_id)
        sc.name,
        sc.role,
        sc.image_url,
+       sc.image_bleeds,
        sc.position,
        sc.card_url,
        s.id            as set_id,
@@ -465,6 +528,7 @@ select distinct on (s.owner_id, s.local_id, sc.character_id)
        s.scope         as listing_scope,
        s.thumbnail_url,
        s.cover_url,
+       s.cover_bleeds,
        s.owner_id,
        s.local_id,
        s.published_at,
@@ -536,7 +600,9 @@ update public.sets
                 ) c),
              ''))
       || to_tsvector('simple', coalesce(subtitle, '')),
-       cover_url = coalesce(public.set_cover_image(document -> 'set'), '');
+       cover_url = coalesce(public.set_cover_picture(document -> 'set') ->> 'url', ''),
+       cover_bleeds =
+         coalesce((public.set_cover_picture(document -> 'set') ->> 'bleeds')::boolean, false);
 
 alter table public.sets enable trigger sets_touch_updated_at;
 
@@ -544,18 +610,21 @@ alter table public.sets enable trigger sets_touch_updated_at;
    a character can have been removed since the last pass. */
 delete from public.set_characters;
 
-insert into public.set_characters (set_id, character_id, name, role, position, image_url, card_url)
+insert into public.set_characters
+  (set_id, character_id, name, role, position, image_url, image_bleeds, card_url)
 select s.id,
        entry.c ->> 'id',
        public.character_display_name(entry.c),
        coalesce(entry.c ->> 'role', ''),
        (entry.ordinality - 1)::integer,
-       coalesce(public.character_image(s.document -> 'set', entry.c ->> 'id'), ''),
+       coalesce(picture ->> 'url', ''),
+       coalesce((picture ->> 'bleeds')::boolean, false),
        coalesce(s.character_cards ->> (entry.c ->> 'id'), '')
   from public.sets s,
        lateral jsonb_array_elements(
          case jsonb_typeof(s.document -> 'set' -> 'characters')
            when 'array' then s.document -> 'set' -> 'characters' else '[]'::jsonb end
-       ) with ordinality as entry(c, ordinality)
+       ) with ordinality as entry(c, ordinality),
+       lateral public.character_picture(s.document -> 'set', entry.c ->> 'id') as picture
  where nullif(entry.c ->> 'id', '') is not null
 on conflict (set_id, character_id) do nothing;
