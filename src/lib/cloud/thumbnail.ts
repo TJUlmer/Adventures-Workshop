@@ -31,23 +31,31 @@ export const THUMBNAIL_MAX = 512;
 const QUALITY = 0.8;
 
 /**
- * The picture that stands for one character — their portrait, or failing that
- * the first picture off one of their own cards.
+ * The picture that stands for one character.
  *
- * That second half is the one that does the work, and it was missing for a
- * long time. `Character.artwork` is a portrait field an author *may* fill and
- * in practice does not: of the first six sets published to the gallery, every
- * character in every one of them had it null, and every one of them had
- * pictures on their cards. So the search that only ever looked at the
- * portrait came up empty for four of the six, and their tiles fell back to
- * drawing initials on a coloured square while the set itself was full of art.
+ * **Their deck back first.** It is the one picture in a set drawn deliberately
+ * to *be* that character's face — their name and their portrait, composed by
+ * the author for exactly this purpose — where a card's artwork is a scene from
+ * one of their moves and `Character.artwork` is a portrait field most authors
+ * never fill. `useReplacement` is checked before `artwork` because when the
+ * flag is on the replacement *is* the back, and the artwork underneath it is
+ * not what prints.
  *
- * The first card in document order, which is the one its author put first —
- * not a random or a "best" one. `character_image` in
- * `supabase/migrations/0007_gallery_browse.sql` answers this same question in
- * SQL for rows already published; the two must not drift.
+ * Then the portrait, then the first picture off one of their own cards — in
+ * document order, the one its author put first, not a random or a "best" one.
+ * That last step is what rescues a set at all: of the first six published,
+ * every character in every one had `artwork` null and their pictures on cards,
+ * so a search stopping at the portrait came up empty for four of them and
+ * their tiles drew initials on a coloured square over a set full of art.
+ *
+ * `character_image` in `supabase/migrations/0007_gallery_browse.sql` answers
+ * this same question in SQL, for rows already published. The two must not
+ * drift.
  */
 function characterCover(set: AdventureSet, character: Character): Artwork | null {
+  const back = character.cardback;
+  if (back.useReplacement && hasArtwork(back.replacement)) return back.replacement;
+  if (hasArtwork(back.artwork)) return back.artwork;
   if (hasArtwork(character.artwork)) return character.artwork;
   for (const card of cardsForCharacter(set, character.id)) {
     if (hasArtwork(card.artwork)) return card.artwork;

@@ -79,17 +79,26 @@ $$;
 /*
  * The picture that stands for one character.
  *
- * Their own portrait first — and then, the part that actually matters in
- * practice, the first picture off one of their own cards. Every set published
- * so far has `character.artwork.source` null on every character and its
- * pictures on cards instead, which is why a tile fell back to initials for
- * four sets out of six. A character with cards has a face; it was simply
- * being looked for in the one place authors do not put it.
+ * **Their deck back first**, and that is the ordering worth explaining. A
+ * deck back is the one picture in a set drawn deliberately to *be* that
+ * character's face — it carries their name and their portrait, composed by
+ * the author for exactly this purpose — where a card's artwork is a scene
+ * from one of their moves and a portrait field is something most authors
+ * never fill. Every hero published so far uses a finished replacement image
+ * for their back (`useReplacement` with `replacement.source`), which is why
+ * that is read before `cardback.artwork`: when the flag is on, the
+ * replacement *is* the back and the artwork underneath it is not what prints.
+ *
+ * Then the portrait, then the first picture off one of their own cards. That
+ * last step is what rescued the tiles at all: every set published so far has
+ * `character.artwork.source` null on every character, with the pictures on
+ * cards instead, so a search that stopped at the portrait came up empty for
+ * four sets out of six.
  *
  * Array order, not sorted: `limit 1` over `jsonb_array_elements` takes the
  * document's own first card, which is the one the author put first. This
- * mirrors `cloud/thumbnail.ts`'s `coverArtwork` deliberately — the two answer
- * the same question and must not drift.
+ * mirrors `cloud/thumbnail.ts`'s `characterCover` deliberately — the two
+ * answer the same question and must not drift.
  */
 create or replace function public.character_image(doc jsonb, character_id text)
 returns text
@@ -97,14 +106,20 @@ language sql
 immutable
 set search_path = ''
 as $$
+  with self as (
+    select c
+      from jsonb_array_elements(
+        case jsonb_typeof(doc -> 'characters')
+          when 'array' then doc -> 'characters' else '[]'::jsonb end
+      ) c
+     where c ->> 'id' = character_id
+     limit 1
+  )
   select coalesce(
-    (select nullif(c -> 'artwork' ->> 'source', '')
-       from jsonb_array_elements(
-         case jsonb_typeof(doc -> 'characters')
-           when 'array' then doc -> 'characters' else '[]'::jsonb end
-       ) c
-      where c ->> 'id' = character_id
-      limit 1),
+    (select nullif(c -> 'cardback' -> 'replacement' ->> 'source', '')
+       from self where (c -> 'cardback' ->> 'useReplacement')::boolean is true),
+    (select nullif(c -> 'cardback' -> 'artwork' ->> 'source', '') from self),
+    (select nullif(c -> 'artwork' ->> 'source', '') from self),
     (select nullif(cd -> 'artwork' ->> 'source', '')
        from jsonb_array_elements(
               case jsonb_typeof(doc -> 'cards')
@@ -193,7 +208,24 @@ alter table public.sets
    * `set_cover_image` — deliberately the *unscaled* original, and deliberately
    * only ever read when `thumbnail_url` is empty.
    */
-  add column if not exists cover_url text not null default '';
+  add column if not exists cover_url text not null default '',
+  /*
+   * A picture of each hero's character card, keyed by character id.
+   *
+   * Written by the **client** at publish, unlike everything else here —
+   * because unlike everything else here, it cannot be derived. A character
+   * card is composed DOM with no entry in `set.cards` and no finished image
+   * behind it, so the only way to have a picture of one is to photograph it
+   * in a browser. `cloud/character-cards.ts` does that; this column carries
+   * the addresses through to `set_characters` below.
+   *
+   * Its own column rather than part of `document`, and that is not tidiness:
+   * a re-render is a new URL, so folding these into the document would move
+   * `revision` on every publish and make every character read as *edited* to
+   * `sets/fingerprint.ts`, which is what decides whether a contribution
+   * applies cleanly.
+   */
+  add column if not exists character_cards jsonb not null default '{}'::jsonb;
 
 /*
  * GIN, which is the index a tsvector wants for `@@`. Unpartial, unlike
@@ -229,6 +261,10 @@ create table if not exists public.set_characters (
      it rather than alphabetically by accident. */
   position integer not null default 0,
   image_url text not null default '',
+  /* A picture of this character's own card, copied out of
+     `sets.character_cards`. Empty for everyone but a hero, and for a hero
+     published by a build older than the one that started rendering them. */
+  card_url text not null default '',
   primary key (set_id, character_id)
 );
 
@@ -323,9 +359,13 @@ as $$
 declare
   doc jsonb;
 begin
+  /* `character_cards` joins the guard because a re-publish can render new
+     previews without the document moving at all — an author on a build that
+     never made them, publishing again on one that does. */
   if tg_op = 'UPDATE'
      and old.search_document is not null
      and new.document is not distinct from old.document
+     and new.character_cards is not distinct from old.character_cards
   then
     return null;
   end if;
@@ -334,13 +374,14 @@ begin
 
   delete from public.set_characters where set_id = new.id;
 
-  insert into public.set_characters (set_id, character_id, name, role, position, image_url)
+  insert into public.set_characters (set_id, character_id, name, role, position, image_url, card_url)
   select new.id,
          entry.c ->> 'id',
          public.character_display_name(entry.c),
          coalesce(entry.c ->> 'role', ''),
          (entry.ordinality - 1)::integer,
-         coalesce(public.character_image(doc, entry.c ->> 'id'), '')
+         coalesce(public.character_image(doc, entry.c ->> 'id'), ''),
+         coalesce(new.character_cards ->> (entry.c ->> 'id'), '')
     from jsonb_array_elements(
            case jsonb_typeof(doc -> 'characters')
              when 'array' then doc -> 'characters' else '[]'::jsonb end
@@ -417,6 +458,7 @@ select distinct on (s.owner_id, s.local_id, sc.character_id)
        sc.role,
        sc.image_url,
        sc.position,
+       sc.card_url,
        s.id            as set_id,
        s.slug          as slug,
        s.name          as listing_name,
@@ -456,23 +498,64 @@ grant select on public.gallery_characters to anon, authenticated;
  * Everything above derives from `document`, which every existing row already
  * has — so every set already published is brought up to date here, and no
  * author has to re-publish anything to appear in a search or a character
- * browse. A no-op update fires both triggers, and their "has this ever been
- * indexed" clause is what lets a no-op through.
+ * browse.
+ *
+ * **Written to bypass the triggers rather than fire them**, and that is worth
+ * stating because the obvious version does not work. The obvious version is a
+ * no-op `update sets set document = document`, letting the triggers do it —
+ * but their guard asks "did the document change", and the answer for a
+ * backfill is always no. It happens to work exactly once, on the cold run
+ * where `search_document` is still null; run it again after changing one of
+ * the derivation functions above and every row is silently skipped, leaving
+ * the index disagreeing with the code that built it. Which is what happened:
+ * `character_image` learnt to prefer a deck back and nothing moved.
+ *
+ * So the derivation is re-run directly. Re-runnable from any state, which is
+ * what this file claims at the top.
  *
  * Neither `revision` nor `updated_at` may move. A migration is not an edition:
  * `revision` is printed on tiles as "rev N" and `updated_at` as the date a set
  * last changed, and bumping either would tell every reader that six sets were
- * edited on the day this ran.
- *
- * `revision` holds itself — `bump_revision` only moves it for a changed
- * document. `updated_at` does not: `touch_updated_at` sets it to `now()`
- * unconditionally, and being a BEFORE trigger it runs *after* this statement's
- * own assignment and overwrites it. Hence disabling it rather than assigning
- * around it. Re-enabled immediately, in the same transaction as the migration,
- * so a failure anywhere here cannot leave the table without it.
+ * edited on the day this ran. `revision` holds itself — `bump_revision` only
+ * moves it for a changed document — but `touch_updated_at` sets `now()`
+ * unconditionally on any update, so it is stood down for the one statement
+ * that writes to `sets` and restored immediately after.
  */
 alter table public.sets disable trigger sets_touch_updated_at;
 
-update public.sets set document = document;
+update public.sets
+   set search_document =
+         to_tsvector('simple', coalesce(name, ''))
+      || to_tsvector(
+           'simple',
+           coalesce(
+             (select string_agg(public.character_display_name(c), ' ')
+                from jsonb_array_elements(
+                  case jsonb_typeof(document -> 'set' -> 'characters')
+                    when 'array' then document -> 'set' -> 'characters' else '[]'::jsonb end
+                ) c),
+             ''))
+      || to_tsvector('simple', coalesce(subtitle, '')),
+       cover_url = coalesce(public.set_cover_image(document -> 'set'), '');
 
 alter table public.sets enable trigger sets_touch_updated_at;
+
+/* Rebuilt whole, for the same reason the trigger rebuilds rather than diffs:
+   a character can have been removed since the last pass. */
+delete from public.set_characters;
+
+insert into public.set_characters (set_id, character_id, name, role, position, image_url, card_url)
+select s.id,
+       entry.c ->> 'id',
+       public.character_display_name(entry.c),
+       coalesce(entry.c ->> 'role', ''),
+       (entry.ordinality - 1)::integer,
+       coalesce(public.character_image(s.document -> 'set', entry.c ->> 'id'), ''),
+       coalesce(s.character_cards ->> (entry.c ->> 'id'), '')
+  from public.sets s,
+       lateral jsonb_array_elements(
+         case jsonb_typeof(s.document -> 'set' -> 'characters')
+           when 'array' then s.document -> 'set' -> 'characters' else '[]'::jsonb end
+       ) with ordinality as entry(c, ordinality)
+ where nullif(entry.c ->> 'id', '') is not null
+on conflict (set_id, character_id) do nothing;

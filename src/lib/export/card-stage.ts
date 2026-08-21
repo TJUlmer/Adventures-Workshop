@@ -14,7 +14,7 @@ import { mount, tick, unmount } from 'svelte';
 import type { CardTheme } from '$lib/cards/style';
 import type { Card } from '$lib/cards/types';
 import { characterLabel } from '$lib/characters/factory';
-import type { Character } from '$lib/characters/types';
+import type { Character, HeroCharacterCard } from '$lib/characters/types';
 import type { AdventureMap } from '$lib/map/types';
 import { mapPrintWidth } from '$lib/map/types';
 import CardRenderer from '$lib/renderer/CardRenderer.svelte';
@@ -33,6 +33,17 @@ export interface StageJob {
   character?: Character | null;
   /** Draw this character's deck back instead of a card. */
   cardback?: Character | null;
+  /**
+   * Draw this hero's character card instead of a card.
+   *
+   * Photographs the composed sheet *and* a finished replacement image without
+   * branching, because `HeroCharacterCardFace` resolves its own
+   * `useReplacement` internally — unlike an ordinary card, whose replacement
+   * `CardRenderer` short-circuits before reaching any face.
+   */
+  statCard?: Character | null;
+  /** Which of `statCard`'s identities to draw. Its own fields when absent. */
+  statCardEntry?: HeroCharacterCard | null;
   theme?: CardTheme;
   /** Which face of a two-sided card. Only event cards have both. */
   side?: 'front' | 'back';
@@ -64,6 +75,8 @@ export async function withCardStage<T>(run: (photograph: Photograph) => Promise<
         card: job.card,
         character: job.character ?? null,
         cardback: job.cardback ?? null,
+        statCard: job.statCard ?? null,
+        statCardEntry: job.statCardEntry ?? null,
         theme: job.theme,
         side: job.side ?? 'front',
         customSymbols: job.customSymbols ?? [],

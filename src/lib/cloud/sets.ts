@@ -27,6 +27,7 @@ import {
 import type { EmbeddedAsset } from './assets';
 import { auth } from './auth.svelte';
 import { shortHash } from '$lib/core/hash';
+import { renderCharacterCards } from './character-cards';
 import { renderThumbnail } from './thumbnail';
 import { ASSET_BUCKET, cloudConfig } from './config';
 import { CloudError, endpoint, headers, request } from './http';
@@ -325,6 +326,33 @@ export async function publishSet(
     thumbnailUrl = '';
   }
 
+  /*
+   * One picture of each hero's character card, for the gallery to show on
+   * hover — see `character-cards.ts` for why this has to be rendered here
+   * rather than looked up later.
+   *
+   * Best-effort for the same reason the thumbnail is, and it matters more
+   * here: this is the slowest step in a publish by some way (a card apiece,
+   * mounted and photographed), so it is exactly the step most likely to be
+   * interrupted. A hover that does not happen is not a set that failed to
+   * share.
+   *
+   * Keyed by character id, and sent as its own column rather than folded into
+   * `document`: the document is the author's set, and a picture the gallery
+   * asked for is not part of it. It would also break every fingerprint in
+   * `sets/fingerprint.ts` if it were, since a re-render is a new URL and each
+   * character would read as edited on every publish.
+   */
+  const characterCards: Record<string, string> = {};
+  try {
+    for (const [characterId, blob] of await renderCharacterCards(scoped)) {
+      characterCards[characterId] = await uploadBlob(blob, user.id, set.id, `card-${characterId}`);
+    }
+  } catch {
+    // Leave whatever landed before the failure; a partial set of previews is
+    // better than none, and the column is read per character anyway.
+  }
+
   const stats = setStats(scoped);
   const row = {
     owner_id: user.id,
@@ -336,6 +364,7 @@ export async function publishSet(
     schema_version: SET_SCHEMA_VERSION,
     document,
     thumbnail_url: thumbnailUrl,
+    character_cards: characterCards,
     /* Trimmed and capped here as well as in the field: a note is printed under
        someone else's set, so its length is not the author's alone to decide. */
     change_note: (options.changeNote ?? '').trim().slice(0, 200),
@@ -524,8 +553,16 @@ export interface GalleryCharacter {
   character_id: string;
   name: string;
   role: string;
-  /** The character's own picture, or one off their first card. May be empty. */
+  /** Their deck back, or failing that a portrait or card art. May be empty. */
   image_url: string;
+  /**
+   * A picture of their character card, photographed at publish.
+   *
+   * Empty for anyone but a hero — nobody else has one — and empty for a hero
+   * whose set was published before this existed, since it cannot be derived
+   * from anything already stored. Re-publishing is what fills it.
+   */
+  card_url: string;
   /**
    * The published row this character was read out of.
    *

@@ -52,6 +52,26 @@
   /** Whether the last page came back full, which is the only "more" signal. */
   let maybeMore = $state(false);
 
+  /**
+   * Characters whose card has been asked for at least once.
+   *
+   * The gate on fetching character-card previews. Each is a full card at 700px
+   * — perhaps 60KB — and a page of thirty heroes eagerly loading thirty of
+   * them would cost more than the entire rest of the gallery to show something
+   * nobody has looked at. So the `<img>` is not rendered until its tile has
+   * been hovered or focused once, and stays rendered afterwards so a second
+   * hover is instant rather than re-fetching.
+   *
+   * Reassigned rather than mutated: `$state` does not proxy a `Set`, so
+   * `.add()` on it would change the set without telling anything to re-render.
+   */
+  let peeked = $state(new Set<string>());
+
+  function peek(characterId: string): void {
+    if (peeked.has(characterId)) return;
+    peeked = new Set(peeked).add(characterId);
+  }
+
   const MODES = [
     { value: 'sets' as const, label: 'Sets' },
     { value: 'characters' as const, label: 'Characters' }
@@ -371,6 +391,9 @@
               <button
                 type="button"
                 class="tile"
+                class:has-card={!!character.card_url}
+                onpointerenter={() => peek(character.character_id)}
+                onfocusin={() => peek(character.character_id)}
                 onclick={() => navigation.openShared(character.slug)}
               >
                 <span class="cover portrait" style:background={tint(character.character_id)}>
@@ -378,6 +401,41 @@
                     <img src={characterImage(character)} alt="" loading="lazy" />
                   {:else}
                     <span class="initials">{initials(character.name)}</span>
+                  {/if}
+
+                  <!--
+                    The character card, cross-faded over the deck back on
+                    hover. Two pictures of the same thing at the same size, so
+                    swapping them in place reads as turning the figure over
+                    rather than as a popup appearing somewhere else.
+
+                    Not lazy, unlike the deck back beneath it: a lazily-loaded
+                    image starts fetching when it scrolls into view, and this
+                    one is *always* in view — it is only transparent. Marking
+                    it lazy would mean it loads at the same moment the back
+                    does and buys nothing. `preload` on hover is not available
+                    for an already-rendered element, so the honest trade is
+                    made in `characterCardSrc`: only rendered once the tile has
+                    been hovered at least once, which is what keeps a gallery
+                    of thirty heroes from fetching thirty full cards nobody
+                    asked to see.
+                  -->
+                  {#if character.card_url && peeked.has(character.character_id)}
+                    <img class="card-peek" src={character.card_url} alt="" />
+                  {/if}
+
+                  <!--
+                    Says the card is there before anyone has hovered to find
+                    out. A hover-only affordance nobody knows about is a
+                    feature nobody uses, and it also gives touch — which has
+                    no hover at all — something to read instead of a swap it
+                    will never see.
+                  -->
+                  {#if character.card_url}
+                    <span class="peek-hint">
+                      <Icon name="card" size={11} />
+                      Character card
+                    </span>
                   {/if}
                 </span>
 
@@ -441,8 +499,20 @@
 </div>
 
 <style>
+  /*
+   * Owns its own scrolling, because nothing else will.
+   *
+   * `base.css` sets `body { overflow: hidden }` on the grounds that "the shell
+   * owns all scrolling" — and this screen, like the library and a share link,
+   * renders *outside* the shell. So a screen out here either scrolls itself or
+   * does not scroll at all, and this one did not: `min-height: 100vh` let the
+   * grid grow past the viewport while `body` clipped it, so a second row of
+   * tiles existed and could not be reached. `SharedSetScreen` and
+   * `PrintScreen` had already been bitten by exactly this.
+   */
   .screen {
-    min-height: 100vh;
+    height: 100vh;
+    overflow-y: auto;
     padding: var(--space-6);
     background: var(--surface-sunken);
     color: var(--text-default);
@@ -553,10 +623,76 @@
   }
 
   .cover {
+    position: relative;
     display: grid;
     place-items: center;
     aspect-ratio: 4 / 3;
     overflow: hidden;
+  }
+
+  /*
+   * The character card, laid exactly over the deck back.
+   *
+   * `object-fit: contain` rather than `cover` like the picture underneath it:
+   * a deck back is decoration and may be cropped to fill the tile, but a
+   * character card is a *document* — cropping it would cut off the stat block
+   * that is the entire reason for showing it. The letterboxing that leaves is
+   * filled by the tile's own tint, which is already behind it.
+   *
+   * Written as `.cover img.card-peek` and not as a bare `.card-peek`, which
+   * is the version that does not work: `.cover img` above is a class *and* an
+   * element (specificity 0,1,1) and outranks a lone class (0,1,0) no matter
+   * which is written later, so `contain` lost to `cover` and the card was
+   * silently cropped. Measured, not guessed — the computed `object-fit` read
+   * back `cover`. Same trap as `.space text` over `.start-number` in
+   * `MapBoard.svelte`.
+   */
+  .cover img.card-peek {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    background: inherit;
+    opacity: 0;
+    transition: opacity var(--duration-normal, 200ms) var(--ease-out);
+  }
+
+  .tile:hover .cover img.card-peek,
+  .tile:focus-visible .cover img.card-peek {
+    opacity: 1;
+  }
+
+  .peek-hint {
+    position: absolute;
+    left: var(--space-2);
+    bottom: var(--space-2);
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px var(--space-2);
+    border-radius: var(--radius-full);
+    /* Its own dark chip rather than a theme surface: this sits over whatever
+       picture the author uploaded, so it cannot borrow a background that might
+       match one. */
+    background: rgb(0 0 0 / 0.55);
+    color: rgb(255 255 255 / 0.85);
+    font-size: var(--text-2xs);
+    letter-spacing: var(--tracking-wide);
+    transition: opacity var(--duration-fast) var(--ease-out);
+  }
+
+  /* Out of the way once the card it advertises is actually showing. */
+  .tile:hover .peek-hint,
+  .tile:focus-visible .peek-hint {
+    opacity: 0;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .cover img.card-peek,
+    .peek-hint {
+      transition: none;
+    }
   }
 
   /*
