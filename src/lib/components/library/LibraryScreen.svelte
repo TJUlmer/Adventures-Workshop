@@ -8,11 +8,14 @@
   import { parseSetFile } from '$lib/export/json';
   import { CHARACTER_ROLE_META, SELECTABLE_ROLES } from '$lib/characters/types';
   import type { CharacterId, CharacterRole } from '$lib/characters/types';
+  import { openContributionCounts } from '$lib/cloud/contributions';
   import { cloudEnabled } from '$lib/cloud/config';
+  import { fetchSetSummaryBySlug, listMyPublishedSets } from '$lib/cloud/sets';
   import type { SetId, SetKind } from '$lib/sets/types';
   import { navigation } from '$lib/state/navigation.svelte';
   import { workshop } from '$lib/state/workshop.svelte';
   import { saveSet } from '$lib/storage/library';
+  import type { LibraryEntry } from '$lib/storage/library';
   import { readStorageEstimate } from '$lib/storage/indexeddb';
   import type { StorageEstimate } from '$lib/storage/indexeddb';
   import { Button, EmptyState, Icon, SegmentedControl, Select } from '$lib/ui';
@@ -37,6 +40,98 @@
   }
 
   const entries = $derived(workshop.library);
+
+  /**
+   * Two questions worth answering before opening any one set, not after:
+   * contributions waiting on a decision, and a fork whose original has moved
+   * on since it was copied. `SetHome` already answers both for whichever set
+   * happens to be open — this generalises the same two calls across every
+   * set here at once, rather than opening each one to find out.
+   *
+   * `waiting` comes from `listMyPublishedSets`/`openContributionCounts`,
+   * which already answer for everything this author owns in two calls total;
+   * `behindBy` is genuinely per-set (one `fetchSetSummaryBySlug` per forked
+   * entry), so those go out in parallel rather than one after another.
+   */
+  interface SetAttention {
+    waiting: number;
+    behindBy: number;
+  }
+
+  let attention = $state<Map<SetId, SetAttention>>(new Map());
+
+  $effect(() => {
+    const current = entries;
+    if (!cloudEnabled()) return;
+
+    void (async () => {
+      const waitingByLocalId = new Map<string, number>();
+      try {
+        const [published, counts] = await Promise.all([
+          listMyPublishedSets(),
+          openContributionCounts()
+        ]);
+        for (const row of published) {
+          const open = counts.get(row.id) ?? 0;
+          if (open > 0) {
+            waitingByLocalId.set(row.local_id, (waitingByLocalId.get(row.local_id) ?? 0) + open);
+          }
+        }
+      } catch {
+        // A badge is never worth an error message — see `SetHome`'s own
+        // silent fallback for the identical fetch.
+      }
+
+      const forked = current.filter(
+        (entry): entry is LibraryEntry & { originSlug: string; originRevision: number } =>
+          entry.originSlug !== undefined && entry.originRevision !== undefined
+      );
+      const behindByLocalId = new Map<SetId, number>();
+      await Promise.all(
+        forked.map(async (entry) => {
+          try {
+            const summary = await fetchSetSummaryBySlug(entry.originSlug);
+            if (!summary) return;
+            const behindBy = Math.max(0, summary.revision - entry.originRevision);
+            if (behindBy > 0) behindByLocalId.set(entry.id, behindBy);
+          } catch {
+            // Same reasoning — an unreachable original is not an error here.
+          }
+        })
+      );
+
+      const next = new Map<SetId, SetAttention>();
+      for (const entry of current) {
+        const waiting = waitingByLocalId.get(entry.id) ?? 0;
+        const behindBy = behindByLocalId.get(entry.id) ?? 0;
+        if (waiting > 0 || behindBy > 0) next.set(entry.id, { waiting, behindBy });
+      }
+      attention = next;
+    })();
+  });
+
+  interface AttentionRow {
+    id: SetId;
+    name: string;
+  }
+
+  const waitingSets = $derived.by(() => {
+    const rows: (AttentionRow & { count: number })[] = [];
+    for (const entry of entries) {
+      const waiting = attention.get(entry.id)?.waiting ?? 0;
+      if (waiting > 0) rows.push({ id: entry.id, name: entry.name || 'Untitled Adventure', count: waiting });
+    }
+    return rows;
+  });
+
+  const behindSets = $derived.by(() => {
+    const rows: (AttentionRow & { behindBy: number })[] = [];
+    for (const entry of entries) {
+      const behindBy = attention.get(entry.id)?.behindBy ?? 0;
+      if (behindBy > 0) rows.push({ id: entry.id, name: entry.name || 'Untitled Adventure', behindBy });
+    }
+    return rows;
+  });
 
   /**
    * Sets or characters — the same toggle the gallery offers, for the same
@@ -250,6 +345,57 @@
     <p class="message">{message}</p>
   {/if}
 
+  {#if waitingSets.length > 0 || behindSets.length > 0}
+    <div class="attention">
+      {#if waitingSets.length > 0}
+        {@const total = waitingSets.reduce((sum, row) => sum + row.count, 0)}
+        <div class="attention-card waiting">
+          <Icon name="hourglass" size={15} />
+          <div class="attention-body">
+            <span class="attention-title">
+              {total} {total === 1 ? 'contribution' : 'contributions'} waiting
+            </span>
+            <span class="attention-detail">
+              {#each waitingSets as row, index (row.id)}
+                {#if index > 0}<span aria-hidden="true"> · </span>{/if}
+                <button
+                  type="button"
+                  class="attention-link"
+                  onclick={() => void workshop.openSetPage(row.id, 'contributions')}
+                >
+                  {row.name} ({row.count})
+                </button>
+              {/each}
+            </span>
+          </div>
+        </div>
+      {/if}
+
+      {#if behindSets.length > 0}
+        <div class="attention-card behind">
+          <Icon name="rotate" size={15} />
+          <div class="attention-body">
+            <span class="attention-title">
+              {behindSets.length} {behindSets.length === 1 ? 'set is' : 'sets are'} out of sync
+            </span>
+            <span class="attention-detail">
+              {#each behindSets as row, index (row.id)}
+                {#if index > 0}<span aria-hidden="true"> · </span>{/if}
+                <button
+                  type="button"
+                  class="attention-link"
+                  onclick={() => void workshop.openSetPage(row.id, 'home')}
+                >
+                  {row.name}
+                </button>
+              {/each}
+            </span>
+          </div>
+        </div>
+      {/if}
+    </div>
+  {/if}
+
   {#if entries.length > 0}
     <div class="controls">
       <SegmentedControl bind:value={mode} segments={MODES} label="Browse" />
@@ -298,7 +444,12 @@
         {#each filteredSets as entry (entry.id)}
           <li class="card">
             <button type="button" class="open" onclick={() => void workshop.openSet(entry.id)}>
-              <span class="card-title">{entry.name || 'Untitled Adventure'}</span>
+              <span class="card-title-row">
+                <span class="card-title">{entry.name || 'Untitled Adventure'}</span>
+                {#if (attention.get(entry.id)?.waiting ?? 0) > 0}
+                  <span class="pill waiting">{attention.get(entry.id)?.waiting} pending</span>
+                {/if}
+              </span>
               {#if entry.subtitle}<span class="card-subtitle">{entry.subtitle}</span>{/if}
 
               <!--
@@ -308,13 +459,23 @@
                 so the badge distinguishes the two. The revision rides beside
                 it for the same reason `SetHome`'s own lineage line carries
                 one: it is what tells two forks of the same set apart on a
-                shelf that otherwise shows the same name twice.
+                shelf that otherwise shows the same name twice. The "now at"
+                clause is the same out-of-sync fact `SetHome`'s own lineage
+                line shows once a set is open — surfaced here so it does not
+                take opening the set to notice.
               -->
               {#if entry.originAuthor !== undefined}
                 <span class="lineage">
                   {entry.originAuthor ? `Based on ${entry.originAuthor}’s set` : 'Based on a published set'}
                   {#if entry.originRevision !== undefined}
                     <span class="numeric">· revision {entry.originRevision}</span>
+                  {/if}
+                  {#if (attention.get(entry.id)?.behindBy ?? 0) > 0}
+                    <span class="behind">
+                      — the original is now
+                      {attention.get(entry.id)?.behindBy}
+                      {(attention.get(entry.id)?.behindBy ?? 0) === 1 ? 'revision' : 'revisions'} ahead
+                    </span>
                   {/if}
                 </span>
               {/if}
@@ -476,6 +637,64 @@
     padding: var(--space-5) var(--space-9) 0;
   }
 
+  .attention {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    padding: var(--space-4) var(--space-9) 0;
+  }
+
+  .attention-card {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-3);
+    padding: var(--space-3);
+    border-radius: var(--radius-sm);
+  }
+
+  /* Amber for something waiting on you, gold for something behind — the same
+     "question, not a fault" tone `SharePanel`'s own `.caution` uses. */
+  .attention-card.waiting {
+    border: 1px solid color-mix(in oklab, var(--warning) 45%, transparent);
+    background: color-mix(in oklab, var(--warning) 7%, transparent);
+    color: var(--warning);
+  }
+
+  .attention-card.behind {
+    border: 1px solid color-mix(in oklab, var(--accent) 45%, transparent);
+    background: color-mix(in oklab, var(--accent) 7%, transparent);
+    color: var(--text-accent);
+  }
+
+  .attention-body {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+  }
+
+  .attention-title {
+    font-size: var(--text-sm);
+    font-weight: var(--weight-semibold);
+  }
+
+  .attention-detail {
+    font-size: var(--text-xs);
+    color: var(--text-secondary);
+  }
+
+  .attention-link {
+    color: inherit;
+    text-decoration: underline;
+    text-decoration-color: transparent;
+    cursor: pointer;
+    transition: text-decoration-color var(--duration-fast) var(--ease-out);
+  }
+
+  .attention-link:hover {
+    text-decoration-color: currentcolor;
+  }
+
   .search {
     flex: 1;
     min-width: 200px;
@@ -544,6 +763,13 @@
     text-align: left;
   }
 
+  .card-title-row {
+    display: flex;
+    align-items: baseline;
+    gap: var(--space-2);
+    flex-wrap: wrap;
+  }
+
   .card-title {
     font-family: var(--font-display);
     font-size: var(--text-lg);
@@ -556,6 +782,19 @@
     color: var(--text-muted);
   }
 
+  .pill {
+    flex: none;
+    padding: 1px var(--space-2);
+    border-radius: var(--radius-full);
+    font-size: var(--text-2xs);
+    font-weight: var(--weight-medium);
+  }
+
+  .pill.waiting {
+    background: color-mix(in oklab, var(--warning) 16%, transparent);
+    color: var(--warning);
+  }
+
   /* A credit, not a warning — quiet enough to skip and present enough to find. */
   .lineage {
     align-self: flex-start;
@@ -565,6 +804,10 @@
     border-radius: var(--radius-full);
     font-size: var(--text-2xs);
     color: var(--text-tertiary);
+  }
+
+  .behind {
+    color: var(--warning);
   }
 
   .stats {

@@ -76,6 +76,20 @@
     {/if}
 
     <!--
+      Both the library and the gallery live here now, as a pair — the same
+      "where else could I be" pairing the library itself offers, so leaving a
+      set does not mean hunting for the small back-chevron in the set's own
+      tab strip (`SetNav`) to find either one. `workshop.closeSet`, not a bare
+      `navigation.openLibrary`, for the same reason `SetNav`'s own back button
+      uses it: leaving a set is what refreshes the library index and clears
+      "last open", not just a view change.
+    -->
+    <Button size="sm" variant="ghost" title="Your sets" onclick={() => void workshop.closeSet()}>
+      <Icon name="grid" size={14} />
+      My library
+    </Button>
+
+    <!--
       The way into the gallery, from wherever the author happens to be. It used
       to live only on the Library, which meant browsing what other people had
       made was a thing you could only think of before opening a set.

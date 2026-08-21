@@ -72,6 +72,15 @@ export interface LibraryEntry {
    */
   originRevision?: number;
   /**
+   * The share token this copy was forked from — `SetOrigin.slug`, denormalised
+   * for the same reason `originRevision` is, but for a different reader:
+   * `originRevision` is enough to *print* the lineage line, but asking "has
+   * the original moved on" (`LibraryScreen`'s out-of-sync check, via
+   * `fetchSetSummaryBySlug`) needs the slug to ask with. Absent on an
+   * original and on any index row written before this existed.
+   */
+  originSlug?: string;
+  /**
    * Every character in the set, name and role only — enough for a "browse by
    * character" list to search and to say which set each result belongs to,
    * without a picture. A picture was the tempting next field and deliberately
@@ -133,7 +142,11 @@ function toEntry(set: AdventureSet, bytes: number): LibraryEntry {
     })),
     bytes,
     ...(set.origin
-      ? { originAuthor: set.origin.authorName, originRevision: set.origin.revision }
+      ? {
+          originAuthor: set.origin.authorName,
+          originRevision: set.origin.revision,
+          originSlug: set.origin.slug
+        }
       : {})
   };
 }

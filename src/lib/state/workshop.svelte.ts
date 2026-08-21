@@ -86,6 +86,7 @@ import {
   createThreatStep
 } from '$lib/threat/types';
 import { navigation } from './navigation.svelte';
+import type { SetPage } from './navigation.svelte';
 import type { Deck, DeckId, DeckKind } from '$lib/decks/types';
 import { createEmptySet } from '$lib/sets/factory';
 import {
@@ -272,6 +273,18 @@ export class WorkshopStore {
   async openCharacter(setId: SetId, characterId: CharacterId): Promise<boolean> {
     const opened = await this.openSet(setId);
     if (opened) this.selectCharacter(characterId);
+    return opened;
+  }
+
+  /**
+   * Open a set and land on a specific page rather than Home — same shape as
+   * `openCharacter`, for the library's own attention strip: "3 contributions
+   * waiting" wants to land on Contributions, not on Home with one more click
+   * to get there.
+   */
+  async openSetPage(id: SetId, page: SetPage): Promise<boolean> {
+    const opened = await this.openSet(id);
+    if (opened) navigation.go(page);
     return opened;
   }
 
