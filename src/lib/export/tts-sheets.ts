@@ -160,10 +160,15 @@ export async function renderDeckSheets(
     const backs: Blob[] = [];
 
     for (const planned of page) {
+      /* A character card has no `Card` to resolve a theme from, and needs
+         none: `Character.characterCard` is its own design object and does not
+         go through the style cascade at all. */
       const job = {
         card: planned.card,
         character: planned.character,
-        theme: resolveStyleForCard(context.set, planned.card),
+        statCard: planned.statCard ?? null,
+        statCardEntry: planned.statCardEntry ?? null,
+        theme: planned.card ? resolveStyleForCard(context.set, planned.card) : undefined,
         customSymbols: context.set.customSymbols
       };
 
@@ -208,9 +213,20 @@ export async function renderSharedBack(
   }
 
   if (plan.back.kind === 'character') {
+    /*
+     * The canvas has to be the one `CardRenderer` lays this back out on, or
+     * the photograph is of the wrong rectangle — and the two roles differ. A
+     * hero's back is supplied on the action card's own 1632×2222 canvas;
+     * everyone else's uses the `cardback` template, drawn at trim size and
+     * 373×520. Their aspects are not even the same (0.735 against 0.717), so
+     * getting this wrong letterboxes the back rather than merely softening it.
+     */
+    const backFormat =
+      plan.back.character.role === 'hero' ? CARD_FORMATS.action : CARD_FORMATS.cardback;
+
     const back = await context.photograph(
       { card: null, cardback: plan.back.character },
-      CARD_FORMATS.cardback,
+      backFormat,
       { bleed: false, width: format.width }
     );
     context.onImage?.();

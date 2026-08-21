@@ -98,6 +98,8 @@
             card={cell.card}
             character={cell.character}
             cardback={cell.cardback}
+            statCard={cell.statCard ?? null}
+            statCardEntry={cell.statCardEntry ?? null}
             theme={cell.theme}
             side={cell.side}
             options={{ surface: 'print', showBleed: false, showGuides: false, printerFriendly }}

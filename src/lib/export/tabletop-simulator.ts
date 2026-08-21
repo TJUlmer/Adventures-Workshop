@@ -30,7 +30,7 @@ import { cardLabel } from '$lib/cards/factory';
 import type { Card, CardType } from '$lib/cards/types';
 import { CARD_TYPE_META } from '$lib/cards/types';
 import { characterLabel } from '$lib/characters/factory';
-import type { Character } from '$lib/characters/types';
+import type { Character, HeroCharacterCard } from '$lib/characters/types';
 import { richTextToPlain } from '$lib/text/rich-text';
 import { CARD_FORMATS, THREAT_TRACK } from '$lib/renderer/geometry';
 import type { CardFormat } from '$lib/renderer/geometry';
@@ -67,7 +67,20 @@ export type TtsBack =
   | { readonly kind: 'plain' };
 
 export interface TtsCardPlan {
-  readonly card: Card;
+  /**
+   * The card to draw, or `null` for a face that is not one.
+   *
+   * Nullable because a hero's character card is not in `set.cards` — it is a
+   * stat sheet read straight off the character, exactly like a deck back. See
+   * `statCard` below.
+   */
+  readonly card: Card | null;
+  /**
+   * Draw this hero's character card instead. `card` is `null` when this is set.
+   */
+  readonly statCard?: Character | null;
+  /** Which of `statCard`'s identities. Absent draws their own. */
+  readonly statCardEntry?: HeroCharacterCard | null;
   /** Owning figure, for the name ribbon. */
   readonly character: Character | null;
 }
@@ -154,6 +167,10 @@ function plansFor(set: AdventureSet, bucket: Bucket, taken: Set<string>): TtsDec
 
   for (const entry of bucket.entries) {
     for (const planned of expand(entry.cards, bucket.character)) {
+      /* Every plan built here comes from `expand`, which only ever makes plans
+         from real cards — a character card never reaches this function, it is
+         its own pile. The guard is for the type, not for a case that happens. */
+      if (!planned.card) continue;
       const bucketed = byType.get(planned.card.type);
       if (bucketed) bucketed.push(planned);
       else byType.set(planned.card.type, [planned]);
@@ -175,14 +192,54 @@ function plansFor(set: AdventureSet, bucket: Bucket, taken: Set<string>): TtsDec
   });
 }
 
+/**
+ * A hero's character card, as a pile of exactly one.
+ *
+ * One card rather than an object built by hand, because `deckObject` already
+ * turns a one-card pile into a `CardCustom` rather than a `DeckCustom` — which
+ * is precisely what this wants to be. A stat sheet shuffled into the hero's
+ * deck would be dealt into somebody's hand; as its own card it sits on the
+ * table, is picked up, and is put in front of whoever is playing them.
+ *
+ * `back: 'plain'` because the printed card is single-sided. Showing the hero's
+ * deck back here would look tidier and be a lie — it would read as a card that
+ * belongs in the deck, which is the one thing this must not be mistaken for.
+ */
+function characterCardPlans(character: Character, taken: Set<string>): TtsDeckPlan[] {
+  if (character.role !== 'hero') return [];
+
+  const sheets: { entry: HeroCharacterCard | null; name: string }[] = [
+    { entry: null, name: `${characterLabel(character)} character card` },
+    ...character.additionalCards.map((extra) => ({
+      entry: extra,
+      name: `${characterLabel(character)} — ${extra.name.trim() || 'character card'}`
+    }))
+  ];
+
+  return sheets.map(({ entry, name }) => ({
+    id: uniqueId(taken, name, 'character-card'),
+    nickname: name,
+    description: 'Reference card — keep it face up in front of you.',
+    format: CARD_FORMATS.action,
+    cards: [{ card: null, character: null, statCard: character, statCardEntry: entry }],
+    back: { kind: 'plain' as const }
+  }));
+}
+
 /** Every pile the set makes, in the order they are laid out on the table. */
 export function planTabletopDecks(set: AdventureSet): TtsDeckPlan[] {
   const view = outline(set);
   const taken = new Set<string>();
 
   const buckets: Bucket[] = [
-    // One pile per figure: everything that figure plays, however it was filed.
-    ...[...view.villains, ...view.minions, ...view.others].map((entry) => ({
+    /*
+     * One pile per figure: everything that figure plays, however it was filed.
+     *
+     * Heroes first and in the same list as everyone else — they were left out
+     * of a hand-written role list here for a whole release and exported
+     * nothing at all, which is the argument for never writing that list twice.
+     */
+    ...[...view.heroes, ...view.villains, ...view.minions, ...view.others].map((entry) => ({
       label: characterLabel(entry.character),
       fallbackId: 'figure',
       character: entry.character,
@@ -195,9 +252,13 @@ export function planTabletopDecks(set: AdventureSet): TtsDeckPlan[] {
     { label: 'Unfiled', fallbackId: 'unfiled', character: null, entries: view.loose }
   ];
 
-  return buckets
+  const piles = buckets
     .flatMap((bucket) => plansFor(set, bucket, taken))
     .filter((plan) => plan.cards.length > 0);
+
+  /* After the decks, so a hero's own cards land beside their pile on the
+     table rather than the stat sheets being grouped off on their own. */
+  return [...piles, ...view.heroes.flatMap((entry) => characterCardPlans(entry.character, taken))];
 }
 
 // -- The images the plan resolved to ------------------------------------
@@ -351,11 +412,35 @@ function describe(card: Card): string {
  * where a re-export can recognise what it is looking at.
  */
 function gmNotes(plan: TtsCardPlan): string {
+  /* A character card has no `Card` to name, so it identifies itself by the
+     hero it belongs to and which of their sheets it is — enough for a
+     re-import to recognise it, which is all this field is for. */
+  if (!plan.card) {
+    return JSON.stringify({
+      cardType: 'characterCard',
+      characterId: plan.statCard?.id ?? null,
+      entryId: plan.statCardEntry?.id ?? null
+    });
+  }
+
   return JSON.stringify({
     cardId: plan.card.id,
     cardType: plan.card.type,
     characterId: plan.character?.id ?? null
   });
+}
+
+/** What a pile's one card calls itself on the table, and what it says it is. */
+function cardName(plan: TtsCardPlan): { nickname: string; description: string } {
+  if (!plan.card) {
+    const hero = plan.statCard ? characterLabel(plan.statCard) : 'Hero';
+    const sheet = plan.statCardEntry?.name.trim();
+    return {
+      nickname: sheet ? `${hero} — ${sheet}` : `${hero} character card`,
+      description: 'Reference card — keep it face up in front of you.'
+    };
+  }
+  return { nickname: cardLabel(plan.card), description: describe(plan.card) };
 }
 
 function customDeck(sheet: TtsSheet): object {
@@ -378,11 +463,13 @@ function cardObject(
   at: TtsTransform,
   sideways: boolean
 ): object {
+  const named = cardName(plan);
+
   return {
     Name: 'Card',
     Transform: at,
-    Nickname: cardLabel(plan.card),
-    Description: describe(plan.card),
+    Nickname: named.nickname,
+    Description: named.description,
     ...OBJECT_DEFAULTS,
     GMNotes: gmNotes(plan),
     CardID: cardId,

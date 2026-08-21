@@ -15,7 +15,7 @@ import { cardLabel } from '$lib/cards/factory';
 import type { CardTheme } from '$lib/cards/style';
 import type { Card } from '$lib/cards/types';
 import { characterLabel } from '$lib/characters/factory';
-import type { Character } from '$lib/characters/types';
+import type { Character, HeroCharacterCard } from '$lib/characters/types';
 import { CARD_FORMATS } from '$lib/renderer/geometry';
 import { characterForCard, outline, resolveStyleForCard } from '$lib/sets/queries';
 import type { AdventureSet } from '$lib/sets/types';
@@ -30,6 +30,14 @@ export interface PrintItem {
   card: Card | null;
   character: Character | null;
   cardback: Character | null;
+  /**
+   * Draw this hero's character card. Same shape `CardRenderer` and the export
+   * stage take — the stat sheet is read off the character rather than out of
+   * `set.cards`, so it needs its own way in, exactly as `cardback` does.
+   */
+  statCard?: Character | null;
+  /** Which of `statCard`'s identities. Absent draws their own. */
+  statCardEntry?: HeroCharacterCard | null;
   theme: CardTheme | undefined;
   side: 'front' | 'back';
 }
@@ -89,6 +97,48 @@ function sizeFor(card: Card): SizeName {
   if (card.type === 'initiative') return 'initiative';
   if (card.type === 'event') return 'event';
   return 'poker';
+}
+
+/**
+ * A hero's character card sheets, as print items.
+ *
+ * Heroes only — the stat sheet is a hero-only face, drawn by
+ * `HeroCharacterCardFace` and reached through `CardRenderer`'s `statCard`
+ * rather than through `set.cards`, which is why no amount of walking the decks
+ * finds one. Same enumeration `AssetsOverview` uses: the primary identity,
+ * then `additionalCards` in order.
+ *
+ * `theme: undefined` because this card does not go through the style cascade
+ * at all — `Character.characterCard` is its own small design object. Passing a
+ * resolved card theme here would be passing a look it cannot read.
+ */
+function characterCardItems(character: Character): PrintItem[] {
+  if (character.role !== 'hero') return [];
+
+  const base = {
+    card: null,
+    character: null,
+    cardback: null,
+    statCardEntry: null,
+    theme: undefined,
+    side: 'front' as const
+  };
+
+  return [
+    {
+      ...base,
+      key: `${character.id}-charactercard`,
+      label: `${characterLabel(character)} character card`,
+      statCard: character
+    },
+    ...character.additionalCards.map((extra) => ({
+      ...base,
+      key: `${extra.id}-charactercard`,
+      label: `${characterLabel(character)} — ${extra.name.trim() || 'second character card'}`,
+      statCard: character,
+      statCardEntry: extra
+    }))
+  ];
 }
 
 /**
@@ -166,7 +216,16 @@ function planPairings(
     return { front, back: null };
   };
 
-  for (const entry of [...view.villains, ...view.minions, ...view.others]) {
+  /*
+   * Heroes first, matching the sidebar's own order — which is the point of
+   * following the outline at all: a printed run comes out sortable without
+   * reading every card.
+   *
+   * Written as one loop over both halves rather than a hero pass and a villain
+   * pass, because heroes were left out of exactly this kind of hand-written
+   * role list for a whole release and printed nothing at all.
+   */
+  for (const entry of [...view.heroes, ...view.villains, ...view.minions, ...view.others]) {
     for (const deck of entry.decks) {
       for (const card of deck.cards) {
         add(
@@ -175,6 +234,20 @@ function planPairings(
           options.useQuantities ? card.quantity : 1
         );
       }
+    }
+
+    /*
+     * A hero's character card, which is not in `set.cards` and so cannot come
+     * out of the deck loop above. One per identity — a duo prints two sheets.
+     * Single-sided by design: it is a reference card, so like a rules card its
+     * cell on the back page stays empty rather than being filled with a deck
+     * back the author never asked for.
+     *
+     * Always one copy, never `card.quantity`: there is no quantity to read,
+     * and one stat sheet per identity is what a box holds.
+     */
+    for (const sheet of characterCardItems(entry.character)) {
+      add('poker', { front: sheet, back: null }, 1);
     }
   }
 
@@ -204,6 +277,12 @@ function planPairings(
     }
     if (view.rules.some((entry) => entry.cards.length > 0)) {
       warnings.push('Rules cards print single-sided: they have no designed reverse.');
+    }
+    if (view.heroes.length > 0) {
+      warnings.push(
+        'Character cards print single-sided: a hero’s stat sheet is a reference ' +
+          'card, so it has no reverse to design.'
+      );
     }
   }
 
