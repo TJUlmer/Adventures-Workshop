@@ -67,12 +67,22 @@
     ...SELECTABLE_ROLES.map((value) => ({ value, label: CHARACTER_ROLE_META[value].plural }))
   ];
 
+  /*
+   * Matched against the set's own name and subtitle, but also every
+   * character inside it — same as the gallery's own search, which is built
+   * against `search_document` there for exactly this reason (see
+   * `cloud/sets.ts`'s `searchQuery`): a hero inside a box has to find the
+   * box, or "Maui" only turns up something once you already remember he is
+   * in Forgotten Pantheons, which defeats the point of searching at all.
+   */
   const filteredSets = $derived.by(() => {
     const term = search.trim().toLowerCase();
     if (!term) return entries;
     return entries.filter(
       (entry) =>
-        entry.name.toLowerCase().includes(term) || entry.subtitle.toLowerCase().includes(term)
+        entry.name.toLowerCase().includes(term) ||
+        entry.subtitle.toLowerCase().includes(term) ||
+        (entry.characters ?? []).some((character) => character.name.toLowerCase().includes(term))
     );
   });
 
