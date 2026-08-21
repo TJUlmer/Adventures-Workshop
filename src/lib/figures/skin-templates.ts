@@ -37,13 +37,10 @@ export const HEALTH_DIAL_SKIN: SkinTemplate = {
  * sets' only one. `tools/health-dial-skin.py` generates both from one set of
  * numbers, so the two guides cannot drift apart from each other.
  *
- * Empty until this is generated and re-uploaded — see the tool's own
- * comment. A blank `url` is deliberate: a placeholder link that opens nothing
- * is worse than the button not being there, so nothing here renders one.
  */
 export const HEALTH_DIAL_SKIN_TWO_SIDED: SkinTemplate = {
   label: 'Two-sided health dial skin (.psd)',
-  url: ''
+  url: 'https://drive.google.com/file/d/1LbkTM19C8uNv3pT0IGfTaz7Em8Y1CmKU/view?usp=sharing'
 };
 
 /** A token's two faces, side by side, for the two-sided wrap. */
