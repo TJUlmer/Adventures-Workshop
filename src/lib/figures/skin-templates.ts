@@ -23,6 +23,29 @@ export const HEALTH_DIAL_SKIN: SkinTemplate = {
   url: 'https://drive.google.com/file/d/10Jni01h8Gne933BVXtJI_JhNpNQkNipK/view?usp=sharing'
 };
 
+/**
+ * The dial's two faces, side by side, for the two-sided wrap — the same
+ * front|back layout `TOKEN_SKIN` uses, with the front half carrying the same
+ * health-number and trigger guide `HEALTH_DIAL_SKIN` does (the counter is
+ * only ever drawn on the disc's front — see `health-dial.ts`) and the back
+ * half a plain disc guide.
+ *
+ * A second file rather than the one `HEALTH_DIAL_SKIN` restructured to be
+ * 2:1: a one-sided dial's reference image is still a plain square, fit
+ * straight into `buildTokenTexture`, and forcing that author to work in a 2:1
+ * canvas and crop it down would be a regression for the case that stays most
+ * sets' only one. `tools/health-dial-skin.py` generates both from one set of
+ * numbers, so the two guides cannot drift apart from each other.
+ *
+ * Empty until this is generated and re-uploaded — see the tool's own
+ * comment. A blank `url` is deliberate: a placeholder link that opens nothing
+ * is worse than the button not being there, so nothing here renders one.
+ */
+export const HEALTH_DIAL_SKIN_TWO_SIDED: SkinTemplate = {
+  label: 'Two-sided health dial skin (.psd)',
+  url: ''
+};
+
 /** A token's two faces, side by side, for the two-sided wrap. */
 export const TOKEN_SKIN: SkinTemplate = {
   label: 'Two-sided token skin (.psd)',

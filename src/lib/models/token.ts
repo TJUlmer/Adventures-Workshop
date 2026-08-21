@@ -37,8 +37,17 @@ export interface TokenSpec {
   shape: TokenShape;
   /** Sides when `shape` is `polygon`; ignored for a circle. */
   sides?: number;
-  /** Across the flats for a polygon, across the circle for a disc. */
+  /** The piece's reach on its own X axis. Across the flats for a polygon,
+      across the circle for a disc. */
   diameterMm: number;
+  /**
+   * The piece's reach on its own Z axis, for a polygon stretched into a
+   * rectangle (four sides), an elongated hexagon, and so on. Ignored for a
+   * circle — there is no elliptical token — and treated as equal to
+   * `diameterMm` when absent, which is the regular polygon every existing
+   * token already is. See `polygonExtents`.
+   */
+  lengthMm?: number;
   thicknessMm: number;
   /** Sides on the disc. Enough to read as round, few enough to stay small. */
   segments?: number;
@@ -68,41 +77,79 @@ export const MM_PER_TTS_UNIT = 25.4;
 const DEFAULT_SEGMENTS = 64;
 
 /**
- * A regular polygon's corner distance from its across-the-flats radius.
+ * A regular polygon's corner distance from its across-the-flats radius, at
+ * apothem 1 — the *unit* circumradius, scaled per axis by whoever calls this
+ * rather than by an apothem already baked in.
  *
  * `diameterMm` is measured across the flats — the distance that matters when
- * pieces sit against each other — so the apothem is half of it, and the corners
- * stand further out by `1 / cos(π / sides)`. At six sides this is exactly the
- * old hex, which is what keeps existing hex tokens the size they were.
+ * pieces sit against each other — so a shape's apothem is half of it, and its
+ * corners stand further out by `1 / cos(π / sides)`. At six sides this is
+ * exactly the old hex, which is what keeps existing hex tokens the size they
+ * were.
  */
 const circumFromApothem = (apothem: number, sides: number) => apothem / Math.cos(Math.PI / sides);
 
-/** The corners of the face, counter-clockwise seen from above. */
-function outline(spec: TokenSpec): { x: number; z: number }[] {
-  const apothem = spec.diameterMm / 2 / MM_PER_TTS_UNIT;
-  const points: { x: number; z: number }[] = [];
+/**
+ * The piece's reach on X and on Z, in TTS units — equal for a circle or a
+ * regular polygon, and the two numbers a rectangle (or an elongated hexagon,
+ * or any other stretched polygon) is built from when they are not.
+ *
+ * A circle has one radius and stays a circle — there is no elliptical token —
+ * so only the polygon branch ever reads `lengthMm`. `lengthMm` absent, or
+ * equal to `diameterMm`, is every polygon this generator used to be able to
+ * make: a shared apothem is exactly what makes a regular polygon regular, and
+ * is exactly what made a four-sided one always come out a square.
+ */
+function faceExtents(spec: TokenSpec): { x: number; z: number } {
+  const x = spec.diameterMm / 2 / MM_PER_TTS_UNIT;
+  if (spec.shape !== 'polygon') return { x, z: x };
+  return { x, z: (spec.lengthMm ?? spec.diameterMm) / 2 / MM_PER_TTS_UNIT };
+}
+
+/**
+ * The corners of the face, counter-clockwise seen from above, and how far
+ * they actually reach on each axis — which for a polygon is the corners
+ * rather than the flats, and once X and Z differ is no longer one number.
+ *
+ * A polygon's corners are built at the *unit* circumradius (apothem 1) and
+ * then scaled by the X and Z reaches independently: at equal reaches this
+ * reproduces the old single-`circumFromApothem` geometry exactly, and at
+ * unequal reaches it is what turns a square into a rectangle or a hexagon
+ * into an elongated one, rather than the regular-only shape a single shared
+ * apothem could ever produce.
+ */
+function faceGeometry(spec: TokenSpec): {
+  points: { x: number; z: number }[];
+  extent: { x: number; z: number };
+} {
+  const { x: extentX, z: extentZ } = faceExtents(spec);
 
   if (spec.shape === 'polygon') {
     const sides = polygonSides(spec);
-    const radius = circumFromApothem(apothem, sides);
+    const unitRadius = circumFromApothem(1, sides);
+    const points: { x: number; z: number }[] = [];
     /*
-     * The `π / sides` offset sets a flat edge at the bottom and, at four sides,
-     * an axis-aligned square rather than a diamond. At six it reproduces the
-     * old hex exactly — vertex up, flats to the sides.
+     * The `π / sides` offset sets a flat edge at the bottom and, at four
+     * sides, an axis-aligned square (or rectangle) rather than a diamond. At
+     * six it reproduces the old hex exactly — vertex up, flats to the sides.
      */
     for (let i = 0; i < sides; i += 1) {
       const angle = (Math.PI * 2 * i) / sides + Math.PI / sides;
-      points.push({ x: Math.cos(angle) * radius, z: Math.sin(angle) * radius });
+      points.push({
+        x: Math.cos(angle) * unitRadius * extentX,
+        z: Math.sin(angle) * unitRadius * extentZ
+      });
     }
-    return points;
+    return { points, extent: { x: unitRadius * extentX, z: unitRadius * extentZ } };
   }
 
+  const points: { x: number; z: number }[] = [];
   const segments = Math.max(12, spec.segments ?? DEFAULT_SEGMENTS);
   for (let i = 0; i < segments; i += 1) {
     const angle = (Math.PI * 2 * i) / segments;
-    points.push({ x: Math.cos(angle) * apothem, z: Math.sin(angle) * apothem });
+    points.push({ x: Math.cos(angle) * extentX, z: Math.sin(angle) * extentX });
   }
-  return points;
+  return { points, extent: { x: extentX, z: extentX } };
 }
 
 /**
@@ -123,17 +170,8 @@ export interface TokenMesh extends Mesh {
 }
 
 export function buildTokenMesh(spec: TokenSpec): TokenMesh {
-  const points = outline(spec);
+  const { points, extent } = faceGeometry(spec);
   const half = spec.thicknessMm / 2 / MM_PER_TTS_UNIT;
-  const apothem = spec.diameterMm / 2 / MM_PER_TTS_UNIT;
-
-  /*
-   * How far the shape actually reaches, which for a polygon is its corners
-   * rather than its flats. Mapping the art against this keeps every coordinate
-   * inside the texture and keeps the picture's own proportions — a hexagon crops
-   * a sliver off its flats rather than stretching to fill a box it does not fill.
-   */
-  const extent = spec.shape === 'polygon' ? circumFromApothem(apothem, polygonSides(spec)) : apothem;
   const twoSided = spec.twoSided === true;
 
   const positions: number[] = [];
@@ -151,10 +189,15 @@ export function buildTokenMesh(spec: TokenSpec): TokenMesh {
    * back on the right — so each face maps into its own half and its V spans the
    * whole height. One-sided art is the top square of a taller texture, a band of
    * rim colour beneath it, and both faces share it.
+   *
+   * `extent.x`/`extent.z` normalise `u`/`t` separately rather than by one shared
+   * number, which is what stretches a square picture onto a rectangular piece's
+   * own aspect instead of cropping it — on a regular piece the two are equal and
+   * this is exactly the old single-`extent` division.
    */
   const artUv = (x: number, z: number, face: 'top' | 'bottom'): [number, number] => {
-    const u = (x / extent + 1) / 2;
-    const t = ((face === 'top' ? -z : z) / extent + 1) / 2;
+    const u = (x / extent.x + 1) / 2;
+    const t = ((face === 'top' ? -z : z) / extent.z + 1) / 2;
     if (twoSided) {
       return [face === 'top' ? u * 0.5 : 0.5 + u * 0.5, t];
     }
@@ -227,9 +270,15 @@ const fixed = (value: number) => value.toFixed(5).replace(/\.?0+$/, '') || '0';
  * anything that flat-shades it.
  */
 export function tokenObj(mesh: TokenMesh, materialName: string): string {
+  const lengthMm = mesh.spec.lengthMm;
+  const size =
+    lengthMm !== undefined && lengthMm !== mesh.spec.diameterMm
+      ? `${mesh.spec.diameterMm}mm × ${lengthMm}mm`
+      : `${mesh.spec.diameterMm}mm across`;
+
   const lines: string[] = [
     '# Unmatched Adventures Workshop — generated token',
-    `# ${mesh.spec.shape} · ${mesh.spec.diameterMm}mm across · ${mesh.spec.thicknessMm}mm thick`,
+    `# ${mesh.spec.shape} · ${size} · ${mesh.spec.thicknessMm}mm thick`,
     `# 1 unit = 1 inch (${MM_PER_TTS_UNIT}mm)`,
     `mtllib ${materialName}.mtl`,
     `o token`

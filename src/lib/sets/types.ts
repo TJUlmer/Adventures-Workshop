@@ -201,10 +201,27 @@ export type SetId = Id<'Set'>;
  *      every set authored before this existed was an adventure by the only
  *      definition there was.
  *
+ * v29 — a generated token gained `lengthMm`, its reach on the Z axis
+ *      alongside `diameterMm`'s reach on X — see `models/token.ts`'s
+ *      `faceGeometry`. Only a polygon reads it; a circle stays a circle.
+ *      Equal reaches is the regular polygon every token used to be forced
+ *      into, which for four sides could only ever be a square — unequal is
+ *      what makes it a rectangle, or an elongated hexagon, instead. Absent
+ *      on an older document, `lengthMm` is repaired to that document's own
+ *      `diameterMm`, not the factory default — a token that was regular
+ *      before this field existed opens exactly as regular now, whatever its
+ *      own size happened to be.
+ *
+ *      Unrelated, and needing no bump of its own: the health dial's new
+ *      two-sided art reads the *existing* `Figure.token.twoSided` field —
+ *      present on every figure regardless of kind, but never once consulted
+ *      for a dial before now. See `figures/health-dial.ts`'s
+ *      `healthDialSpec`.
+ *
  * Older documents are *repaired*, not rejected — see `sets/normalize.ts`. Only
  * a version newer than this build understands is refused.
  */
-export const SET_SCHEMA_VERSION = 28;
+export const SET_SCHEMA_VERSION = 29;
 
 /**
  * What a set is for.

@@ -580,13 +580,21 @@ function tokenBuild(value: unknown): TokenBuild {
       : base.shape;
   const sides = stored === 'hex' ? 6 : num(raw['sides'], base.sides);
 
+  /* Clamped rather than trusted: these drive geometry, and a zero or a
+     negative would generate a mesh with no volume to look at. */
+  const diameterMm = Math.min(200, Math.max(5, num(raw['diameterMm'], base.diameterMm)));
+
   return {
     enabled: bool(raw['enabled'], false),
     shape,
     sides: Math.min(MAX_POLYGON_SIDES, Math.max(MIN_POLYGON_SIDES, Math.round(sides))),
-    /* Clamped rather than trusted: these drive geometry, and a zero or a
-       negative would generate a mesh with no volume to look at. */
-    diameterMm: Math.min(200, Math.max(5, num(raw['diameterMm'], base.diameterMm))),
+    diameterMm,
+    /* v29. Defaulted to the document's own `diameterMm`, not the factory's —
+       a token saved before this field existed was regular, and a document
+       that has always agreed with itself must go on agreeing with itself
+       rather than being pulled toward whatever `createTokenBuild()` happens
+       to default to. */
+    lengthMm: Math.min(200, Math.max(5, num(raw['lengthMm'], diameterMm))),
     thicknessMm: Math.min(30, Math.max(0.5, num(raw['thicknessMm'], base.thicknessMm))),
     rimColor: str(raw['rimColor'], base.rimColor),
     twoSided: bool(raw['twoSided'], base.twoSided)

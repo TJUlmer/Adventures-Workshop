@@ -21,7 +21,11 @@
   } from '$lib/figures/types';
   import { HEALTH_DIAL_SPEC } from '$lib/figures/health-dial';
   import type { SkinTemplate } from '$lib/figures/skin-templates';
-  import { HEALTH_DIAL_SKIN, TOKEN_SKIN } from '$lib/figures/skin-templates';
+  import {
+    HEALTH_DIAL_SKIN,
+    HEALTH_DIAL_SKIN_TWO_SIDED,
+    TOKEN_SKIN
+  } from '$lib/figures/skin-templates';
   import { isViewableModel, loadMesh } from '$lib/models/load';
   import type { Mesh } from '$lib/models/mesh';
   import type { TokenShape } from '$lib/models/token';
@@ -151,7 +155,11 @@
     const figure = workshop.addFigure('token');
     workshop.editFigure(figure.id, (f) => {
       f.name = 'Sidekick token';
+      // `lengthMm` set alongside `diameterMm` on every preset here — leaving
+      // it at whatever `createTokenBuild()` defaults to would quietly make
+      // an oval rather than the round token this preset promises.
       f.token.diameterMm = 25;
+      f.token.lengthMm = 25;
       f.token.thicknessMm = 3;
     });
   }
@@ -163,6 +171,7 @@
       f.token.shape = 'polygon';
       f.token.sides = 6;
       f.token.diameterMm = 25;
+      f.token.lengthMm = 25;
       f.token.thicknessMm = 3;
     });
   }
@@ -174,6 +183,7 @@
       f.token.shape = 'polygon';
       f.token.sides = 6;
       f.token.diameterMm = 15;
+      f.token.lengthMm = 15;
       f.token.thicknessMm = 2;
       // Distinct from the generic rim default — a threat token reads as
       // "threat" on sight rather than needing its label read.
@@ -285,8 +295,15 @@
 
   /** Kind-driven visibility. A dial is a fixed component; the rest are built. */
   const isDial = (figure: Figure): boolean => figure.kind === 'dial';
+  /**
+   * What `diameterMm` is called, which now depends on whether there is a
+   * second dimension beside it. "Across the flats" was accurate but
+   * unspecific the moment a polygon gained a *second* flat-to-flat distance
+   * (`lengthMm`, on the other axis) to tell it apart from — "Width" and
+   * "Length" name which one each field actually is.
+   */
   const sidesLabel = (figure: Figure): string =>
-    figure.token.shape === 'polygon' ? 'Across the flats' : 'Diameter';
+    figure.token.shape === 'polygon' ? 'Width' : 'Diameter';
 
   /** The assigned character's name, for the dial's default name. */
   function ownerName(figure: Figure): string | null {
@@ -717,7 +734,43 @@
                     raise it, the left one to lower it. Click the number, or alt-click
                     a trigger, to put the dial back to full.
                   </p>
-                  {@render skinLink(HEALTH_DIAL_SKIN, 'The face is a square, the disc inscribed in it.')}
+                </div>
+
+                <div class="note-block">
+                  <span class="block-title">Face art</span>
+
+                  <!--
+                    Same switch and the same field a token's own build offers —
+                    `figure.token.twoSided` is the very field a token reads,
+                    just never asked of a dial figure before now (see
+                    `generatedTokenSpec` in `figures/types.ts`).
+                  -->
+                  <Switch
+                    label="Two-sided art"
+                    hint="The image is two faces side by side — front on the left, back on the right — wrapped one to each side of the disc. Off, the one picture is shown on both."
+                    checked={figure.token.twoSided}
+                    onchange={(twoSided) =>
+                      workshop.editFigure(figure.id, (f) => (f.token.twoSided = twoSided))}
+                  />
+
+                  {#if figure.token.twoSided}
+                    <p class="hint">
+                      The image is read as two squares side by side — the left one is
+                      the front, the face Tabletop Simulator draws the health number
+                      and its triggers over; the right one is the underside, which
+                      the game never marks up. Paint both the right way up: the
+                      underside is turned over by the model, not by you.
+                    </p>
+                    {#if HEALTH_DIAL_SKIN_TWO_SIDED.url}
+                      {@render skinLink(HEALTH_DIAL_SKIN_TWO_SIDED, 'The front half carries the same guide as the one-sided template.')}
+                    {/if}
+                  {:else}
+                    <p class="hint">
+                      One picture, shown the same on the front and the back. Turn on
+                      two-sided art to paint the disc's two faces separately.
+                    </p>
+                    {@render skinLink(HEALTH_DIAL_SKIN, 'The face is a square, the disc inscribed in it.')}
+                  {/if}
                 </div>
               </div>
             {/if}
@@ -777,6 +830,30 @@
                       />
                     </label>
 
+                    <!--
+                      A polygon's second axis, so 5 and 6 sides are not the only
+                      way to get something other than a circle out of this — a
+                      4-sided polygon at equal Width and Length is a square,
+                      because a *regular* polygon is the only kind the shape
+                      picker above can make on its own; unequal is what turns
+                      that square into a rectangle, and does the same to any
+                      other side count (an elongated hexagon, say). Circle has
+                      no equivalent field: there is no elliptical token, only a
+                      round one.
+                    -->
+                    {#if figure.token.shape === 'polygon'}
+                      <label class="field">
+                        <span class="field-label">Length</span>
+                        <NumberInput
+                          value={figure.token.lengthMm}
+                          min={5}
+                          max={200}
+                          onchange={(mm) =>
+                            workshop.editFigure(figure.id, (f) => (f.token.lengthMm = mm))}
+                        />
+                      </label>
+                    {/if}
+
                     <label class="field">
                       <span class="field-label">Thickness</span>
                       <NumberInput
@@ -827,9 +904,13 @@
                         {figure.token.shape === 'polygon'
                           ? `${figure.token.sides}-sided polygon`
                           : 'Circle'},
-                        {figure.token.diameterMm}mm across and {figure.token.thicknessMm}mm thick.
-                        Exports as an OBJ, its material and a texture, with a note on
-                        importing it.
+                        {#if figure.token.shape === 'polygon' && figure.token.lengthMm !== figure.token.diameterMm}
+                          {figure.token.diameterMm}mm wide by {figure.token.lengthMm}mm long
+                        {:else}
+                          {figure.token.diameterMm}mm across
+                        {/if}
+                        and {figure.token.thicknessMm}mm thick. Exports as an OBJ, its
+                        material and a texture, with a note on importing it.
                       </p>
                     </div>
 

@@ -18,9 +18,9 @@ import { figureLabel, tokenSpecOf } from '$lib/figures/types';
 import type { Figure } from '$lib/figures/types';
 import {
   HEALTH_DIAL_MATERIAL,
-  HEALTH_DIAL_MESH_PATH,
   HEALTH_DIAL_SAVE_URL,
-  HEALTH_DIAL_SPEC
+  healthDialMeshPath,
+  healthDialSpec
 } from '$lib/figures/health-dial';
 import { buildTokenMesh, tokenObj } from '$lib/models/token';
 import { readLuaConfig, writeLuaConfig } from '$lib/models/tts';
@@ -134,27 +134,31 @@ async function readObjectStates(url: string): Promise<unknown[] | null> {
 }
 
 /**
- * The dial's mesh, written once however many dials a set has.
+ * The dial's mesh, written once per *variant* — one-sided, two-sided, or both
+ * — however many dials of each a set has.
  *
- * `HEALTH_DIAL_SPEC` is fixed, so every dial's mesh is the same bytes — only the
- * face differs. Writing one file and pointing every dial at it keeps a set of
- * five dials from carrying five identical copies of it.
+ * `healthDialSpec(twoSided)` is fixed for a given `twoSided`, so every dial
+ * sharing that setting has the same mesh bytes as each other. The two variants
+ * cannot share a file with one another, though: their UV layouts genuinely
+ * differ (`buildTokenMesh`'s `twoSided` branch), so a set with both kinds of
+ * dial writes exactly two mesh files rather than either one dial file or one
+ * per dial.
  */
 function dialMeshUrl(
+  twoSided: boolean,
   urlFor: (path: string) => string,
   files: OutputFile[],
   taken: Set<string>
 ): string {
-  if (!taken.has(HEALTH_DIAL_MESH_PATH)) {
-    taken.add(HEALTH_DIAL_MESH_PATH);
+  const path = healthDialMeshPath(twoSided);
+  if (!taken.has(path)) {
+    taken.add(path);
     files.push({
-      path: HEALTH_DIAL_MESH_PATH,
-      bytes: encoder.encode(
-        tokenObj(buildTokenMesh(HEALTH_DIAL_SPEC), HEALTH_DIAL_MATERIAL)
-      )
+      path,
+      bytes: encoder.encode(tokenObj(buildTokenMesh(healthDialSpec(twoSided)), HEALTH_DIAL_MATERIAL))
     });
   }
-  return urlFor(HEALTH_DIAL_MESH_PATH);
+  return urlFor(path);
 }
 
 /**
@@ -163,8 +167,10 @@ function dialMeshUrl(
  * The counter script and the material come from the shipped template and are
  * left exactly as they are; the mesh and the diffuse are filled in here, because
  * neither has an address until the export knows where it is writing. What the
- * author brings is the face and the range, so those are the two things that
- * change from one dial to the next.
+ * author brings is the face, whether it wraps to the back, and the range — the
+ * things that change from one dial to the next. Whether it wraps decides which
+ * of the two mesh variants `dialMeshUrl` hands back, same as it decides which
+ * texture `buildTokenArt` builds.
  */
 async function dialObjects(
   figure: Figure,
@@ -181,7 +187,7 @@ async function dialObjects(
     return [];
   }
 
-  const meshUrl = dialMeshUrl(urlFor, files, taken);
+  const meshUrl = dialMeshUrl(figure.token.twoSided, urlFor, files, taken);
 
   let diffuseUrl = '';
   if (figure.reference.source) {

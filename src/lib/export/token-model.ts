@@ -121,19 +121,28 @@ async function buildSolidTexture(color: string, size = 1024): Promise<Blob> {
 /**
  * The texture a build asks for, one-sided or two, at the given size.
  *
- * A health dial comes through here as well. It is a disc like any other, but it
- * is the app's component rather than the author's, so its rim is the app's too —
- * there is no rim control on a dial to read one from. A dial's face is still
- * required — see `tts-bundle.ts`'s `dialObjects`, which never calls this
- * without one — but every other kind falls back to a flat fill of its own rim
- * colour rather than throwing, which is what lets a plain marker (a threat
- * track token, say) ship with no reference image at all.
+ * A health dial comes through here as well, and its `twoSided` reads off the
+ * same `figure.token.twoSided` a real token build would — see `health-dial.ts`.
+ * It is a disc like any other, but it is the app's component rather than the
+ * author's, so a *one-sided* dial's rim is the app's fixed colour rather than
+ * one the author picks — there is no rim control on a dial. A two-sided dial
+ * has no rim band to fill in the first place: like a two-sided token, its edge
+ * samples the seam between the front and back halves of the supplied picture,
+ * whatever that happens to be, the same as `buildTwoSidedTexture` already does
+ * for a real token.
+ *
+ * A dial's face is still required — see `tts-bundle.ts`'s `dialObjects`, which
+ * never calls this without one — but every other kind falls back to a flat
+ * fill of its own rim colour rather than throwing, which is what lets a plain
+ * marker (a threat track token, say) ship with no reference image at all.
  */
 export function buildTokenArt(figure: Figure, size = 1024): Promise<Blob> {
   const source = figure.reference.source;
   if (figure.kind === 'dial') {
     if (!source) throw new Error('Attach a reference image first — it is what goes on the token.');
-    return buildTokenTexture(source, HEALTH_DIAL_RIM, size);
+    return figure.token.twoSided
+      ? buildTwoSidedTexture(source, size)
+      : buildTokenTexture(source, HEALTH_DIAL_RIM, size);
   }
   if (!source) return buildSolidTexture(figure.token.rimColor, size);
   return figure.token.twoSided
@@ -141,15 +150,29 @@ export function buildTokenArt(figure: Figure, size = 1024): Promise<Blob> {
     : buildTokenTexture(source, figure.token.rimColor, size);
 }
 
+/** Whether this piece's width and length differ — a rectangle, or a polygon
+    stretched along one axis, rather than the regular shape every token used
+    to be. A circle is never this, however its two fields compare. */
+function isStretched(token: Figure['token']): boolean {
+  return token.shape === 'polygon' && token.lengthMm !== token.diameterMm;
+}
+
 /** How the piece's shape reads in prose, for the note that ships with it. */
 function shapeLine(figure: Figure): string {
   const { token } = figure;
   if (token.shape === 'circle') return `Circle, across: ${token.diameterMm}mm`;
+  if (isStretched(token)) {
+    return `${token.sides}-sided polygon, ${token.diameterMm}mm wide by ${token.lengthMm}mm long`;
+  }
   return `${token.sides}-sided polygon, across the flats: ${token.diameterMm}mm`;
 }
 
 function readme(name: string, figure: Figure, spec: TokenSpec, base: string): string {
-  const inches = (spec.diameterMm / MM_PER_TTS_UNIT).toFixed(3);
+  const stretched = isStretched(figure.token);
+  const widthInches = (spec.diameterMm / MM_PER_TTS_UNIT).toFixed(3);
+  const importLine = stretched
+    ? `${widthInches} by ${((spec.lengthMm ?? spec.diameterMm) / MM_PER_TTS_UNIT).toFixed(3)} units`
+    : `${widthInches} units across`;
   const tileType = spec.shape === 'circle' ? 'Circle' : 'a matching polygon';
   return `${name} — generated token
 =======================================
@@ -162,8 +185,8 @@ Files
 Size
   ${shapeLine(figure)}
   Thickness: ${spec.thicknessMm}mm
-  Built at 1 unit = 1 inch (${MM_PER_TTS_UNIT}mm), so it imports at ${inches} units
-  across and needs no scaling.
+  Built at 1 unit = 1 inch (${MM_PER_TTS_UNIT}mm), so it imports at ${importLine}
+  and needs no scaling.
 
 Into Tabletop Simulator, as a Custom Model
   1. Host the .obj and the .png somewhere TTS can reach by URL — Steam Cloud
@@ -182,7 +205,11 @@ The easier route, if you do not need the exact thickness
   TTS can build a Circle or Hex itself: Objects > Components > Custom > Tile,
   Type ${tileType}, and give it the .png as the top image. Its Thickness
   slider is relative rather than in millimetres, so the piece will not be
-  exactly ${spec.thicknessMm}mm — but it needs no model hosting at all.
+  exactly ${spec.thicknessMm}mm — but it needs no model hosting at all.${
+    stretched
+      ? `\n  This piece is stretched (its width and length differ), which a built-in\n  Tile does not do — the Custom Model route above is the one that gets the\n  shape right.`
+      : ''
+  }
 
 For printing
   The .obj is in inches. Most slicers assume millimetres, so scale by

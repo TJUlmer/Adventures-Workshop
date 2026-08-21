@@ -3,7 +3,7 @@ import type { Artwork } from '$lib/core/artwork';
 import { createArtwork } from '$lib/core/artwork';
 import type { Id, IsoDateTime } from '$lib/core/id';
 import { createId, now } from '$lib/core/id';
-import { HEALTH_DIAL_SPEC } from '$lib/figures/health-dial';
+import { healthDialSpec } from '$lib/figures/health-dial';
 import type { TokenShape, TokenSpec } from '$lib/models/token';
 
 export type FigureId = Id<'Figure'>;
@@ -54,8 +54,25 @@ export interface TokenBuild {
   shape: TokenShape;
   /** Sides when `shape` is `polygon`; ignored for a circle. */
   sides: number;
-  /** Across the flats for a polygon, across the circle for a disc. */
+  /**
+   * The piece's reach on its own X axis — across the flats for a polygon,
+   * across the circle for a disc.
+   */
   diameterMm: number;
+  /**
+   * The piece's reach on its own Z axis, when it differs from `diameterMm`.
+   *
+   * Only a polygon reads this — a circle has one radius and stays a circle,
+   * which is why there is no equivalent "stretch" for `shape: 'circle'`. A
+   * regular polygon (the only kind `MIN_POLYGON_SIDES`–`MAX_POLYGON_SIDES`
+   * used to make) is what you get when this equals `diameterMm`; a four-sided
+   * one at that point is a square by construction, which was the actual
+   * complaint this field exists to answer — there was no way to make a
+   * rectangle, because a "4-sided polygon" can only ever be regular. Equal to
+   * `diameterMm` at creation and independent of it afterward, the same
+   * relationship `thicknessMm` already has to `diameterMm`.
+   */
+  lengthMm: number;
   thicknessMm: number;
   /** The edge of the piece, where the artwork does not reach. */
   rimColor: string;
@@ -73,6 +90,7 @@ export function createTokenBuild(enabled = false): TokenBuild {
     shape: 'circle',
     sides: 6,
     diameterMm: 30,
+    lengthMm: 30,
     thicknessMm: 2,
     rimColor: '#1a1a1a',
     twoSided: false
@@ -85,6 +103,7 @@ export function tokenSpecOf(token: TokenBuild): TokenSpec {
     shape: token.shape,
     sides: token.sides,
     diameterMm: token.diameterMm,
+    lengthMm: token.lengthMm,
     thicknessMm: token.thicknessMm,
     twoSided: token.twoSided
   };
@@ -95,14 +114,21 @@ export function tokenSpecOf(token: TokenBuild): TokenSpec {
  * sculpt of its own — a plain `figure`, or a `token`/`piece` with its build
  * switched off — that no generated prism speaks for.
  *
- * A dial is a disc the app owns rather than one the author shapes, so its
- * spec is fixed rather than read off `token` — but it is the same generated
- * prism underneath, and going through this one function is what keeps every
- * reader (the editor's live preview, an Overview thumbnail) agreeing on
- * which figures are generated at all, rather than each re-deriving it.
+ * A dial is a disc the app owns rather than one the author shapes, so most of
+ * its spec is fixed rather than read off `token` — but it is the same
+ * generated prism underneath, and going through this one function is what
+ * keeps every reader (the editor's live preview, an Overview thumbnail)
+ * agreeing on which figures are generated at all, rather than each
+ * re-deriving it.
+ *
+ * `token.twoSided` *is* read off the figure even for a dial, though the rest
+ * of `token` is ignored — see `healthDialSpec`. It is stored there rather
+ * than as a field of its own because it already means exactly the same thing
+ * it means for a real token build, and `TokenBuild` exists on every figure
+ * regardless of kind.
  */
 export function generatedTokenSpec(figure: Figure): TokenSpec | null {
-  if (figure.kind === 'dial') return HEALTH_DIAL_SPEC;
+  if (figure.kind === 'dial') return healthDialSpec(figure.token.twoSided);
   return figure.token.enabled ? tokenSpecOf(figure.token) : null;
 }
 
