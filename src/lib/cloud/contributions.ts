@@ -210,6 +210,8 @@ export async function withdrawContribution(id: string): Promise<void> {
 
 /** One person's public credit — nothing about what they contributed. */
 export interface Contributor {
+  /** The contributor's profile id, so the credit can link to their page. */
+  id: string;
   display_name: string;
   avatar_url: string;
 }

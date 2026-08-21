@@ -44,6 +44,17 @@ export type PublishScope =
   | { kind: 'hero'; characterId: CharacterId }
   | { kind: 'villain' };
 
+/** A `PublishScope` as one string, for a `<select>` — the inverse of `parseScopeKey`. */
+export function scopeKeyOf(scope: PublishScope): string {
+  return scope.kind === 'hero' ? `hero:${scope.characterId}` : scope.kind;
+}
+
+/** The inverse of `scopeKeyOf`, for reading a `<select>`'s value back. */
+export function parseScopeKey(key: string): PublishScope {
+  if (key === 'full' || key === 'villain') return { kind: key };
+  return { kind: 'hero', characterId: key.slice(5) as CharacterId };
+}
+
 /**
  * The scoped document `publishSet` should actually publish.
  *

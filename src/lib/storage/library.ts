@@ -21,6 +21,8 @@
  * `void`, the same as anywhere else in the app that fires a write and moves
  * on; see `state/persistence.svelte.ts` and `state/workshop.svelte.ts`.
  */
+import { characterLabel } from '$lib/characters/factory';
+import type { CharacterId, CharacterRole } from '$lib/characters/types';
 import { parseSetFile, serializeSet } from '$lib/export/json';
 import type { AdventureSet, SetId } from '$lib/sets/types';
 import type { IsoDateTime } from '$lib/core/id';
@@ -69,6 +71,29 @@ export interface LibraryEntry {
    * existed.
    */
   originRevision?: number;
+  /**
+   * Every character in the set, name and role only — enough for a "browse by
+   * character" list to search and to say which set each result belongs to,
+   * without a picture. A picture was the tempting next field and deliberately
+   * left out: an author's artwork is already an embedded data URL several
+   * hundred KB apiece, and this index exists specifically so a shelf of a
+   * dozen sets does not mean holding a dozen documents in memory just to draw
+   * a list — copying that much image data into the very structure built to
+   * avoid it would be self-defeating. `LibraryScreen`'s Characters view uses
+   * initials instead, same fallback the gallery already draws for a set with
+   * no picture.
+   *
+   * Denormalised for the same reason every other field here is. Absent on an
+   * index row written before this existed; `LibraryScreen` reads it as `??
+   * []`, not as a sign the set has no characters.
+   */
+  characters?: LibraryCharacterEntry[];
+}
+
+export interface LibraryCharacterEntry {
+  id: CharacterId;
+  name: string;
+  role: CharacterRole;
 }
 
 function localStore(): Storage | null {
@@ -101,6 +126,11 @@ function toEntry(set: AdventureSet, bytes: number): LibraryEntry {
     updatedAt: set.meta.updatedAt,
     cardCount: set.cards.length,
     characterCount: set.characters.length,
+    characters: set.characters.map((character) => ({
+      id: character.id,
+      name: characterLabel(character),
+      role: character.role
+    })),
     bytes,
     ...(set.origin
       ? { originAuthor: set.origin.authorName, originRevision: set.origin.revision }

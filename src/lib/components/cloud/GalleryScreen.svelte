@@ -469,7 +469,19 @@
                 class:has-card={!!character.card_url}
                 onpointerenter={() => peek(character.character_id)}
                 onfocusin={() => peek(character.character_id)}
-                onclick={() => navigation.openShared(character.slug)}
+                onclick={() =>
+                  navigation.openShared(
+                    character.slug,
+                    /*
+                     * Only when this character has no listing of their own —
+                     * `openShared` is about to open the whole box, so the
+                     * export panel there should default to just them rather
+                     * than to everyone inside it. A character already
+                     * published on their own opens a document that already
+                     * *is* just them; nothing to default.
+                     */
+                    character.listing_scope === 'full' ? character.character_id : undefined
+                  )}
               >
                 <span
                   class="cover"

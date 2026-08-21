@@ -26,6 +26,7 @@
    * same reason the export photographs the renderer: one drawing path, so what
    * a viewer sees cannot drift from what the author approved.
    */
+  import type { CharacterId } from '$lib/characters/types';
   import ExportPanel from '$lib/components/export/ExportPanel.svelte';
   import AssetsOverview from '$lib/components/tools/AssetsOverview.svelte';
   import { listContributors } from '$lib/cloud/contributions';
@@ -48,9 +49,15 @@
 
   interface Props {
     slug: string;
+    /**
+     * Which character to default the export scope to — set when this was
+     * reached by clicking one specific hero inside a box that has no listing
+     * of its own. See `navigation.svelte.ts`'s `View['shared']`.
+     */
+    characterHint?: string;
   }
 
-  let { slug }: Props = $props();
+  let { slug, characterHint }: Props = $props();
 
   /**
    * Whether to offer taking a copy.
@@ -183,6 +190,20 @@
         {#if set?.subtitle}<p class="subtitle">{set.subtitle}</p>{/if}
 
         <!--
+          The creator, clearly visible at the top of their own set — not
+          buried in the fork fineprint below, which is the only place a name
+          showed before this. Bound through `@const` for the same reason the
+          box link below is: the `{#if}` cannot narrow a reactive read for a
+          callback that runs after it.
+        -->
+        {#if authorName && row}
+          {@const ownerId = row.owner_id}
+          <button type="button" class="author-link" onclick={() => navigation.openAuthor(ownerId)}>
+            By {authorName}
+          </button>
+        {/if}
+
+        <!--
           The box this slice came out of. Sits directly under the subtitle
           because that is the line that already names it — "From Forgotten
           Pantheons" as prose, then the same thing as somewhere to go.
@@ -224,9 +245,17 @@
           -->
           {#if contributors.length > 0}
             <p class="stats credit">
-              With contributions from {contributors
-                .map((person) => person.display_name || 'someone')
-                .join(', ')}
+              With contributions from
+              {#each contributors as person, index (person.id)}
+                {#if index > 0}{index === contributors.length - 1 ? ' and ' : ', '}{/if}
+                <button
+                  type="button"
+                  class="author-link inline"
+                  onclick={() => navigation.openAuthor(person.id)}
+                >
+                  {person.display_name || 'someone'}
+                </button>
+              {/each}
             </p>
           {/if}
         {/if}
@@ -295,8 +324,18 @@
 
           <section class="panel">
             <h2 class="panel-title">Export</h2>
-            <p class="panel-hint">Everything here covers the whole set.</p>
-            <ExportPanel {set} onprint={() => (printing = true)} />
+            <p class="panel-hint">
+              {characterHint
+                ? 'Set to just the character you opened below — pick "Whole set" to get everything.'
+                : 'Everything here covers the whole set, or pick one character below.'}
+            </p>
+            <ExportPanel
+              {set}
+              onprint={() => (printing = true)}
+              initialScope={characterHint
+                ? { kind: 'hero', characterId: characterHint as CharacterId }
+                : undefined}
+            />
           </section>
         </aside>
       </div>
@@ -405,6 +444,38 @@
 
   .credit {
     font-style: italic;
+  }
+
+  /*
+   * Reads as text, not as a pill — this sits right under the title, where the
+   * author's name has always belonged, and a button styled to disappear into
+   * a line of prose is what makes "By Someone" read as a byline rather than a
+   * control bolted on beside it.
+   */
+  .author-link {
+    align-self: start;
+    padding: 0;
+    border: none;
+    background: transparent;
+    color: var(--text-muted);
+    font-size: var(--text-sm);
+    text-align: left;
+    cursor: pointer;
+    text-decoration: underline;
+    text-decoration-color: transparent;
+    transition: color var(--duration-fast) var(--ease-out);
+  }
+
+  .author-link:hover {
+    color: var(--text-default);
+    text-decoration-color: currentcolor;
+  }
+
+  /* Inline inside the "With contributions from …" sentence, at its size. */
+  .author-link.inline {
+    display: inline;
+    font-size: inherit;
+    color: var(--text-secondary);
   }
 
   .message {

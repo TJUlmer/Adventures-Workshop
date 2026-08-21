@@ -6,14 +6,16 @@
    * rest of the app able to assume a set is always open.
    */
   import { parseSetFile } from '$lib/export/json';
+  import { CHARACTER_ROLE_META, SELECTABLE_ROLES } from '$lib/characters/types';
+  import type { CharacterId, CharacterRole } from '$lib/characters/types';
   import { cloudEnabled } from '$lib/cloud/config';
-  import type { SetKind } from '$lib/sets/types';
+  import type { SetId, SetKind } from '$lib/sets/types';
   import { navigation } from '$lib/state/navigation.svelte';
   import { workshop } from '$lib/state/workshop.svelte';
   import { saveSet } from '$lib/storage/library';
   import { readStorageEstimate } from '$lib/storage/indexeddb';
   import type { StorageEstimate } from '$lib/storage/indexeddb';
-  import { Button, EmptyState, Icon } from '$lib/ui';
+  import { Button, EmptyState, Icon, SegmentedControl, Select } from '$lib/ui';
   import NewSetDialog from './NewSetDialog.svelte';
 
   let fileInput = $state<HTMLInputElement | null>(null);
@@ -35,6 +37,111 @@
   }
 
   const entries = $derived(workshop.library);
+
+  /**
+   * Sets or characters — the same toggle the gallery offers, for the same
+   * reason: a hero published inside a box is invisible to "what sets do I
+   * have", and here it is the author's *own* memory the toggle is standing
+   * in for, not a stranger's — "I know I made a hero named Maui, which set
+   * did I put him in?" has no answer at all in a list of boxes.
+   *
+   * Defaults to Sets, unlike the gallery's own default: someone opening
+   * their own library came to work on a set they already have in mind far
+   * more often than to hunt for a character across all of them, where a
+   * stranger browsing the public gallery is doing exactly the reverse —
+   * looking for someone to play before caring which box they came in.
+   */
+  type Mode = 'sets' | 'characters';
+  let mode = $state<Mode>('sets');
+  let search = $state('');
+  /** `''` for every role. A `CharacterRole` otherwise — Characters mode only. */
+  let role = $state<'' | CharacterRole>('');
+
+  const MODES = [
+    { value: 'sets' as const, label: 'Sets' },
+    { value: 'characters' as const, label: 'Characters' }
+  ];
+
+  const ROLES = [
+    { value: '' as const, label: 'Every role' },
+    ...SELECTABLE_ROLES.map((value) => ({ value, label: CHARACTER_ROLE_META[value].plural }))
+  ];
+
+  const filteredSets = $derived.by(() => {
+    const term = search.trim().toLowerCase();
+    if (!term) return entries;
+    return entries.filter(
+      (entry) =>
+        entry.name.toLowerCase().includes(term) || entry.subtitle.toLowerCase().includes(term)
+    );
+  });
+
+  /**
+   * Every character in every local set, each carrying which set it came
+   * from — flattened once here rather than read from `LibraryEntry.characters`
+   * separately wherever it is needed, since every reader wants the parent
+   * set's own id and name alongside it and would otherwise have to look the
+   * owning entry back up to get them.
+   */
+  interface LibraryCharacterRow {
+    id: CharacterId;
+    name: string;
+    role: CharacterRole;
+    setId: SetId;
+    setName: string;
+  }
+
+  const allCharacters = $derived.by(() => {
+    const rows: LibraryCharacterRow[] = [];
+    for (const entry of entries) {
+      for (const character of entry.characters ?? []) {
+        rows.push({
+          id: character.id,
+          name: character.name,
+          role: character.role,
+          setId: entry.id,
+          setName: entry.name || 'Untitled Adventure'
+        });
+      }
+    }
+    return rows;
+  });
+
+  const filteredCharacters = $derived.by(() => {
+    const term = search.trim().toLowerCase();
+    return allCharacters.filter((character) => {
+      if (role && character.role !== role) return false;
+      if (!term) return true;
+      return (
+        character.name.toLowerCase().includes(term) ||
+        character.setName.toLowerCase().includes(term)
+      );
+    });
+  });
+
+  function roleTint(value: CharacterRole): string {
+    return `var(--role-${value}, var(--text-muted))`;
+  }
+
+  function initials(name: string): string {
+    const words = name.trim().split(/\s+/).filter(Boolean);
+    if (words.length === 0) return '?';
+    return words
+      .slice(0, 2)
+      .map((word) => word[0]?.toUpperCase() ?? '')
+      .join('');
+  }
+
+  /** A stable colour per character, for the tile with no picture — same
+      formula the gallery's own tiles use, so a character reads the same
+      shade whether found here or there. */
+  function tint(seed: string): string {
+    let hash = 0;
+    for (let index = 0; index < seed.length; index += 1) {
+      hash = (hash * 31 + seed.charCodeAt(index)) | 0;
+    }
+    return `hsl(${Math.abs(hash) % 360} 30% 26%)`;
+  }
 
   /**
    * Total browser storage this origin is using, against what it could use —
@@ -133,6 +240,27 @@
     <p class="message">{message}</p>
   {/if}
 
+  {#if entries.length > 0}
+    <div class="controls">
+      <SegmentedControl bind:value={mode} segments={MODES} label="Browse" />
+
+      <input
+        class="search"
+        type="search"
+        placeholder={mode === 'sets' ? 'Search your sets…' : 'Search your characters…'}
+        bind:value={search}
+        aria-label="Search your library"
+      />
+
+      {#if mode === 'characters'}
+        <label class="filter">
+          <span class="field-label">Role</span>
+          <Select bind:value={role} options={ROLES} />
+        </label>
+      {/if}
+    </div>
+  {/if}
+
   <div class="body scroll-y">
     {#if entries.length === 0}
       <EmptyState
@@ -147,9 +275,17 @@
           </Button>
         {/snippet}
       </EmptyState>
-    {:else}
+    {:else if mode === 'sets' && filteredSets.length === 0}
+      <p class="message">Nothing matches “{search.trim()}”.</p>
+    {:else if mode === 'characters' && filteredCharacters.length === 0}
+      <p class="message">
+        {search.trim() || role
+          ? `Nothing matches “${search.trim()}”.`
+          : 'No characters in any set yet.'}
+      </p>
+    {:else if mode === 'sets'}
       <ul class="grid">
-        {#each entries as entry (entry.id)}
+        {#each filteredSets as entry (entry.id)}
           <li class="card">
             <button type="button" class="open" onclick={() => void workshop.openSet(entry.id)}>
               <span class="card-title">{entry.name || 'Untitled Adventure'}</span>
@@ -214,6 +350,32 @@
                 </button>
               {/if}
             </div>
+          </li>
+        {/each}
+      </ul>
+    {:else}
+      <ul class="grid characters">
+        {#each filteredCharacters as character (character.setId + character.id)}
+          <li class="card character">
+            <button
+              type="button"
+              class="open"
+              onclick={() => void workshop.openCharacter(character.setId, character.id)}
+            >
+              <span class="avatar" style:background={tint(character.id)}>
+                {initials(character.name)}
+              </span>
+
+              <span class="character-body">
+                <span class="name-row">
+                  <span class="card-title character-title">{character.name}</span>
+                  <span class="role-badge" style:--role-tint={roleTint(character.role)}>
+                    {CHARACTER_ROLE_META[character.role].label}
+                  </span>
+                </span>
+                <span class="card-subtitle">In {character.setName}</span>
+              </span>
+            </button>
           </li>
         {/each}
       </ul>
@@ -296,6 +458,38 @@
     background: var(--surface-sunken);
   }
 
+  .controls {
+    display: flex;
+    align-items: flex-end;
+    gap: var(--space-4);
+    flex-wrap: wrap;
+    padding: var(--space-5) var(--space-9) 0;
+  }
+
+  .search {
+    flex: 1;
+    min-width: 200px;
+    height: 32px;
+    padding-inline: var(--space-3);
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-sm);
+    background: var(--surface-inset);
+    color: var(--text-primary);
+    font-size: var(--text-sm);
+  }
+
+  .filter {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    min-width: 140px;
+  }
+
+  .field-label {
+    font-size: var(--text-sm);
+    color: var(--text-muted);
+  }
+
   .body {
     flex: 1 1 auto;
     min-height: 0;
@@ -306,6 +500,12 @@
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
     gap: var(--space-4);
+  }
+
+  /* Character tiles are a plain row, so they need less width to read well
+     than a set tile's stacked name/subtitle/stats does. */
+  .grid.characters {
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
   }
 
   .card {
@@ -409,5 +609,59 @@
 
   .ghost.danger:hover {
     color: var(--danger);
+  }
+
+  /* A character tile: a row rather than the set tile's stack, since there is
+     no subtitle/stats block here wanting the full width to itself — a
+     picture-sized avatar beside the name reads faster than either stacked. */
+  .character .open {
+    flex-direction: row;
+    align-items: center;
+    gap: var(--space-3);
+    padding: var(--space-4);
+  }
+
+  .avatar {
+    display: grid;
+    place-items: center;
+    flex: none;
+    width: 44px;
+    height: 44px;
+    border-radius: var(--radius-full);
+    font-family: var(--card-font-name, sans-serif);
+    font-size: var(--text-sm);
+    letter-spacing: var(--tracking-wide);
+    color: rgb(255 255 255 / 0.75);
+  }
+
+  .character-body {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+  }
+
+  .name-row {
+    display: flex;
+    align-items: baseline;
+    gap: var(--space-2);
+    flex-wrap: wrap;
+  }
+
+  .character-title {
+    font-size: var(--text-sm);
+  }
+
+  .role-badge {
+    flex: none;
+    padding: 1px var(--space-2);
+    border-radius: var(--radius-full);
+    border: 1px solid var(--border-subtle);
+    font-size: var(--text-2xs);
+    font-weight: var(--weight-medium);
+    color: var(--role-tint);
+    border-color: var(--role-tint);
+    text-transform: uppercase;
+    letter-spacing: var(--tracking-wide);
   }
 </style>

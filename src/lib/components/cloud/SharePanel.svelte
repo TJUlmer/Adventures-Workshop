@@ -8,7 +8,6 @@
    * into the set the author is editing.
    */
   import { characterLabel } from '$lib/characters/factory';
-  import type { CharacterId } from '$lib/characters/types';
   import { auth } from '$lib/cloud/auth.svelte';
   import { cloudEnabled } from '$lib/cloud/config';
   import {
@@ -21,6 +20,7 @@
   } from '$lib/cloud/sets';
   import type { PublishedSet, Visibility } from '$lib/cloud/sets';
   import { charactersByRole } from '$lib/sets/queries';
+  import { parseScopeKey, scopeKeyOf } from '$lib/sets/scope';
   import type { PublishScope } from '$lib/sets/scope';
   import type { AdventureSet } from '$lib/sets/types';
   import { Button, Icon, Select, TextInput } from '$lib/ui';
@@ -46,11 +46,6 @@
   let copied = $state(false);
   let size = $state<{ assets: number; bytes: number } | null>(null);
   let changeNote = $state('');
-
-  /** A `PublishScope` as one string, for the `<select>` this drives. */
-  function scopeKeyOf(scope: PublishScope): string {
-    return scope.kind === 'hero' ? `hero:${scope.characterId}` : scope.kind;
-  }
 
   const heroes = $derived(charactersByRole(set, 'hero'));
   /* Villain-side content — the villain, its minions, the threat track, the
@@ -277,10 +272,7 @@
             value={scopeKeyOf(selectedScope)}
             options={scopeOptions}
             disabled={busy}
-            onchange={(key) => {
-              if (key === 'full' || key === 'villain') selectedScope = { kind: key };
-              else selectedScope = { kind: 'hero', characterId: key.slice(5) as CharacterId };
-            }}
+            onchange={(key) => (selectedScope = parseScopeKey(key))}
           />
         </label>
       {/if}

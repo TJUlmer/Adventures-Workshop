@@ -14,6 +14,7 @@
    * else's set is not a control at all. What is *drawn* is identical, which is
    * the point: a viewer sees the set, not a summary of it.
    */
+  import { untrack } from 'svelte';
   import { cardLabel } from '$lib/cards/factory';
   import type { Card } from '$lib/cards/types';
   import { CARD_TYPE_META, INITIATIVE_VARIANTS } from '$lib/cards/types';
@@ -223,7 +224,32 @@
     return out;
   });
 
-  let size = $state(150);
+  /*
+   * The zoom range and its starting point both depend on who is looking.
+   *
+   * The author's own workspace keeps the range this always had — 150 is
+   * comfortable for someone who opens this page repeatedly and already knows
+   * the cards. A visitor reading someone else's set from a share link is
+   * seeing it for the first time and wants everything legible immediately,
+   * with no slider to discover first — so that view starts at what used to
+   * be this control's own maximum, and the range is widened so that starting
+   * point lands in the *middle* of it rather than pinned to one end, letting
+   * a reader zoom in further on top of already being enlarged, or back down
+   * to compare more cards at once, in either direction from where they
+   * started rather than only one.
+   */
+  const ZOOM = $derived(
+    interactive ? { min: 110, max: 260, start: 150 } : { min: 110, max: 410, start: 260 }
+  );
+  /*
+   * `untrack` marks the one-time read as deliberate rather than a bug Svelte
+   * should warn about — `size` is meant to start from wherever `ZOOM.start`
+   * is *at creation* and then live independently as the reader's own choice,
+   * the same as it already did as a bare literal before `ZOOM` existed.
+   * `interactive` cannot change after a screen mounts one of these anyway,
+   * so there is nothing this would miss by not staying reactive.
+   */
+  let size = $state(untrack(() => ZOOM.start));
 </script>
 
 <div class="page scroll-y">
@@ -240,8 +266,8 @@
       <Icon name="search" size={12} />
       <input
         type="range"
-        min="110"
-        max="260"
+        min={ZOOM.min}
+        max={ZOOM.max}
         step="10"
         value={size}
         aria-label="Card size"

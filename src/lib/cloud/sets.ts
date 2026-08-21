@@ -768,6 +768,89 @@ export async function fetchAuthorName(ownerId: string): Promise<string> {
   }
 }
 
+/** One profile, for the header of its own page. Null if it does not exist. */
+export interface PublicProfile {
+  id: string;
+  display_name: string;
+  avatar_url: string;
+}
+
+/**
+ * A profile by id, for `AuthorProfileScreen`'s header — `fetchAuthorName`
+ * returns only the name, which is all a credit line needs; a page about the
+ * person also wants their picture.
+ */
+export async function fetchProfile(id: string): Promise<PublicProfile | null> {
+  try {
+    const rows = await request<PublicProfile[]>(
+      `/rest/v1/profiles?id=eq.${encodeURIComponent(id)}&select=id,display_name,avatar_url&limit=1`,
+      { anonymous: true }
+    );
+    return rows[0] ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Everything this person has published publicly — the whole set, and any
+ * hero or villain slice they published on its own.
+ *
+ * Reuses `GALLERY_COLUMNS`/`sets_public_read`, the same as `listPublicSets`:
+ * no `visibility` filter written here, the policy is what decides, and it is
+ * deliberately anonymous for the same reason every other public read here is
+ * — a stranger's profile page must not go blank because *this browser's own*
+ * session happens to have gone stale.
+ */
+export async function listPublicSetsByOwner(ownerId: string): Promise<GallerySet[]> {
+  return request<GallerySet[]>(
+    `/rest/v1/sets?select=${GALLERY_COLUMNS}&owner_id=eq.${encodeURIComponent(ownerId)}` +
+      `&order=${galleryOrder('newest')}`,
+    { anonymous: true }
+  );
+}
+
+/** Just enough of a set to draw a tile on the "contributed to" shelf. */
+export interface ContributedSet {
+  id: string;
+  slug: string;
+  name: string;
+  subtitle: string;
+  thumbnail_url: string;
+  cover_url: string;
+  cover_bleeds: boolean;
+  character_count: number;
+  card_count: number;
+  view_count: number;
+  published_at: string | null;
+  updated_at: string;
+  revision: number;
+}
+
+/**
+ * Every public set this person has helped build, through the
+ * `sets_contributed_by` function — `set_contributions` itself is readable
+ * only by the contributor or the set's owner, so a stranger's profile page
+ * needs the same `security definer` boundary `set_contributors` uses, just
+ * asked in the other direction. See `supabase/migrations/0008_author_profiles.sql`
+ * for why this is scoped to `visibility = 'public'` only, narrower than
+ * `set_contributors`'s own `'unlisted', 'public'`: that function is only ever
+ * called already holding a specific set's slug, where this is general
+ * discovery reachable from a stranger's name alone — listing an unlisted set
+ * here would hand out a working link to it.
+ */
+export async function fetchSetsContributedTo(contributorId: string): Promise<ContributedSet[]> {
+  try {
+    return await request<ContributedSet[]>('/rest/v1/rpc/sets_contributed_by', {
+      method: 'POST',
+      body: { contributor: contributorId },
+      anonymous: true
+    });
+  } catch {
+    return [];
+  }
+}
+
 /**
  * The state of a published set, without its document.
  *

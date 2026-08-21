@@ -474,7 +474,10 @@ function howToImport(
 
 The save refers to them by that full path, so it works as it stands — moving
 the folder anywhere else would break it. Leave it where it is.`;
-    installing = `  1. Move (or copy) that whole folder into:
+    installing = `In short: move the whole folder above — not just the .json inside it —
+into your Saved Objects folder. Nothing to unzip; it is already unpacked.
+
+  1. Move (or copy) that whole folder into:
      Documents/My Games/Tabletop Simulator/Saves/Saved Objects/
   2. In TTS: Objects → Saved Objects → spawn it once.
      Everything appears at once, laid out in a row.`;
@@ -498,7 +501,11 @@ the folder anywhere else would break it. Leave it where it is.`;
 — the Saved Objects folder set in the workshop's export panel — so nothing in
 this JSON needs editing. It only has to end up where the URLs already expect
 it, which is what "Installing it" below does.`;
-    installing = `  1. Extract this archive. Unzipping tools that create a folder named after
+    installing = `In short: unzip this archive, then copy the entire unzipped folder into
+your Saved Objects folder. Not the .zip itself, and not just the .json —
+the whole folder, models/sheets/map and all.
+
+  1. Extract this archive. Unzipping tools that create a folder named after
      the zip do the right thing here for free — this one is named
      "${root}", which is also the name the folder needs once it lands
      in step 2.
@@ -522,7 +529,11 @@ reads ${PLACEHOLDER_BASE}.
 Set your Saved Objects folder once in the export panel and every future
 export arrives with this already done — see "Running the workshop from its
 own dev server" below for the one case that needs neither.`;
-    installing = `  1. Once the JSON's URLs are fixed (above), make sure the folder holding
+    installing = `In short: unzip this archive, fix the URLs (above), then copy the entire
+unzipped folder into your Saved Objects folder — the whole thing, not just
+the .json.
+
+  1. Once the JSON's URLs are fixed (above), make sure the folder holding
      it — this one, "${root}" — is sitting directly inside Saved Objects.
      If you extracted it there already in step 1 above, it already is.
   2. In TTS: Objects → Saved Objects → spawn it once.

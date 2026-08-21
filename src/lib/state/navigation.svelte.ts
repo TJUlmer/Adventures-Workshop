@@ -73,8 +73,20 @@ export type View =
   /** The community gallery. Outside a set, like the library. */
   | { kind: 'gallery' }
   | { kind: 'set'; page: SetPage }
-  /** Someone else's published set, reached by a share link. */
-  | { kind: 'shared'; slug: string };
+  /**
+   * Someone else's published set, reached by a share link.
+   *
+   * `characterHint` is not part of the link — only `openShared`'s own URL
+   * writes are, unchanged — it is a same-navigation nudge for a visitor who
+   * clicked one specific character inside a box that has no listing of its
+   * own: `ExportPanel` reads it to default its scope picker to that hero
+   * instead of the whole set, without a screen the visitor did not ask for. A
+   * reload loses it, the same as it loses any other browse state that is not
+   * the address bar.
+   */
+  | { kind: 'shared'; slug: string; characterHint?: string }
+  /** Someone's public profile — what they have published, and helped build. */
+  | { kind: 'author'; id: string };
 
 /**
  * The one URL this app has.
@@ -129,6 +141,24 @@ class Navigation {
     this.view = { kind: 'gallery' };
   }
 
+  /**
+   * Someone's public profile, by their profile id.
+   *
+   * Plain state, like `openGallery` — not a URL, unlike `openShared`. Nobody
+   * has asked for a profile page to survive a paste the way a share link
+   * must, and giving every one an address-bar entry would mean solving the
+   * same unfurler problem `openShared`/`middleware.ts` solve for a second
+   * kind of link nobody requested yet.
+   */
+  openAuthor(id: string): void {
+    // Same "remember where this came from" as `openShared`, so the profile
+    // page's own back button has somewhere real to go — the gallery for a
+    // browsing visitor, the shared set they came from for anyone who followed
+    // a credit line, and so on.
+    if (this.view.kind !== 'author') this.#returnTo = this.view;
+    this.view = { kind: 'author', id };
+  }
+
   openSet(page: SetPage = 'home'): void {
     this.view = { kind: 'set', page };
   }
@@ -167,8 +197,11 @@ class Navigation {
    * `pushState` otherwise — the gallery, or a "Based on…" link to a
    * *different* shared set than the one already open — because that *is* a
    * fresh navigation and wants a fresh, back-button-reachable entry.
+   *
+   * `characterHint` — see `View`'s own doc — never touches any of the URL
+   * logic below; it rides along on `this.view` only.
    */
-  openShared(slug: string): void {
+  openShared(slug: string, characterHint?: string): void {
     /*
      * Remember where this was opened from, so leaving goes back there rather
      * than to a fixed screen. Someone who reached a set from the gallery is
@@ -177,7 +210,7 @@ class Navigation {
      * or re-entering a shared view from a shared view would overwrite it.
      */
     if (this.view.kind !== 'shared') this.#returnTo = this.view;
-    this.view = { kind: 'shared', slug };
+    this.view = { kind: 'shared', slug, characterHint };
 
     // Strips a stale `/shared/{otherSlug}` tail rather than assuming root, so
     // a sub-path deploy's own base path survives — same as `leaveShared`.

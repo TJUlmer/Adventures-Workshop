@@ -11,6 +11,8 @@
    *
    * The panel chrome is the caller's: this is the list, not the box round it.
    */
+  import { untrack } from 'svelte';
+  import { characterLabel } from '$lib/characters/factory';
   import {
     EXPORTERS,
     exportCardPngs,
@@ -19,9 +21,12 @@
     saveExport,
     tabletopDeckSummary
   } from '$lib/export';
+  import { charactersByRole } from '$lib/sets/queries';
+  import { computeScopedSet, parseScopeKey, scopeKeyOf } from '$lib/sets/scope';
+  import type { PublishScope } from '$lib/sets/scope';
   import type { AdventureSet } from '$lib/sets/types';
   import { readTtsSavedObjectsPath, writeTtsSavedObjectsPath } from '$lib/storage/settings';
-  import { Icon, TextInput } from '$lib/ui';
+  import { Icon, Select, TextInput } from '$lib/ui';
 
   interface Props {
     set: AdventureSet;
@@ -31,9 +36,43 @@
      * one may offer it.
      */
     onprint?: () => void;
+    /**
+     * The scope to default the picker to below — a visitor who arrived here by
+     * clicking one specific hero inside a box with no listing of its own
+     * (`SharedSetScreen`'s `characterHint`) gets that hero pre-selected rather
+     * than the whole set, without a separate screen. Defaults to the whole set
+     * everywhere else, `SetHome` included.
+     */
+    initialScope?: PublishScope;
   }
 
-  let { set, onprint }: Props = $props();
+  let { set, onprint, initialScope }: Props = $props();
+
+  /**
+   * Every export below reads from this, never from `set` directly — the one
+   * change that makes "export just this hero" apply everywhere at once
+   * instead of needing a scoped branch in each exporter. Reuses
+   * `sets/scope.ts`'s `computeScopedSet`, the same slice a scoped *publish*
+   * takes — the only difference is this one is computed on the visitor's own
+   * machine, from a set they already have the whole of, and thrown away
+   * rather than sent anywhere.
+   */
+  let scope = $state<PublishScope>(untrack(() => initialScope ?? { kind: 'full' }));
+  const scopedSet = $derived(computeScopedSet(set, scope));
+
+  const heroes = $derived(charactersByRole(set, 'hero'));
+  /* Villain-side content is one bundle and never split further — same
+     reasoning as `SharePanel`'s own `hasVillainSide`. */
+  const hasVillainSide = $derived(
+    charactersByRole(set, 'villain').length > 0 || charactersByRole(set, 'minion').length > 0
+  );
+  /* Only worth offering once there is something to slice — a set with one
+     hero and no villain has nothing a picker would do. */
+  const scopeOptions = $derived([
+    { value: 'full', label: 'Whole set' },
+    ...heroes.map((hero) => ({ value: `hero:${hero.id}`, label: characterLabel(hero) })),
+    ...(hasVillainSide ? [{ value: 'villain', label: 'Villain side' }] : [])
+  ]);
 
   let message = $state<string | null>(null);
 
@@ -46,7 +85,7 @@
     const exporter = getExporter(id);
     if (!exporter) return;
     try {
-      saveExport(await exporter.run(set));
+      saveExport(await exporter.run(scopedSet));
       flash(`Exported ${exporter.label}.`);
     } catch (error) {
       flash(error instanceof Error ? error.message : 'Export failed.');
@@ -65,7 +104,7 @@
     if (pngProgress !== null) return;
     pngProgress = 'Rendering…';
     try {
-      const result = await exportCardPngs(set, {
+      const result = await exportCardPngs(scopedSet, {
         bleed: pngBleed,
         onProgress: (done, total) => (pngProgress = `Rendering ${done} of ${total}…`)
       });
@@ -83,7 +122,7 @@
    * `EXPORTERS` because it does not produce a file — it produces a folder, and
    * where that folder went is the thing the author most needs told.
    */
-  const ttsPiles = $derived(tabletopDeckSummary(set));
+  const ttsPiles = $derived(tabletopDeckSummary(scopedSet));
 
   let ttsProgress = $state<string | null>(null);
   let ttsResult = $state<{
@@ -116,7 +155,7 @@
     ttsProgress = 'Rendering…';
     ttsResult = null;
     try {
-      const result = await exportTabletopSimulator(set, {
+      const result = await exportTabletopSimulator(scopedSet, {
         savedObjectsPath,
         onProgress: (done, total, label) => (ttsProgress = `${label} — ${done} of ${total}…`)
       });
@@ -141,6 +180,29 @@
 </script>
 
 <div class="exports">
+  <!--
+    Only worth showing once there is an actual choice to make — a set with one
+    hero and no villain has nothing a picker would do, same reasoning as
+    `SharePanel`'s own scope picker. Every export below reads `scopedSet`, so
+    changing this changes what all four buttons produce at once.
+  -->
+  {#if scopeOptions.length > 1}
+    <label class="scope">
+      <span class="scope-label">Export</span>
+      <Select
+        value={scopeKeyOf(scope)}
+        options={scopeOptions}
+        onchange={(key) => (scope = parseScopeKey(key))}
+      />
+      {#if scope.kind !== 'full'}
+        <span class="scope-hint">
+          Just {scopeOptions.find((option) => option.value === scopeKeyOf(scope))?.label} —
+          not the rest of {set.name || 'this set'}.
+        </span>
+      {/if}
+    </label>
+  {/if}
+
   <!--
     One PNG per card, foldered by what it is. Bleed is the printer's question,
     not the card's, so it sits with the button rather than being two
@@ -179,6 +241,18 @@
         </span>
       </span>
     </button>
+
+    <!--
+      The one sentence someone needs before TTS will actually show this: not
+      "unzip and read the JSON", not "unzip and copy the .json somewhere" —
+      the whole folder, wherever it lands. Said plainly, right under the
+      button, rather than left for `HOW_TO_IMPORT.txt` to be the only place
+      it appears — that file only gets opened by someone already stuck.
+    -->
+    <p class="tts-note">
+      After exporting: unzip the folder, then copy the <strong>entire unzipped
+      folder</strong> into your Tabletop Simulator Saved Objects folder.
+    </p>
 
     <!--
       Typed once, remembered from then on. This is what lets an export's JSON
@@ -265,6 +339,27 @@
     gap: var(--space-1);
   }
 
+  .scope {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    padding: var(--space-2);
+    padding-bottom: var(--space-3);
+    margin-bottom: var(--space-1);
+    border-bottom: 1px solid var(--border-subtle);
+  }
+
+  .scope-label {
+    font-size: var(--text-2xs);
+    color: var(--text-tertiary);
+  }
+
+  .scope-hint {
+    font-size: var(--text-2xs);
+    line-height: var(--leading-normal);
+    color: var(--text-muted);
+  }
+
   /* The bleed choice belongs to the button above it, so they share a box. */
   .bundle {
     display: flex;
@@ -292,6 +387,19 @@
   .bleed:has(input:disabled) {
     opacity: 0.5;
     cursor: default;
+  }
+
+  .tts-note {
+    margin: 0;
+    padding: var(--space-2);
+    font-size: var(--text-2xs);
+    line-height: var(--leading-normal);
+    color: var(--text-muted);
+  }
+
+  .tts-note strong {
+    color: var(--text-default);
+    font-weight: var(--weight-semibold);
   }
 
   .saved-objects {

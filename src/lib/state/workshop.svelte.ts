@@ -261,6 +261,20 @@ export class WorkshopStore {
     return true;
   }
 
+  /**
+   * Open a set and land straight on one of its characters, rather than on
+   * Home — the library's "browse by character" list exists so an author who
+   * remembers a character but not which box they are in can jump straight to
+   * editing them, and landing on Home would mean one more click to get there
+   * anyway. `selectCharacter` already navigates to the editor on its own, so
+   * this only has to sequence the two.
+   */
+  async openCharacter(setId: SetId, characterId: CharacterId): Promise<boolean> {
+    const opened = await this.openSet(setId);
+    if (opened) this.selectCharacter(characterId);
+    return opened;
+  }
+
   async closeSet(): Promise<void> {
     await this.refreshLibrary();
     await rememberLastOpen(null);

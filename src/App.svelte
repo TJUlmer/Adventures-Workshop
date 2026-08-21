@@ -13,6 +13,7 @@
   import StatusBar from '$lib/components/layout/StatusBar.svelte';
   import TitleBar from '$lib/components/layout/TitleBar.svelte';
   import ContributionsScreen from '$lib/components/cloud/ContributionsScreen.svelte';
+  import AuthorProfileScreen from '$lib/components/cloud/AuthorProfileScreen.svelte';
   import GalleryScreen from '$lib/components/cloud/GalleryScreen.svelte';
   import SharedSetScreen from '$lib/components/cloud/SharedSetScreen.svelte';
   import LibraryScreen from '$lib/components/library/LibraryScreen.svelte';
@@ -127,9 +128,11 @@
       they have not entered a workshop yet. Chrome for a set they do not have
       would be answering a question they have not asked.
     -->
-    <SharedSetScreen slug={navigation.view.slug} />
+    <SharedSetScreen slug={navigation.view.slug} characterHint={navigation.view.characterHint} />
   {:else if navigation.view.kind === 'gallery'}
     <GalleryScreen />
+  {:else if navigation.view.kind === 'author'}
+    <AuthorProfileScreen id={navigation.view.id} />
   {:else if navigation.view.kind === 'library'}
     <LibraryScreen />
   {:else if currentPage === 'print'}
