@@ -7,11 +7,21 @@
  * that decides whether any of it is any use.
  *
  * A TTS save refers to its art by URL and will not read a data URI, so an
- * export is only finished once the images have an address. Where there is a dev
- * server there is an `exports/` folder and an absolute `file://` URL to go with
- * it, and the save comes out complete. Where there is not, the same files come
- * out as an archive with the URLs left as a marked blank — honest about the one
- * thing that cannot be derived rather than guessing at it.
+ * export is only finished once the images have an address — and there are
+ * three ways that happens, tried in this order:
+ *
+ *   1. A dev server, which can both write the files to a real folder *and*
+ *      answer with its own path — the save comes out complete, on disk.
+ *   2. No dev server, but `TtsBundleOptions.savedObjectsPath` is set: the
+ *      files still only go out as an archive, but every URL in the JSON is
+ *      already the real `file://` address they will have once that archive
+ *      is extracted into the folder the author typed in — see
+ *      `fileUrlFromPath` and `storage/settings.ts`. This is what makes the
+ *      "no editing" outcome reachable from a deployed build, in any browser,
+ *      with nothing for the browser itself to support.
+ *   3. Neither: the same archive, with the URLs left as a marked blank —
+ *      honest about the one thing that cannot be derived rather than
+ *      guessing at it.
  */
 import { characterLabel } from '$lib/characters/factory';
 import { figureLabel, tokenSpecOf } from '$lib/figures/types';
@@ -55,6 +65,61 @@ interface OutputFile {
 export interface TtsBundleOptions {
   /** Called as images are drawn, so a long export can say where it has got to. */
   onProgress?: (done: number, total: number, label: string) => void;
+  /**
+   * This machine's Tabletop Simulator Saved Objects folder, typed in once by
+   * the author and remembered — see `storage/settings.ts`.
+   *
+   * The dev-server folder (below) still wins when both are available: it
+   * writes the files to disk itself, where this can only ever address a
+   * folder the author is going to put them in by hand. But it needs a real
+   * server behind the page, which a deployed build never has — this is what
+   * lets the very same "no placeholder to paste" outcome reach someone using
+   * the hosted app, in any browser, with nothing new the browser has to
+   * support.
+   */
+  savedObjectsPath?: string;
+}
+
+/**
+ * A filesystem path, as a `file://` URL — the same shape `pathToFileURL`
+ * gives the dev-server route, built by hand because there is no filesystem
+ * API to ask in a browser.
+ *
+ * Two things this has to get right, both because the one path this exists
+ * for is guaranteed to hit them: Tabletop Simulator's own Saved Objects
+ * folder always has a space in it ("My Games"), and on Windows it starts
+ * with a drive letter rather than a leading slash. `encodeURI` (not
+ * `encodeURIComponent`) is what handles the first — it leaves `:` and `/`
+ * alone and escapes only what is actually unsafe in a URL, where escaping
+ * every segment individually would turn `C:` into `C%3A` and break the drive
+ * letter. The second is why a bare leading slash is added before encoding
+ * when the path does not already have one: `file://` plus a Windows path
+ * gives the correct three slashes before the drive letter (`file:///C:/…`),
+ * and `file://` plus a Unix path that already starts with `/` gives the
+ * same three without doubling up (`file:///Users/…`).
+ */
+/**
+ * A path exactly as the author typed it, minus one trailing slash or
+ * backslash — the form every other piece of text here builds on, so that a
+ * path copied from a file manager (which may or may not end in one) reads
+ * the same in the instructions whichever way it arrived.
+ *
+ * `fileUrlFromPath` and `howToImport`'s prose both go through this rather
+ * than each stripping the slash their own way, which is what a first pass at
+ * this got wrong: the *URL* trimmed it and came out correct while the
+ * *sentence beside it* concatenated the untrimmed path straight onto `root`,
+ * printing a doubled backslash the moment someone's path happened to end in
+ * one — invisible in testing with a path that did not, and wrong the first
+ * time a real one did.
+ */
+function trimTrailingSlash(raw: string): string {
+  return raw.trim().replace(/[/\\]+$/, '');
+}
+
+function fileUrlFromPath(raw: string): string {
+  const normalized = trimTrailingSlash(raw).replace(/\\/g, '/');
+  const rooted = normalized.startsWith('/') ? normalized : `/${normalized}`;
+  return `file://${encodeURI(rooted)}`;
 }
 
 export interface TtsBundleResult {
@@ -336,7 +401,25 @@ async function componentFor(
   ];
 }
 
-function howToImport(set: AdventureSet, root: string, directory: string | null): string {
+/**
+ * Where the images ended up, and what is still owed before TTS can read
+ * them — one of three states, in the order they are preferred.
+ *
+ *  1. `directory` — a dev server wrote the files for real, to a real path on
+ *     disk. Nothing about the images is left to do.
+ *  2. `savedObjectsPath` — no dev server, but the author has told the
+ *     workshop where their Saved Objects folder is (see
+ *     `storage/settings.ts`), so the URLs baked into the JSON already point
+ *     there. The archive still has to be extracted and placed, but nothing
+ *     in it has to be *edited*.
+ *  3. Neither — every URL reads `PASTE_THE_FOLDER_URL_HERE`, exactly as
+ *     before this existed.
+ */
+function howToImport(
+  set: AdventureSet,
+  root: string,
+  info: { directory: string | null; savedObjectsPath: string | null }
+): string {
   const decks = planTabletopDecks(set);
   const piles = decks
     .map((plan) => {
@@ -345,23 +428,81 @@ function howToImport(set: AdventureSet, root: string, directory: string | null):
     })
     .join('\n');
 
-  const placement = directory
-    ? `The files are already on disk, here:
+  /*
+   * One rule regardless of which of the three states applies, and it is
+   * worth having only one: **the whole `${root}` folder — the .json beside
+   * models/, sheets/ and the rest — belongs inside Saved Objects, not just
+   * the .json on its own.** Every image in it is addressed relative to that
+   * folder, so splitting it up (say, leaving the pictures wherever a zip
+   * happened to land while only the .json moves) works only for as long as
+   * that other location is never tidied, renamed or cleared — which
+   * Downloads folders do not reliably promise. One habit, always right, is
+   * easier to keep than "it depends which export path you happened to get."
+   */
+  let placement: string;
+  let installing: string;
 
-  ${directory}
+  if (info.directory) {
+    placement = `The files are already on disk, here:
 
-The save refers to them by their full path, so it works as it stands. Leave
-this folder where it is, or move it and re-export — the paths are baked in.`
-    : `The images have no address yet, so every FaceURL and BackURL in the JSON
+  ${info.directory}
+
+The save refers to them by that full path, so it works as it stands — moving
+the folder anywhere else would break it. Leave it where it is.`;
+    installing = `  1. Move (or copy) that whole folder into:
+     Documents/My Games/Tabletop Simulator/Saves/Saved Objects/
+  2. In TTS: Objects → Saved Objects → spawn it once.
+     Everything appears at once, laid out in a row.`;
+  } else if (info.savedObjectsPath) {
+    /*
+     * Trimmed once, here, and read from nowhere else — every mention of this
+     * path below (and the URL `base` computed from the same raw setting up
+     * in `exportTabletopSimulator`) has to agree on where it ends, or a path
+     * that happened to arrive with a trailing separator prints one sentence
+     * that is right and another sitting right next to it that is not.
+     */
+    const savedObjectsPath = trimTrailingSlash(info.savedObjectsPath);
+    // Whichever kind of slash is already in the typed path, rather than
+    // assuming Windows — the app is not.
+    const slash = savedObjectsPath.includes('\\') ? '\\' : '/';
+
+    placement = `Every FaceURL and BackURL already points at:
+
+  ${savedObjectsPath}${slash}${root}
+
+— the Saved Objects folder set in the workshop's export panel — so nothing in
+this JSON needs editing. It only has to end up where the URLs already expect
+it, which is what "Installing it" below does.`;
+    installing = `  1. Extract this archive. Unzipping tools that create a folder named after
+     the zip do the right thing here for free — this one is named
+     "${root}", which is also the name the folder needs once it lands
+     in step 2.
+  2. Put that folder — the one holding the .json, not the .zip itself —
+     directly inside:
+     ${savedObjectsPath}
+  3. In TTS: Objects → Saved Objects → spawn it once.
+     Everything appears at once, laid out in a row.`;
+  } else {
+    placement = `The images have no address yet, so every FaceURL and BackURL in the JSON
 reads ${PLACEHOLDER_BASE}.
 
-  1. Unpack this archive somewhere it can stay.
-  2. Replace ${PLACEHOLDER_BASE} throughout the JSON with the
-     folder's own URL — "file:///C:/path/to/${root}" for a local copy, or an
-     https:// address if you have hosted it. One find-and-replace does it.
+  1. Decide where this is going to live — most simply, straight inside your
+     Saved Objects folder (Documents/My Games/Tabletop Simulator/Saves/
+     Saved Objects/) — and extract this archive there.
+  2. Replace ${PLACEHOLDER_BASE} throughout the JSON with that folder's own
+     "file:///" address, e.g. "file:///C:/Users/you/Documents/My Games/
+     Tabletop Simulator/Saves/Saved Objects/${root}". One find-and-replace
+     does it.
 
-Running the workshop from its own dev server skips all of this: it writes the
-files into "exports/" and fills the URLs in for you.`;
+Set your Saved Objects folder once in the export panel and every future
+export arrives with this already done — see "Running the workshop from its
+own dev server" below for the one case that needs neither.`;
+    installing = `  1. Once the JSON's URLs are fixed (above), make sure the folder holding
+     it — this one, "${root}" — is sitting directly inside Saved Objects.
+     If you extracted it there already in step 1 above, it already is.
+  2. In TTS: Objects → Saved Objects → spawn it once.
+     Everything appears at once, laid out in a row.`;
+  }
 
   return `Tabletop Simulator import — ${set.name}
 ${'='.repeat(30 + set.name.length)}
@@ -392,10 +533,14 @@ ${placement}
 
 Installing it
 -------------
-  1. Copy the .json into:
-     Documents/My Games/Tabletop Simulator/Saves/Saved Objects/
-  2. In TTS: Objects → Saved Objects → spawn it once.
-     Everything appears at once, laid out in a row.
+${installing}
+
+Running the workshop from its own dev server
+----------------------------------------------
+"npm run dev", then open the app at the address it prints instead of wherever
+you normally do. While that page is open, an export writes straight to a real
+folder on disk and needs neither the Saved Objects setting above nor any
+editing — see the app's own README for what a dev server is, if that is new.
 
 Notes
 -----
@@ -414,7 +559,16 @@ export async function exportTabletopSimulator(
 ): Promise<TtsBundleResult> {
   const folder = await findExportsFolder();
   const root = `${slugify(set.name, 'adventure-set')}-tts`;
-  const base = folder ? `${folder.url}/${root}` : PLACEHOLDER_BASE;
+  const savedObjectsPath = options.savedObjectsPath?.trim() || null;
+
+  /* The dev server, when there is one, wins — it writes the files for real
+     rather than only addressing a folder the author has to put them in by
+     hand. See `TtsBundleOptions.savedObjectsPath`. */
+  const base = folder
+    ? `${folder.url}/${root}`
+    : savedObjectsPath
+      ? `${fileUrlFromPath(savedObjectsPath)}/${root}`
+      : PLACEHOLDER_BASE;
   const urlFor = (path: string): string => `${base}/${path}`;
 
   const files: OutputFile[] = [];
@@ -536,7 +690,7 @@ export async function exportTabletopSimulator(
   const directory = folder ? `${folder.directory}\\${root}` : null;
   files.push({
     path: 'HOW_TO_IMPORT.txt',
-    bytes: encoder.encode(howToImport(set, root, directory))
+    bytes: encoder.encode(howToImport(set, root, { directory, savedObjectsPath }))
   });
 
   if (folder) {
@@ -557,7 +711,21 @@ export async function exportTabletopSimulator(
     download: {
       filename: `${root}.zip`,
       mimeType: 'application/zip',
-      blob: createZip(files.map((file) => ({ path: `${root}/${file.path}`, bytes: file.bytes })))
+      /*
+       * No `${root}/` prefix on the entries, deliberately — the archive's own
+       * *name* already is `${root}.zip`, and an unzip tool that creates a
+       * folder to extract into (Windows' "Extract All", macOS's Archive
+       * Utility — the default on both platforms) names that folder after the
+       * archive. Entries also prefixed with the same name would double it:
+       * `${root}/${root}/…`, one folder for the tool's own wrapping and one
+       * baked into the zip, indistinguishable from each other and both
+       * carrying the very folder name the import instructions tell someone
+       * to look for — which is exactly the "off by one level" this produced
+       * before. Writing entries at the zip's own root means the *one*
+       * wrapping folder most tools create for free is already correctly
+       * named and already holds everything at the right depth.
+       */
+      blob: createZip(files)
     },
     fileCount: files.length,
     warnings

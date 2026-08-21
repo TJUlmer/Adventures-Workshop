@@ -20,7 +20,8 @@
     tabletopDeckSummary
   } from '$lib/export';
   import type { AdventureSet } from '$lib/sets/types';
-  import { Icon } from '$lib/ui';
+  import { readTtsSavedObjectsPath, writeTtsSavedObjectsPath } from '$lib/storage/settings';
+  import { Icon, TextInput } from '$lib/ui';
 
   interface Props {
     set: AdventureSet;
@@ -91,12 +92,32 @@
     warnings: string[];
   } | null>(null);
 
+  /**
+   * This machine's Tabletop Simulator Saved Objects folder — typed in once,
+   * remembered in `storage/settings.ts`, and read back here on mount the same
+   * way `LibraryScreen` reads its storage estimate: fired off rather than
+   * awaited, since there is nothing useful to show before it resolves.
+   *
+   * Read from a browser page rather than asked of the operating system,
+   * because there is no way to ask the operating system — see
+   * `tts-bundle.ts`'s `TtsBundleOptions.savedObjectsPath` for what this
+   * actually buys: every export's JSON arrives with real `file://` image
+   * addresses already in it, in any browser, with no dev server involved.
+   */
+  let savedObjectsPath = $state('');
+  void readTtsSavedObjectsPath().then((value) => (savedObjectsPath = value));
+
+  function saveSavedObjectsPath(): void {
+    void writeTtsSavedObjectsPath(savedObjectsPath);
+  }
+
   async function exportTts(): Promise<void> {
     if (ttsProgress !== null) return;
     ttsProgress = 'Rendering…';
     ttsResult = null;
     try {
       const result = await exportTabletopSimulator(set, {
+        savedObjectsPath,
         onProgress: (done, total, label) => (ttsProgress = `${label} — ${done} of ${total}…`)
       });
 
@@ -158,6 +179,27 @@
         </span>
       </span>
     </button>
+
+    <!--
+      Typed once, remembered from then on. This is what lets an export's JSON
+      arrive with real image addresses already in it on a plain deployed page
+      with no dev server behind it — the same outcome `HOW_TO_IMPORT.txt`
+      describes for that dev-server case, reached a different way. Left blank,
+      nothing about the export changes from how it already behaved.
+    -->
+    <label class="saved-objects">
+      <span class="saved-objects-label">Tabletop Simulator Saved Objects folder</span>
+      <TextInput
+        bind:value={savedObjectsPath}
+        onchange={saveSavedObjectsPath}
+        placeholder="C:\Users\you\Documents\My Games\Tabletop Simulator\Saves\Saved Objects"
+      />
+      <span class="saved-objects-hint">
+        Set this once and every export's images already point here — no editing
+        the JSON by hand. Find it by opening that folder in File Explorer or
+        Finder and copying the path from its address bar.
+      </span>
+    </label>
 
     {#if ttsResult}
       {#if ttsResult.directory}
@@ -250,6 +292,24 @@
   .bleed:has(input:disabled) {
     opacity: 0.5;
     cursor: default;
+  }
+
+  .saved-objects {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    padding: var(--space-2) var(--space-2) 0;
+  }
+
+  .saved-objects-label {
+    font-size: var(--text-2xs);
+    color: var(--text-tertiary);
+  }
+
+  .saved-objects-hint {
+    font-size: var(--text-2xs);
+    line-height: var(--leading-normal);
+    color: var(--text-muted);
   }
 
   /* Where the export landed, and anything it could not take with it. */
