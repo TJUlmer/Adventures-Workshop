@@ -340,7 +340,7 @@ export async function exportCardPngs(
       if (blob) {
         folders.add(job.folder);
         entries.push({
-          path: `${root}/${uniquePath(taken, job.folder, job.name)}`,
+          path: uniquePath(taken, job.folder, job.name),
           bytes: await toBytes(blob)
         });
       }
@@ -354,7 +354,7 @@ export async function exportCardPngs(
     if (board) {
       folders.add(FOLDERS.threat);
       entries.push({
-        path: `${root}/${FOLDERS.threat}/${slugify(set.name, 'adventure-set')}-threat-track.png`,
+        path: `${FOLDERS.threat}/${slugify(set.name, 'adventure-set')}-threat-track.png`,
         bytes: await toBytes(board)
       });
     }
@@ -362,16 +362,28 @@ export async function exportCardPngs(
 
   const figures = await figureEntries(set, taken);
   if (figures.length > 0) folders.add(FOLDERS.components);
-  entries.push(...figures.map((entry) => ({ ...entry, path: `${root}/${entry.path}` })));
+  entries.push(...figures);
 
   entries.push({
-    path: `${root}/README.txt`,
+    path: 'README.txt',
     bytes: new TextEncoder().encode(readme(set, options, folders))
   });
 
   return {
     filename: `${root}-cards.zip`,
     mimeType: 'application/zip',
+    /*
+     * No `${root}/` prefix on the entries — see the identical fix and the
+     * reasoning behind it in `tts-bundle.ts`'s own `exportTabletopSimulator`.
+     * This archive had the milder version of that bug: its filename is
+     * `${root}-cards.zip` while its entries were prefixed with the plain
+     * `${root}/`, two different names rather than one doubled — but a tool
+     * that creates a folder named after the archive (Windows' "Extract All",
+     * macOS's Archive Utility, both by default) still lands the contents one
+     * level deeper than intended either way. Entries at the zip's own root
+     * mean the one wrapping folder such a tool creates for free is already
+     * the only level there is.
+     */
     blob: createZip(entries)
   };
 }
