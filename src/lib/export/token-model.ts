@@ -7,15 +7,15 @@
  */
 import { HEALTH_DIAL_RIM } from '$lib/figures/health-dial';
 import type { Figure } from '$lib/figures/types';
-import { figureLabel, tokenSpecOf } from '$lib/figures/types';
+import { figureLabel, generatedTokenSpec, tokenSpecOf } from '$lib/figures/types';
 import {
   buildTokenMesh,
   MM_PER_TTS_UNIT,
-  TOKEN_TEXTURE_RATIO,
+  tokenArtLayout,
   tokenMtl,
   tokenObj
 } from '$lib/models/token';
-import type { TokenSpec } from '$lib/models/token';
+import type { TokenArtLayout, TokenSpec } from '$lib/models/token';
 import { slugify } from './json';
 import type { ExportResult } from './types';
 import { createZip } from './zip';
@@ -38,26 +38,32 @@ async function encodePng(canvas: HTMLCanvasElement): Promise<Blob> {
 }
 
 /**
- * The texture: a square of artwork over a strip of rim colour.
+ * The texture: the artwork over a strip of rim colour.
  *
- * The art region is square because that is the shape the token's face samples
- * — see `TOKEN_TEXTURE_RATIO`. The art is drawn to *fit* it rather than to fill
- * it, so a picture that is not square keeps its proportions and sits on the
- * rim colour rather than being cropped before the token's own shape gets to it.
+ * The art region takes the **piece's own shape**, not a square — see
+ * `tokenArtLayout`, which decides it, and `faceGeometry`'s `artExtent`, which
+ * is the mesh half of the same decision. A square region is what made a
+ * rectangular piece band its long axis with rim colour that no `lengthMm`
+ * could trim away.
+ *
+ * The art is drawn to *fit* that region rather than to fill it, so a picture
+ * whose aspect differs from the piece's keeps its proportions and sits on the
+ * rim colour rather than being cropped before the token's own outline gets to
+ * it. Match the picture's aspect with the piece's and it reaches every edge.
  *
  * `zoom` scales up from that fit baseline — 1 reproduces the fit exactly, so
  * an untouched `Artwork` (the common case, and every document saved before
  * this existed) looks exactly as it always has. It only ever *enlarges*
  * proportionally from there, never stretches one axis — `figures/types.ts`'s
  * `Figure.reference.transform.scale` is what an author actually turns, and it
- * has no separate X/Y to stretch with. Clipped to the art square: past 1 the
- * scaled image overflows the square it used to always fit inside, and without
+ * has no separate X/Y to stretch with. Clipped to the art region: past 1 the
+ * scaled image overflows the region it used to always fit inside, and without
  * the clip it would bleed into the rim strip below.
  */
 export async function buildTokenTexture(
   source: string,
   rimColor: string,
-  size = 1024,
+  layout: TokenArtLayout,
   zoom = 1
 ): Promise<Blob> {
   /*
@@ -68,76 +74,80 @@ export async function buildTokenTexture(
   const image = await loadImage(source);
 
   const canvas = document.createElement('canvas');
-  canvas.width = size;
-  canvas.height = Math.round(size * TOKEN_TEXTURE_RATIO);
+  canvas.width = layout.canvasWidth;
+  canvas.height = layout.canvasHeight;
   const context = canvas.getContext('2d');
   if (!context) throw new Error('Could not get a drawing context.');
 
-  // The rim fills everything; the art is laid over the square at the top.
+  // The rim fills everything; the art is laid over the region at the top.
   context.fillStyle = rimColor;
   context.fillRect(0, 0, canvas.width, canvas.height);
 
-  const fitScale = Math.min(size / image.width, size / image.height);
+  const fitScale = Math.min(layout.artWidth / image.width, layout.artHeight / image.height);
   const scale = fitScale * Math.max(0.2, zoom);
   const width = image.width * scale;
   const height = image.height * scale;
 
   context.save();
   context.beginPath();
-  context.rect(0, 0, size, size);
+  context.rect(0, 0, layout.artWidth, layout.artHeight);
   context.clip();
-  context.drawImage(image, (size - width) / 2, (size - height) / 2, width, height);
+  context.drawImage(
+    image,
+    (layout.artWidth - width) / 2,
+    (layout.artHeight - height) / 2,
+    width,
+    height
+  );
   context.restore();
 
   return encodePng(canvas);
 }
 
 /**
- * The two-sided texture: the supplied image laid into a 2:1 canvas, front |
- * back.
+ * The two-sided texture: the supplied image laid into two face-shaped
+ * regions side by side, front | back.
  *
- * The mesh maps the top face into the left half and the bottom into the right
- * (see `buildTokenMesh`), each half a pixel-square the token's circle inscribes.
- * Recommended prep is exactly this: two squares side by side, front on the
- * left, back on the right (see `FiguresPanel`'s own note and the supplied
- * .psd) — an image already laid out that way is already 2:1, each half
- * already square, and this leaves it untouched.
+ * The mesh maps the top face into the left region and the bottom into the
+ * right (see `buildTokenMesh`); `tokenArtLayout` gives each region the
+ * piece's own aspect, so on a round or square piece this is the two-squares
+ * layout the supplied .psd shows, and on a rectangular one it is two
+ * rectangles of that shape.
  *
  * Whatever the source's own shape, it is split into a left half and a right
  * half *first* — matching what the mesh does with the finished texture — and
- * each half is fitted into its own square independently, never stretched.
+ * each half is fitted into its own region independently, never stretched.
  * Two things went through here before landing on that:
  *
- * 1. Stretching the whole source to force-fill the 2:1 canvas, unconditionally
- *    — fine for an already-2:1 image, but a single square photo (the common
- *    case for anyone who has not composed a dual front/back image) came out
- *    squashed to twice its width.
- * 2. Fitting the whole source into the 2:1 canvas *as one piece*, centred —
- *    no longer stretched, but a single photo is not 2:1, so the fitted image
- *    straddled the seam: the mesh's own left-half/right-half sampling then
- *    put one half of the photo on the front face and the other half on the
- *    back, rather than the same whole photo on both.
+ * 1. Stretching the whole source to force-fill the canvas, unconditionally
+ *    — fine for an image already laid out two-up, but a single square photo
+ *    (the common case for anyone who has not composed a dual front/back
+ *    image) came out squashed to twice its width.
+ * 2. Fitting the whole source into the canvas *as one piece*, centred — no
+ *    longer stretched, but a single photo does not span both regions, so the
+ *    fitted image straddled the seam: the mesh's own left-half/right-half
+ *    sampling then put one half of the photo on the front face and the other
+ *    half on the back, rather than the same whole photo on both.
  *
- * Splitting first and fitting each half on its own is what a genuine 2:1
- * composition already looks like — two squares — so treating every source
- * this way costs a real dual composition nothing (each half is already
- * square, fits at scale 1, passes through unchanged) while giving a single
- * un-prepared photo a face that shows only half of it, undistorted rather
- * than warped. A whole, undistorted copy on *both* faces is what turning
- * `twoSided` off already does — this is for a piece whose front and back are
- * genuinely meant to differ.
+ * Splitting first and fitting each half on its own is what a genuine two-up
+ * composition already looks like, so treating every source this way costs a
+ * real dual composition nothing (each half already matches its region, fits
+ * at scale 1, passes through unchanged) while giving a single un-prepared
+ * photo a face that shows only half of it, undistorted rather than warped. A
+ * whole, undistorted copy on *both* faces is what turning `twoSided` off
+ * already does — this is for a piece whose front and back genuinely differ.
  */
 export async function buildTwoSidedTexture(
   source: string,
-  size = 1024,
+  layout: TokenArtLayout,
   background = '#000000',
   zoom = 1
 ): Promise<Blob> {
   const image = await loadImage(source);
 
   const canvas = document.createElement('canvas');
-  canvas.width = size * 2;
-  canvas.height = size;
+  canvas.width = layout.canvasWidth;
+  canvas.height = layout.canvasHeight;
   const context = canvas.getContext('2d');
   if (!context) throw new Error('Could not get a drawing context.');
 
@@ -149,7 +159,7 @@ export async function buildTwoSidedTexture(
   // end up at the same zoom rather than each fitting independently to
   // whatever its own half happens to contain.
   const halfWidth = image.width / 2;
-  const fitScale = Math.min(size / halfWidth, size / image.height);
+  const fitScale = Math.min(layout.artWidth / halfWidth, layout.artHeight / image.height);
   const scale = fitScale * Math.max(0.2, zoom);
   const width = halfWidth * scale;
   const height = image.height * scale;
@@ -157,7 +167,7 @@ export async function buildTwoSidedTexture(
   const drawHalf = (sourceX: number, destX: number): void => {
     context.save();
     context.beginPath();
-    context.rect(destX, 0, size, size);
+    context.rect(destX, 0, layout.artWidth, layout.artHeight);
     context.clip();
     context.drawImage(
       image,
@@ -165,16 +175,16 @@ export async function buildTwoSidedTexture(
       0,
       halfWidth,
       image.height,
-      destX + (size - width) / 2,
-      (size - height) / 2,
+      destX + (layout.artWidth - width) / 2,
+      (layout.artHeight - height) / 2,
       width,
       height
     );
     context.restore();
   };
 
-  drawHalf(0, 0); // Left half of the source -> the front (left) square.
-  drawHalf(halfWidth, size); // Right half -> the back (right) square.
+  drawHalf(0, 0); // Left half of the source -> the front (left) region.
+  drawHalf(halfWidth, layout.artWidth); // Right half -> the back (right) region.
 
   return encodePng(canvas);
 }
@@ -189,10 +199,10 @@ export async function buildTwoSidedTexture(
  * where it lands. "Add a token, pick a colour, export" is a complete path
  * with no picture required anywhere in it.
  */
-async function buildSolidTexture(color: string, size = 1024): Promise<Blob> {
+async function buildSolidTexture(color: string, layout: TokenArtLayout): Promise<Blob> {
   const canvas = document.createElement('canvas');
-  canvas.width = size;
-  canvas.height = Math.round(size * TOKEN_TEXTURE_RATIO);
+  canvas.width = layout.canvasWidth;
+  canvas.height = layout.canvasHeight;
   const context = canvas.getContext('2d');
   if (!context) throw new Error('Could not get a drawing context.');
   context.fillStyle = color;
@@ -224,16 +234,24 @@ async function buildSolidTexture(color: string, size = 1024): Promise<Blob> {
 export function buildTokenArt(figure: Figure, size = 1024): Promise<Blob> {
   const source = figure.reference.source;
   const zoom = figure.reference.transform.scale;
+  /*
+   * Through `generatedTokenSpec` rather than `tokenSpecOf(figure.token)`, so
+   * a dial's fixed disc is what shapes its texture rather than whatever the
+   * unused token fields happen to hold. Falls back to that raw spec only for
+   * a figure whose build is switched off — nothing renders it, but a texture
+   * still has to have *some* shape to be.
+   */
+  const layout = tokenArtLayout(generatedTokenSpec(figure) ?? tokenSpecOf(figure.token), size);
   if (figure.kind === 'dial') {
     if (!source) throw new Error('Attach a reference image first — it is what goes on the token.');
     return figure.token.twoSided
-      ? buildTwoSidedTexture(source, size, HEALTH_DIAL_RIM, zoom)
-      : buildTokenTexture(source, HEALTH_DIAL_RIM, size, zoom);
+      ? buildTwoSidedTexture(source, layout, HEALTH_DIAL_RIM, zoom)
+      : buildTokenTexture(source, HEALTH_DIAL_RIM, layout, zoom);
   }
-  if (!source) return buildSolidTexture(figure.token.rimColor, size);
+  if (!source) return buildSolidTexture(figure.token.rimColor, layout);
   return figure.token.twoSided
-    ? buildTwoSidedTexture(source, size, figure.token.rimColor, zoom)
-    : buildTokenTexture(source, figure.token.rimColor, size, zoom);
+    ? buildTwoSidedTexture(source, layout, figure.token.rimColor, zoom)
+    : buildTokenTexture(source, figure.token.rimColor, layout, zoom);
 }
 
 /** Whether this piece's width and length differ — a rectangle, or a polygon

@@ -36,7 +36,8 @@
     MAX_POLYGON_SIDES,
     MIN_POLYGON_SIDES,
     TOKEN_SHAPE_LABELS,
-    TOKEN_SHAPES
+    TOKEN_SHAPES,
+    tokenFaceAspect
   } from '$lib/models/token';
   import { workshop } from '$lib/state/workshop.svelte';
   import {
@@ -249,11 +250,26 @@
 
   $effect(() => {
     for (const figure of figures) {
-      if (!generatedTokenSpec(figure)) continue;
+      const spec = generatedTokenSpec(figure);
+      if (!spec) continue;
       /* Reading these is what makes a change to any of them rebuild the texture.
          `kind` is in there because a dial takes the app's rim rather than the
-         figure's, so becoming one changes the texture without changing a field. */
-      const key = `${figure.kind}|${figure.reference.source ?? ''}|${figure.token.rimColor}|${figure.token.twoSided}|${figure.reference.transform.scale}`;
+         figure's, so becoming one changes the texture without changing a field.
+
+         The aspect belongs here too, and did not before: `tokenArtLayout` now
+         shapes the art region to the piece's own face, so the texture depends
+         on Width and Length as well as on the picture. Left out, resizing a
+         piece rebuilt the *mesh* against a texture still cut for the old
+         shape — which is indistinguishable from the resize doing nothing at
+         all, and is exactly what a stale cache key looks like from outside. */
+      const key = [
+        figure.kind,
+        figure.reference.source ?? '',
+        figure.token.rimColor,
+        figure.token.twoSided,
+        figure.reference.transform.scale,
+        tokenFaceAspect(spec).toFixed(4)
+      ].join('|');
       if (textureKeys[figure.id] === key) continue;
       textureKeys[figure.id] = key;
 

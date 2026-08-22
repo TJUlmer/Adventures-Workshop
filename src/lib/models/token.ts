@@ -117,32 +117,28 @@ function faceExtents(spec: TokenSpec): { x: number; z: number } {
  * into an elongated one, rather than the regular-only shape a single shared
  * apothem could ever produce.
  *
- * `artExtent` is deliberately the flat-to-flat reach, not the corner reach
- * the points themselves are built at, and deliberately the *smaller* of
- * `extentX`/`extentZ`, shared by both axes rather than one each. Both were
- * bugs fixed the same way: normalising `u` to `extentX` and `t` to `extentZ`
- * independently — which is what this returned at first — ties the art's
- * scale on one axis to a number the other axis's own dimension has no
- * business moving. Using the corner reach (`unitRadius(sides) * extentX`)
- * tied it to side count: a triangle's corners sit 2× its apothem, a
- * dodecagon's barely 3.5% further, so the same flat-edge point sampled a
- * different fraction of the texture for every side count, changing the shape
- * alone read as the picture zooming. Using `extentX`/`extentZ` *separately*
- * fixed that but kept a second bug: an elongated piece (`lengthMm` ≠
- * `diameterMm`) stretched the square art non-uniformly to match, since `u`
- * and `t` were each normalised to their own axis's full reach regardless of
- * the other. A single shared `Math.min(extentX, extentZ)` fixes both at
- * once — every physical point samples the same pixel regardless of `sides`
- * *or* aspect, and the art keeps its own proportions, appearing at natural
- * scale in the piece's own inscribed square. The cost is the same either
- * way and paid the same way: a corner past the shared reach — every
- * low-side shape's, and now also the excess length of an elongated piece
- * beyond its own narrower axis — samples the art's own edge pixel, which
- * the caller is expected to have painted in the rim colour already. See
- * `artUv`'s own doc comment for *where* that happens — deliberately in the
- * texture's `CLAMP_TO_EDGE` wrap mode at sample time, never as a value
- * clamped into the mesh itself, which is a different bug that looks the
- * same as the one this fixes.
+ * `artExtent` is the flat-to-flat reach on **each axis separately**, not the
+ * corner reach the points are built at. Per-axis is only correct because the
+ * texture's art region carries the *same* aspect the face does — see
+ * `tokenArtLayout`, which is the other half of this and cannot be changed
+ * independently of it. Map a **square** art region onto a rectangular face
+ * per-axis and the picture stretches; that was a real bug, and the fix
+ * attempted for it (one shared `Math.min(extentX, extentZ)`, mapping the art
+ * into the largest square the face inscribes) traded the stretch for a
+ * worse one: a wide piece then had rim colour banding its long axis that no
+ * `lengthMm`/`diameterMm` could ever trim off, because the art was pinned to
+ * a square no matter what shape the piece was. Sizing the art region to the
+ * face and mapping it per-axis is what makes both come out right at once —
+ * the picture keeps its proportions *and* the piece's own dimensions decide
+ * how much of it shows.
+ *
+ * Using the corner reach instead would tie the art's scale to side count: a
+ * triangle's corners sit 2× its apothem, a dodecagon's barely 3.5% further,
+ * so the same flat-edge point would sample a different fraction of the
+ * texture for every `sides`, and changing shape alone would read as the
+ * picture zooming. So a polygon's corners deliberately reach *past* this
+ * frame, and sample the art's own edge pixel when they do — see `artUv` for
+ * why that clamp belongs to the texture's wrap mode and never to the mesh.
  */
 function faceGeometry(spec: TokenSpec): {
   points: { x: number; z: number }[];
@@ -166,8 +162,7 @@ function faceGeometry(spec: TokenSpec): {
         z: Math.sin(angle) * unitRadius * extentZ
       });
     }
-    const artReach = Math.min(extentX, extentZ);
-    return { points, artExtent: { x: artReach, z: artReach } };
+    return { points, artExtent: { x: extentX, z: extentZ } };
   }
 
   const points: { x: number; z: number }[] = [];
@@ -180,16 +175,74 @@ function faceGeometry(spec: TokenSpec): {
 }
 
 /**
- * The texture is the artwork over a band of rim colour.
+ * The face's own proportions — its X reach over its Z reach.
  *
- * The art's region is *square*, because the face maps a square patch of it onto
- * a round or six-sided token — give the art a wide band and the token samples
- * the empty ends of it and wears them as stripes. The rim needs one colour, so
- * it gets a quarter-height strip underneath.
+ * 1 for a circle, which has no second axis to differ on, and for any polygon
+ * whose `lengthMm` matches its `diameterMm`. Anything else is a rectangle, an
+ * elongated hexagon, and so on.
+ */
+export function tokenFaceAspect(spec: TokenSpec): number {
+  const { x, z } = faceExtents(spec);
+  return z > 0 ? x / z : 1;
+}
+
+/**
+ * How much taller than its art a one-sided texture is: the art, plus a strip
+ * of rim colour under it for the prism's edge to sample.
+ *
+ * A ratio rather than a pixel count, so the strip stays proportional however
+ * `tokenArtLayout` sizes the art — which is what keeps `ART_V`/`RIM_V` below
+ * fixed numbers the mesh can use without knowing the piece's shape.
  */
 export const TOKEN_TEXTURE_RATIO = 1.25;
 const ART_V = { top: 1, bottom: 1 - 1 / TOKEN_TEXTURE_RATIO } as const;
 const RIM_V = ART_V.bottom / 2;
+
+/** Where the art sits in the texture, in pixels. See `tokenArtLayout`. */
+export interface TokenArtLayout {
+  /** The whole texture. */
+  canvasWidth: number;
+  canvasHeight: number;
+  /** One face's worth of art, at the top left of the canvas. */
+  artWidth: number;
+  artHeight: number;
+}
+
+/**
+ * The texture's shape for a given piece — **the other half of `artExtent`**,
+ * and the reason the mesh may map its art per-axis without stretching it.
+ *
+ * The art region carries the *face's* own aspect (`tokenFaceAspect`), sized
+ * to the largest such rectangle inside a `size` × `size` box. That is the
+ * whole fix for a rectangular piece: a square art region on a 2:1 face can
+ * only ever be letterboxed, and no `diameterMm`/`lengthMm` an author types
+ * will trim that letterbox off, because the letterbox is a property of the
+ * *texture* rather than of the piece. Give the region the face's shape and
+ * the two agree by construction — a 2:1 picture on a 2:1 piece reaches every
+ * edge, and a picture whose own aspect differs is fitted inside (never
+ * stretched), with the rim colour showing where it does not reach.
+ *
+ * `ART_V`/`RIM_V` stay fixed constants through all of this because the rim
+ * strip is a *ratio* of the art's height — the art region changes shape, but
+ * its share of the canvas does not. A two-sided texture is two of these side
+ * by side and has no rim strip at all; its edge samples the seam between the
+ * faces instead.
+ */
+export function tokenArtLayout(spec: TokenSpec, size = 1024): TokenArtLayout {
+  const aspect = tokenFaceAspect(spec);
+  const artWidth = Math.max(1, Math.round(aspect >= 1 ? size : size * aspect));
+  const artHeight = Math.max(1, Math.round(aspect >= 1 ? size / aspect : size));
+
+  if (spec.twoSided === true) {
+    return { canvasWidth: artWidth * 2, canvasHeight: artHeight, artWidth, artHeight };
+  }
+  return {
+    canvasWidth: artWidth,
+    canvasHeight: Math.max(1, Math.round(artHeight * TOKEN_TEXTURE_RATIO)),
+    artWidth,
+    artHeight
+  };
+}
 
 export interface TokenMesh extends Mesh {
   /** Where each face samples the texture, for whoever writes the file. */
@@ -206,13 +259,11 @@ export function buildTokenMesh(spec: TokenSpec): TokenMesh {
 
   /**
    * Face position to a point on the art, with the token's *flat-to-flat*
-   * reach as the frame — not the corner reach `points` themselves are built
-   * at, and one shared reach for both axes, not `extentX`/`extentZ` each on
-   * their own. See `faceGeometry`'s own doc comment for why: either one
-   * separately is what made the art rescale between shapes at the same
-   * `diameterMm`, or stretch non-uniformly on an elongated piece.
-   * `artExtent.x === artExtent.z` always, as a result — a single number, kept
-   * as `{x, z}` only so this reads the same shape whichever axis it asks for.
+   * reach as the frame — each axis to its own reach, not the corner reach
+   * `points` themselves are built at. That is a uniform mapping rather than
+   * a stretch only because the art region carries the face's own aspect;
+   * `faceGeometry` and `tokenArtLayout` are one decision in two places and
+   * changing either alone reintroduces a distortion.
    *
    * Seen from above, the board's +Z runs *down* the picture while the texture's
    * V runs up it, so the top face reads its rows backwards. The underside is

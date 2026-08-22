@@ -219,37 +219,68 @@ follow. `twoSided` splits the reference image down the middle — front on the
 left, back on the right — mapping each half to one face; otherwise the one
 picture is shown on both and a rim-colour band fills the edge.
 
-**The art's UV frame is the flat-to-flat reach, never the corner reach.**
-`faceGeometry`'s `points` are built at the true circumradius, sides apart —
-that has to vary with side count, or a triangle and a dodecagon at the same
-`diameterMm` would not be built to it. Feeding that *same* circumradius into
-`artUv`'s normalisation was the bug: `unitRadius = 1/cos(π/sides)` is 2.0 for
-a triangle and 1.035 for a dodecagon, so the same flat-edge point sampled a
-different fraction of the texture for every side count — changing the shape
-read as the picture zooming, with `diameterMm` never having moved. `artExtent`
-is deliberately the fixed apothem reach instead, so a flat edge always samples
-the same pixel regardless of `sides`; the cost is clamped (`Math.min(1,
-Math.max(0, …))`) UV past that frame at a low-side shape's corners, which
-sample the art's own edge pixel — in practice the rim colour a non-square
-photo already sits on past its shorter side (`buildTokenTexture`'s own "fit,
-not fill"). A source image that does not yet reach its corners is the fix, not
-a mask.
+**`faceGeometry`'s `artExtent` and `tokenArtLayout` are one decision in two
+places, and neither can be changed alone.** The art region of the texture
+carries the *face's own aspect*, and the mesh maps the face onto it per-axis
+(`u` to `extentX`, `t` to `extentZ`). That is a uniform mapping only because
+the two agree; break the pairing either way and the picture distorts. Getting
+this wrong took four passes, each of which looked like a fix and moved the
+symptom somewhere else, so the failure modes are worth keeping:
+
+- **Corner reach in the UV normalisation.** `points` are built at the true
+  circumradius, which *has* to vary with side count. Feeding that same
+  `unitRadius = 1/cos(π/sides)` into the normalisation (2.0 for a triangle,
+  1.035 for a dodecagon) made the same flat-edge point sample a different
+  fraction of the texture per `sides` — changing the shape read as the picture
+  zooming, with `diameterMm` never having moved.
+- **A square art region mapped per-axis onto a rectangular face** — the
+  straightforward stretch.
+- **A square art region mapped by one shared `Math.min(extentX, extentZ)`.**
+  This stops the stretch, and is the trap: it looks correct on every regular
+  piece and is *worse* on a rectangular one. The art is pinned to the largest
+  square the face inscribes, so a wide piece bands its long axis with rim
+  colour that **no `lengthMm` or `diameterMm` can ever trim off** — the
+  letterbox belongs to the texture, not to the piece, so resizing the piece
+  cannot touch it. Reported, correctly, as "it still distorts and I can't get
+  rid of the rim."
+- **Clamping UV to `[0,1]` in the mesh.** A vertex UV is baked once and then
+  *linearly interpolated* across the triangle. A square's four corners sit on
+  the diagonal, so all four clamp on both axes to a different corner of the
+  texture — and a rasteriser handed that stretches the whole texture across the
+  whole face. Indistinguishable from the first bug, produced a stage later.
+  The clamp belongs to the texture's wrap mode (`models/gl.ts` sets
+  `CLAMP_TO_EDGE`), which acts per *fragment*, after interpolation.
+
+So a polygon's corners deliberately reach past the frame and sample the art's
+edge pixel — in practice the rim colour a mismatched photo already sits on
+(`buildTokenTexture` fits, never fills). Match the picture's aspect to the
+piece's and it reaches every edge; a source that does not yet reach its
+corners is the fix, not a mask.
+
+Worth asserting rather than eyeballing, because every wrong version above
+still *renders*: map a circle through the texture and back out through the
+mesh's own UV into model millimetres, and check it is still circular. A
+non-uniform mapping shows up immediately as an aspect other than 1.
+
+One consequence to remember: the texture now depends on the piece's
+proportions, not only its picture. `FiguresPanel`'s texture cache key carries
+`tokenFaceAspect` for that reason — without it, resizing a piece rebuilds the
+mesh against a texture still cut for the old shape, which from outside is
+indistinguishable from the resize doing nothing at all.
 
 A figure's reference image is a full `Artwork` (`core/artwork.ts` — the same
 crop/transform/adjustments/effects block a card's own art uses), reachable
 through `workshop.artworkFor({entity: 'figure', id})` like every other
 artwork-owning entity. Only `transform.scale` is wired to the token pipeline
-today, as **Zoom** in `FiguresPanel` — one-sided art only, since a two-sided
-image is placed by `buildTwoSidedTexture`'s own fixed 2:1 layout instead, which
-nothing here touches. `zoom` multiplies `buildTokenTexture`'s existing
-fit-to-square scale rather than replacing it with `ArtLayout`'s usual "1 =
-cover" convention: cover-by-default is what every other `Artwork` consumer
-does, but a token's own "fit, not fill" is a deliberate, previously-documented
-choice (the paragraph above), and cover-by-default would have silently
-recropped every existing token's art the moment this shipped. `scale = 1`
-therefore still means exactly the fit it always meant; zooming in is what
-crops past it, clipped to the art square so it cannot bleed into the rim strip
-below. Crop, colour grade and mask are wired into `artworkFor` the same as
+today, as **Zoom** in `FiguresPanel`, for one-sided and two-sided art alike.
+`zoom` multiplies the existing fit-to-region scale rather than replacing it
+with `ArtLayout`'s usual "1 = cover" convention: cover-by-default is what
+every other `Artwork` consumer does, but a token's own "fit, not fill" is a
+deliberate, previously-documented choice (the paragraph above), and
+cover-by-default would have silently recropped every existing token's art the
+moment this shipped. `scale = 1` therefore still means exactly the fit it
+always meant; zooming in is what crops past it, clipped to the art region so
+it cannot bleed into the rim strip below. Crop, colour grade and mask are wired into `artworkFor` the same as
 everywhere else but not yet read by the token texture builder — reachable, not
 yet applied.
 
