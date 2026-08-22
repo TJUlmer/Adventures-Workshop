@@ -117,20 +117,29 @@ function faceExtents(spec: TokenSpec): { x: number; z: number } {
  * into an elongated one, rather than the regular-only shape a single shared
  * apothem could ever produce.
  *
- * `artExtent` is deliberately the flat-to-flat reach (`extentX`/`extentZ`
- * alone), not the corner reach the points themselves are built at. Using the
- * corner reach to normalise UV — which is what this returned until the art
- * came out warped between shapes — ties the art's own scale to `unitRadius`,
- * a number that changes with side count even though `diameterMm` does not: a
- * triangle's corners sit 2× its apothem, a dodecagon's barely 3.5% further,
- * so the same flat-edge point sampled a different fraction of the texture
- * for every side count, which read as the picture zooming as you changed
- * shape. Normalising to the fixed apothem instead means a flat edge always
- * samples the same pixel regardless of `sides` — the picture stays put, and
- * only the silhouette cut from it changes. The cost lands on shapes with few
- * enough sides that their corners reach well past the apothem (see `artUv`'s
- * clamp): those corners sample past the art's own edge, which the caller is
- * expected to have painted in the rim colour already.
+ * `artExtent` is deliberately the flat-to-flat reach, not the corner reach
+ * the points themselves are built at, and deliberately the *smaller* of
+ * `extentX`/`extentZ`, shared by both axes rather than one each. Both were
+ * bugs fixed the same way: normalising `u` to `extentX` and `t` to `extentZ`
+ * independently — which is what this returned at first — ties the art's
+ * scale on one axis to a number the other axis's own dimension has no
+ * business moving. Using the corner reach (`unitRadius(sides) * extentX`)
+ * tied it to side count: a triangle's corners sit 2× its apothem, a
+ * dodecagon's barely 3.5% further, so the same flat-edge point sampled a
+ * different fraction of the texture for every side count, changing the shape
+ * alone read as the picture zooming. Using `extentX`/`extentZ` *separately*
+ * fixed that but kept a second bug: an elongated piece (`lengthMm` ≠
+ * `diameterMm`) stretched the square art non-uniformly to match, since `u`
+ * and `t` were each normalised to their own axis's full reach regardless of
+ * the other. A single shared `Math.min(extentX, extentZ)` fixes both at
+ * once — every physical point samples the same pixel regardless of `sides`
+ * *or* aspect, and the art keeps its own proportions, appearing at natural
+ * scale in the piece's own inscribed square. The cost is the same either
+ * way and paid the same way (see `artUv`'s clamp): a corner past the shared
+ * reach — every low-side shape's, and now also the excess length of an
+ * elongated piece beyond its own narrower axis — samples the art's own edge
+ * pixel, which the caller is expected to have painted in the rim colour
+ * already.
  */
 function faceGeometry(spec: TokenSpec): {
   points: { x: number; z: number }[];
@@ -154,7 +163,8 @@ function faceGeometry(spec: TokenSpec): {
         z: Math.sin(angle) * unitRadius * extentZ
       });
     }
-    return { points, artExtent: { x: extentX, z: extentZ } };
+    const artReach = Math.min(extentX, extentZ);
+    return { points, artExtent: { x: artReach, z: artReach } };
   }
 
   const points: { x: number; z: number }[] = [];
@@ -194,10 +204,12 @@ export function buildTokenMesh(spec: TokenSpec): TokenMesh {
   /**
    * Face position to a point on the art, with the token's *flat-to-flat*
    * reach as the frame — not the corner reach `points` themselves are built
-   * at. See `faceGeometry`'s own doc comment for why: normalising to the
-   * corners is what made the art rescale between shapes at the same
-   * `diameterMm`, and normalising to the fixed apothem instead is what keeps
-   * a flat edge sampling the same pixel regardless of side count.
+   * at, and one shared reach for both axes, not `extentX`/`extentZ` each on
+   * their own. See `faceGeometry`'s own doc comment for why: either one
+   * separately is what made the art rescale between shapes at the same
+   * `diameterMm`, or stretch non-uniformly on an elongated piece.
+   * `artExtent.x === artExtent.z` always, as a result — a single number, kept
+   * as `{x, z}` only so this reads the same shape whichever axis it asks for.
    *
    * Seen from above, the board's +Z runs *down* the picture while the texture's
    * V runs up it, so the top face reads its rows backwards. The underside is
@@ -209,17 +221,15 @@ export function buildTokenMesh(spec: TokenSpec): TokenMesh {
    * whole height. One-sided art is the top square of a taller texture, a band of
    * rim colour beneath it, and both faces share it.
    *
-   * `artExtent.x`/`artExtent.z` normalise `u`/`t` separately rather than by one
-   * shared number, which is what stretches a square picture onto a rectangular
-   * piece's own aspect instead of cropping it — on a regular piece the two are
-   * equal and this is exactly the old single-`extent` division.
-   *
    * Clamped to `[0, 1]` because a polygon with few enough sides reaches past
    * this fixed frame at its corners — a triangle's corners sit 2× its
-   * apothem. Past the clamp this repeats the art's own edge pixel, which for
-   * a non-square photo (already sitting on the rim colour past its own
-   * shorter edge, see `buildTokenTexture`) reads as the rim colour showing
-   * through the tips, not as a smear — the intended fallback, not a bug.
+   * apothem — and an elongated piece reaches past it along its own longer
+   * axis, past whatever the shorter axis's reach set the shared frame to.
+   * Past the clamp this repeats the art's own edge pixel, which for a
+   * non-square photo (already sitting on the rim colour past its own shorter
+   * edge, see `buildTokenTexture`) reads as the rim colour showing through,
+   * not as a smear — the intended fallback, not a bug. A source image that
+   * does not yet reach the shape it is going on is the thing to fix.
    */
   const artUv = (x: number, z: number, face: 'top' | 'bottom'): [number, number] => {
     const u = Math.min(1, Math.max(0, (x / artExtent.x + 1) / 2));
