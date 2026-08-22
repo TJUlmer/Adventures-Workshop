@@ -44,11 +44,21 @@ async function encodePng(canvas: HTMLCanvasElement): Promise<Blob> {
  * — see `TOKEN_TEXTURE_RATIO`. The art is drawn to *fit* it rather than to fill
  * it, so a picture that is not square keeps its proportions and sits on the
  * rim colour rather than being cropped before the token's own shape gets to it.
+ *
+ * `zoom` scales up from that fit baseline — 1 reproduces the fit exactly, so
+ * an untouched `Artwork` (the common case, and every document saved before
+ * this existed) looks exactly as it always has. It only ever *enlarges*
+ * proportionally from there, never stretches one axis — `figures/types.ts`'s
+ * `Figure.reference.transform.scale` is what an author actually turns, and it
+ * has no separate X/Y to stretch with. Clipped to the art square: past 1 the
+ * scaled image overflows the square it used to always fit inside, and without
+ * the clip it would bleed into the rim strip below.
  */
 export async function buildTokenTexture(
   source: string,
   rimColor: string,
-  size = 1024
+  size = 1024,
+  zoom = 1
 ): Promise<Blob> {
   /*
    * `onload` rather than `decode()`: decoding is allowed to wait for a moment
@@ -67,10 +77,17 @@ export async function buildTokenTexture(
   context.fillStyle = rimColor;
   context.fillRect(0, 0, canvas.width, canvas.height);
 
-  const scale = Math.min(size / image.width, size / image.height);
+  const fitScale = Math.min(size / image.width, size / image.height);
+  const scale = fitScale * Math.max(0.2, zoom);
   const width = image.width * scale;
   const height = image.height * scale;
+
+  context.save();
+  context.beginPath();
+  context.rect(0, 0, size, size);
+  context.clip();
   context.drawImage(image, (size - width) / 2, (size - height) / 2, width, height);
+  context.restore();
 
   return encodePng(canvas);
 }
@@ -138,16 +155,17 @@ async function buildSolidTexture(color: string, size = 1024): Promise<Blob> {
  */
 export function buildTokenArt(figure: Figure, size = 1024): Promise<Blob> {
   const source = figure.reference.source;
+  const zoom = figure.reference.transform.scale;
   if (figure.kind === 'dial') {
     if (!source) throw new Error('Attach a reference image first — it is what goes on the token.');
     return figure.token.twoSided
       ? buildTwoSidedTexture(source, size)
-      : buildTokenTexture(source, HEALTH_DIAL_RIM, size);
+      : buildTokenTexture(source, HEALTH_DIAL_RIM, size, zoom);
   }
   if (!source) return buildSolidTexture(figure.token.rimColor, size);
   return figure.token.twoSided
     ? buildTwoSidedTexture(source, size)
-    : buildTokenTexture(source, figure.token.rimColor, size);
+    : buildTokenTexture(source, figure.token.rimColor, size, zoom);
 }
 
 /** Whether this piece's width and length differ — a rectangle, or a polygon

@@ -46,6 +46,7 @@
     Icon,
     NumberInput,
     Select,
+    Slider,
     Switch,
     TextArea,
     TextInput
@@ -252,7 +253,7 @@
       /* Reading these is what makes a change to any of them rebuild the texture.
          `kind` is in there because a dial takes the app's rim rather than the
          figure's, so becoming one changes the texture without changing a field. */
-      const key = `${figure.kind}|${figure.reference.source ?? ''}|${figure.token.rimColor}|${figure.token.twoSided}`;
+      const key = `${figure.kind}|${figure.reference.source ?? ''}|${figure.token.rimColor}|${figure.token.twoSided}|${figure.reference.transform.scale}`;
       if (textureKeys[figure.id] === key) continue;
       textureKeys[figure.id] = key;
 
@@ -886,6 +887,31 @@
                             )}
                         />
                       </label>
+                    {/if}
+
+                    <!--
+                      One-sided only — a two-sided image is placed by
+                      `buildTwoSidedTexture`'s own fixed 2:1 layout, which this
+                      does not touch, so the control would do nothing there.
+                      Reuses `ArtworkPanel`'s own Scale bounds (0.2..4, neutral
+                      1) for the same reason it reuses `ArtTransform.scale`
+                      itself: one field, one set of bounds, wherever an author
+                      turns it.
+                    -->
+                    {#if !figure.token.twoSided && hasArtwork(figure.reference)}
+                      <div class="field">
+                        <Slider
+                          label="Zoom"
+                          value={figure.reference.transform.scale}
+                          min={0.2}
+                          max={4}
+                          step={0.01}
+                          neutral={1}
+                          format={(value) => `${Math.round(value * 100)}%`}
+                          onchange={(scale) =>
+                            workshop.setTransform({ entity: 'figure', id: figure.id }, { scale })}
+                        />
+                      </div>
                     {/if}
                   </div>
 

@@ -107,9 +107,8 @@ function faceExtents(spec: TokenSpec): { x: number; z: number } {
 }
 
 /**
- * The corners of the face, counter-clockwise seen from above, and how far
- * they actually reach on each axis — which for a polygon is the corners
- * rather than the flats, and once X and Z differ is no longer one number.
+ * The corners of the face, counter-clockwise seen from above, and the frame
+ * the art is measured against — which for a polygon is *not* the same reach.
  *
  * A polygon's corners are built at the *unit* circumradius (apothem 1) and
  * then scaled by the X and Z reaches independently: at equal reaches this
@@ -117,10 +116,25 @@ function faceExtents(spec: TokenSpec): { x: number; z: number } {
  * unequal reaches it is what turns a square into a rectangle or a hexagon
  * into an elongated one, rather than the regular-only shape a single shared
  * apothem could ever produce.
+ *
+ * `artExtent` is deliberately the flat-to-flat reach (`extentX`/`extentZ`
+ * alone), not the corner reach the points themselves are built at. Using the
+ * corner reach to normalise UV — which is what this returned until the art
+ * came out warped between shapes — ties the art's own scale to `unitRadius`,
+ * a number that changes with side count even though `diameterMm` does not: a
+ * triangle's corners sit 2× its apothem, a dodecagon's barely 3.5% further,
+ * so the same flat-edge point sampled a different fraction of the texture
+ * for every side count, which read as the picture zooming as you changed
+ * shape. Normalising to the fixed apothem instead means a flat edge always
+ * samples the same pixel regardless of `sides` — the picture stays put, and
+ * only the silhouette cut from it changes. The cost lands on shapes with few
+ * enough sides that their corners reach well past the apothem (see `artUv`'s
+ * clamp): those corners sample past the art's own edge, which the caller is
+ * expected to have painted in the rim colour already.
  */
 function faceGeometry(spec: TokenSpec): {
   points: { x: number; z: number }[];
-  extent: { x: number; z: number };
+  artExtent: { x: number; z: number };
 } {
   const { x: extentX, z: extentZ } = faceExtents(spec);
 
@@ -140,7 +154,7 @@ function faceGeometry(spec: TokenSpec): {
         z: Math.sin(angle) * unitRadius * extentZ
       });
     }
-    return { points, extent: { x: unitRadius * extentX, z: unitRadius * extentZ } };
+    return { points, artExtent: { x: extentX, z: extentZ } };
   }
 
   const points: { x: number; z: number }[] = [];
@@ -149,7 +163,7 @@ function faceGeometry(spec: TokenSpec): {
     const angle = (Math.PI * 2 * i) / segments;
     points.push({ x: Math.cos(angle) * extentX, z: Math.sin(angle) * extentX });
   }
-  return { points, extent: { x: extentX, z: extentX } };
+  return { points, artExtent: { x: extentX, z: extentX } };
 }
 
 /**
@@ -170,7 +184,7 @@ export interface TokenMesh extends Mesh {
 }
 
 export function buildTokenMesh(spec: TokenSpec): TokenMesh {
-  const { points, extent } = faceGeometry(spec);
+  const { points, artExtent } = faceGeometry(spec);
   const half = spec.thicknessMm / 2 / MM_PER_TTS_UNIT;
   const twoSided = spec.twoSided === true;
 
@@ -178,7 +192,12 @@ export function buildTokenMesh(spec: TokenSpec): TokenMesh {
   const uvs: number[] = [];
 
   /**
-   * Face position to a point on the art, with the token's reach as the frame.
+   * Face position to a point on the art, with the token's *flat-to-flat*
+   * reach as the frame — not the corner reach `points` themselves are built
+   * at. See `faceGeometry`'s own doc comment for why: normalising to the
+   * corners is what made the art rescale between shapes at the same
+   * `diameterMm`, and normalising to the fixed apothem instead is what keeps
+   * a flat edge sampling the same pixel regardless of side count.
    *
    * Seen from above, the board's +Z runs *down* the picture while the texture's
    * V runs up it, so the top face reads its rows backwards. The underside is
@@ -190,14 +209,21 @@ export function buildTokenMesh(spec: TokenSpec): TokenMesh {
    * whole height. One-sided art is the top square of a taller texture, a band of
    * rim colour beneath it, and both faces share it.
    *
-   * `extent.x`/`extent.z` normalise `u`/`t` separately rather than by one shared
-   * number, which is what stretches a square picture onto a rectangular piece's
-   * own aspect instead of cropping it — on a regular piece the two are equal and
-   * this is exactly the old single-`extent` division.
+   * `artExtent.x`/`artExtent.z` normalise `u`/`t` separately rather than by one
+   * shared number, which is what stretches a square picture onto a rectangular
+   * piece's own aspect instead of cropping it — on a regular piece the two are
+   * equal and this is exactly the old single-`extent` division.
+   *
+   * Clamped to `[0, 1]` because a polygon with few enough sides reaches past
+   * this fixed frame at its corners — a triangle's corners sit 2× its
+   * apothem. Past the clamp this repeats the art's own edge pixel, which for
+   * a non-square photo (already sitting on the rim colour past its own
+   * shorter edge, see `buildTokenTexture`) reads as the rim colour showing
+   * through the tips, not as a smear — the intended fallback, not a bug.
    */
   const artUv = (x: number, z: number, face: 'top' | 'bottom'): [number, number] => {
-    const u = (x / extent.x + 1) / 2;
-    const t = ((face === 'top' ? -z : z) / extent.z + 1) / 2;
+    const u = Math.min(1, Math.max(0, (x / artExtent.x + 1) / 2));
+    const t = Math.min(1, Math.max(0, ((face === 'top' ? -z : z) / artExtent.z + 1) / 2));
     if (twoSided) {
       return [face === 'top' ? u * 0.5 : 0.5 + u * 0.5, t];
     }

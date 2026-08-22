@@ -148,7 +148,9 @@ export type EntityRef =
       readonly cardId?: HeroCharacterCardId;
     }
   /** The threat track's background. The board has one, so it needs no id. */
-  | { readonly entity: 'threat' };
+  | { readonly entity: 'threat' }
+  /** A figure's own reference image — a generated token, or an attached model's skin. */
+  | { readonly entity: 'figure'; readonly id: FigureId };
 
 /** Addresses one layer of the style cascade. */
 export type StyleTarget = EntityRef | { readonly entity: 'set' };
@@ -887,6 +889,9 @@ export class WorkshopStore {
     if (ref.entity === 'characterBand') {
       return this.characterCardDesignFor(ref.id, ref.cardId)?.[ref.band].artwork ?? null;
     }
+    if (ref.entity === 'figure') {
+      return this.adventure.figures.find((figure) => figure.id === ref.id)?.reference ?? null;
+    }
     const owner =
       ref.entity === 'card'
         ? findCard(this.adventure, ref.id)
@@ -960,11 +965,12 @@ export class WorkshopStore {
    * The override object for one layer of the cascade.
    *
    * The threat board has artwork but no card style, so it has no layer here —
-   * it is not part of the cascade at all.
+   * it is not part of the cascade at all. A figure is the same: it is not a
+   * card, so there is no style layer to look up.
    */
   styleFor(target: StyleTarget): CardStyleOverride | null {
     if (target.entity === 'set') return this.adventure.style;
-    if (target.entity === 'threat') return null;
+    if (target.entity === 'threat' || target.entity === 'figure') return null;
     if (target.entity === 'card') return findCard(this.adventure, target.id)?.style ?? null;
     return findCharacter(this.adventure, target.id)?.style ?? null;
   }

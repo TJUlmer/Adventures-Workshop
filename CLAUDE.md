@@ -219,6 +219,40 @@ follow. `twoSided` splits the reference image down the middle — front on the
 left, back on the right — mapping each half to one face; otherwise the one
 picture is shown on both and a rim-colour band fills the edge.
 
+**The art's UV frame is the flat-to-flat reach, never the corner reach.**
+`faceGeometry`'s `points` are built at the true circumradius, sides apart —
+that has to vary with side count, or a triangle and a dodecagon at the same
+`diameterMm` would not be built to it. Feeding that *same* circumradius into
+`artUv`'s normalisation was the bug: `unitRadius = 1/cos(π/sides)` is 2.0 for
+a triangle and 1.035 for a dodecagon, so the same flat-edge point sampled a
+different fraction of the texture for every side count — changing the shape
+read as the picture zooming, with `diameterMm` never having moved. `artExtent`
+is deliberately the fixed apothem reach instead, so a flat edge always samples
+the same pixel regardless of `sides`; the cost is clamped (`Math.min(1,
+Math.max(0, …))`) UV past that frame at a low-side shape's corners, which
+sample the art's own edge pixel — in practice the rim colour a non-square
+photo already sits on past its shorter side (`buildTokenTexture`'s own "fit,
+not fill"). A source image that does not yet reach its corners is the fix, not
+a mask.
+
+A figure's reference image is a full `Artwork` (`core/artwork.ts` — the same
+crop/transform/adjustments/effects block a card's own art uses), reachable
+through `workshop.artworkFor({entity: 'figure', id})` like every other
+artwork-owning entity. Only `transform.scale` is wired to the token pipeline
+today, as **Zoom** in `FiguresPanel` — one-sided art only, since a two-sided
+image is placed by `buildTwoSidedTexture`'s own fixed 2:1 layout instead, which
+nothing here touches. `zoom` multiplies `buildTokenTexture`'s existing
+fit-to-square scale rather than replacing it with `ArtLayout`'s usual "1 =
+cover" convention: cover-by-default is what every other `Artwork` consumer
+does, but a token's own "fit, not fill" is a deliberate, previously-documented
+choice (the paragraph above), and cover-by-default would have silently
+recropped every existing token's art the moment this shipped. `scale = 1`
+therefore still means exactly the fit it always meant; zooming in is what
+crops past it, clipped to the art square so it cannot bleed into the rim strip
+below. Crop, colour grade and mask are wired into `artworkFor` the same as
+everywhere else but not yet read by the token texture builder — reachable, not
+yet applied.
+
 ### The hero role
 
 Villain and minion have always been the two selectable roles; `hero` is the
