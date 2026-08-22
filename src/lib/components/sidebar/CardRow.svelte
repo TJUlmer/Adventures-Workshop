@@ -20,6 +20,22 @@
   const selected = $derived(isCardSelected(workshop.selection, card.id));
   const unnamed = $derived(cardLabel(card).startsWith('Untitled'));
 
+  /** Two clicks to delete — see `CharacterRow`, same reasoning and same size
+      of target. Nothing in the app brings a deleted card back. */
+  let armed = $state(false);
+  let disarm: ReturnType<typeof setTimeout> | null = null;
+
+  function requestRemove(): void {
+    if (disarm) clearTimeout(disarm);
+    if (armed) {
+      armed = false;
+      workshop.removeCard(card.id);
+      return;
+    }
+    armed = true;
+    disarm = setTimeout(() => (armed = false), 3000);
+  }
+
   let row = $state<HTMLDivElement | null>(null);
 
   const dragging = $derived(cardDrag.sourceId === card.id);
@@ -130,8 +146,11 @@
   <button
     type="button"
     class="remove"
-    aria-label="Delete card"
-    onclick={() => workshop.removeCard(card.id)}
+    class:armed
+    aria-label={armed ? 'Delete card — click again to confirm' : 'Delete card'}
+    title={armed ? 'Click again to delete' : 'Delete card'}
+    onclick={requestRemove}
+    onblur={() => (armed = false)}
   >
     <Icon name="trash" size={12} />
   </button>
@@ -260,5 +279,13 @@
 
   .remove:hover {
     color: var(--danger);
+  }
+
+  /* Armed: visibly loaded, and shown regardless of hover so the second click
+     is never aimed at something that has faded back out. */
+  .remove.armed {
+    opacity: 1;
+    color: var(--danger);
+    background: color-mix(in oklab, var(--danger) 18%, transparent);
   }
 </style>

@@ -20,6 +20,35 @@
   const meta = $derived(CHARACTER_ROLE_META[character.role]);
   const selected = $derived(isCharacterSelected(workshop.selection, character.id));
   const unnamed = $derived(character.name.trim().length === 0);
+
+  /**
+   * Delete takes two clicks: the first arms the button, the second does it.
+   *
+   * A character is not a small thing to lose — its decks and cards survive as
+   * orphans (`workshop.removeCharacter` only nulls their `ownerId`) but the
+   * figure itself, its artwork and its whole character card do not, and
+   * nothing in the app brings those back. This was one click on a 22px icon
+   * that only appears on hover, right beside the row you click to *select*
+   * the character, and somebody duly lost work to it.
+   *
+   * Armed rather than a dialogue because the row is 22px wide — there is no
+   * space for a Delete/Cancel pair like `HomeScreen`'s, and a modal over a
+   * sidebar row is heavier than the act deserves. The arm lapses on its own
+   * so a stray first click cannot sit waiting to catch the next one.
+   */
+  let armed = $state(false);
+  let disarm: ReturnType<typeof setTimeout> | null = null;
+
+  function requestRemove(): void {
+    if (disarm) clearTimeout(disarm);
+    if (armed) {
+      armed = false;
+      workshop.removeCharacter(character.id);
+      return;
+    }
+    armed = true;
+    disarm = setTimeout(() => (armed = false), 3000);
+  }
 </script>
 
 <div class="row" class:selected>
@@ -52,8 +81,11 @@
   <button
     type="button"
     class="remove"
-    aria-label="Delete character"
-    onclick={() => workshop.removeCharacter(character.id)}
+    class:armed
+    aria-label={armed ? 'Delete character — click again to confirm' : 'Delete character'}
+    title={armed ? 'Click again to delete' : 'Delete character'}
+    onclick={requestRemove}
+    onblur={() => (armed = false)}
   >
     <Icon name="trash" size={12} />
   </button>
@@ -174,6 +206,14 @@
     transition:
       opacity var(--duration-fast) var(--ease-out),
       color var(--duration-fast) var(--ease-out);
+  }
+
+  /* Armed: visibly loaded, and shown regardless of hover so the second click
+     is never aimed at something that has faded back out. */
+  .remove.armed {
+    opacity: 1;
+    color: var(--danger);
+    background: color-mix(in oklab, var(--danger) 18%, transparent);
   }
 
   .row:hover .remove,
