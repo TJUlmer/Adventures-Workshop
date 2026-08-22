@@ -135,11 +135,14 @@ function faceExtents(spec: TokenSpec): { x: number; z: number } {
  * once — every physical point samples the same pixel regardless of `sides`
  * *or* aspect, and the art keeps its own proportions, appearing at natural
  * scale in the piece's own inscribed square. The cost is the same either
- * way and paid the same way (see `artUv`'s clamp): a corner past the shared
- * reach — every low-side shape's, and now also the excess length of an
- * elongated piece beyond its own narrower axis — samples the art's own edge
- * pixel, which the caller is expected to have painted in the rim colour
- * already.
+ * way and paid the same way: a corner past the shared reach — every
+ * low-side shape's, and now also the excess length of an elongated piece
+ * beyond its own narrower axis — samples the art's own edge pixel, which
+ * the caller is expected to have painted in the rim colour already. See
+ * `artUv`'s own doc comment for *where* that happens — deliberately in the
+ * texture's `CLAMP_TO_EDGE` wrap mode at sample time, never as a value
+ * clamped into the mesh itself, which is a different bug that looks the
+ * same as the one this fixes.
  */
 function faceGeometry(spec: TokenSpec): {
   points: { x: number; z: number }[];
@@ -221,19 +224,32 @@ export function buildTokenMesh(spec: TokenSpec): TokenMesh {
    * whole height. One-sided art is the top square of a taller texture, a band of
    * rim colour beneath it, and both faces share it.
    *
-   * Clamped to `[0, 1]` because a polygon with few enough sides reaches past
-   * this fixed frame at its corners — a triangle's corners sit 2× its
-   * apothem — and an elongated piece reaches past it along its own longer
-   * axis, past whatever the shorter axis's reach set the shared frame to.
-   * Past the clamp this repeats the art's own edge pixel, which for a
-   * non-square photo (already sitting on the rim colour past its own shorter
-   * edge, see `buildTokenTexture`) reads as the rim colour showing through,
-   * not as a smear — the intended fallback, not a bug. A source image that
-   * does not yet reach the shape it is going on is the thing to fix.
+   * Deliberately *not* clamped to `[0, 1]` here, even though a polygon with
+   * few enough sides reaches past this fixed frame at its corners — a
+   * triangle's corners sit 2× its apothem — and an elongated piece reaches
+   * past it along its own longer axis. A vertex's UV is a value baked into
+   * the mesh once and then *linearly interpolated* across every triangle
+   * that touches it; clamping it here, before that interpolation happens, is
+   * what actually caused the warping this whole file has been chasing. A
+   * square's four corners all sit exactly on the diagonal, so all four clamp
+   * on *both* axes to a different one of the texture's own four corners —
+   * and a rasteriser handed four vertices that each claim to be a different
+   * corner of the full [0,1] texture stretches the whole texture across the
+   * whole face to satisfy them, which is indistinguishable from the original
+   * stretching bug, just produced one stage later. The correct place to clamp
+   * is per *fragment*, after interpolation, which is what a texture's own
+   * wrap mode does — `models/gl.ts` already sets `CLAMP_TO_EDGE` on both
+   * axes, so every point past this frame samples the art's true edge pixel on
+   * its own, without a hard boundary ever being baked into the geometry. For
+   * a non-square photo (already sitting on the rim colour past its own
+   * shorter edge, see `buildTokenTexture`) that reads as the rim colour
+   * showing through past the frame, not as a smear — the intended fallback,
+   * not a bug. A source image that does not yet reach the shape it is going
+   * on is the thing to fix.
    */
   const artUv = (x: number, z: number, face: 'top' | 'bottom'): [number, number] => {
-    const u = Math.min(1, Math.max(0, (x / artExtent.x + 1) / 2));
-    const t = Math.min(1, Math.max(0, ((face === 'top' ? -z : z) / artExtent.z + 1) / 2));
+    const u = (x / artExtent.x + 1) / 2;
+    const t = ((face === 'top' ? -z : z) / artExtent.z + 1) / 2;
     if (twoSided) {
       return [face === 'top' ? u * 0.5 : 0.5 + u * 0.5, t];
     }
