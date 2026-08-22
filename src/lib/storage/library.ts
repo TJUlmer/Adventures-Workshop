@@ -24,6 +24,7 @@
 import { characterLabel } from '$lib/characters/factory';
 import type { CharacterId, CharacterRole } from '$lib/characters/types';
 import { parseSetFile, serializeSet } from '$lib/export/json';
+import { assessSet } from '$lib/sets/health';
 import type { AdventureSet, SetId } from '$lib/sets/types';
 import type { IsoDateTime } from '$lib/core/id';
 import { now } from '$lib/core/id';
@@ -97,6 +98,23 @@ export interface LibraryEntry {
    * []`, not as a sign the set has no characters.
    */
   characters?: LibraryCharacterEntry[];
+  /**
+   * `assessSet(set).blockers`/`.gaps`/`.issues.length`, denormalised for the
+   * same reason everything else here is: the shelf's "current status of
+   * projects" stat card and each tile's own status line read these directly,
+   * rather than parsing a full document per set just to call `assessSet` on
+   * it. Not the `issues` array itself — a message and an optional card id
+   * per issue would be several times the weight of the rest of the index
+   * combined, for a shelf that only ever prints the one-line summary
+   * `healthSummaryFromCounts` derives from these three numbers.
+   *
+   * Absent on an index row written before this existed; `HomeScreen` treats
+   * that as "status unknown" rather than "no issues" — it naturally backfills
+   * the next time the set is opened and autosaved.
+   */
+  blockers?: number;
+  gaps?: number;
+  issueCount?: number;
 }
 
 export interface LibraryCharacterEntry {
@@ -128,6 +146,7 @@ async function writeIndex(entries: readonly LibraryEntry[]): Promise<void> {
 }
 
 function toEntry(set: AdventureSet, bytes: number): LibraryEntry {
+  const health = assessSet(set);
   return {
     id: set.id,
     name: set.name,
@@ -141,6 +160,9 @@ function toEntry(set: AdventureSet, bytes: number): LibraryEntry {
       role: character.role
     })),
     bytes,
+    blockers: health.blockers,
+    gaps: health.gaps,
+    issueCount: health.issues.length,
     ...(set.origin
       ? {
           originAuthor: set.origin.authorName,

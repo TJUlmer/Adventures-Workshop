@@ -213,9 +213,25 @@ export function assessSet(set: AdventureSet): SetHealth {
  * blocker rather than reading it back out of this file.
  */
 export function healthSummary(health: SetHealth): string {
-  if (health.blockers > 0) return 'Not playable yet';
-  if (health.gaps > 0) return 'Playable, still rough';
-  if (health.issues.length > 0) return 'Ready — a few polish items';
+  return healthSummaryFromCounts(health.blockers, health.gaps, health.issues.length);
+}
+
+/**
+ * The same four statuses, from counts alone rather than a full `SetHealth` —
+ * what `HomeScreen`'s shelf wants, since `LibraryEntry` denormalises
+ * `blockers`/`gaps`/`issueCount` (see `storage/library.ts`) rather than the
+ * full `issues` list. Every issue's own message and card id would be several
+ * times the weight of the rest of the index put together, for a shelf that
+ * only ever prints the one-line status, not the checklist.
+ */
+export function healthSummaryFromCounts(
+  blockers: number,
+  gaps: number,
+  issueCount: number
+): string {
+  if (blockers > 0) return 'Not playable yet';
+  if (gaps > 0) return 'Playable, still rough';
+  if (issueCount > 0) return 'Ready — a few polish items';
   return 'Complete';
 }
 

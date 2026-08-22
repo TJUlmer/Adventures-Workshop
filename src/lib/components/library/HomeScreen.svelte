@@ -20,6 +20,7 @@
   import { openContributionCounts } from '$lib/cloud/contributions';
   import { cloudEnabled } from '$lib/cloud/config';
   import { fetchSetSummaryBySlug, listMyPublishedSets } from '$lib/cloud/sets';
+  import { healthSummaryFromCounts } from '$lib/sets/health';
   import type { SetId, SetKind } from '$lib/sets/types';
   import { navigation } from '$lib/state/navigation.svelte';
   import { workshop } from '$lib/state/workshop.svelte';
@@ -49,6 +50,40 @@
   }
 
   const entries = $derived(workshop.library);
+
+  /**
+   * The stat row: quick counts, not detail — the attention strip and the
+   * shelf below already carry the specifics. `blockers` only counts entries
+   * that actually know their own health (`entry.blockers !== undefined`); an
+   * index row written before that field existed is "status unknown," not
+   * "no blockers," and must not read as either a pass or a fail until it has
+   * backfilled — see `storage/library.ts`'s `LibraryEntry.blockers`.
+   */
+  const libraryStats = $derived.by(() => {
+    let characters = 0;
+    let blocked = 0;
+    for (const entry of entries) {
+      characters += entry.characterCount;
+      if ((entry.blockers ?? 0) > 0) blocked += 1;
+    }
+    return { sets: entries.length, characters, blocked };
+  });
+
+  /**
+   * The set to offer as "continue where you left off" — deliberately *not*
+   * `readLastOpen()`, which sounds like the same question and is not:
+   * `rememberLastOpen(null)` is what `workshop.closeSet()` calls on the way
+   * to Home, because that field's actual job is "what to silently reopen if
+   * the browser closed without warning," and a deliberate trip back to Home
+   * is the opposite of that — it must *not* reopen anything next time. Reading
+   * it here would mean this card went blank the moment the button that leads
+   * to it was used, which is the one path an author takes to reach it.
+   *
+   * `entries[0]` instead: `readIndex()` already orders most-recently-saved
+   * first (`storage/library.ts`), so this is "what I was just working on"
+   * without a second field to keep in sync with reality.
+   */
+  const lastOpened = $derived(entries[0] ?? null);
 
   /**
    * Two questions worth answering before opening any one set, not after:
@@ -360,6 +395,21 @@
       {#if entry.subtitle}<span class="card-subtitle">{entry.subtitle}</span>{/if}
 
       <!--
+        The same status `SetHome` shows once the set is open, from the same
+        counts — see `healthSummaryFromCounts`. Absent rather than "Complete"
+        on an index row written before `blockers` existed: it has not
+        backfilled yet, and a guess would be worse than saying nothing.
+      -->
+      {#if entry.blockers !== undefined && entry.gaps !== undefined && entry.issueCount !== undefined}
+        <span
+          class="health-status"
+          class:blocked={entry.blockers > 0}
+        >
+          {healthSummaryFromCounts(entry.blockers, entry.gaps, entry.issueCount)}
+        </span>
+      {/if}
+
+      <!--
         A copy says so before it is opened. `originAuthor` is absent rather
         than empty on a set authored here, and empty on one copied from a
         published set whose author had no display name — so the badge
@@ -477,6 +527,34 @@
 
   {#if message}
     <p class="message">{message}</p>
+  {/if}
+
+  {#if entries.length > 0}
+    <div class="stat-row">
+      <div class="stat-card">
+        <span class="stat-card-label">Sets</span>
+        <span class="stat-card-value numeric">{libraryStats.sets}</span>
+      </div>
+      <div class="stat-card">
+        <span class="stat-card-label">Characters</span>
+        <span class="stat-card-value numeric">{libraryStats.characters}</span>
+      </div>
+      <div class="stat-card" class:has-issue={libraryStats.blocked > 0}>
+        <span class="stat-card-label">Have blockers</span>
+        <span class="stat-card-value numeric">{libraryStats.blocked}</span>
+      </div>
+    </div>
+
+    {#if lastOpened}
+      {@const set = lastOpened}
+      <button type="button" class="continue-card" onclick={() => void workshop.openSet(set.id)}>
+        <span class="continue-body">
+          <span class="continue-label">Continue where you left off</span>
+          <span class="continue-name">{set.name || 'Untitled Adventure'}</span>
+        </span>
+        <Icon name="chevronRight" size={16} />
+      </button>
+    {/if}
   {/if}
 
   {#if waitingSets.length > 0 || behindSets.length > 0}
@@ -709,6 +787,89 @@
     gap: var(--space-4);
     flex-wrap: wrap;
     padding: var(--space-5) var(--space-9) 0;
+  }
+
+  .stat-row {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: var(--space-3);
+    padding: var(--space-5) var(--space-9) 0;
+  }
+
+  .stat-card {
+    padding: var(--space-4);
+    border-radius: var(--radius-md);
+    background: var(--surface-raised);
+    border: 1px solid var(--border-subtle);
+  }
+
+  .stat-card.has-issue {
+    border-color: color-mix(in oklab, var(--warning) 45%, transparent);
+  }
+
+  .stat-card-label {
+    display: block;
+    font-size: var(--text-xs);
+    color: var(--text-muted);
+    margin-bottom: var(--space-1);
+  }
+
+  .stat-card-value {
+    display: block;
+    font-size: var(--text-2xl);
+    font-weight: var(--weight-semibold);
+    color: var(--text-primary);
+  }
+
+  .stat-card.has-issue .stat-card-value {
+    color: var(--warning);
+  }
+
+  .continue-card {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
+    margin: var(--space-3) var(--space-9) 0;
+    padding: var(--space-4);
+    border-radius: var(--radius-md);
+    background: var(--surface-raised);
+    border: 1px solid var(--border-subtle);
+    color: var(--text-primary);
+    text-align: left;
+    cursor: pointer;
+    transition: border-color var(--duration-fast) var(--ease-out);
+  }
+
+  .continue-card:hover {
+    border-color: var(--border-strong);
+  }
+
+  .continue-body {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+  }
+
+  .continue-label {
+    font-size: var(--text-xs);
+    color: var(--text-muted);
+  }
+
+  .continue-name {
+    font-family: var(--font-display);
+    font-size: var(--text-md);
+  }
+
+  .health-status {
+    align-self: flex-start;
+    font-size: var(--text-2xs);
+    color: var(--text-tertiary);
+  }
+
+  .health-status.blocked {
+    color: var(--warning);
   }
 
   .attention {
