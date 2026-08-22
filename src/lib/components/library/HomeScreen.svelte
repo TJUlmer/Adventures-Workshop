@@ -34,6 +34,9 @@
   let fileInput = $state<HTMLInputElement | null>(null);
   let message = $state<string | null>(null);
   let confirmingDelete = $state<string | null>(null);
+  /** Collapsed by default — an empty-feeling section nobody asked to see. */
+  let showDeleted = $state(false);
+  let confirmingPurge = $state<string | null>(null);
 
   /**
    * Whether the "what are you making?" chooser is up.
@@ -50,6 +53,7 @@
   }
 
   const entries = $derived(workshop.library);
+  const deletedEntries = $derived(workshop.deletedLibrary);
 
   /**
    * The stat row: quick counts, not detail — the attention strip and the
@@ -396,14 +400,17 @@
 
       <!--
         The same status `SetHome` shows once the set is open, from the same
-        counts — see `healthSummaryFromCounts`. Absent rather than "Complete"
-        on an index row written before `blockers` existed: it has not
-        backfilled yet, and a guess would be worse than saying nothing.
+        counts and the same three colours (`data-state`, matching its own
+        blocked/rough/ready) — a status that reads as a plain grey label here
+        and a coloured one once you open the set is the same fact told two
+        different ways. Absent rather than "Complete" on an index row written
+        before `blockers` existed: it has not backfilled yet, and a guess
+        would be worse than saying nothing.
       -->
       {#if entry.blockers !== undefined && entry.gaps !== undefined && entry.issueCount !== undefined}
         <span
           class="health-status"
-          class:blocked={entry.blockers > 0}
+          data-state={entry.blockers > 0 ? 'blocked' : entry.gaps > 0 ? 'rough' : 'ready'}
         >
           {healthSummaryFromCounts(entry.blockers, entry.gaps, entry.issueCount)}
         </span>
@@ -472,6 +479,48 @@
           title="Delete"
           aria-label="Delete set"
           onclick={() => (confirmingDelete = entry.id)}
+        >
+          <Icon name="trash" size={13} />
+        </button>
+      {/if}
+    </div>
+  </li>
+{/snippet}
+
+{#snippet deletedRow(entry: LibraryEntry)}
+  <li class="deleted-row">
+    <div class="deleted-info">
+      <span class="deleted-name">{entry.name || 'Untitled Adventure'}</span>
+      <span class="deleted-meta">Deleted {formatDate(entry.deletedAt ?? entry.updatedAt)}</span>
+    </div>
+    <div class="deleted-actions">
+      <button
+        type="button"
+        class="ghost"
+        onclick={() => void workshop.restoreSet(entry.id)}
+      >
+        <Icon name="rotate" size={13} />
+        Restore
+      </button>
+
+      {#if confirmingPurge === entry.id}
+        <button
+          type="button"
+          class="ghost danger"
+          onclick={() => void workshop.purgeSet(entry.id)}
+        >
+          Delete forever
+        </button>
+        <button type="button" class="ghost" onclick={() => (confirmingPurge = null)}>
+          Cancel
+        </button>
+      {:else}
+        <button
+          type="button"
+          class="ghost"
+          title="Delete forever"
+          aria-label="Delete forever"
+          onclick={() => (confirmingPurge = entry.id)}
         >
           <Icon name="trash" size={13} />
         </button>
@@ -703,6 +752,22 @@
         {/each}
       </ul>
     {/if}
+
+    {#if deletedEntries.length > 0}
+      <div class="deleted-section">
+        <button type="button" class="deleted-toggle" onclick={() => (showDeleted = !showDeleted)}>
+          <Icon name={showDeleted ? 'chevronDown' : 'chevronRight'} size={13} />
+          Recently deleted <span class="numeric">· {deletedEntries.length}</span>
+        </button>
+        {#if showDeleted}
+          <ul class="deleted-list">
+            {#each deletedEntries as entry (entry.id)}
+              {@render deletedRow(entry)}
+            {/each}
+          </ul>
+        {/if}
+      </div>
+    {/if}
   </div>
 </div>
 
@@ -864,12 +929,25 @@
 
   .health-status {
     align-self: flex-start;
+    padding: 2px var(--space-2);
+    border-radius: var(--radius-full);
+    border: 1px solid var(--border-default);
     font-size: var(--text-2xs);
-    color: var(--text-tertiary);
   }
 
-  .health-status.blocked {
+  .health-status[data-state='blocked'] {
+    color: var(--danger);
+    border-color: color-mix(in oklab, var(--danger) 40%, transparent);
+  }
+
+  .health-status[data-state='rough'] {
     color: var(--warning);
+    border-color: color-mix(in oklab, var(--warning) 40%, transparent);
+  }
+
+  .health-status[data-state='ready'] {
+    color: var(--success);
+    border-color: color-mix(in oklab, var(--success) 40%, transparent);
   }
 
   .attention {
@@ -1150,6 +1228,67 @@
 
   .character-title {
     font-size: var(--text-sm);
+  }
+
+  .deleted-section {
+    margin-top: var(--space-7);
+    padding-top: var(--space-5);
+    border-top: 1px solid var(--border-subtle);
+  }
+
+  .deleted-toggle {
+    display: inline-grid;
+    grid-auto-flow: column;
+    align-items: center;
+    gap: var(--space-2);
+    font-size: var(--text-sm);
+    color: var(--text-muted);
+  }
+
+  .deleted-toggle:hover {
+    color: var(--text-secondary);
+  }
+
+  .deleted-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    margin-top: var(--space-3);
+  }
+
+  .deleted-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
+    padding: var(--space-3) var(--space-4);
+    border-radius: var(--radius-md);
+    background: var(--surface-raised);
+    border: 1px solid var(--border-subtle);
+  }
+
+  .deleted-info {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+  }
+
+  .deleted-name {
+    font-size: var(--text-sm);
+    color: var(--text-secondary);
+  }
+
+  .deleted-meta {
+    font-size: var(--text-2xs);
+    color: var(--text-muted);
+  }
+
+  .deleted-actions {
+    display: flex;
+    align-items: center;
+    gap: var(--space-1);
+    flex: none;
   }
 
   .role-badge {

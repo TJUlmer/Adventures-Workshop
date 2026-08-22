@@ -115,6 +115,13 @@ export interface LibraryEntry {
   blockers?: number;
   gaps?: number;
   issueCount?: number;
+  /**
+   * When this set was moved to Recently Deleted, or absent while it is
+   * active. A *soft* delete — see `deleteSet` — so this is the one field
+   * that turns an ordinary index row into a trashed one; the document
+   * itself sits untouched in `SETS_STORE` either way.
+   */
+  deletedAt?: IsoDateTime;
 }
 
 export interface LibraryCharacterEntry {
@@ -186,8 +193,14 @@ export async function saveSet(set: AdventureSet, json = serializeSet(set)): Prom
   const wrote = await idbPut(SETS_STORE, set.id, json);
   if (!wrote) return false;
 
-  const entries = (await readIndex()).filter((entry) => entry.id !== set.id);
-  entries.unshift(toEntry(set, json.length));
+  const existing = await readIndex();
+  // Carried forward explicitly: `toEntry` builds a fresh row with no notion
+  // of Recently Deleted, so without this an autosave landing on a set that
+  // is currently trashed would silently restore it — the one field this
+  // rebuild must not drop.
+  const deletedAt = existing.find((entry) => entry.id === set.id)?.deletedAt;
+  const entries = existing.filter((entry) => entry.id !== set.id);
+  entries.unshift({ ...toEntry(set, json.length), ...(deletedAt ? { deletedAt } : {}) });
   await writeIndex(entries);
   return true;
 }
@@ -204,9 +217,60 @@ export async function loadSet(id: SetId): Promise<AdventureSet | null> {
   return result.set;
 }
 
+/**
+ * Move a set to Recently Deleted, rather than removing it.
+ *
+ * A user lost a set to exactly the old behaviour here — one click on a trash
+ * icon, gone, nothing to undo it with. This is a *soft* delete: the document
+ * is untouched in `SETS_STORE`, and only the index row is flagged, so
+ * `restoreSet` is instant and cheap and there is no document to have gone
+ * stale in the meantime. `HomeScreen` is what actually hides a deleted entry
+ * from the ordinary shelf — see `activeEntries` — this function only marks
+ * it; `purgeSet` is the real, permanent removal, for "Delete forever" and for
+ * whatever eventually sweeps out entries deleted long enough ago.
+ *
+ * A no-op, not an error, for an id `readIndex` does not have — matches
+ * `idbDelete`'s own "delete what is there" contract, and means a caller never
+ * has to check existence first.
+ */
 export async function deleteSet(id: SetId): Promise<void> {
+  const entries = await readIndex();
+  const entry = entries.find((candidate) => candidate.id === id);
+  if (!entry || entry.deletedAt !== undefined) return;
+  entry.deletedAt = now();
+  await writeIndex(entries);
+}
+
+/** Bring a set back from Recently Deleted. A no-op if it is not there. */
+export async function restoreSet(id: SetId): Promise<void> {
+  const entries = await readIndex();
+  const entry = entries.find((candidate) => candidate.id === id);
+  if (!entry || entry.deletedAt === undefined) return;
+  delete entry.deletedAt;
+  await writeIndex(entries);
+}
+
+/**
+ * Permanently remove a set — what `deleteSet` used to do outright. "Delete
+ * forever" in Recently Deleted calls this directly; nothing else in the app
+ * does, on purpose, so losing a set for good is always a second, separate
+ * decision from the first click.
+ */
+export async function purgeSet(id: SetId): Promise<void> {
   await idbDelete(SETS_STORE, id);
   await writeIndex((await readIndex()).filter((entry) => entry.id !== id));
+}
+
+/** The ordinary shelf: everything not in Recently Deleted. */
+export function activeEntries(entries: readonly LibraryEntry[]): LibraryEntry[] {
+  return entries.filter((entry) => entry.deletedAt === undefined);
+}
+
+/** Recently Deleted, most recently deleted first. */
+export function deletedEntries(entries: readonly LibraryEntry[]): LibraryEntry[] {
+  return entries
+    .filter((entry) => entry.deletedAt !== undefined)
+    .sort((a, b) => (b.deletedAt as string).localeCompare(a.deletedAt as string));
 }
 
 /** Which set was open last, so a reload lands where the author left off. */

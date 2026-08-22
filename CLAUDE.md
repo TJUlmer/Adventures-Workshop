@@ -63,6 +63,25 @@ where they used to resolve before Svelte rendered at all, and rendering the
 routes unconditionally in the meantime would show the Home screen and then
 jump to whatever set was actually open.
 
+**Deleting a set from the shelf is a soft delete.** One click on the trash
+icon used to be exactly that final — `deleteSet` called `idbDelete` outright —
+until an author lost work to it with nothing to undo. `deleteSet` now stamps
+the index row's `LibraryEntry.deletedAt` and leaves the document in `SETS_STORE`
+untouched; `activeEntries`/`deletedEntries` split one `readIndex()` read into
+the ordinary shelf and Home's own "Recently deleted" section
+(`workshop.library`/`workshop.deletedLibrary`, refreshed together by
+`refreshLibrary()` so the two can never disagree about which bucket a row is
+in). `restoreSet` clears the flag; `purgeSet` is the old unconditional
+behaviour, renamed, and reachable only from "Delete forever" inside Recently
+Deleted — nothing else in the app calls it, so losing a set for good is always
+a second, separate decision from the first click. The one trap: `saveSet`
+rebuilds its index row from `toEntry(set, …)` on every write, including
+autosave, and `toEntry` has no notion of `deletedAt` at all — without
+carrying the flag forward explicitly, the next autosave on a set sitting in
+Recently Deleted would silently restore it. No sweep ever purges an old
+deletion automatically; Recently Deleted holds everything until an author
+acts on it.
+
 Downscaling large images stays worth doing independently of which store backs
 the library — see `core/image-import.ts`. `readArtworkFile` is what every
 "choose an image" control in the app reads a file through: it decodes, and if

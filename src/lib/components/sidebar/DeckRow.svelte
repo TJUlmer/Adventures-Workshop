@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { characterLabel } from '$lib/characters/factory';
+  import type { CharacterId } from '$lib/characters/types';
   import { deckLabel } from '$lib/decks/factory';
   import type { Deck } from '$lib/decks/types';
   import { DECK_KIND_META } from '$lib/decks/types';
@@ -19,6 +21,30 @@
   let { deck, printCount, ownerName = null, depth = 1 }: Props = $props();
 
   const meta = $derived(DECK_KIND_META[deck.kind]);
+
+  /**
+   * Rules and event decks are always listed set-wide (`SET_LEVEL_KINDS` in
+   * `sets/queries.ts`) regardless of `ownerId` — deliberately, since most of
+   * them genuinely are shared reference material. What was missing was any
+   * way to *set* that owner at all: a rules deck that only makes sense for
+   * one character had no path to travel with a scoped export of just them.
+   * Scoped to these two kinds rather than every kind — an action deck's
+   * owner is who the deck *is*, and reassigning one is a far more disruptive
+   * act than this control is meant for.
+   */
+  const reownable = $derived(deck.kind === 'rules' || deck.kind === 'event');
+  const ownerOptions = $derived([
+    { value: '', label: 'Whole set' },
+    ...workshop.adventure.characters.map((character) => ({
+      value: character.id,
+      label: characterLabel(character)
+    }))
+  ]);
+
+  function onOwnerChange(event: Event & { currentTarget: HTMLSelectElement }): void {
+    const value = event.currentTarget.value;
+    workshop.setDeckOwner(deck.id, value === '' ? null : (value as CharacterId));
+  }
 
   const dropTarget = $derived(cardDrag.overDeckId === deck.id);
 
@@ -52,7 +78,19 @@
   <div class="label">
     <span class="bar" style:background="var({meta.colorVar})"></span>
     <span class="name">{deckLabel(deck)}</span>
-    {#if ownerName}
+    {#if reownable}
+      <select
+        class="owner-select"
+        class:owned={deck.ownerId !== null}
+        value={deck.ownerId ?? ''}
+        title="Who this deck belongs to"
+        onchange={onOwnerChange}
+      >
+        {#each ownerOptions as option (option.value)}
+          <option value={option.value}>{option.label}</option>
+        {/each}
+      </select>
+    {:else if ownerName}
       <span class="owner">{ownerName}</span>
     {/if}
     <span class="count numeric">{printCount}</span>
@@ -121,6 +159,28 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+  }
+
+  /*
+   * Quiet until it has something to say: "Whole set" reads the same as no
+   * owner at all, so it stays dim like `.owner` above and only brightens once
+   * a real character is picked — the same "modified" signal `Slider`'s own
+   * readout uses elsewhere in the editor.
+   */
+  .owner-select {
+    max-width: 90px;
+    padding: 0 2px;
+    border: none;
+    background: transparent;
+    color: var(--text-muted);
+    opacity: 0.65;
+    font-size: var(--text-2xs);
+    text-overflow: ellipsis;
+  }
+
+  .owner-select.owned {
+    color: var(--text-secondary);
+    opacity: 1;
   }
 
   .count {

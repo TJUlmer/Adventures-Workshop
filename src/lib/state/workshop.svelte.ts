@@ -65,10 +65,14 @@ import { createCustomSymbol } from '$lib/symbols/types';
 import { getLastWriteError, readStorageEstimate } from '$lib/storage/indexeddb';
 import type { LibraryEntry } from '$lib/storage/library';
 import {
+  activeEntries,
+  deletedEntries,
   deleteSet as deleteSetFromLibrary,
   loadSet as loadSetFromLibrary,
+  purgeSet as purgeSetFromLibrary,
   readIndex,
   rememberLastOpen,
+  restoreSet as restoreSetInLibrary,
   saveSet as saveSetToLibrary
 } from '$lib/storage/library';
 import type {
@@ -231,9 +235,15 @@ export class WorkshopStore {
 
   /** Index rows for the library screen. Refreshed on write, not derived. */
   library = $state<LibraryEntry[]>([]);
+  /** Recently Deleted — split out here rather than filtered per-reader, so
+      Home's shelf and its Recently Deleted section can never disagree about
+      which bucket a row is in. */
+  deletedLibrary = $state<LibraryEntry[]>([]);
 
   async refreshLibrary(): Promise<void> {
-    this.library = await readIndex();
+    const entries = await readIndex();
+    this.library = activeEntries(entries);
+    this.deletedLibrary = deletedEntries(entries);
   }
 
   /**
@@ -300,6 +310,18 @@ export class WorkshopStore {
     await deleteSetFromLibrary(id);
     await this.refreshLibrary();
     if (this.adventure.id === id) await this.closeSet();
+  }
+
+  /** Bring a soft-deleted set back onto the shelf. */
+  async restoreSet(id: SetId): Promise<void> {
+    await restoreSetInLibrary(id);
+    await this.refreshLibrary();
+  }
+
+  /** The point of no return — actually erases the set and its row. */
+  async purgeSet(id: SetId): Promise<void> {
+    await purgeSetFromLibrary(id);
+    await this.refreshLibrary();
   }
 
   /** Copy a set under a new identity — the Save As of a local-first tool. */
@@ -661,6 +683,26 @@ export class WorkshopStore {
     this.adventure.decks.push(deck);
     this.touch();
     return deck;
+  }
+
+  /**
+   * Re-owner a deck — chiefly for `rules`/`event`, which `SET_LEVEL_KINDS`
+   * (`sets/queries.ts`) always collects into the set-wide Rules/Events
+   * groups regardless of `ownerId`. That grouping is deliberate (most rules
+   * cards genuinely are set-wide reference material) and this does not
+   * change it; what it fixes is that `ownerId` had no way to be *set* at
+   * all once a deck existed, so a rules deck that only ever made sense for
+   * one character — Forgotten Pantheons' two Maui-only rules cards, say —
+   * had no way to travel with a scoped export of just that character
+   * (`sets/scope.ts`'s `heroSlice` already reads `decksForCharacter`
+   * correctly; it was only ever missing an owner to read).
+   */
+  setDeckOwner(id: DeckId, ownerId: CharacterId | null): void {
+    const deck = findDeck(this.adventure, id);
+    if (!deck) return;
+    deck.ownerId = ownerId;
+    deck.updatedAt = now();
+    this.touch();
   }
 
   /** Deleting a deck deletes the cards in it — they have nowhere else to live. */

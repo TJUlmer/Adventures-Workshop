@@ -5,7 +5,7 @@ import { INITIATIVE_BAND_DEFAULTS } from '$lib/renderer/geometry';
 import { SUBJECT_TOKEN } from '$lib/text/tokens';
 import { solid } from './style';
 import type { Card, CardCommon, CardId, CardOfType, CardType, InitiativeBands } from './types';
-import { CARD_TYPE_META, createAbilityBlocks, createHeadingPlacement } from './types';
+import { CARD_TYPE_META, createAbilityBlocks, createHeadingPlacement, initiativeHeading } from './types';
 
 /** Band defaults, sampled from the print template. */
 function createInitiativeBands(): InitiativeBands {
@@ -163,6 +163,17 @@ export function cardLabel(card: Card): string {
   if ((card.type === 'rules' || card.type === 'event') && card.heading.trim().length > 0) {
     return card.heading;
   }
+  /*
+   * An initiative card has no title field of its own to fall back on — its
+   * only author-facing text is the band copy (`subjectText`/`rightNow`/
+   * `endOfRound`), none of which reads as a name — so every one printed
+   * "Untitled Initiative" regardless of which of the four it was. It already
+   * has a real, distinguishing label: `initiativeHeading` computes "Villain
+   * Effect" for the printed banner, and reusing it here is the whole fix —
+   * "Villain"/"Villain Effect"/"Minion"/"Minion Effect" was the naming this
+   * was asked for, and it turned out to already exist one call away.
+   */
+  if (card.type === 'initiative') return initiativeHeading(card);
   return `Untitled ${CARD_TYPE_META[card.type].label.toLowerCase()}`;
 }
 

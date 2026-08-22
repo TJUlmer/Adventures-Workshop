@@ -149,7 +149,18 @@ export function assessSet(set: AdventureSet): SetHealth {
     });
   }
 
-  const missingArt = set.cards.filter((card) => wantsArtwork(card) && !hasArtwork(card.artwork));
+  /*
+   * `card.replacement` too, not just `card.artwork` — a card whose finished
+   * image stands in for the whole composition (see "Replacement images" in
+   * CLAUDE.md) still reads a picture on the table, and the checklist calling
+   * that "missing" was simply wrong. Checked the same way `noBack` already
+   * checks a cardback's own replacement below, not gated on `useReplacement`:
+   * an image sitting there unused is still a picture attached, and this is
+   * "is there a picture," not "which one is currently showing."
+   */
+  const missingArt = set.cards.filter(
+    (card) => wantsArtwork(card) && !hasArtwork(card.artwork) && !hasArtwork(card.replacement)
+  );
   if (missingArt.length > 0) {
     issues.push({
       severity: 'gap',

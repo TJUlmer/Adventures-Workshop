@@ -60,10 +60,19 @@
 </script>
 
 <div class="bar">
-  <div class="brand">
+  <!--
+    The one piece of chrome here that looked clickable and was not — a brand
+    mark in the top-left corner reads as "go home" everywhere on the web, and
+    this one sat right beside a button that actually does that ("Home", added
+    when Home replaced the library page) without itself doing anything.
+    `workshop.closeSet`, not a bare `navigation.openHome`, for the same reason
+    that button uses it: leaving a set is what refreshes the library index
+    and clears "last open".
+  -->
+  <button class="brand" type="button" onclick={() => void workshop.closeSet()} title="Home">
     <span class="mark" aria-hidden="true"></span>
     <span class="wordmark">Adventures Workshop</span>
-  </div>
+  </button>
 
   <button class="doc" type="button" onclick={() => workshop.selectSet()} title="Set details">
     <Icon name="book" size={14} />
@@ -165,6 +174,15 @@
     align-items: center;
     gap: var(--space-3);
     min-width: 0;
+    padding: 0;
+    border: none;
+    background: none;
+    cursor: pointer;
+    border-radius: var(--radius-sm);
+  }
+
+  .brand:hover .wordmark {
+    color: var(--text-primary);
   }
 
   .mark {
