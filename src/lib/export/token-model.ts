@@ -100,20 +100,32 @@ export async function buildTokenTexture(
  * (see `buildTokenMesh`), each half a pixel-square the token's circle inscribes.
  * Recommended prep is exactly this: two squares side by side, front on the
  * left, back on the right (see `FiguresPanel`'s own note and the supplied
- * .psd) — an image already laid out that way is already 2:1 and this leaves
- * it untouched.
+ * .psd) — an image already laid out that way is already 2:1, each half
+ * already square, and this leaves it untouched.
  *
- * A source that is *not* already 2:1 is fitted rather than stretched — same
- * "fit, not fill" as `buildTokenTexture`'s one-sided art, and for the same
- * reason: this used to force-fill the whole 2:1 canvas regardless of the
- * source's own shape, so a single square photo (the common case for anyone
- * who has not prepared a dual front/back composition) came out squashed to
- * twice its width. Fitted, that same photo appears at its own proportions,
- * centred, with `background` filling whatever the fit does not reach —
- * losing the middle seam alignment a genuine two-up image gets for free, but
- * never warping the picture to get it. `zoom` scales up from that fit
- * baseline exactly as it does for one-sided art, clipped so it cannot bleed
- * past the canvas.
+ * Whatever the source's own shape, it is split into a left half and a right
+ * half *first* — matching what the mesh does with the finished texture — and
+ * each half is fitted into its own square independently, never stretched.
+ * Two things went through here before landing on that:
+ *
+ * 1. Stretching the whole source to force-fill the 2:1 canvas, unconditionally
+ *    — fine for an already-2:1 image, but a single square photo (the common
+ *    case for anyone who has not composed a dual front/back image) came out
+ *    squashed to twice its width.
+ * 2. Fitting the whole source into the 2:1 canvas *as one piece*, centred —
+ *    no longer stretched, but a single photo is not 2:1, so the fitted image
+ *    straddled the seam: the mesh's own left-half/right-half sampling then
+ *    put one half of the photo on the front face and the other half on the
+ *    back, rather than the same whole photo on both.
+ *
+ * Splitting first and fitting each half on its own is what a genuine 2:1
+ * composition already looks like — two squares — so treating every source
+ * this way costs a real dual composition nothing (each half is already
+ * square, fits at scale 1, passes through unchanged) while giving a single
+ * un-prepared photo a face that shows only half of it, undistorted rather
+ * than warped. A whole, undistorted copy on *both* faces is what turning
+ * `twoSided` off already does — this is for a piece whose front and back are
+ * genuinely meant to differ.
  */
 export async function buildTwoSidedTexture(
   source: string,
@@ -132,17 +144,37 @@ export async function buildTwoSidedTexture(
   context.fillStyle = background;
   context.fillRect(0, 0, canvas.width, canvas.height);
 
-  const fitScale = Math.min(canvas.width / image.width, canvas.height / image.height);
+  // Both halves share one scale — they are the same size by construction
+  // (exactly half the source's width, its full height) — so front and back
+  // end up at the same zoom rather than each fitting independently to
+  // whatever its own half happens to contain.
+  const halfWidth = image.width / 2;
+  const fitScale = Math.min(size / halfWidth, size / image.height);
   const scale = fitScale * Math.max(0.2, zoom);
-  const width = image.width * scale;
+  const width = halfWidth * scale;
   const height = image.height * scale;
 
-  context.save();
-  context.beginPath();
-  context.rect(0, 0, canvas.width, canvas.height);
-  context.clip();
-  context.drawImage(image, (canvas.width - width) / 2, (canvas.height - height) / 2, width, height);
-  context.restore();
+  const drawHalf = (sourceX: number, destX: number): void => {
+    context.save();
+    context.beginPath();
+    context.rect(destX, 0, size, size);
+    context.clip();
+    context.drawImage(
+      image,
+      sourceX,
+      0,
+      halfWidth,
+      image.height,
+      destX + (size - width) / 2,
+      (size - height) / 2,
+      width,
+      height
+    );
+    context.restore();
+  };
+
+  drawHalf(0, 0); // Left half of the source -> the front (left) square.
+  drawHalf(halfWidth, size); // Right half -> the back (right) square.
 
   return encodePng(canvas);
 }
