@@ -890,15 +890,15 @@
                     {/if}
 
                     <!--
-                      One-sided only — a two-sided image is placed by
-                      `buildTwoSidedTexture`'s own fixed 2:1 layout, which this
-                      does not touch, so the control would do nothing there.
                       Reuses `ArtworkPanel`'s own Scale bounds (0.2..4, neutral
                       1) for the same reason it reuses `ArtTransform.scale`
                       itself: one field, one set of bounds, wherever an author
-                      turns it.
+                      turns it. Shown for two-sided art too, now that
+                      `buildTwoSidedTexture` fits rather than stretches a
+                      source that is not already 2:1 — the same zoom-past-fit
+                      this already does for one-sided art.
                     -->
-                    {#if !figure.token.twoSided && hasArtwork(figure.reference)}
+                    {#if hasArtwork(figure.reference)}
                       <div class="field">
                         <Slider
                           label="Zoom"

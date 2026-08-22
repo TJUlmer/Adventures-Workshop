@@ -93,15 +93,34 @@ export async function buildTokenTexture(
 }
 
 /**
- * The two-sided texture: the supplied image made exactly 2:1, front | back.
+ * The two-sided texture: the supplied image laid into a 2:1 canvas, front |
+ * back.
  *
  * The mesh maps the top face into the left half and the bottom into the right
  * (see `buildTokenMesh`), each half a pixel-square the token's circle inscribes.
- * The source is drawn to fill a 2:1 canvas so the halves stay square even if it
- * was handed over a little off — an image already laid out two-up, like the
- * sidekick example, passes through untouched.
+ * Recommended prep is exactly this: two squares side by side, front on the
+ * left, back on the right (see `FiguresPanel`'s own note and the supplied
+ * .psd) — an image already laid out that way is already 2:1 and this leaves
+ * it untouched.
+ *
+ * A source that is *not* already 2:1 is fitted rather than stretched — same
+ * "fit, not fill" as `buildTokenTexture`'s one-sided art, and for the same
+ * reason: this used to force-fill the whole 2:1 canvas regardless of the
+ * source's own shape, so a single square photo (the common case for anyone
+ * who has not prepared a dual front/back composition) came out squashed to
+ * twice its width. Fitted, that same photo appears at its own proportions,
+ * centred, with `background` filling whatever the fit does not reach —
+ * losing the middle seam alignment a genuine two-up image gets for free, but
+ * never warping the picture to get it. `zoom` scales up from that fit
+ * baseline exactly as it does for one-sided art, clipped so it cannot bleed
+ * past the canvas.
  */
-export async function buildTwoSidedTexture(source: string, size = 1024): Promise<Blob> {
+export async function buildTwoSidedTexture(
+  source: string,
+  size = 1024,
+  background = '#000000',
+  zoom = 1
+): Promise<Blob> {
   const image = await loadImage(source);
 
   const canvas = document.createElement('canvas');
@@ -110,7 +129,21 @@ export async function buildTwoSidedTexture(source: string, size = 1024): Promise
   const context = canvas.getContext('2d');
   if (!context) throw new Error('Could not get a drawing context.');
 
-  context.drawImage(image, 0, 0, image.width, image.height, 0, 0, canvas.width, canvas.height);
+  context.fillStyle = background;
+  context.fillRect(0, 0, canvas.width, canvas.height);
+
+  const fitScale = Math.min(canvas.width / image.width, canvas.height / image.height);
+  const scale = fitScale * Math.max(0.2, zoom);
+  const width = image.width * scale;
+  const height = image.height * scale;
+
+  context.save();
+  context.beginPath();
+  context.rect(0, 0, canvas.width, canvas.height);
+  context.clip();
+  context.drawImage(image, (canvas.width - width) / 2, (canvas.height - height) / 2, width, height);
+  context.restore();
+
   return encodePng(canvas);
 }
 
@@ -142,11 +175,14 @@ async function buildSolidTexture(color: string, size = 1024): Promise<Blob> {
  * same `figure.token.twoSided` a real token build would — see `health-dial.ts`.
  * It is a disc like any other, but it is the app's component rather than the
  * author's, so a *one-sided* dial's rim is the app's fixed colour rather than
- * one the author picks — there is no rim control on a dial. A two-sided dial
- * has no rim band to fill in the first place: like a two-sided token, its edge
- * samples the seam between the front and back halves of the supplied picture,
- * whatever that happens to be, the same as `buildTwoSidedTexture` already does
- * for a real token.
+ * one the author picks — there is no rim control on a dial. A two-sided
+ * dial's *edge* still has no rim band to fill — like a two-sided token, it
+ * samples the seam between the front and back halves of the supplied
+ * picture, whatever that happens to be — but its `background` is still the
+ * same fixed colour, for the letterbox `buildTwoSidedTexture` now fills
+ * around a source that is not already 2:1. Those are two different things a
+ * "rim colour" reaches on a two-sided piece: never the edge, sometimes the
+ * face.
  *
  * A dial's face is still required — see `tts-bundle.ts`'s `dialObjects`, which
  * never calls this without one — but every other kind falls back to a flat
@@ -159,12 +195,12 @@ export function buildTokenArt(figure: Figure, size = 1024): Promise<Blob> {
   if (figure.kind === 'dial') {
     if (!source) throw new Error('Attach a reference image first — it is what goes on the token.');
     return figure.token.twoSided
-      ? buildTwoSidedTexture(source, size)
+      ? buildTwoSidedTexture(source, size, HEALTH_DIAL_RIM, zoom)
       : buildTokenTexture(source, HEALTH_DIAL_RIM, size, zoom);
   }
   if (!source) return buildSolidTexture(figure.token.rimColor, size);
   return figure.token.twoSided
-    ? buildTwoSidedTexture(source, size)
+    ? buildTwoSidedTexture(source, size, figure.token.rimColor, zoom)
     : buildTokenTexture(source, figure.token.rimColor, size, zoom);
 }
 
