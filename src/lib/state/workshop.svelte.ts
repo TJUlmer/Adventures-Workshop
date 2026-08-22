@@ -724,6 +724,42 @@ export class WorkshopStore {
     return existing ?? this.addDeck(kind);
   }
 
+  /**
+   * A deck of the given kind owned by a specific character — `ensureDeck`'s
+   * counterpart for the owned case, created on first use rather than assumed
+   * to already exist.
+   *
+   * What actually closes the loop on assigning a rules or event card to one
+   * character: the data model and scoped export already respected a deck's
+   * `ownerId` regardless of kind, and `DeckRow` already let an author flip
+   * the owner of a deck that exists — but every rules/event deck is born
+   * unowned (`ensureDeck`, above), and nothing ever created a second one, so
+   * there was never anything *to* reassign a single card into. `setCardOwner`
+   * is what an author actually reaches for; this is the deck it needs.
+   */
+  ensureOwnedDeck(kind: DeckKind, ownerId: CharacterId): Deck {
+    const existing = this.adventure.decks.find(
+      (deck) => deck.kind === kind && deck.ownerId === ownerId
+    );
+    return existing ?? this.addDeck(kind, ownerId);
+  }
+
+  /**
+   * Move a single rules or event card to a character's own deck of that
+   * kind — creating it if this is the first card assigned to them — or back
+   * to the shared, set-level deck for `ownerId: null`. `RulesCardContent`'s
+   * "Deck" field is the one place this is reachable from.
+   */
+  setCardOwner(id: CardId, ownerId: CharacterId | null): void {
+    const card = findCard(this.adventure, id);
+    if (!card || (card.type !== 'rules' && card.type !== 'event')) return;
+    const deck =
+      ownerId === null
+        ? this.ensureDeck(card.type)
+        : this.ensureOwnedDeck(card.type, ownerId);
+    this.moveCard(id, deck.id);
+  }
+
   // -- Cards ------------------------------------------------------------
 
   addCard(deckId: DeckId, type?: CardType): Card | null {

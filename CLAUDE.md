@@ -627,6 +627,41 @@ space bordering two areas as a circle cut into wedges, and two, three and
 four-way splits all appear. One entry short-circuits to a plain circle, because
 a 360° arc is degenerate and renders as nothing at all.
 
+### Assigning a rules or event card to one character
+
+Ownership of a rules or event card lives on its **deck**, not the card
+(`Deck.ownerId`), same as an action deck — and the scoped-export functions
+(`decksForCharacter`/`cardsForCharacter`, `sets/scope.ts`'s `heroSlice`)
+already respected it regardless of kind before any of this existed. What
+was actually missing was a way to get more than one rules or event deck in
+the first place: `workshop.addRulesCard()`/`addEventCard()` both go through
+`ensureDeck(kind)`, which finds-or-creates the *one* unowned, set-level deck
+of that kind — there was never a second deck for a card to move to, so a
+rules card that should only travel with one character (two of Forgotten
+Pantheons' rules cards belong only to Maui) had nowhere to go.
+
+`workshop.ensureOwnedDeck(kind, ownerId)` is `ensureDeck`'s counterpart for
+the owned case, and `workshop.setCardOwner(cardId, ownerId)` is what an
+author actually reaches for: it resolves the right deck (owned or, for
+`null`, the shared one) via one of those two `ensure*` calls, creating it on
+first use, and moves the card into it with the existing `moveCard`.
+`RulesCardContent`'s "Belongs to" field is the one place this is reachable
+from — its `deckOptions` lists every existing deck of the card's own kind
+(labelled by owner, or "Whole set") plus a synthetic `new:{characterId}`
+entry for every character who does not yet have one of their own, so
+picking a name is what creates their deck rather than requiring an author
+to go build one by hand first. A character who already owns a deck of that
+kind has no synthetic entry — their existing one is just another option in
+the first list, so reassigning a card that already has a home is always a
+pick from what exists, never a duplicate offer.
+
+`DeckRow`'s own owner-select (in the sidebar tree) is the coarser sibling of
+this: it reassigns an *entire* deck's owner in one move, which is right for
+a whole rules deck that turns out to belong to one character, but wrong for
+splitting a mixed deck card-by-card — moving every card in it. Both controls
+write through the same `Deck.ownerId`, so a deck built one way is exactly as
+reassignable through the other.
+
 ### Home
 
 `components/library/HomeScreen.svelte` (still under `library/` — see below) is

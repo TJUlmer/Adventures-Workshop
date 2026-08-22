@@ -3,7 +3,7 @@
   import type { EventCard, RulesCard } from '$lib/cards/types';
   import { createHeadingPlacement, isProseCard } from '$lib/cards/types';
   import { characterLabel } from '$lib/characters/factory';
-  import { deckLabel } from '$lib/decks/factory';
+  import type { CharacterId } from '$lib/characters/types';
   import type { DeckId } from '$lib/decks/types';
   import { asId } from '$lib/core/id';
   import { deckOwner } from '$lib/sets/queries';
@@ -28,22 +28,64 @@
    * Every deck of this card's own kind — a rules card can only move to
    * another rules deck, an event card to another event deck — so this
    * doesn't offer the mismatched-kind moves `ActionCardContent`'s own
-   * unfiltered list technically allows. With one character's rules deck the
-   * lone option, there was nothing to pick from and no reason to show a
-   * picker at all; the moment a second exists, an author had no way through
-   * this editor to say which one a given card belongs to.
+   * unfiltered list technically allows.
+   *
+   * Every rules/event deck is born unowned (`workshop.ensureDeck`) and
+   * nothing ever created a second one, so this picker used to have nothing
+   * to offer until an author had already gone and built a character-owned
+   * deck by hand elsewhere — which nothing in the app actually walked them
+   * through. The synthetic `new:{characterId}` options below are what
+   * closes that: picking one calls `workshop.setCardOwner`, which creates
+   * that character's deck of this kind on first use and moves the card
+   * straight into it — one dropdown, not "create a deck, then find this
+   * card again, then move it." Offered only for a character who does not
+   * already have one, so reassigning a card that already has a home is
+   * always a pick from the *existing* list just below, never a duplicate.
    */
-  const deckOptions = $derived(
+  const existingDeckOptions = $derived(
     workshop.adventure.decks
       .filter((deck) => deck.kind === card.type)
       .map((deck) => {
         const owner = deckOwner(workshop.adventure, deck);
         return {
           value: deck.id as string,
-          label: owner ? `${deckLabel(deck)} · ${characterLabel(owner)}` : deckLabel(deck)
+          label: owner ? characterLabel(owner) : 'Whole set'
         };
       })
   );
+
+  const hasSharedDeck = $derived(
+    workshop.adventure.decks.some((deck) => deck.kind === card.type && deck.ownerId === null)
+  );
+
+  const ownedCharacterIds = $derived(
+    new Set(
+      workshop.adventure.decks
+        .filter((deck) => deck.kind === card.type && deck.ownerId !== null)
+        .map((deck) => deck.ownerId)
+    )
+  );
+
+  const newDeckOptions = $derived([
+    ...(hasSharedDeck ? [] : [{ value: 'new:shared', label: 'Whole set (new deck)' }]),
+    ...workshop.adventure.characters
+      .filter((character) => !ownedCharacterIds.has(character.id))
+      .map((character) => ({
+        value: `new:${character.id}`,
+        label: `${characterLabel(character)} (new deck)`
+      }))
+  ]);
+
+  const deckOptions = $derived([...existingDeckOptions, ...newDeckOptions]);
+
+  function onDeckChange(next: string): void {
+    if (next.startsWith('new:')) {
+      const target = next.slice(4);
+      workshop.setCardOwner(card.id, target === 'shared' ? null : asId<CharacterId>(target));
+      return;
+    }
+    workshop.moveCard(card.id, asId<DeckId>(next));
+  }
 
   /** Only an event card prints a designed reverse, so only it can place one. */
   const backHeading = $derived(card.type === 'event' ? card.backHeading : null);
@@ -143,12 +185,8 @@
 
   {#if deckOptions.length > 1}
     <label class="stack">
-      <span class="field-label">Deck</span>
-      <Select
-        value={card.deckId as string}
-        options={deckOptions}
-        onchange={(next) => workshop.moveCard(card.id, asId<DeckId>(next))}
-      />
+      <span class="field-label">Belongs to</span>
+      <Select value={card.deckId as string} options={deckOptions} onchange={onDeckChange} />
     </label>
   {/if}
 </EditorSection>
