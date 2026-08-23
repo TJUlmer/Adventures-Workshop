@@ -706,6 +706,62 @@ only inside the `async` closure would make signing in *while the screen is
 open* invisible to Svelte's dependency tracking, and the split would never
 un-stick from "unknown."
 
+**Home has no picture of its own to show**, and works around that rather than
+fighting it. `LibraryEntry` deliberately carries no thumbnail (see "Every
+character in every local set" above and `storage/library.ts` — the index is
+kept light on purpose, an author's artwork lives only in the full document).
+So the set grid, the promoted "Continue where you left off" card, and the
+donut's own hover target all reuse the same `tint(seed)` hash-to-HSL swatch
+the Characters view already used for a portrait-less character — the same
+function, one more caller, not a new concept. A real per-set thumbnail is a
+deliberately deferred idea, not a rejected one: it would mean either
+denormalising a small picture into the index (a real schema/migration
+decision) or rendering one from the open document on demand, and neither was
+worth doing to answer "does this grid have any colour in it," which the tint
+already answers for free.
+
+The **"Library health" donut** replacing the old "Sets" stat tile is the same
+three-state read the per-tile `.health-status` pill already gives
+(blocked/rough/ready, from `entry.blockers`/`.gaps`) turned into three arcs
+rather than a fourth taxonomy — the mockup this was built from also proposed
+an "unpublished" slice, which was dropped because it conflates a health
+question with a publish-status one the Published/Unpublished section headers
+already answer on the same screen. The ring itself is the standard
+percentage-donut trick — one `<circle>` per non-empty bucket, each dashed
+down to its own share of `2πr` and rotated into place via a cumulative
+negative `stroke-dashoffset` — computed against the circle's *actual*
+circumference rather than an illustrative round number, so the three lengths
+always sum to a complete ring exactly rather than approximately.
+
+**The gallery strip on the zero-state screen queries rather than hardcodes.**
+Nothing pins a specific set's name or slug into the page — that breaks the
+moment its author unpublishes or renames it — so a first-time visitor with no
+sets of their own gets `listPublicSets({ scope: 'full' })` and `listPublicSets
+({ scope: 'hero' })` in parallel, capped to a handful, for a small mix of a
+whole box and a standalone published hero. `PublishedSet` has no `kind`
+column to tell an adventure box from a heroes box server-side, only `scope`
+('full' | 'hero' | 'villain'), so "different kinds" here means what `scope`
+can actually distinguish; the mix gets more varied on its own as the gallery
+grows, which is the point of asking rather than pinning specific examples.
+The strip renders nothing and shows no error if the fetch comes back empty or
+`cloudEnabled()` is false — same silent-fallback precedent as the attention
+strip's own cloud calls, just below.
+
+The **"Continue where you left off" card** carries a "View gallery listing"
+action now, beside "Continue editing" — reachable only because the existing
+published-sets effect already fetches `listMyPublishedSets()`, whose rows
+carry `slug`; that effect used to keep only `local_id` and throw the slug
+away building a bare `Set<string>`. `publishedSlugByLocalId` keeps both, as a
+`Map<SetId, string>` — the Published/Unpublished split below still just calls
+`.has()` on it, so nothing else about that effect changed.
+
+**"Guides" is an earmark, not a feature.** A small panel, three inert rows,
+a "Coming soon" tag — reachable content for Collaboration/sharing/exporting
+topics that don't exist yet and have nowhere to link to (nothing in
+`state/navigation.svelte.ts` has a help/docs destination today). Placed
+rather than left to a future patch precisely so the *spot* for it exists
+before the content does.
+
 `TitleBar` carries a "Home" button beside "Gallery" now, for the same reason
 the gallery already paired the two: leaving a set used to mean finding
 `SetNav`'s small back-chevron in the tab strip, which this replaces rather

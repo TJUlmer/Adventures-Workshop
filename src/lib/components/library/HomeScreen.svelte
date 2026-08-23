@@ -19,7 +19,9 @@
   import { auth } from '$lib/cloud/auth.svelte';
   import { openContributionCounts } from '$lib/cloud/contributions';
   import { cloudEnabled } from '$lib/cloud/config';
-  import { fetchSetSummaryBySlug, listMyPublishedSets } from '$lib/cloud/sets';
+  import { fetchSetSummaryBySlug, listMyPublishedSets, listPublicSets } from '$lib/cloud/sets';
+  import type { GallerySet } from '$lib/cloud/sets';
+  import { asId } from '$lib/core/id';
   import { healthSummaryFromCounts } from '$lib/sets/health';
   import type { SetId, SetKind } from '$lib/sets/types';
   import { navigation } from '$lib/state/navigation.svelte';
@@ -28,7 +30,7 @@
   import type { LibraryEntry } from '$lib/storage/library';
   import { readStorageEstimate } from '$lib/storage/indexeddb';
   import type { StorageEstimate } from '$lib/storage/indexeddb';
-  import { Button, EmptyState, Icon, SegmentedControl, Select } from '$lib/ui';
+  import { Button, Icon, SegmentedControl, Select } from '$lib/ui';
   import NewSetDialog from './NewSetDialog.svelte';
 
   let fileInput = $state<HTMLInputElement | null>(null);
@@ -110,14 +112,19 @@
 
   /**
    * Which local sets this author has published at least once, under any
-   * scope — the split the shelf below groups by. `null` rather than an empty
-   * `Set` until the fetch actually answers: signed out, offline, or cloud
-   * disabled all mean "unknown," not "nothing is published," and the two
-   * must not look the same — an empty answer would put every set in this
-   * library under "Unpublished" even for an author who simply is not signed
-   * in yet.
+   * scope — the split the shelf below groups by, keyed to the slug that
+   * publish produced. `null` rather than an empty `Map` until the fetch
+   * actually answers: signed out, offline, or cloud disabled all mean
+   * "unknown," not "nothing is published," and the two must not look the
+   * same — an empty answer would put every set in this library under
+   * "Unpublished" even for an author who simply is not signed in yet.
+   *
+   * Carries the slug, not just membership, because the promoted "Continue
+   * where you left off" card wants to link straight to the gallery listing —
+   * `listMyPublishedSets()` already returns it on every row, so keeping it
+   * here is free.
    */
-  let publishedLocalIds = $state<Set<string> | null>(null);
+  let publishedSlugByLocalId = $state<Map<SetId, string> | null>(null);
 
   $effect(() => {
     const current = entries;
@@ -130,7 +137,7 @@
      * re-trigger the fetch that turns "unknown" into a real split.
      */
     if (!signedIn) {
-      publishedLocalIds = null;
+      publishedSlugByLocalId = null;
       return;
     }
 
@@ -141,7 +148,9 @@
           listMyPublishedSets(),
           openContributionCounts()
         ]);
-        publishedLocalIds = new Set(published.map((row) => row.local_id));
+        publishedSlugByLocalId = new Map(
+          published.map((row) => [asId<SetId>(row.local_id), row.slug])
+        );
         for (const row of published) {
           const open = counts.get(row.id) ?? 0;
           if (open > 0) {
@@ -257,19 +266,124 @@
 
   /**
    * `filteredSets`, split by whether this author has published it — `null`
-   * while that is not yet known (see `publishedLocalIds`), so the shelf below
-   * falls back to one flat list rather than a two-way split it cannot
+   * while that is not yet known (see `publishedSlugByLocalId`), so the shelf
+   * below falls back to one flat list rather than a two-way split it cannot
    * actually answer.
    */
   const groupedSets = $derived.by(() => {
-    if (publishedLocalIds === null) return null;
-    const ids = publishedLocalIds;
+    if (publishedSlugByLocalId === null) return null;
+    const slugs = publishedSlugByLocalId;
     const published: typeof filteredSets = [];
     const unpublished: typeof filteredSets = [];
     for (const entry of filteredSets) {
-      (ids.has(entry.id) ? published : unpublished).push(entry);
+      (slugs.has(entry.id) ? published : unpublished).push(entry);
     }
     return { published, unpublished };
+  });
+
+  /**
+   * The same three states the per-tile `.health-status` pill already reads
+   * off `entry.blockers`/`.gaps` — collected once here rather than three
+   * separate boolean checks per reader, so the donut and the pill can never
+   * disagree about which bucket a set falls in.
+   */
+  type HealthState = 'blocked' | 'rough' | 'ready';
+
+  function healthStateOf(blockers: number, gaps: number): HealthState {
+    if (blockers > 0) return 'blocked';
+    if (gaps > 0) return 'rough';
+    return 'ready';
+  }
+
+  /**
+   * "Library health" for the stat row's donut. `known` is entries whose
+   * health has actually been computed — an index row written before
+   * `blockers` existed is left out rather than guessed at, same reasoning as
+   * `libraryStats.blocked` above.
+   */
+  const libraryHealth = $derived.by(() => {
+    let blocked = 0;
+    let rough = 0;
+    let ready = 0;
+    for (const entry of entries) {
+      if (entry.blockers === undefined || entry.gaps === undefined) continue;
+      const state = healthStateOf(entry.blockers, entry.gaps);
+      if (state === 'blocked') blocked += 1;
+      else if (state === 'rough') rough += 1;
+      else ready += 1;
+    }
+    return { blocked, rough, ready, known: blocked + rough + ready };
+  });
+
+  const DONUT_R = 15.5;
+  const DONUT_CIRCUMFERENCE = 2 * Math.PI * DONUT_R;
+
+  interface DonutSegment {
+    state: HealthState;
+    color: string;
+    dash: string;
+    offset: number;
+  }
+
+  /**
+   * One `<circle>` per non-empty bucket, each a full ring dashed down to its
+   * own share and rotated (via `stroke-dashoffset`) to start where the
+   * previous one ended — the standard percentage-ring trick, done against the
+   * circle's *actual* circumference rather than an illustrative round number,
+   * so the three lengths always sum to the full ring exactly.
+   */
+  const donutSegments = $derived.by((): DonutSegment[] => {
+    const { blocked, rough, ready, known } = libraryHealth;
+    if (known === 0) return [];
+    const buckets: { state: HealthState; count: number; color: string }[] = [
+      { state: 'ready', count: ready, color: 'var(--success)' },
+      { state: 'rough', count: rough, color: 'var(--warning)' },
+      { state: 'blocked', count: blocked, color: 'var(--danger)' }
+    ];
+    let cumulative = 0;
+    const segments: DonutSegment[] = [];
+    for (const bucket of buckets) {
+      if (bucket.count === 0) continue;
+      const length = (bucket.count / known) * DONUT_CIRCUMFERENCE;
+      segments.push({
+        state: bucket.state,
+        color: bucket.color,
+        dash: `${length} ${DONUT_CIRCUMFERENCE - length}`,
+        offset: -cumulative
+      });
+      cumulative += length;
+    }
+    return segments;
+  });
+
+  /**
+   * A few gallery sets to show someone with no sets of their own yet — one
+   * fetch for whole boxes, one for a standalone published hero, so the strip
+   * covers a couple of different kinds rather than whatever `sort` happened
+   * to surface first. Not pinned to specific sets by name or slug: that
+   * breaks the moment the author unpublishes or renames one, and the mix
+   * only gets better as the gallery grows, which is the whole point of
+   * querying rather than hardcoding.
+   */
+  let firstTimeGallerySets = $state<GallerySet[]>([]);
+
+  $effect(() => {
+    if (entries.length > 0 || !cloudEnabled()) {
+      firstTimeGallerySets = [];
+      return;
+    }
+    void (async () => {
+      try {
+        const [boxes, heroes] = await Promise.all([
+          listPublicSets({ scope: 'full', sort: 'popular', limit: 3 }),
+          listPublicSets({ scope: 'hero', sort: 'popular', limit: 2 })
+        ]);
+        firstTimeGallerySets = [...boxes, ...heroes].slice(0, 4);
+      } catch {
+        // Same silent fallback as the attention effect above — an empty
+        // strip on someone's very first screen is not worth an error.
+      }
+    })();
   });
 
   /**
@@ -328,15 +442,24 @@
       .join('');
   }
 
-  /** A stable colour per character, for the tile with no picture — same
-      formula the gallery's own tiles use, so a character reads the same
-      shade whether found here or there. */
+  /** A stable colour per character or set, for a tile with no picture — same
+      formula the gallery's own tiles use, so something reads the same shade
+      whether found here or there. Doubles as the set-grid thumbnail swatch:
+      `LibraryEntry` deliberately carries no picture of its own (see
+      `storage/library.ts` — the index is kept light on purpose), so a
+      generated tint is the set grid's only affordable "picture" today. */
   function tint(seed: string): string {
     let hash = 0;
     for (let index = 0; index < seed.length; index += 1) {
       hash = (hash * 31 + seed.charCodeAt(index)) | 0;
     }
     return `hsl(${Math.abs(hash) % 360} 30% 26%)`;
+  }
+
+  /** The picture for a gallery-strip tile — same fallback `GalleryScreen`'s
+      own `setImage` uses. */
+  function galleryImage(set: GallerySet): string {
+    return set.thumbnail_url || set.cover_url;
   }
 
   /**
@@ -390,67 +513,78 @@
 {#snippet setCard(entry: LibraryEntry)}
   <li class="card">
     <button type="button" class="open" onclick={() => void workshop.openSet(entry.id)}>
-      <span class="card-title-row">
-        <span class="card-title">{entry.name || 'Untitled Adventure'}</span>
-        {#if (attention.get(entry.id)?.waiting ?? 0) > 0}
-          <span class="pill waiting">{attention.get(entry.id)?.waiting} pending</span>
-        {/if}
-      </span>
-      {#if entry.subtitle}<span class="card-subtitle">{entry.subtitle}</span>{/if}
+      <span class="thumb" style:background={tint(entry.id)} aria-hidden="true"></span>
 
-      <!--
-        The same status `SetHome` shows once the set is open, from the same
-        counts and the same three colours (`data-state`, matching its own
-        blocked/rough/ready) — a status that reads as a plain grey label here
-        and a coloured one once you open the set is the same fact told two
-        different ways. Absent rather than "Complete" on an index row written
-        before `blockers` existed: it has not backfilled yet, and a guess
-        would be worse than saying nothing.
-      -->
-      {#if entry.blockers !== undefined && entry.gaps !== undefined && entry.issueCount !== undefined}
-        <span
-          class="health-status"
-          data-state={entry.blockers > 0 ? 'blocked' : entry.gaps > 0 ? 'rough' : 'ready'}
-        >
-          {healthSummaryFromCounts(entry.blockers, entry.gaps, entry.issueCount)}
-        </span>
-      {/if}
-
-      <!--
-        A copy says so before it is opened. `originAuthor` is absent rather
-        than empty on a set authored here, and empty on one copied from a
-        published set whose author had no display name — so the badge
-        distinguishes the two. The revision rides beside it for the same
-        reason `SetHome`'s own lineage line carries one: it is what tells two
-        forks of the same set apart on a shelf that otherwise shows the same
-        name twice. The "now at" clause is the same out-of-sync fact
-        `SetHome`'s own lineage line shows once a set is open — surfaced here
-        so it does not take opening the set to notice.
-      -->
-      {#if entry.originAuthor !== undefined}
-        <span class="lineage">
-          {entry.originAuthor ? `Based on ${entry.originAuthor}’s set` : 'Based on a published set'}
-          {#if entry.originRevision !== undefined}
-            <span class="numeric">· revision {entry.originRevision}</span>
+      <span class="body">
+        <span class="card-title-row">
+          <span class="card-title">{entry.name || 'Untitled Adventure'}</span>
+          {#if (attention.get(entry.id)?.waiting ?? 0) > 0}
+            <span class="pill waiting">{attention.get(entry.id)?.waiting} pending</span>
           {/if}
-          {#if (attention.get(entry.id)?.behindBy ?? 0) > 0}
-            <span class="behind">
-              — the original is now
-              {attention.get(entry.id)?.behindBy}
-              {(attention.get(entry.id)?.behindBy ?? 0) === 1 ? 'revision' : 'revisions'} ahead
+        </span>
+        {#if entry.subtitle}<span class="card-subtitle">{entry.subtitle}</span>{/if}
+
+        <!--
+          The same status `SetHome` shows once the set is open, from the same
+          counts and the same three colours (`data-state`, matching its own
+          blocked/rough/ready) — a status that reads as a plain grey label here
+          and a coloured one once you open the set is the same fact told two
+          different ways. Absent rather than "Complete" on an index row written
+          before `blockers` existed: it has not backfilled yet, and a guess
+          would be worse than saying nothing. The gap-count mini-badge rides
+          beside it — same numbers, just broken out so "how many things need
+          attention" doesn't require reading the pill's own sentence.
+        -->
+        {#if entry.blockers !== undefined && entry.gaps !== undefined && entry.issueCount !== undefined}
+          <span class="health-row">
+            <span
+              class="health-status"
+              data-state={healthStateOf(entry.blockers, entry.gaps)}
+            >
+              {healthSummaryFromCounts(entry.blockers, entry.gaps, entry.issueCount)}
             </span>
-          {/if}
+            {#if entry.gaps > 0}
+              <span class="gap-badge">{entry.gaps} {entry.gaps === 1 ? 'gap' : 'gaps'}</span>
+            {/if}
+          </span>
+        {/if}
+
+        <!--
+          A copy says so before it is opened. `originAuthor` is absent rather
+          than empty on a set authored here, and empty on one copied from a
+          published set whose author had no display name — so the badge
+          distinguishes the two. The revision rides beside it for the same
+          reason `SetHome`'s own lineage line carries one: it is what tells two
+          forks of the same set apart on a shelf that otherwise shows the same
+          name twice. The "now at" clause is the same out-of-sync fact
+          `SetHome`'s own lineage line shows once a set is open — surfaced here
+          so it does not take opening the set to notice.
+        -->
+        {#if entry.originAuthor !== undefined}
+          <span class="lineage">
+            {entry.originAuthor ? `Based on ${entry.originAuthor}’s set` : 'Based on a published set'}
+            {#if entry.originRevision !== undefined}
+              <span class="numeric">· revision {entry.originRevision}</span>
+            {/if}
+            {#if (attention.get(entry.id)?.behindBy ?? 0) > 0}
+              <span class="behind">
+                — the original is now
+                {attention.get(entry.id)?.behindBy}
+                {(attention.get(entry.id)?.behindBy ?? 0) === 1 ? 'revision' : 'revisions'} ahead
+              </span>
+            {/if}
+          </span>
+        {/if}
+
+        <span class="stats">
+          <span class="stat"><b class="numeric">{entry.characterCount}</b> characters</span>
+          <span class="stat"><b class="numeric">{entry.cardCount}</b> cards</span>
         </span>
-      {/if}
 
-      <span class="stats">
-        <span class="stat"><b class="numeric">{entry.characterCount}</b> characters</span>
-        <span class="stat"><b class="numeric">{entry.cardCount}</b> cards</span>
-      </span>
-
-      <span class="meta">
-        <span>{formatDate(entry.updatedAt)}</span>
-        <span class="numeric">{formatSize(entry.bytes)}</span>
+        <span class="meta">
+          <span>{formatDate(entry.updatedAt)}</span>
+          <span class="numeric">{formatSize(entry.bytes)}</span>
+        </span>
       </span>
     </button>
 
@@ -580,9 +714,31 @@
 
   {#if entries.length > 0}
     <div class="stat-row">
-      <div class="stat-card">
-        <span class="stat-card-label">Sets</span>
-        <span class="stat-card-value numeric">{libraryStats.sets}</span>
+      <div class="stat-card donut-card">
+        <span class="stat-card-label">Library health <span class="numeric">· {libraryStats.sets} sets</span></span>
+        <div class="donut-row">
+          <svg width="54" height="54" viewBox="0 0 36 36" aria-hidden="true">
+            <circle cx="18" cy="18" r={DONUT_R} fill="none" stroke="var(--border-default)" stroke-width="4" />
+            {#each donutSegments as segment (segment.state)}
+              <circle
+                cx="18"
+                cy="18"
+                r={DONUT_R}
+                fill="none"
+                stroke={segment.color}
+                stroke-width="4"
+                stroke-dasharray={segment.dash}
+                stroke-dashoffset={segment.offset}
+                transform="rotate(-90 18 18)"
+              />
+            {/each}
+          </svg>
+          <ul class="donut-legend">
+            <li><span class="dot" style:background="var(--success)"></span>{libraryHealth.ready} ready</li>
+            <li><span class="dot" style:background="var(--warning)"></span>{libraryHealth.rough} rough</li>
+            <li><span class="dot" style:background="var(--danger)"></span>{libraryHealth.blocked} blocked</li>
+          </ul>
+        </div>
       </div>
       <div class="stat-card">
         <span class="stat-card-label">Characters</span>
@@ -596,13 +752,37 @@
 
     {#if lastOpened}
       {@const set = lastOpened}
-      <button type="button" class="continue-card" onclick={() => void workshop.openSet(set.id)}>
+      {@const slug = publishedSlugByLocalId?.get(set.id) ?? null}
+      <div class="continue-card">
+        <span class="continue-thumb" style:background={tint(set.id)} aria-hidden="true"></span>
+
         <span class="continue-body">
           <span class="continue-label">Continue where you left off</span>
           <span class="continue-name">{set.name || 'Untitled Adventure'}</span>
+          {#if set.blockers !== undefined && set.gaps !== undefined && set.issueCount !== undefined}
+            <span class="health-status" data-state={healthStateOf(set.blockers, set.gaps)}>
+              {healthSummaryFromCounts(set.blockers, set.gaps, set.issueCount)}
+            </span>
+          {/if}
+          <span class="continue-meta">
+            <span class="numeric">{set.characterCount}</span>
+            {set.characterCount === 1 ? 'character' : 'characters'} ·
+            <span class="numeric">{set.cardCount}</span> cards · edited {formatDate(set.updatedAt)}
+          </span>
         </span>
-        <Icon name="chevronRight" size={16} />
-      </button>
+
+        <span class="continue-actions">
+          {#if slug}
+            <Button variant="ghost" size="sm" onclick={() => navigation.openShared(slug)}>
+              View gallery listing
+            </Button>
+          {/if}
+          <Button variant="primary" size="sm" onclick={() => void workshop.openSet(set.id)}>
+            Continue editing
+            <Icon name="chevronRight" size={14} />
+          </Button>
+        </span>
+      </div>
     {/if}
   {/if}
 
@@ -680,18 +860,87 @@
 
   <div class="body scroll-y">
     {#if entries.length === 0}
-      <EmptyState
-        icon="book"
-        title="No sets yet"
-        description="A set is a box: either an adventure — heroes against a villain and its minions — or a box of heroes on their own."
-      >
-        {#snippet actions()}
+      <div class="welcome">
+        <h2 class="welcome-title">Design your own Unmatched adventure</h2>
+        <p class="welcome-lede">
+          Build heroes, villains, and their decks — styled, playtested, and exported for print or
+          Tabletop Simulator. Everything saves to this browser as you go, and nothing leaves your
+          machine until you choose to publish it.
+        </p>
+        <div class="welcome-ctas">
           <Button variant="primary" onclick={() => (choosingKind = true)}>
             <Icon name="plus" size={14} />
             Create your first set
           </Button>
-        {/snippet}
-      </EmptyState>
+          {#if cloudEnabled()}
+            <Button variant="ghost" onclick={() => navigation.openGallery()}>
+              Browse the gallery for examples
+            </Button>
+          {/if}
+        </div>
+
+        <ol class="welcome-steps">
+          <li class="welcome-step">
+            <span class="step-index numeric">1</span>
+            <div class="step-body">
+              <span class="step-title">Start a set</span>
+              <p class="step-text">
+                Choose Adventure (heroes vs. a villain, with a full box) or Heroes set (just
+                heroes and their cards, no villain needed).
+              </p>
+            </div>
+          </li>
+          <li class="welcome-step">
+            <span class="step-index numeric">2</span>
+            <div class="step-body">
+              <span class="step-title">Add your characters</span>
+              <p class="step-text">
+                Each hero, villain, and minion gets its own sheet — identity, stats, and the
+                decks it deals from.
+              </p>
+            </div>
+          </li>
+          <li class="welcome-step">
+            <span class="step-index numeric">3</span>
+            <div class="step-body">
+              <span class="step-title">Design the cards</span>
+              <p class="step-text">
+                Style flows from your set's look down to each character's, down to individual
+                cards — change the top once and everything below follows, until you override it.
+              </p>
+            </div>
+          </li>
+        </ol>
+      </div>
+
+      {#if firstTimeGallerySets.length > 0}
+        <h2 class="section-title">A few sets from the gallery, if you want to see one first</h2>
+        <ul class="gallery-strip">
+          {#each firstTimeGallerySets as set (set.id)}
+            <li>
+              <button
+                type="button"
+                class="gallery-tile"
+                onclick={() => navigation.openShared(set.slug)}
+              >
+                <span class="gallery-thumb" style:background={tint(set.id)}>
+                  {#if galleryImage(set)}
+                    <img src={galleryImage(set)} alt="" loading="lazy" />
+                  {:else}
+                    <span class="initials">{initials(set.name)}</span>
+                  {/if}
+                </span>
+                <span class="gallery-name-row">
+                  <span class="gallery-name">{set.name || 'Untitled Adventure'}</span>
+                  {#if set.scope !== 'full'}
+                    <span class="gallery-scope">{set.scope === 'hero' ? 'Hero' : 'Villain'}</span>
+                  {/if}
+                </span>
+              </button>
+            </li>
+          {/each}
+        </ul>
+      {/if}
     {:else if mode === 'sets' && filteredSets.length === 0}
       <p class="message">Nothing matches “{search.trim()}”.</p>
     {:else if mode === 'characters' && filteredCharacters.length === 0}
@@ -751,6 +1000,33 @@
           </li>
         {/each}
       </ul>
+    {/if}
+
+    {#if entries.length > 0}
+      <!--
+        The earmarked spot for a Collaboration/sharing tutorial — not built
+        out yet, on purpose. Every row here is inert: nothing in
+        `state/navigation.svelte.ts` has a help/docs destination to send
+        them to today, so this is a placeholder to write real content into
+        later rather than a feature shipping half-finished now.
+      -->
+      <div class="guides">
+        <h2 class="section-title">Guides <span class="coming-soon">Coming soon</span></h2>
+        <ul class="guides-list">
+          <li class="guides-row">
+            <Icon name="layers" size={14} />
+            <span>Sharing a set</span>
+          </li>
+          <li class="guides-row">
+            <Icon name="users" size={14} />
+            <span>Working with contributions</span>
+          </li>
+          <li class="guides-row">
+            <Icon name="printer" size={14} />
+            <span>Exporting to Tabletop Simulator</span>
+          </li>
+        </ul>
+      </div>
     {/if}
 
     {#if deletedEntries.length > 0}
@@ -856,7 +1132,7 @@
 
   .stat-row {
     display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: 1.4fr 1fr 1fr;
     gap: var(--space-3);
     padding: var(--space-5) var(--space-9) 0;
   }
@@ -890,31 +1166,65 @@
     color: var(--warning);
   }
 
+  .donut-row {
+    display: flex;
+    align-items: center;
+    gap: var(--space-4);
+  }
+
+  .donut-legend {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    font-size: var(--text-2xs);
+    color: var(--text-muted);
+  }
+
+  .dot {
+    display: inline-block;
+    width: 7px;
+    height: 7px;
+    margin-right: var(--space-1);
+    border-radius: var(--radius-xs);
+  }
+
   .continue-card {
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    gap: var(--space-3);
+    gap: var(--space-4);
     margin: var(--space-3) var(--space-9) 0;
     padding: var(--space-4);
     border-radius: var(--radius-md);
     background: var(--surface-raised);
     border: 1px solid var(--border-subtle);
     color: var(--text-primary);
-    text-align: left;
-    cursor: pointer;
-    transition: border-color var(--duration-fast) var(--ease-out);
   }
 
-  .continue-card:hover {
-    border-color: var(--border-strong);
+  .continue-thumb {
+    flex: none;
+    width: 56px;
+    height: 56px;
+    border-radius: var(--radius-md);
   }
 
   .continue-body {
+    flex: 1 1 auto;
     display: flex;
     flex-direction: column;
-    gap: 2px;
+    align-items: flex-start;
+    gap: var(--space-1);
     min-width: 0;
+  }
+
+  .continue-meta {
+    font-size: var(--text-2xs);
+    color: var(--text-muted);
+  }
+
+  .continue-actions {
+    display: flex;
+    flex: none;
+    gap: var(--space-2);
   }
 
   .continue-label {
@@ -948,6 +1258,21 @@
   .health-status[data-state='ready'] {
     color: var(--success);
     border-color: color-mix(in oklab, var(--success) 40%, transparent);
+  }
+
+  .health-row {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    flex-wrap: wrap;
+  }
+
+  .gap-badge {
+    padding: 2px var(--space-2);
+    border-radius: var(--radius-full);
+    border: 1px solid color-mix(in oklab, var(--warning) 40%, transparent);
+    color: var(--warning);
+    font-size: var(--text-2xs);
   }
 
   .attention {
@@ -1082,10 +1407,28 @@
 
   .open {
     display: flex;
-    flex-direction: column;
-    gap: var(--space-2);
+    align-items: flex-start;
+    gap: var(--space-3);
     padding: var(--space-5) var(--space-5) var(--space-3);
     text-align: left;
+  }
+
+  /* The set grid's own "picture" — `LibraryEntry` deliberately carries no
+     thumbnail (see `tint`'s own doc comment), so a generated colour swatch is
+     what stands in, same as a character with no portrait already gets. */
+  .thumb {
+    flex: none;
+    width: 44px;
+    height: 44px;
+    border-radius: var(--radius-md);
+  }
+
+  .body {
+    flex: 1 1 auto;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    min-width: 0;
   }
 
   .card-title-row {
@@ -1228,6 +1571,194 @@
 
   .character-title {
     font-size: var(--text-sm);
+  }
+
+  .welcome {
+    max-width: 640px;
+    margin: 0 auto var(--space-8);
+    padding: var(--space-7);
+    border-radius: var(--radius-lg);
+    background: var(--surface-base);
+    border: 1px solid var(--border-subtle);
+    box-shadow: inset 0 1px 0 var(--edge-highlight);
+  }
+
+  .welcome-title {
+    font-family: var(--font-display);
+    font-size: var(--text-xl);
+    letter-spacing: var(--tracking-tight);
+    color: var(--text-primary);
+    margin: 0 0 var(--space-2);
+  }
+
+  .welcome-lede {
+    font-size: var(--text-sm);
+    line-height: var(--leading-normal);
+    color: var(--text-secondary);
+    max-width: 52ch;
+    margin: 0 0 var(--space-5);
+  }
+
+  .welcome-ctas {
+    display: flex;
+    gap: var(--space-2);
+    margin-bottom: var(--space-7);
+  }
+
+  /* Same `.panel`/`.steps`/`.step` visual language as `StyleCascadePanel`
+     (a set's own "How card styles cascade") — copied rather than imported,
+     since that component is tightly coupled to an open set's own
+     `SetOutline`/`workshop` state that this app-level screen doesn't have. */
+  .welcome-steps {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+    list-style: none;
+    padding-top: var(--space-5);
+    border-top: 1px dashed var(--border-subtle);
+  }
+
+  .welcome-step {
+    display: flex;
+    gap: var(--space-3);
+  }
+
+  .step-index {
+    flex: none;
+    display: grid;
+    place-items: center;
+    width: 22px;
+    height: 22px;
+    border-radius: var(--radius-full);
+    background: var(--surface-sunken);
+    border: 1px solid var(--border-subtle);
+    font-size: var(--text-xs);
+    color: var(--accent);
+  }
+
+  .step-body {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    min-width: 0;
+  }
+
+  .step-title {
+    font-size: var(--text-sm);
+    font-weight: var(--weight-medium);
+    color: var(--text-primary);
+  }
+
+  .step-text {
+    font-size: var(--text-xs);
+    line-height: var(--leading-normal);
+    color: var(--text-muted);
+    text-wrap: pretty;
+  }
+
+  .gallery-strip {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    gap: var(--space-3);
+    list-style: none;
+    margin: 0 0 var(--space-6);
+  }
+
+  .gallery-tile {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    width: 100%;
+    padding: var(--space-3);
+    border-radius: var(--radius-md);
+    background: var(--surface-raised);
+    border: 1px solid var(--border-subtle);
+    text-align: left;
+    transition: border-color var(--duration-fast) var(--ease-out);
+  }
+
+  .gallery-tile:hover {
+    border-color: var(--border-strong);
+  }
+
+  .gallery-thumb {
+    display: grid;
+    place-items: center;
+    width: 100%;
+    aspect-ratio: 4 / 3;
+    border-radius: var(--radius-sm);
+    overflow: hidden;
+  }
+
+  .gallery-thumb img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  .initials {
+    font-family: var(--card-font-name, sans-serif);
+    font-size: var(--text-md);
+    letter-spacing: var(--tracking-wide);
+    color: rgb(255 255 255 / 0.75);
+  }
+
+  .gallery-name-row {
+    display: flex;
+    align-items: baseline;
+    gap: var(--space-2);
+    flex-wrap: wrap;
+  }
+
+  .gallery-name {
+    font-size: var(--text-xs);
+    font-weight: var(--weight-medium);
+    color: var(--text-primary);
+  }
+
+  .gallery-scope {
+    flex: none;
+    padding: 1px var(--space-2);
+    border-radius: var(--radius-full);
+    border: 1px solid var(--border-subtle);
+    font-size: var(--text-2xs);
+    color: var(--text-muted);
+  }
+
+  .guides {
+    margin-top: var(--space-7);
+    padding-top: var(--space-5);
+    border-top: 1px solid var(--border-subtle);
+  }
+
+  .coming-soon {
+    margin-left: var(--space-2);
+    padding: 1px var(--space-2);
+    border-radius: var(--radius-full);
+    background: var(--surface-sunken);
+    border: 1px solid var(--border-subtle);
+    font-size: var(--text-2xs);
+    font-weight: var(--weight-medium);
+    color: var(--text-muted);
+    vertical-align: middle;
+  }
+
+  .guides-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    list-style: none;
+  }
+
+  .guides-row {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    height: 34px;
+    padding-inline: var(--space-3);
+    border-radius: var(--radius-sm);
+    font-size: var(--text-sm);
+    color: var(--text-muted);
   }
 
   .deleted-section {
