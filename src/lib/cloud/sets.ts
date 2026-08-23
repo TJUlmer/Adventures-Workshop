@@ -15,7 +15,7 @@ import { parseSetFile, serializeSet } from '$lib/export/json';
 import { setStats } from '$lib/sets/queries';
 import { computeScopedSet } from '$lib/sets/scope';
 import type { PublishScope } from '$lib/sets/scope';
-import type { AdventureSet } from '$lib/sets/types';
+import type { AdventureSet, SetKind } from '$lib/sets/types';
 import { SET_SCHEMA_VERSION } from '$lib/sets/types';
 import {
   collectEmbeddedAssets,
@@ -99,6 +99,13 @@ export interface PublishedSet {
    */
   scope: 'full' | 'hero' | 'villain';
   character_id: string;
+  /**
+   * Adventure or heroes set, taken from the document at publish time — see
+   * `supabase/migrations/0009_set_kind.sql`. `null` on a row published
+   * before that column existed, and left that way rather than guessed at;
+   * it simply never matches a `kind` filter until its author republishes.
+   */
+  kind: SetKind | null;
 }
 
 /** Just enough of a published set to say whether it has moved on. */
@@ -144,7 +151,7 @@ export interface PublishedSetWithDocument extends PublishedSet {
 const SUMMARY_COLUMNS =
   'id,owner_id,local_id,slug,name,subtitle,card_count,character_count,schema_version,' +
   'revision,visibility,created_at,updated_at,thumbnail_url,cover_url,cover_bleeds,published_at,' +
-  'view_count,change_note,forked_from,forked_from_revision,scope,character_id';
+  'view_count,change_note,forked_from,forked_from_revision,scope,character_id,kind';
 
 /**
  * The same, plus the author and — for a fork — the set it came from.
@@ -396,7 +403,15 @@ export async function publishSet(
     forked_from: scoped.origin?.setId ?? null,
     forked_from_revision: scoped.origin?.revision ?? null,
     scope: scope.kind,
-    character_id: scope.kind === 'hero' ? scope.characterId : ''
+    character_id: scope.kind === 'hero' ? scope.characterId : '',
+    /*
+     * `scoped.kind`, not `set.kind` — `computeScopedSet` is what makes this
+     * correct for a hero slice without a branch here: `heroSlice` forces
+     * `kind: 'heroes'` on a standalone hero regardless of which kind of box
+     * it came out of (`sets/scope.ts`), so a lone hero publish is already
+     * categorised correctly by the time it reaches this row.
+     */
+    kind: scoped.kind
   };
 
   /*
@@ -464,6 +479,10 @@ export interface GalleryQuery {
   sort?: GallerySort;
   /** Show only whole sets, only heroes, or only villain sides. */
   scope?: ScopeFilter;
+  /** Show only adventures or only heroes sets — orthogonal to `scope`, see
+      `PublishedSet.kind`. Omitted rather than `'all'`, since a caller that
+      does not care about this axis should not have to write it out. */
+  kind?: SetKind;
   limit?: number;
   /** Rows to skip, for paging. */
   offset?: number;
@@ -520,7 +539,7 @@ function galleryOrder(sort: GallerySort, nameColumn = 'name'): string {
  * trusted to filter out.
  */
 export async function listPublicSets(query: GalleryQuery = {}): Promise<GallerySet[]> {
-  const { search = '', sort = 'newest', scope = 'all', limit = 36, offset = 0 } = query;
+  const { search = '', sort = 'newest', scope = 'all', kind, limit = 36, offset = 0 } = query;
 
   const parts = [
     `select=${GALLERY_COLUMNS}`,
@@ -536,6 +555,7 @@ export async function listPublicSets(query: GalleryQuery = {}): Promise<GalleryS
   if (tsquery) parts.push(`search_document=fts(simple).${encodeURIComponent(tsquery)}`);
 
   if (scope !== 'all') parts.push(`scope=eq.${scope}`);
+  if (kind) parts.push(`kind=eq.${kind}`);
 
   /*
    * Deliberately anonymous, even for a signed-in author.

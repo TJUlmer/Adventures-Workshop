@@ -357,31 +357,67 @@
   });
 
   /**
-   * A few gallery sets for inspiration — one fetch for whole boxes, one for a
-   * standalone published hero, so the sample covers a couple of different
-   * kinds rather than whatever `sort` happened to surface first. Not pinned
-   * to specific sets by name or slug: that breaks the moment the author
-   * unpublishes or renames one, and the mix only gets better as the gallery
-   * grows, which is the whole point of querying rather than hardcoding.
+   * Four permanent, labeled slots for gallery inspiration — Adventures set,
+   * Heroes set, and two Single hero spots — rather than a flat list of
+   * whatever came back. Not pinned to specific sets by name or slug: that
+   * breaks the moment an author unpublishes or renames one. Each slot pulls
+   * from an 8-wide pool of its own category (`PublishedSet.kind` for the
+   * two whole-box slots, `scope: 'hero'` for the single-hero pair — see
+   * `supabase/migrations/0009_set_kind.sql`), and `pickRandom` below chooses
+   * within that pool once per fetch, so the labels stay meaningful even
+   * with only one or two sets published in a category today, and the picks
+   * genuinely rotate once there are more to choose from.
    *
-   * Fetched regardless of library size — the zero-state welcome panel uses
-   * it full-width, and the "Design your own adventure" card beside the stat
-   * row uses a couple of the same results for a returning author too.
+   * Fetched regardless of library size — the zero-state welcome panel shows
+   * all four slots full-width, and the "Design your own adventure" card
+   * beside the stat row shows the same four, condensed, for a returning
+   * author too.
    */
-  let gallerySamples = $state<GallerySet[]>([]);
+  interface GallerySlots {
+    adventure: GallerySet | null;
+    heroes: GallerySet | null;
+    singleHeroes: GallerySet[];
+  }
+
+  let gallerySlots = $state<GallerySlots>({ adventure: null, heroes: null, singleHeroes: [] });
+
+  /**
+   * Fisher-Yates, then take the front — picked once when a fetch resolves
+   * and stored in state, never recomputed in a `$derived`. A derived would
+   * re-roll `Math.random()` on every unrelated reactive tick (autosave
+   * touching `entries`, for instance), which would make the slots visibly
+   * reshuffle on their own.
+   */
+  function pickRandom<T>(pool: readonly T[], count: number): T[] {
+    const copy = [...pool];
+    for (let index = copy.length - 1; index > 0; index -= 1) {
+      const swap = Math.floor(Math.random() * (index + 1));
+      const moved = copy[index];
+      if (moved === undefined) continue;
+      copy[index] = copy[swap] as T;
+      copy[swap] = moved;
+    }
+    return copy.slice(0, count);
+  }
 
   $effect(() => {
     if (!cloudEnabled()) {
-      gallerySamples = [];
+      gallerySlots = { adventure: null, heroes: null, singleHeroes: [] };
       return;
     }
     void (async () => {
+      const POOL = 8;
       try {
-        const [boxes, heroes] = await Promise.all([
-          listPublicSets({ scope: 'full', sort: 'popular', limit: 3 }),
-          listPublicSets({ scope: 'hero', sort: 'popular', limit: 2 })
+        const [adventures, heroBoxes, singleHeroes] = await Promise.all([
+          listPublicSets({ scope: 'full', kind: 'adventure', sort: 'popular', limit: POOL }),
+          listPublicSets({ scope: 'full', kind: 'heroes', sort: 'popular', limit: POOL }),
+          listPublicSets({ scope: 'hero', sort: 'popular', limit: POOL })
         ]);
-        gallerySamples = [...boxes, ...heroes].slice(0, 4);
+        gallerySlots = {
+          adventure: pickRandom(adventures, 1)[0] ?? null,
+          heroes: pickRandom(heroBoxes, 1)[0] ?? null,
+          singleHeroes: pickRandom(singleHeroes, 2)
+        };
       } catch {
         // Same silent fallback as the attention effect above — a missing
         // sample is not worth an error message.
@@ -459,7 +495,7 @@
     return `hsl(${Math.abs(hash) % 360} 30% 26%)`;
   }
 
-  /** The picture for a gallery-strip tile — same fallback `GalleryScreen`'s
+  /** The picture for a gallery-slot tile — same fallback `GalleryScreen`'s
       own `setImage` uses. */
   function galleryImage(set: GallerySet): string {
     return set.thumbnail_url || set.cover_url;
@@ -672,6 +708,37 @@
   </li>
 {/snippet}
 
+<!--
+  One slot in the gallery sample — a fixed category label plus whatever set
+  (if any) `gallerySlots` picked for it. Reused for all eight renders (four
+  full-size in the zero-state welcome panel, four condensed in the
+  returning-author "Design your own adventure" card) — sizing comes from
+  each context's own `.gallery-slots` CSS, not a prop, so this stays one
+  snippet rather than growing a `compact` flag.
+-->
+{#snippet gallerySlot(label: string, set: GallerySet | null)}
+  <li class="slot">
+    {#if set}
+      <button type="button" class="slot-tile" onclick={() => navigation.openShared(set.slug)}>
+        <span class="slot-thumb" style:background={tint(set.id)}>
+          {#if galleryImage(set)}
+            <img src={galleryImage(set)} alt="" loading="lazy" />
+          {:else}
+            <span class="initials">{initials(set.name)}</span>
+          {/if}
+        </span>
+        <span class="slot-label">{label}</span>
+        <span class="slot-name">{set.name || 'Untitled Adventure'}</span>
+      </button>
+    {:else}
+      <div class="slot-tile slot-empty">
+        <span class="slot-label">{label}</span>
+        <span class="slot-empty-note">None published yet</span>
+      </div>
+    {/if}
+  </li>
+{/snippet}
+
 <div class="library">
   <header class="head">
     <div class="brand">
@@ -765,21 +832,23 @@
           {@const set = lastOpened}
           {@const slug = publishedSlugByLocalId?.get(set.id) ?? null}
           <div class="continue-card">
-            <span class="continue-thumb" style:background={tint(set.id)} aria-hidden="true"></span>
-
-            <span class="continue-body">
-              <span class="continue-label">Continue where you left off</span>
-              <span class="continue-name">{set.name || 'Untitled Adventure'}</span>
-              {#if set.blockers !== undefined && set.gaps !== undefined && set.issueCount !== undefined}
-                <span class="health-status" data-state={healthStateOf(set.blockers, set.gaps)}>
-                  {healthSummaryFromCounts(set.blockers, set.gaps, set.issueCount)}
-                </span>
-              {/if}
-              <span class="continue-meta">
-                <span class="numeric">{set.characterCount}</span>
-                {set.characterCount === 1 ? 'character' : 'characters'} ·
-                <span class="numeric">{set.cardCount}</span> cards · edited {formatDate(set.updatedAt)}
+            <span class="continue-header">
+              <span class="continue-thumb" style:background={tint(set.id)} aria-hidden="true"></span>
+              <span class="continue-body">
+                <span class="continue-label">Continue where you left off</span>
+                <span class="continue-name">{set.name || 'Untitled Adventure'}</span>
+                {#if set.blockers !== undefined && set.gaps !== undefined && set.issueCount !== undefined}
+                  <span class="health-status" data-state={healthStateOf(set.blockers, set.gaps)}>
+                    {healthSummaryFromCounts(set.blockers, set.gaps, set.issueCount)}
+                  </span>
+                {/if}
               </span>
+            </span>
+
+            <span class="continue-meta">
+              <span class="numeric">{set.characterCount}</span>
+              {set.characterCount === 1 ? 'character' : 'characters'} ·
+              <span class="numeric">{set.cardCount}</span> cards · edited {formatDate(set.updatedAt)}
             </span>
 
             <span class="continue-actions">
@@ -799,12 +868,12 @@
 
       <!--
         The same "Design your own Unmatched adventure" pitch the zero-state
-        panel opens with, condensed to fit beside the stat row rather than
+        panel opens with, condensed to fit a third of the row rather than
         dropped for a returning author — it was previously shown once, on the
         very first visit, and never again. Steps lose their description text
-        here (one line each, not a paragraph) and the gallery sample is
-        capped at two tiles instead of four; both panels read from the same
-        `gallerySamples` fetch, so this costs no extra request.
+        here (one line each, not a paragraph) and the gallery slots shrink to
+        match; both panels read from the same `gallerySlots` fetch, so this
+        costs no extra request.
       -->
       <div class="about-card">
         <h2 class="about-title">Design your own Unmatched adventure</h2>
@@ -812,36 +881,48 @@
           <li class="about-step"><span class="step-index numeric">1</span> Start a set</li>
           <li class="about-step"><span class="step-index numeric">2</span> Add your characters</li>
           <li class="about-step"><span class="step-index numeric">3</span> Design the cards</li>
+          <li class="about-step"><span class="step-index numeric">4</span> Publish your set</li>
         </ol>
 
-        {#if gallerySamples.length > 0}
-          <ul class="about-gallery">
-            {#each gallerySamples.slice(0, 2) as set (set.id)}
-              <li>
-                <button
-                  type="button"
-                  class="about-gallery-tile"
-                  onclick={() => navigation.openShared(set.slug)}
-                >
-                  <span class="about-gallery-thumb" style:background={tint(set.id)}>
-                    {#if galleryImage(set)}
-                      <img src={galleryImage(set)} alt="" loading="lazy" />
-                    {:else}
-                      <span class="initials">{initials(set.name)}</span>
-                    {/if}
-                  </span>
-                  <span class="about-gallery-name">{set.name || 'Untitled Adventure'}</span>
-                </button>
-              </li>
-            {/each}
-          </ul>
-        {/if}
-
         {#if cloudEnabled()}
+          <h3 class="about-gallery-title">
+            Looking for inspiration? Here are a few sets from the gallery
+          </h3>
+          <ul class="gallery-slots">
+            {@render gallerySlot('Adventures set', gallerySlots.adventure)}
+            {@render gallerySlot('Heroes set', gallerySlots.heroes)}
+            {@render gallerySlot('Single hero', gallerySlots.singleHeroes[0] ?? null)}
+            {@render gallerySlot('Single hero', gallerySlots.singleHeroes[1] ?? null)}
+          </ul>
           <Button variant="ghost" size="sm" onclick={() => navigation.openGallery()}>
             Browse the gallery for examples
           </Button>
         {/if}
+      </div>
+
+      <!--
+        The earmarked spot for a Collaboration/sharing tutorial — not built
+        out yet, on purpose. Every row here is inert: nothing in
+        `state/navigation.svelte.ts` has a help/docs destination to send
+        them to today, so this is a placeholder to write real content into
+        later rather than a feature shipping half-finished now.
+      -->
+      <div class="guides">
+        <h2 class="about-title">Guides <span class="coming-soon">Coming soon</span></h2>
+        <ul class="guides-list">
+          <li class="guides-row">
+            <Icon name="layers" size={14} />
+            <span>Sharing a set</span>
+          </li>
+          <li class="guides-row">
+            <Icon name="users" size={14} />
+            <span>Working with contributions</span>
+          </li>
+          <li class="guides-row">
+            <Icon name="printer" size={14} />
+            <span>Exporting to Tabletop Simulator</span>
+          </li>
+        </ul>
       </div>
     </div>
   {/if}
@@ -970,35 +1051,26 @@
               </p>
             </div>
           </li>
+          <li class="welcome-step">
+            <span class="step-index numeric">4</span>
+            <div class="step-body">
+              <span class="step-title">Publish your set</span>
+              <p class="step-text">
+                Whenever it's ready — share it as a link, or list it in the gallery for others
+                to find.
+              </p>
+            </div>
+          </li>
         </ol>
       </div>
 
-      {#if gallerySamples.length > 0}
-        <h2 class="section-title">A few sets from the gallery, if you want to see one first</h2>
-        <ul class="gallery-strip">
-          {#each gallerySamples as set (set.id)}
-            <li>
-              <button
-                type="button"
-                class="gallery-tile"
-                onclick={() => navigation.openShared(set.slug)}
-              >
-                <span class="gallery-thumb" style:background={tint(set.id)}>
-                  {#if galleryImage(set)}
-                    <img src={galleryImage(set)} alt="" loading="lazy" />
-                  {:else}
-                    <span class="initials">{initials(set.name)}</span>
-                  {/if}
-                </span>
-                <span class="gallery-name-row">
-                  <span class="gallery-name">{set.name || 'Untitled Adventure'}</span>
-                  {#if set.scope !== 'full'}
-                    <span class="gallery-scope">{set.scope === 'hero' ? 'Hero' : 'Villain'}</span>
-                  {/if}
-                </span>
-              </button>
-            </li>
-          {/each}
+      {#if cloudEnabled()}
+        <h2 class="section-title">Looking for inspiration? Here are a few sets from the gallery</h2>
+        <ul class="gallery-slots welcome-gallery-slots">
+          {@render gallerySlot('Adventures set', gallerySlots.adventure)}
+          {@render gallerySlot('Heroes set', gallerySlots.heroes)}
+          {@render gallerySlot('Single hero', gallerySlots.singleHeroes[0] ?? null)}
+          {@render gallerySlot('Single hero', gallerySlots.singleHeroes[1] ?? null)}
         </ul>
       {/if}
     {:else if mode === 'sets' && filteredSets.length === 0}
@@ -1060,33 +1132,6 @@
           </li>
         {/each}
       </ul>
-    {/if}
-
-    {#if entries.length > 0}
-      <!--
-        The earmarked spot for a Collaboration/sharing tutorial — not built
-        out yet, on purpose. Every row here is inert: nothing in
-        `state/navigation.svelte.ts` has a help/docs destination to send
-        them to today, so this is a placeholder to write real content into
-        later rather than a feature shipping half-finished now.
-      -->
-      <div class="guides">
-        <h2 class="section-title">Guides <span class="coming-soon">Coming soon</span></h2>
-        <ul class="guides-list">
-          <li class="guides-row">
-            <Icon name="layers" size={14} />
-            <span>Sharing a set</span>
-          </li>
-          <li class="guides-row">
-            <Icon name="users" size={14} />
-            <span>Working with contributions</span>
-          </li>
-          <li class="guides-row">
-            <Icon name="printer" size={14} />
-            <span>Exporting to Tabletop Simulator</span>
-          </li>
-        </ul>
-      </div>
     {/if}
 
     {#if deletedEntries.length > 0}
@@ -1193,10 +1238,20 @@
   /* Horizontal padding lives on `.top-row` now, not here — this sits inside
      `.top-main`, which shares that padding with the "Design your own
      adventure" card beside it rather than each spacing itself. */
+  /*
+   * Two columns, not three — the left column of `.top-row` is now a third
+   * of the page rather than two thirds, so three stat cards across no
+   * longer fit. The donut spans both (`.donut-card`) on its own row instead
+   * of squeezing beside the other two.
+   */
   .stat-row {
     display: grid;
-    grid-template-columns: 1.4fr 1fr 1fr;
+    grid-template-columns: 1fr 1fr;
     gap: var(--space-3);
+  }
+
+  .donut-card {
+    grid-column: 1 / -1;
   }
 
   .stat-card {
@@ -1250,10 +1305,16 @@
     border-radius: var(--radius-xs);
   }
 
+  /*
+   * A vertical stack, not the one-row thumb/body/actions layout this had
+   * when it spanned two thirds of the page — at a third, "View gallery
+   * listing" and "Continue editing" side by side would either wrap badly or
+   * force the card wider than its column.
+   */
   .continue-card {
     display: flex;
-    align-items: center;
-    gap: var(--space-4);
+    flex-direction: column;
+    gap: var(--space-3);
     padding: var(--space-4);
     border-radius: var(--radius-md);
     background: var(--surface-raised);
@@ -1261,10 +1322,16 @@
     color: var(--text-primary);
   }
 
+  .continue-header {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+  }
+
   .continue-thumb {
     flex: none;
-    width: 56px;
-    height: 56px;
+    width: 44px;
+    height: 44px;
     border-radius: var(--radius-md);
   }
 
@@ -1282,9 +1349,11 @@
     color: var(--text-muted);
   }
 
+  /* Flex column's default `align-items: stretch` is what gives these
+     buttons the card's full width — no dedicated "full width" prop needed. */
   .continue-actions {
     display: flex;
-    flex: none;
+    flex-direction: column;
     gap: var(--space-2);
   }
 
@@ -1294,13 +1363,18 @@
   }
 
   .continue-name {
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
     font-family: var(--font-display);
     font-size: var(--text-md);
   }
 
+  /* Three equal columns — health/continue, the adventure pitch, Guides. */
   .top-row {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(240px, 320px);
+    grid-template-columns: repeat(3, minmax(0, 1fr));
     align-items: start;
     gap: var(--space-4);
     padding: var(--space-5) var(--space-9) 0;
@@ -1313,7 +1387,8 @@
     min-width: 0;
   }
 
-  .about-card {
+  .about-card,
+  .guides {
     display: flex;
     flex-direction: column;
     gap: var(--space-3);
@@ -1346,14 +1421,27 @@
     color: var(--text-secondary);
   }
 
-  .about-gallery {
+  .about-gallery-title {
+    margin: 0;
+    font-size: var(--text-2xs);
+    font-weight: var(--weight-semibold);
+    color: var(--text-tertiary);
+  }
+
+  /*
+   * The slot grid, shared between the `.about-card` (2×2, small) and the
+   * zero-state `.welcome` panel (`.welcome-gallery-slots`, 4-across,
+   * larger) — same markup from the same `gallerySlot` snippet either way,
+   * only the sizing differs by context.
+   */
+  .gallery-slots {
     display: grid;
     grid-template-columns: repeat(2, 1fr);
     gap: var(--space-2);
     list-style: none;
   }
 
-  .about-gallery-tile {
+  .slot-tile {
     display: flex;
     flex-direction: column;
     gap: var(--space-1);
@@ -1361,27 +1449,73 @@
     text-align: left;
   }
 
-  .about-gallery-thumb {
+  .slot-thumb {
     display: grid;
     place-items: center;
     width: 100%;
     aspect-ratio: 4 / 3;
     border-radius: var(--radius-sm);
     overflow: hidden;
+    outline: 1px solid transparent;
+    outline-offset: -1px;
+    transition: outline-color var(--duration-fast) var(--ease-out);
   }
 
-  .about-gallery-thumb img {
+  .slot-tile:hover .slot-thumb {
+    outline-color: var(--border-strong);
+  }
+
+  .slot-thumb img {
     width: 100%;
     height: 100%;
     object-fit: cover;
   }
 
-  .about-gallery-name {
+  .slot-label {
+    font-size: var(--text-2xs);
+    font-weight: var(--weight-semibold);
+    letter-spacing: var(--tracking-caps);
+    text-transform: uppercase;
+    color: var(--text-tertiary);
+  }
+
+  .slot-name {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
     font-size: var(--text-2xs);
     color: var(--text-muted);
+  }
+
+  /* A category with nothing published yet still holds its place in the
+     grid, at the same footprint a real tile would take. */
+  .slot-empty {
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-1);
+    aspect-ratio: 4 / 3;
+    padding: var(--space-2);
+    border: 1px dashed var(--border-subtle);
+    border-radius: var(--radius-sm);
+    text-align: center;
+  }
+
+  .slot-empty-note {
+    font-size: var(--text-2xs);
+    color: var(--text-muted);
+    opacity: 0.75;
+  }
+
+  .welcome-gallery-slots {
+    grid-template-columns: repeat(4, 1fr);
+    gap: var(--space-3);
+    margin-bottom: var(--space-6);
+  }
+
+  .welcome-gallery-slots .slot-name {
+    font-size: var(--text-xs);
+    font-weight: var(--weight-medium);
+    color: var(--text-primary);
   }
 
   .health-status {
@@ -1831,79 +1965,11 @@
     text-wrap: pretty;
   }
 
-  .gallery-strip {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
-    gap: var(--space-3);
-    list-style: none;
-    margin: 0 0 var(--space-6);
-  }
-
-  .gallery-tile {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-2);
-    width: 100%;
-    padding: var(--space-3);
-    border-radius: var(--radius-md);
-    background: var(--surface-raised);
-    border: 1px solid var(--border-subtle);
-    text-align: left;
-    transition: border-color var(--duration-fast) var(--ease-out);
-  }
-
-  .gallery-tile:hover {
-    border-color: var(--border-strong);
-  }
-
-  .gallery-thumb {
-    display: grid;
-    place-items: center;
-    width: 100%;
-    aspect-ratio: 4 / 3;
-    border-radius: var(--radius-sm);
-    overflow: hidden;
-  }
-
-  .gallery-thumb img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-  }
-
   .initials {
     font-family: var(--card-font-name, sans-serif);
     font-size: var(--text-md);
     letter-spacing: var(--tracking-wide);
     color: rgb(255 255 255 / 0.75);
-  }
-
-  .gallery-name-row {
-    display: flex;
-    align-items: baseline;
-    gap: var(--space-2);
-    flex-wrap: wrap;
-  }
-
-  .gallery-name {
-    font-size: var(--text-xs);
-    font-weight: var(--weight-medium);
-    color: var(--text-primary);
-  }
-
-  .gallery-scope {
-    flex: none;
-    padding: 1px var(--space-2);
-    border-radius: var(--radius-full);
-    border: 1px solid var(--border-subtle);
-    font-size: var(--text-2xs);
-    color: var(--text-muted);
-  }
-
-  .guides {
-    margin-top: var(--space-7);
-    padding-top: var(--space-5);
-    border-top: 1px solid var(--border-subtle);
   }
 
   .coming-soon {

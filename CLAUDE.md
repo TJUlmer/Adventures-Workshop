@@ -733,34 +733,65 @@ negative `stroke-dashoffset` — computed against the circle's *actual*
 circumference rather than an illustrative round number, so the three lengths
 always sum to a complete ring exactly rather than approximately.
 
-**The gallery sample queries rather than hardcodes, and is shared by two
-screens.** Nothing pins a specific set's name or slug into the page — that
-breaks the moment its author unpublishes or renames it — so `gallerySamples`
-fetches `listPublicSets({ scope: 'full' })` and `listPublicSets({ scope:
-'hero' })` in parallel, capped to a handful, for a small mix of a whole box
-and a standalone published hero. `PublishedSet` has no `kind` column to tell
-an adventure box from a heroes box server-side, only `scope` ('full' | 'hero'
-| 'villain'), so "different kinds" here means what `scope` can actually
-distinguish; the mix gets more varied on its own as the gallery grows, which
-is the point of asking rather than pinning specific examples. The fetch runs
-regardless of library size — the zero-state welcome panel shows up to four
-tiles full-width, and the "Design your own adventure" card beside a returning
-author's stat row shows two of the same results, so the one fetch serves
-both rather than each screen asking separately. Either strip renders nothing
-and shows no error if the fetch comes back empty or `cloudEnabled()` is
-false — same silent-fallback precedent as the attention strip's own cloud
-calls, just below.
+**A published row remembers its own `kind`, and that was worth a migration.**
+`sets.scope` ('full' | 'hero' | 'villain', `0006_scoped_publishing.sql`) says
+how much of a set was published, not what kind of set it is — a `scope:
+'full'` row could be an adventure or a box of heroes, and nothing server-side
+could tell them apart. Home's gallery sample wants four *permanently
+labeled* slots — Adventures set, Heroes set, and two Single hero spots — and
+guessing the first two from other columns would mean a label that is
+sometimes wrong, which is worse than no label. `0009_set_kind.sql` adds
+`sets.kind` (nullable, no default, checked against `SET_KINDS`), `publishSet`
+sends `scoped.kind` on every publish (`heroSlice` already forces `kind:
+'heroes'` on a standalone hero regardless of which box it came from,
+`sets/scope.ts` — so a lone hero is correctly categorised for free), and
+`listPublicSets` gained a `kind` filter alongside `scope`. Nullable and never
+backfilled: a row published before this migration reads `null`, which never
+matches `kind=eq.adventure`/`kind=eq.heroes` — it simply sits out of the two
+whole-box slots until its author republishes, the same "repairs itself on the
+next natural write" pattern `LibraryEntry.blockers` already follows locally.
+
+**The gallery sample is four labeled slots, not a flat list — and still
+queries rather than hardcodes.** Nothing pins a specific set's name or slug
+into a slot; that breaks the moment its author unpublishes or renames it.
+`gallerySlots` runs three parallel `listPublicSets` calls — `{ scope: 'full',
+kind: 'adventure' }`, `{ scope: 'full', kind: 'heroes' }`, `{ scope: 'hero'
+}` — each an 8-wide pool sorted by `popular`, and a small local Fisher-Yates
+`pickRandom` chooses 1 / 1 / 2 from the pools **once, when the fetch
+resolves**, storing the picks in state rather than a `$derived`: a derived
+re-running `Math.random()` on every unrelated reactive tick (autosave
+touching `entries`, for instance) would make the slots visibly reshuffle on
+their own. A slot with nothing published in its category yet renders a
+dashed "None published yet" placeholder at the same footprint a real tile
+would take, rather than collapsing the grid — the categories are permanent
+even when a category is still empty, and the picks genuinely rotate once
+there is more than one candidate. The fetch runs regardless of library
+size — the zero-state welcome panel shows all four slots full-width, and the
+"Design your own adventure" card in the middle of a returning author's
+`.top-row` shows the same four, condensed — so one fetch serves both rather
+than each screen asking separately. Neither renders anything and neither
+shows an error if the fetch fails or `cloudEnabled()` is false — same
+silent-fallback precedent as the attention strip's own cloud calls, just
+below.
 
 **The "Design your own Unmatched adventure" pitch is not only a first-visit
-thing.** It used to live solely in the zero-state, which meant a returning
-author who wanted the gallery for inspiration, or simply forgot the
-Set → Characters → Cards shape, had no way back to it short of deleting every
-set. A condensed version — heading, three one-line steps, two gallery tiles,
-"Browse the gallery" — sits beside the stat row instead, in a `.top-row` grid
-(`minmax(0,1fr) minmax(240px,320px)`) that also holds the stat row and the
-continue-card in its main column. Condensed deliberately: the zero-state
-version's per-step description paragraphs and four-tile grid would be too
-much beside a stat row that already has its own job.
+thing, and `.top-row` is three columns, not two.** It used to live solely in
+the zero-state, which meant a returning author who wanted the gallery for
+inspiration, or simply forgot the Set → Characters → Cards → Publish shape,
+had no way back to it short of deleting every set. A condensed version —
+heading, four one-line steps, the same four gallery slots at a smaller
+size, "Browse the gallery" — sits in the middle column instead, beside the
+stat row/continue-card column and a third column holding Guides (moved up
+from below the grid; it was always returning-author-only, this only
+relocates it). Condensed deliberately in the middle column: the zero-state
+version's per-step description paragraphs would be too much at a third of
+the page's width. The left column's own two rows — the stat row and the
+continue-card — were both originally laid out for two-thirds of the page and
+had to restack for a third: the health donut now spans both stat-card
+columns on its own row rather than sitting beside two narrower tiles, and
+the continue-card goes from one horizontal row (thumb · body · actions) to a
+vertical stack, its actions relying on a flex column's default `align-items:
+stretch` for full-width buttons rather than a dedicated prop.
 
 **A class name collided with itself, and cost more space than any of the
 above.** The set-grid card's inner text stack was first named `.body` —
