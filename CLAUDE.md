@@ -733,19 +733,49 @@ negative `stroke-dashoffset` — computed against the circle's *actual*
 circumference rather than an illustrative round number, so the three lengths
 always sum to a complete ring exactly rather than approximately.
 
-**The gallery strip on the zero-state screen queries rather than hardcodes.**
-Nothing pins a specific set's name or slug into the page — that breaks the
-moment its author unpublishes or renames it — so a first-time visitor with no
-sets of their own gets `listPublicSets({ scope: 'full' })` and `listPublicSets
-({ scope: 'hero' })` in parallel, capped to a handful, for a small mix of a
-whole box and a standalone published hero. `PublishedSet` has no `kind`
-column to tell an adventure box from a heroes box server-side, only `scope`
-('full' | 'hero' | 'villain'), so "different kinds" here means what `scope`
-can actually distinguish; the mix gets more varied on its own as the gallery
-grows, which is the point of asking rather than pinning specific examples.
-The strip renders nothing and shows no error if the fetch comes back empty or
-`cloudEnabled()` is false — same silent-fallback precedent as the attention
-strip's own cloud calls, just below.
+**The gallery sample queries rather than hardcodes, and is shared by two
+screens.** Nothing pins a specific set's name or slug into the page — that
+breaks the moment its author unpublishes or renames it — so `gallerySamples`
+fetches `listPublicSets({ scope: 'full' })` and `listPublicSets({ scope:
+'hero' })` in parallel, capped to a handful, for a small mix of a whole box
+and a standalone published hero. `PublishedSet` has no `kind` column to tell
+an adventure box from a heroes box server-side, only `scope` ('full' | 'hero'
+| 'villain'), so "different kinds" here means what `scope` can actually
+distinguish; the mix gets more varied on its own as the gallery grows, which
+is the point of asking rather than pinning specific examples. The fetch runs
+regardless of library size — the zero-state welcome panel shows up to four
+tiles full-width, and the "Design your own adventure" card beside a returning
+author's stat row shows two of the same results, so the one fetch serves
+both rather than each screen asking separately. Either strip renders nothing
+and shows no error if the fetch comes back empty or `cloudEnabled()` is
+false — same silent-fallback precedent as the attention strip's own cloud
+calls, just below.
+
+**The "Design your own Unmatched adventure" pitch is not only a first-visit
+thing.** It used to live solely in the zero-state, which meant a returning
+author who wanted the gallery for inspiration, or simply forgot the
+Set → Characters → Cards shape, had no way back to it short of deleting every
+set. A condensed version — heading, three one-line steps, two gallery tiles,
+"Browse the gallery" — sits beside the stat row instead, in a `.top-row` grid
+(`minmax(0,1fr) minmax(240px,320px)`) that also holds the stat row and the
+continue-card in its main column. Condensed deliberately: the zero-state
+version's per-step description paragraphs and four-tile grid would be too
+much beside a stat row that already has its own job.
+
+**A class name collided with itself, and cost more space than any of the
+above.** The set-grid card's inner text stack was first named `.body` —
+which a Svelte component does not scope per-element, only per-component, so
+that selector's rules applied to *every* element carrying the class, and the
+page's own scrollable container already had one (`<div class="body
+scroll-y">`). Both rules merged onto both elements: every card silently
+inherited the page container's own padding (`--space-7`/`--space-9`/
+`--space-10`) stacked on top of `.open`'s, and the container gained an
+unwanted `flex-direction: column; gap` from the card's side of the merge.
+Renamed to `.card-body`. This was the dominant cause of the "wasted space"
+report that prompted tightening the grid at all — the title-wrap-causes-
+grid-stretch issue (`.card-title` now `nowrap` + ellipsis) and the old
+two-row stats/meta split (now one `.meta` line) made it worse, but neither
+was the main cost on its own.
 
 The **"Continue where you left off" card** carries a "View gallery listing"
 action now, beside "Continue editing" — reachable only because the existing

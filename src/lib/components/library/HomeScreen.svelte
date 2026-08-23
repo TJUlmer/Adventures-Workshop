@@ -357,19 +357,22 @@
   });
 
   /**
-   * A few gallery sets to show someone with no sets of their own yet — one
-   * fetch for whole boxes, one for a standalone published hero, so the strip
-   * covers a couple of different kinds rather than whatever `sort` happened
-   * to surface first. Not pinned to specific sets by name or slug: that
-   * breaks the moment the author unpublishes or renames one, and the mix
-   * only gets better as the gallery grows, which is the whole point of
-   * querying rather than hardcoding.
+   * A few gallery sets for inspiration — one fetch for whole boxes, one for a
+   * standalone published hero, so the sample covers a couple of different
+   * kinds rather than whatever `sort` happened to surface first. Not pinned
+   * to specific sets by name or slug: that breaks the moment the author
+   * unpublishes or renames one, and the mix only gets better as the gallery
+   * grows, which is the whole point of querying rather than hardcoding.
+   *
+   * Fetched regardless of library size — the zero-state welcome panel uses
+   * it full-width, and the "Design your own adventure" card beside the stat
+   * row uses a couple of the same results for a returning author too.
    */
-  let firstTimeGallerySets = $state<GallerySet[]>([]);
+  let gallerySamples = $state<GallerySet[]>([]);
 
   $effect(() => {
-    if (entries.length > 0 || !cloudEnabled()) {
-      firstTimeGallerySets = [];
+    if (!cloudEnabled()) {
+      gallerySamples = [];
       return;
     }
     void (async () => {
@@ -378,10 +381,10 @@
           listPublicSets({ scope: 'full', sort: 'popular', limit: 3 }),
           listPublicSets({ scope: 'hero', sort: 'popular', limit: 2 })
         ]);
-        firstTimeGallerySets = [...boxes, ...heroes].slice(0, 4);
+        gallerySamples = [...boxes, ...heroes].slice(0, 4);
       } catch {
-        // Same silent fallback as the attention effect above — an empty
-        // strip on someone's very first screen is not worth an error.
+        // Same silent fallback as the attention effect above — a missing
+        // sample is not worth an error message.
       }
     })();
   });
@@ -515,7 +518,7 @@
     <button type="button" class="open" onclick={() => void workshop.openSet(entry.id)}>
       <span class="thumb" style:background={tint(entry.id)} aria-hidden="true"></span>
 
-      <span class="body">
+      <span class="card-body">
         <span class="card-title-row">
           <span class="card-title">{entry.name || 'Untitled Adventure'}</span>
           {#if (attention.get(entry.id)?.waiting ?? 0) > 0}
@@ -576,19 +579,25 @@
           </span>
         {/if}
 
-        <span class="stats">
-          <span class="stat"><b class="numeric">{entry.characterCount}</b> characters</span>
-          <span class="stat"><b class="numeric">{entry.cardCount}</b> cards</span>
-        </span>
-
+        <!-- One compact line rather than a stats row plus a meta row — the
+             byte size still shows in the header's overall storage line, so
+             it isn't repeated per card here. -->
         <span class="meta">
-          <span>{formatDate(entry.updatedAt)}</span>
-          <span class="numeric">{formatSize(entry.bytes)}</span>
+          <span class="numeric">{entry.characterCount}</span>
+          {entry.characterCount === 1 ? 'character' : 'characters'} ·
+          <span class="numeric">{entry.cardCount}</span> cards · {formatDate(entry.updatedAt)}
         </span>
       </span>
     </button>
 
-    <div class="card-actions">
+    <!--
+      Overlaid on the card's own top-right corner rather than a dedicated
+      footer row — a duplicate/delete control on every one of a dozen cards
+      does not need permanent floor space, only a way to reach it. Stays
+      visible while a delete is armed (`confirmingDelete`), or the Cancel
+      button would vanish the moment the pointer left the card.
+    -->
+    <div class="card-actions" class:armed={confirmingDelete === entry.id}>
       <button
         type="button"
         class="ghost"
@@ -713,77 +722,128 @@
   {/if}
 
   {#if entries.length > 0}
-    <div class="stat-row">
-      <div class="stat-card donut-card">
-        <span class="stat-card-label">Library health <span class="numeric">· {libraryStats.sets} sets</span></span>
-        <div class="donut-row">
-          <svg width="54" height="54" viewBox="0 0 36 36" aria-hidden="true">
-            <circle cx="18" cy="18" r={DONUT_R} fill="none" stroke="var(--border-default)" stroke-width="4" />
-            {#each donutSegments as segment (segment.state)}
-              <circle
-                cx="18"
-                cy="18"
-                r={DONUT_R}
-                fill="none"
-                stroke={segment.color}
-                stroke-width="4"
-                stroke-dasharray={segment.dash}
-                stroke-dashoffset={segment.offset}
-                transform="rotate(-90 18 18)"
-              />
-            {/each}
-          </svg>
-          <ul class="donut-legend">
-            <li><span class="dot" style:background="var(--success)"></span>{libraryHealth.ready} ready</li>
-            <li><span class="dot" style:background="var(--warning)"></span>{libraryHealth.rough} rough</li>
-            <li><span class="dot" style:background="var(--danger)"></span>{libraryHealth.blocked} blocked</li>
-          </ul>
+    <div class="top-row">
+      <div class="top-main">
+        <div class="stat-row">
+          <div class="stat-card donut-card">
+            <span class="stat-card-label">Library health <span class="numeric">· {libraryStats.sets} sets</span></span>
+            <div class="donut-row">
+              <svg width="54" height="54" viewBox="0 0 36 36" aria-hidden="true">
+                <circle cx="18" cy="18" r={DONUT_R} fill="none" stroke="var(--border-default)" stroke-width="4" />
+                {#each donutSegments as segment (segment.state)}
+                  <circle
+                    cx="18"
+                    cy="18"
+                    r={DONUT_R}
+                    fill="none"
+                    stroke={segment.color}
+                    stroke-width="4"
+                    stroke-dasharray={segment.dash}
+                    stroke-dashoffset={segment.offset}
+                    transform="rotate(-90 18 18)"
+                  />
+                {/each}
+              </svg>
+              <ul class="donut-legend">
+                <li><span class="dot" style:background="var(--success)"></span>{libraryHealth.ready} ready</li>
+                <li><span class="dot" style:background="var(--warning)"></span>{libraryHealth.rough} rough</li>
+                <li><span class="dot" style:background="var(--danger)"></span>{libraryHealth.blocked} blocked</li>
+              </ul>
+            </div>
+          </div>
+          <div class="stat-card">
+            <span class="stat-card-label">Characters</span>
+            <span class="stat-card-value numeric">{libraryStats.characters}</span>
+          </div>
+          <div class="stat-card" class:has-issue={libraryStats.blocked > 0}>
+            <span class="stat-card-label">Have blockers</span>
+            <span class="stat-card-value numeric">{libraryStats.blocked}</span>
+          </div>
         </div>
+
+        {#if lastOpened}
+          {@const set = lastOpened}
+          {@const slug = publishedSlugByLocalId?.get(set.id) ?? null}
+          <div class="continue-card">
+            <span class="continue-thumb" style:background={tint(set.id)} aria-hidden="true"></span>
+
+            <span class="continue-body">
+              <span class="continue-label">Continue where you left off</span>
+              <span class="continue-name">{set.name || 'Untitled Adventure'}</span>
+              {#if set.blockers !== undefined && set.gaps !== undefined && set.issueCount !== undefined}
+                <span class="health-status" data-state={healthStateOf(set.blockers, set.gaps)}>
+                  {healthSummaryFromCounts(set.blockers, set.gaps, set.issueCount)}
+                </span>
+              {/if}
+              <span class="continue-meta">
+                <span class="numeric">{set.characterCount}</span>
+                {set.characterCount === 1 ? 'character' : 'characters'} ·
+                <span class="numeric">{set.cardCount}</span> cards · edited {formatDate(set.updatedAt)}
+              </span>
+            </span>
+
+            <span class="continue-actions">
+              {#if slug}
+                <Button variant="ghost" size="sm" onclick={() => navigation.openShared(slug)}>
+                  View gallery listing
+                </Button>
+              {/if}
+              <Button variant="primary" size="sm" onclick={() => void workshop.openSet(set.id)}>
+                Continue editing
+                <Icon name="chevronRight" size={14} />
+              </Button>
+            </span>
+          </div>
+        {/if}
       </div>
-      <div class="stat-card">
-        <span class="stat-card-label">Characters</span>
-        <span class="stat-card-value numeric">{libraryStats.characters}</span>
-      </div>
-      <div class="stat-card" class:has-issue={libraryStats.blocked > 0}>
-        <span class="stat-card-label">Have blockers</span>
-        <span class="stat-card-value numeric">{libraryStats.blocked}</span>
+
+      <!--
+        The same "Design your own Unmatched adventure" pitch the zero-state
+        panel opens with, condensed to fit beside the stat row rather than
+        dropped for a returning author — it was previously shown once, on the
+        very first visit, and never again. Steps lose their description text
+        here (one line each, not a paragraph) and the gallery sample is
+        capped at two tiles instead of four; both panels read from the same
+        `gallerySamples` fetch, so this costs no extra request.
+      -->
+      <div class="about-card">
+        <h2 class="about-title">Design your own Unmatched adventure</h2>
+        <ol class="about-steps">
+          <li class="about-step"><span class="step-index numeric">1</span> Start a set</li>
+          <li class="about-step"><span class="step-index numeric">2</span> Add your characters</li>
+          <li class="about-step"><span class="step-index numeric">3</span> Design the cards</li>
+        </ol>
+
+        {#if gallerySamples.length > 0}
+          <ul class="about-gallery">
+            {#each gallerySamples.slice(0, 2) as set (set.id)}
+              <li>
+                <button
+                  type="button"
+                  class="about-gallery-tile"
+                  onclick={() => navigation.openShared(set.slug)}
+                >
+                  <span class="about-gallery-thumb" style:background={tint(set.id)}>
+                    {#if galleryImage(set)}
+                      <img src={galleryImage(set)} alt="" loading="lazy" />
+                    {:else}
+                      <span class="initials">{initials(set.name)}</span>
+                    {/if}
+                  </span>
+                  <span class="about-gallery-name">{set.name || 'Untitled Adventure'}</span>
+                </button>
+              </li>
+            {/each}
+          </ul>
+        {/if}
+
+        {#if cloudEnabled()}
+          <Button variant="ghost" size="sm" onclick={() => navigation.openGallery()}>
+            Browse the gallery for examples
+          </Button>
+        {/if}
       </div>
     </div>
-
-    {#if lastOpened}
-      {@const set = lastOpened}
-      {@const slug = publishedSlugByLocalId?.get(set.id) ?? null}
-      <div class="continue-card">
-        <span class="continue-thumb" style:background={tint(set.id)} aria-hidden="true"></span>
-
-        <span class="continue-body">
-          <span class="continue-label">Continue where you left off</span>
-          <span class="continue-name">{set.name || 'Untitled Adventure'}</span>
-          {#if set.blockers !== undefined && set.gaps !== undefined && set.issueCount !== undefined}
-            <span class="health-status" data-state={healthStateOf(set.blockers, set.gaps)}>
-              {healthSummaryFromCounts(set.blockers, set.gaps, set.issueCount)}
-            </span>
-          {/if}
-          <span class="continue-meta">
-            <span class="numeric">{set.characterCount}</span>
-            {set.characterCount === 1 ? 'character' : 'characters'} ·
-            <span class="numeric">{set.cardCount}</span> cards · edited {formatDate(set.updatedAt)}
-          </span>
-        </span>
-
-        <span class="continue-actions">
-          {#if slug}
-            <Button variant="ghost" size="sm" onclick={() => navigation.openShared(slug)}>
-              View gallery listing
-            </Button>
-          {/if}
-          <Button variant="primary" size="sm" onclick={() => void workshop.openSet(set.id)}>
-            Continue editing
-            <Icon name="chevronRight" size={14} />
-          </Button>
-        </span>
-      </div>
-    {/if}
   {/if}
 
   {#if waitingSets.length > 0 || behindSets.length > 0}
@@ -913,10 +973,10 @@
         </ol>
       </div>
 
-      {#if firstTimeGallerySets.length > 0}
+      {#if gallerySamples.length > 0}
         <h2 class="section-title">A few sets from the gallery, if you want to see one first</h2>
         <ul class="gallery-strip">
-          {#each firstTimeGallerySets as set (set.id)}
+          {#each gallerySamples as set (set.id)}
             <li>
               <button
                 type="button"
@@ -1130,11 +1190,13 @@
     padding: var(--space-5) var(--space-9) 0;
   }
 
+  /* Horizontal padding lives on `.top-row` now, not here — this sits inside
+     `.top-main`, which shares that padding with the "Design your own
+     adventure" card beside it rather than each spacing itself. */
   .stat-row {
     display: grid;
     grid-template-columns: 1.4fr 1fr 1fr;
     gap: var(--space-3);
-    padding: var(--space-5) var(--space-9) 0;
   }
 
   .stat-card {
@@ -1192,7 +1254,6 @@
     display: flex;
     align-items: center;
     gap: var(--space-4);
-    margin: var(--space-3) var(--space-9) 0;
     padding: var(--space-4);
     border-radius: var(--radius-md);
     background: var(--surface-raised);
@@ -1235,6 +1296,92 @@
   .continue-name {
     font-family: var(--font-display);
     font-size: var(--text-md);
+  }
+
+  .top-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(240px, 320px);
+    align-items: start;
+    gap: var(--space-4);
+    padding: var(--space-5) var(--space-9) 0;
+  }
+
+  .top-main {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    min-width: 0;
+  }
+
+  .about-card {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    padding: var(--space-4);
+    border-radius: var(--radius-md);
+    background: var(--surface-base);
+    border: 1px solid var(--border-subtle);
+    box-shadow: inset 0 1px 0 var(--edge-highlight);
+  }
+
+  .about-title {
+    font-family: var(--font-display);
+    font-size: var(--text-sm);
+    letter-spacing: var(--tracking-tight);
+    color: var(--text-primary);
+  }
+
+  .about-steps {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    list-style: none;
+  }
+
+  .about-step {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    font-size: var(--text-xs);
+    color: var(--text-secondary);
+  }
+
+  .about-gallery {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: var(--space-2);
+    list-style: none;
+  }
+
+  .about-gallery-tile {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    width: 100%;
+    text-align: left;
+  }
+
+  .about-gallery-thumb {
+    display: grid;
+    place-items: center;
+    width: 100%;
+    aspect-ratio: 4 / 3;
+    border-radius: var(--radius-sm);
+    overflow: hidden;
+  }
+
+  .about-gallery-thumb img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  .about-gallery-name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: var(--text-2xs);
+    color: var(--text-muted);
   }
 
   .health-status {
@@ -1409,7 +1556,7 @@
     display: flex;
     align-items: flex-start;
     gap: var(--space-3);
-    padding: var(--space-5) var(--space-5) var(--space-3);
+    padding: var(--space-4);
     text-align: left;
   }
 
@@ -1418,16 +1565,27 @@
      what stands in, same as a character with no portrait already gets. */
   .thumb {
     flex: none;
-    width: 44px;
-    height: 44px;
-    border-radius: var(--radius-md);
+    width: 40px;
+    height: 40px;
+    border-radius: var(--radius-sm);
   }
 
-  .body {
+  /*
+   * NOT named `.body` — that class already belongs to the page's own
+   * scrollable content container (`<div class="body scroll-y">` below).
+   * Svelte scopes styles per component, not per element, so a second `.body`
+   * here would have merged both rules onto both elements — which is exactly
+   * what happened the first time: every card silently inherited the page
+   * container's own padding (`--space-7`/`--space-9`/`--space-10`) on top of
+   * `.open`'s own, which was the real source of the wasted space this was
+   * built to fix, not `.card-title` wrapping or the old two-row stats/meta
+   * split (those made it worse, but this was the dominant cost).
+   */
+  .card-body {
     flex: 1 1 auto;
     display: flex;
     flex-direction: column;
-    gap: var(--space-2);
+    gap: 2px;
     min-width: 0;
   }
 
@@ -1435,17 +1593,29 @@
     display: flex;
     align-items: baseline;
     gap: var(--space-2);
-    flex-wrap: wrap;
+    min-width: 0;
   }
 
+  /* Single line, ellipsised rather than left to wrap — a wrapped title makes
+     its own card taller, and a CSS grid stretches every other card in the
+     same row to match by default, turning one long name into wasted space
+     under every shorter card beside it. */
   .card-title {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
     font-family: var(--font-display);
-    font-size: var(--text-lg);
+    font-size: var(--text-md);
     color: var(--text-primary);
     letter-spacing: var(--tracking-tight);
   }
 
   .card-subtitle {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
     font-size: var(--text-xs);
     color: var(--text-muted);
   }
@@ -1466,7 +1636,6 @@
   /* A credit, not a warning — quiet enough to skip and present enough to find. */
   .lineage {
     align-self: flex-start;
-    margin-top: var(--space-2);
     padding: 1px var(--space-2);
     border: 1px solid var(--border-subtle);
     border-radius: var(--radius-full);
@@ -1478,34 +1647,40 @@
     color: var(--warning);
   }
 
-  .stats {
-    display: flex;
-    gap: var(--space-4);
-    margin-top: var(--space-2);
-    font-size: var(--text-xs);
-    color: var(--text-muted);
-  }
-
-  .stat b {
-    color: var(--text-secondary);
-    font-weight: var(--weight-semibold);
-  }
-
+  /* One compact line — characters, cards, edited date — replacing what used
+     to be two separate rows (a bold stats row plus a byte-size meta row). */
   .meta {
-    display: flex;
-    justify-content: space-between;
-    gap: var(--space-3);
+    margin-top: 2px;
     font-size: var(--text-2xs);
     color: var(--text-muted);
-    opacity: 0.75;
   }
 
+  /*
+   * Overlaid on the card rather than a dedicated footer row, which used to
+   * cost every card its own fixed strip of height for a control most visits
+   * never touch. `opacity` rather than `display: none`, so focus can still
+   * reach the buttons by keyboard even before hover reveals them, and
+   * `.armed` keeps a delete's Cancel button reachable after the pointer
+   * leaves the card mid-confirmation.
+   */
   .card-actions {
+    position: absolute;
+    top: var(--space-2);
+    right: var(--space-2);
     display: flex;
     align-items: center;
-    justify-content: flex-end;
     gap: var(--space-1);
-    padding: 0 var(--space-3) var(--space-3);
+    padding: 2px;
+    border-radius: var(--radius-sm);
+    background: color-mix(in oklab, var(--surface-base) 85%, transparent);
+    opacity: 0;
+    transition: opacity var(--duration-fast) var(--ease-out);
+  }
+
+  .card:hover .card-actions,
+  .card-actions:focus-within,
+  .card-actions.armed {
+    opacity: 1;
   }
 
   .ghost {
