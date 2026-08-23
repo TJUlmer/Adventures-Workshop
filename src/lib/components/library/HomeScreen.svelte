@@ -739,7 +739,7 @@
   </li>
 {/snippet}
 
-<div class="library">
+<div class="library scroll-y">
   <header class="head">
     <div class="brand">
       <span class="mark" aria-hidden="true"></span>
@@ -999,7 +999,7 @@
     </div>
   {/if}
 
-  <div class="body scroll-y">
+  <div class="body">
     {#if entries.length === 0}
       <div class="welcome">
         <h2 class="welcome-title">Design your own Unmatched adventure</h2>
@@ -1159,6 +1159,13 @@
 />
 
 <style>
+  /*
+   * The whole page scrolls as one region — `.scroll-y` lives here, not on
+   * `.body` below. It used to sit only on `.body`, which left the header,
+   * the top row and the attention strip pinned above an independently
+   * scrolling lower half; growing the top row to three columns of real
+   * content made that split read as broken rather than intentional.
+   */
   .library {
     display: flex;
     flex-direction: column;
@@ -1449,11 +1456,14 @@
     text-align: left;
   }
 
+  /* A short strip, not a tall box — a 4:3 photo panel read as oversized next
+     to two lines of text under it, out of proportion with every other
+     thumbnail on this screen. */
   .slot-thumb {
     display: grid;
     place-items: center;
     width: 100%;
-    aspect-ratio: 4 / 3;
+    height: 50px;
     border-radius: var(--radius-sm);
     overflow: hidden;
     outline: 1px solid transparent;
@@ -1493,7 +1503,7 @@
     align-items: center;
     justify-content: center;
     gap: var(--space-1);
-    aspect-ratio: 4 / 3;
+    height: 50px;
     padding: var(--space-2);
     border: 1px dashed var(--border-subtle);
     border-radius: var(--radius-sm);
@@ -1639,8 +1649,6 @@
   }
 
   .body {
-    flex: 1 1 auto;
-    min-height: 0;
     padding: var(--space-7) var(--space-9) var(--space-10);
   }
 
@@ -1706,7 +1714,8 @@
 
   /*
    * NOT named `.body` — that class already belongs to the page's own
-   * scrollable content container (`<div class="body scroll-y">` below).
+   * content container (`<div class="body">` below, inside the scrollable
+   * `.library`).
    * Svelte scopes styles per component, not per element, so a second `.body`
    * here would have merged both rules onto both elements — which is exactly
    * what happened the first time: every card silently inherited the page
