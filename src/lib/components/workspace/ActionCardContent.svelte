@@ -30,6 +30,7 @@
     TextInput
   } from '$lib/ui';
   import AbilityStack from './AbilityStack.svelte';
+  import TokenInput from './TokenInput.svelte';
   import ValueControl from './ValueControl.svelte';
 
   interface Props {
@@ -118,9 +119,14 @@
       what prints and what an author actually fills in; the override is the
       edge case, blank on nearly every card (see its own placeholder).
     -->
-    <Field label="Card title">
-      <TextInput bind:value={card.title} placeholder="Card title" prominent />
-    </Field>
+    <TokenInput
+      label="Card title"
+      value={card.title}
+      placeholder="Card title"
+      prominent
+      onchange={(title) => edit((target) => (target.title = title))}
+      customSymbols={workshop.adventure.customSymbols}
+    />
 
     <Field label="Name override">
       <TextInput bind:value={card.name} placeholder="Leave blank to use the hero’s own name" />
@@ -130,9 +136,13 @@
       <TextInput bind:value={card.name} placeholder="Villain name" prominent />
     </Field>
 
-    <Field label="Card title">
-      <TextInput bind:value={card.title} placeholder="Card title" />
-    </Field>
+    <TokenInput
+      label="Card title"
+      value={card.title}
+      placeholder="Card title"
+      onchange={(title) => edit((target) => (target.title = title))}
+      customSymbols={workshop.adventure.customSymbols}
+    />
   {/if}
 
   <Field label="Copies in deck">

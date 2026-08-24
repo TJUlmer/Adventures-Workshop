@@ -75,7 +75,7 @@ TypeScript is pinned to `~6` because `svelte-check` does not run on 7 yet.
   (`{ entity: 'card', id }`) and mutate through store commands. Library commands are
   `async` (IndexedDB has no sync API).
 - **Any new persisted field needs a branch in `sets/normalize.ts`**, or existing
-  documents load without it. `SET_SCHEMA_VERSION` is 29; newer files are refused.
+  documents load without it. `SET_SCHEMA_VERSION` is 31; newer files are refused.
   `normalizeSet` must be idempotent.
 - **`src/styles/tokens.css` is the only source of colour.** No component hardcodes a hex.
 - **Comments explain *why*** — usually the failure that forced the code — and never

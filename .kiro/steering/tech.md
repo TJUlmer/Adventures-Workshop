@@ -86,8 +86,24 @@ will not compile.
 
 ## Tooling outside npm
 
-Geometry work uses **Python with PIL and numpy** to read print templates. It is a
-measurement tool, not a project dependency — see `geometry.md`. `tools/` also holds
-one-off asset-derivation scripts (font comparison, hero card asset splitting, skin
-template generation, the hand-rolled PSD writer) — regenerate derived assets from
-these rather than hand-editing them.
+Geometry work uses **Python** to read print templates and font files — PIL and
+numpy for images, `fonttools` and `freetype-py` for type. These are measurement
+tools, not project dependencies; `package.json` never learns about them. See
+`geometry.md`.
+
+`tools/` holds the scripts:
+
+- `display-advance.py` — mean capital advance per face, which is the one number
+  `DISPLAY_FONTS[key].advance` carries. Run it after adding or replacing anything
+  in `public/assets/fonts` and paste what it prints; its `--check` mode verifies
+  the method against the three faces measured before it existed.
+- `font-compare.py` / `font-atlas.py` / `fonts.py` — comparing a stand-in face
+  against the Knockout cut it replaces (metrics, stem width, per-glyph overlap,
+  `condense` set widths).
+- `hero-card-assets.py` — splits the supplied hero art into the frame, ribbon and
+  character-card border/ink layers, and checks `geometry.ts`'s `HERO_RIBBON`
+  against what it measures.
+- `health-dial-skin.py` / `token-skin.py` / `skins.py` / `psdwrite.py` — the
+  generated Photoshop skin templates.
+
+Regenerate derived assets from these rather than hand-editing them.

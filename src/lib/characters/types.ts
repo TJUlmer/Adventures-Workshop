@@ -189,6 +189,20 @@ export interface CharacterCardDesign {
   healthInk: Fill;
   /** The quote text, its attribution and its quotation marks — one colour for all three. */
   quoteInk: Fill;
+  /**
+   * Multiplier on the quote's printed type size — the line and its
+   * attribution together, `1` being the template's own.
+   *
+   * One control for both because they are one piece of copy set at two sizes,
+   * and nobody wants to match a ratio across two sliders. The quotation marks
+   * are left out: they are a supplied picture at a measured position, and
+   * scaling them would walk them off it.
+   *
+   * A ceiling still applies above this — the quote is fitted to the band
+   * between the marks and the attribution (`fitScale`), so on a long quote
+   * turning this up buys less than the number suggests, or nothing.
+   */
+  quoteScale: number;
   /** The special ability's name, its rule and its body text — one colour for all three. */
   abilityInk: Fill;
   /** The move value: its digit, the arrow beside it and the word MOVE, together. */

@@ -106,6 +106,194 @@
   font-display: block;
 }
 
+/* -- author-choosable display faces --------------------------------------- */
+
+/*
+ * Everything below is offered to an author in the event card's Display font
+ * picker and nowhere else — see `DISPLAY_FONTS` in `renderer/fonts.ts`, which
+ * is the registry the picker is built from and the only place a stored key is
+ * resolved. The faces above are the *card's own* roles and are not choosable.
+ *
+ * Three things worth knowing before adding to this list:
+ *
+ *  - A declared face costs nothing until it is used. The browser fetches a
+ *    `@font-face` file only when rendered content actually calls for it, so a
+ *    long list here does not slow the app down; only the one face a card is
+ *    set in is ever loaded.
+ *  - Every one needs a measured `advance` in `fonts.ts`. `fitDisplaySize` sizes
+ *    an event heading from that number without measuring anything at runtime,
+ *    so a guessed value silently sets the heading a few per cent wrong. Run
+ *    `python tools/display-advance.py` and paste what it prints.
+ *  - The italics are registered as their own families with `font-style: normal`
+ *    rather than as the italic member of an existing one. They are separate
+ *    *choices* in the picker, not a style applied to a choice, and the renderer
+ *    selects a face by family alone — so an italic hiding behind
+ *    `font-style: italic` would be unreachable.
+ *
+ * The variable files are declared at a single weight because that is the only
+ * weight anything asks them for; the stored theme has no weight axis to expose.
+ * Amatic SC is the exception, and the reason `DISPLAY_FONTS` carries a `weight`
+ * at all: two static files, one family, offered as two choices.
+ *
+ * One file in the folder is deliberately not declared: `Oswald-Custom-Junior.ttf`
+ * is a different file from `Os-Custom-Junior.ttf` — different bytes — but
+ * measures the same mean capital advance to four places (0.4322), so it is a
+ * re-export of the same drawing rather than a second face. Offering both would
+ * be two entries in the picker that set identically.
+ */
+
+@font-face {
+  font-family: 'Abril Fatface';
+  src: url('/assets/fonts/AbrilFatface-Regular.ttf') format('truetype');
+  font-weight: 400;
+  font-style: normal;
+  font-display: block;
+}
+
+@font-face {
+  font-family: 'Amatic SC';
+  src: url('/assets/fonts/AmaticSC-Regular.ttf') format('truetype');
+  font-weight: 400;
+  font-style: normal;
+  font-display: block;
+}
+
+@font-face {
+  font-family: 'Amatic SC';
+  src: url('/assets/fonts/AmaticSC-Bold.ttf') format('truetype');
+  font-weight: 700;
+  font-style: normal;
+  font-display: block;
+}
+
+@font-face {
+  font-family: 'Bangers';
+  src: url('/assets/fonts/Bangers-Regular.ttf') format('truetype');
+  font-weight: 400;
+  font-style: normal;
+  font-display: block;
+}
+
+@font-face {
+  font-family: 'Caveat';
+  src: url('/assets/fonts/Caveat-VariableFont_wght.ttf') format('truetype');
+  font-weight: 400;
+  font-style: normal;
+  font-display: block;
+}
+
+@font-face {
+  font-family: 'Cinzel';
+  src: url('/assets/fonts/Cinzel-VariableFont_wght.ttf') format('truetype');
+  font-weight: 400;
+  font-style: normal;
+  font-display: block;
+}
+
+@font-face {
+  font-family: 'Great Vibes';
+  src: url('/assets/fonts/GreatVibes-Regular.ttf') format('truetype');
+  font-weight: 400;
+  font-style: normal;
+  font-display: block;
+}
+
+@font-face {
+  font-family: 'League Gothic';
+  src: url('/assets/fonts/LeagueGothic-Regular.ttf') format('truetype');
+  font-weight: 400;
+  font-style: normal;
+  font-display: block;
+}
+
+@font-face {
+  font-family: 'League Gothic SemiCondensed';
+  src: url('/assets/fonts/LeagueGothic_SemiCondensed-Regular.ttf') format('truetype');
+  font-weight: 400;
+  font-style: normal;
+  font-display: block;
+}
+
+@font-face {
+  font-family: 'League Gothic Condensed';
+  src: url('/assets/fonts/LeagueGothic_Condensed-Regular.ttf') format('truetype');
+  font-weight: 400;
+  font-style: normal;
+  font-display: block;
+}
+
+@font-face {
+  font-family: 'Montserrat';
+  src: url('/assets/fonts/Montserrat-VariableFont_wght.ttf') format('truetype');
+  font-weight: 400;
+  font-style: normal;
+  font-display: block;
+}
+
+@font-face {
+  font-family: 'Montserrat Italic';
+  src: url('/assets/fonts/Montserrat-Italic-VariableFont_wght.ttf') format('truetype');
+  font-weight: 400;
+  font-style: normal;
+  font-display: block;
+}
+
+@font-face {
+  font-family: 'Oswald';
+  src: url('/assets/fonts/Oswald-VariableFont_wght.ttf') format('truetype');
+  font-weight: 400;
+  font-style: normal;
+  font-display: block;
+}
+
+@font-face {
+  font-family: 'Pacifico';
+  src: url('/assets/fonts/Pacifico-Regular.ttf') format('truetype');
+  font-weight: 400;
+  font-style: normal;
+  font-display: block;
+}
+
+@font-face {
+  font-family: 'Permanent Marker';
+  src: url('/assets/fonts/PermanentMarker-Regular.ttf') format('truetype');
+  font-weight: 400;
+  font-style: normal;
+  font-display: block;
+}
+
+@font-face {
+  font-family: 'Playfair Display';
+  src: url('/assets/fonts/PlayfairDisplay-VariableFont_wght.ttf') format('truetype');
+  font-weight: 400;
+  font-style: normal;
+  font-display: block;
+}
+
+@font-face {
+  font-family: 'Playfair Display Italic';
+  src: url('/assets/fonts/PlayfairDisplay-Italic-VariableFont_wght.ttf') format('truetype');
+  font-weight: 400;
+  font-style: normal;
+  font-display: block;
+}
+
+@font-face {
+  font-family: 'Righteous';
+  src: url('/assets/fonts/Righteous-Regular.ttf') format('truetype');
+  font-weight: 400;
+  font-style: normal;
+  font-display: block;
+}
+
+@font-face {
+  font-family: 'Special Elite';
+  src: url('/assets/fonts/SpecialElite-Regular.ttf') format('truetype');
+  font-weight: 400;
+  font-style: normal;
+  font-display: block;
+}
+
 /*
  * Roles carry their weight with them, so a face swap is one line per role
  * rather than a hunt through the renderer. The fallbacks are for the moment

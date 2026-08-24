@@ -227,11 +227,27 @@
     CHARACTER_QUOTE.textSize,
     CHARACTER_QUOTE.textLineHeight
   );
+  /**
+   * The band's centre stays where the template's own single line sits, whatever
+   * `quoteScale` does — the anchor is a measured position, not a consequence of
+   * the type size. Larger copy grows either side of it instead of pushing down
+   * from a fixed top.
+   */
   const QUOTE_CENTER =
     QUOTE_ONE_LINE_TOP + (CHARACTER_QUOTE.textSize * CHARACTER_QUOTE.textLineHeight) / 2;
-  const QUOTE_ATTRIBUTION_TOP = capTopToBoxTop(
-    CHARACTER_QUOTE.attributionCapTop,
-    CHARACTER_QUOTE.attributionSize
+
+  /** Both scaled by the author's own multiplier — see `CharacterCardDesign.quoteScale`. */
+  const quoteTextSize = $derived(CHARACTER_QUOTE.textSize * design.quoteScale);
+  const quoteAttributionSize = $derived(CHARACTER_QUOTE.attributionSize * design.quoteScale);
+
+  /*
+   * Derived rather than fixed, because the attribution is scalable now: its
+   * cap line is measured and stays put, so a larger size reaches *up* from it
+   * and takes room off the quote's own band. Leaving this constant would let
+   * an enlarged attribution and an enlarged quote overlap.
+   */
+  const QUOTE_ATTRIBUTION_TOP = $derived(
+    capTopToBoxTop(CHARACTER_QUOTE.attributionCapTop, quoteAttributionSize)
   );
   const QUOTE_ABOVE_MARGIN = QUOTE_CENTER - (CHARACTER_QUOTE.markY + 24);
   const hasAttribution = $derived(identity.quote.attribution.trim().length > 0);
@@ -252,9 +268,16 @@
     if (abilityBox) fitScale(abilityBox);
   });
 
-  /** Re-fit whenever the printed quote, or the zone it has to fit in, changes. */
+  /**
+   * Re-fit whenever the printed quote, the size it is set at, or the zone it
+   * has to fit in changes. `quoteTextSize` is read here as well as in the
+   * markup: without it, dragging the slider up past what the band can hold
+   * would leave the previous, larger `--fit-scale` in place and the copy
+   * would overflow rather than be shrunk back.
+   */
   $effect(() => {
     void identity.quote.text;
+    void quoteTextSize;
     void QUOTE_HALF_HEIGHT;
     if (quoteBox) fitScale(quoteBox);
   });
@@ -424,9 +447,16 @@
     style:width={px(CHARACTER_QUOTE.textWidth)}
     style:height={py(QUOTE_HALF_HEIGHT * 2)}
   >
+    <!--
+      `quoteScale` multiplies the measured size; `--fit-scale` still divides it
+      back down if the result outgrows the band. The two are separate on
+      purpose — one is the author's choice, the other is the panel's own
+      ceiling, and folding them together would let a long quote's shrink
+      silently reset the slider.
+    -->
     <p
       class="quote-text"
-      style:font-size="calc({pu(CHARACTER_QUOTE.textSize)} * var(--fit-scale, 1))"
+      style:font-size="calc({pu(quoteTextSize)} * var(--fit-scale, 1))"
       style:line-height={CHARACTER_QUOTE.textLineHeight}
       style:color={fillCss(design.quoteInk)}
     >
@@ -438,10 +468,8 @@
     <p
       class="quote-attribution"
       style:right={px(1632 - CHARACTER_QUOTE.attributionRight)}
-      style:top={py(
-        capTopToBoxTop(CHARACTER_QUOTE.attributionCapTop, CHARACTER_QUOTE.attributionSize)
-      )}
-      style:font-size={pu(CHARACTER_QUOTE.attributionSize)}
+      style:top={py(capTopToBoxTop(CHARACTER_QUOTE.attributionCapTop, quoteAttributionSize))}
+      style:font-size={pu(quoteAttributionSize)}
       style:color={fillCss(design.quoteInk)}
     >
       — {identity.quote.attribution}

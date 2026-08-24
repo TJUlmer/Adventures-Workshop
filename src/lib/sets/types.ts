@@ -218,10 +218,27 @@ export type SetId = Id<'Set'>;
  *      for a dial before now. See `figures/health-dial.ts`'s
  *      `healthDialSpec`.
  *
+ * v31 — `AdventureMap.size` gained a fourth value, `custom`, which takes the
+ *      board's aspect from the attached artwork rather than from one of
+ *      `MAP_SIZES`' three fixed shapes. An added enum value rather than an
+ *      added field, and it needs the bump for the same reason `lunge`/`reach`/
+ *      `large` did at v14: `normalizeSet` repairs an unrecognised `size` by
+ *      falling back to `large`, which is right for a damaged document and
+ *      wrong for a newer one — a v31 custom board opened by a v30 build would
+ *      silently lose its shape. Nothing else moved; `aspect` was always stored
+ *      separately from `size`, which is what made this expressible at all.
+ *
+ * v30 — a character card's design gained `quoteScale`, a multiplier on the
+ *      printed size of the quote and its attribution together. One number for
+ *      both, since they are one piece of copy set at two sizes; the quotation
+ *      marks are excluded, being a supplied picture at a measured position.
+ *      Absent on an older document, repaired to `1` — the template's own
+ *      size, which is exactly what every card authored before this printed.
+ *
  * Older documents are *repaired*, not rejected — see `sets/normalize.ts`. Only
  * a version newer than this build understands is refused.
  */
-export const SET_SCHEMA_VERSION = 29;
+export const SET_SCHEMA_VERSION = 31;
 
 /**
  * What a set is for.

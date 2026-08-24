@@ -1206,11 +1206,25 @@ spacers before and after it, sized from `TITLE_BOX_TOP` and `TITLE_RULE_GAP`,
 with the rule as a flow sibling right after — so a wrapped second line adds its
 own line-box height to the title and carries the gap, the rule, and everything
 below along with it, the same as the name ribbon's own length falling out of
-its column. Clamped to two lines (`-webkit-line-clamp`) rather than left to run
-on indefinitely: a title long enough to want a third line reads the ellipsis as
-the honest "this does not fit," the same failure mode `.split`/`.half`/
-`.ability-block` already use elsewhere on this face, rather than pushing the
-ability text an unbounded distance down the card.
+its column. Bounded to two lines rather than left to run on indefinitely, so a
+long title cannot push the ability text an unbounded distance down the card.
+
+**That bound is a `max-height`, and it must not go back to `-webkit-line-clamp`.**
+Clamping was the obvious way to do it and buys an ellipsis on the clipped line,
+but `-webkit-line-clamp` needs `display: -webkit-box`, and legacy box layout
+blockifies every child of the box — so once the title could carry an inline
+symbol (`{{attack}}` in a title, same palette the ability fields use), every
+symbol took a line of its own wherever it sat in the string. Wrapping the whole
+run in a single inline child was tried and did not fix it. The title is an
+ordinary block now with `max-height` at exactly `TITLE_MAX_LINES` line boxes,
+which bounds the same thing through the inline layout every other piece of copy
+on this card already uses.
+
+What that gives up is the ellipsis, which this face can afford: `.split`,
+`.half` and `.ability-block` all clip rather than ellipsise, so a clipped title
+reads as the same "this does not fit" signal they do. Nothing legible is lost to
+the clip — at this face's metrics (`line-height` 0.9 against a cap height of
+0.703) the second line's capitals sit about 0.15em clear of the cut.
 
 Everything from the rule down — the value stack's symbols and numbers, the
 split body, the ability block — used to be positioned as an offset from the

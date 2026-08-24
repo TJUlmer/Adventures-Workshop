@@ -5,7 +5,7 @@ description: Rules for persisted document shape. Apply when adding or changing a
 
 # Schema and persistence
 
-`SET_SCHEMA_VERSION` (currently **29**) is checked on import; files from a newer
+`SET_SCHEMA_VERSION` (currently **31**) is checked on import; files from a newer
 schema are **refused**, not guessed at. The same check applies when opening a
 published set — `row.schema_version > SET_SCHEMA_VERSION` throws rather than
 loading a document this build cannot fully understand.

@@ -47,24 +47,39 @@ export type MapPathId = Id<'MapPath'>;
 /** Which side of the rim a start marker sits on. */
 export type MapStartSide = 'top' | 'right' | 'bottom' | 'left';
 
-export type MapSize = 'small' | 'medium' | 'large';
+/** The board shapes that have fixed export dimensions. `custom` is not one. */
+export const MAP_PRESETS = ['small', 'medium', 'large'] as const;
+export type MapPreset = (typeof MAP_PRESETS)[number];
 
 /**
- * A board's shape, as one of three named presets rather than a free-form
- * width and height an author dials in by hand — there is no ruler to hold
- * an arbitrary pixel count to the way `DEFAULT_SPACE_DIAMETER` below is
- * held to the printed sample, so a fixed set of known shapes is what
- * a "size" control here can actually mean.
+ * `custom` takes its shape from the attached artwork instead of from a preset
+ * — see `MAP_SIZES` below and `AdventureMap.aspect`.
+ */
+export type MapSize = MapPreset | 'custom';
+
+export const MAP_SIZES_ALL = [...MAP_PRESETS, 'custom'] as const;
+
+/**
+ * A board's shape, as one of three named presets — plus `custom`, which is
+ * deliberately absent from this table because it has no fixed shape.
+ *
+ * The presets exist because there is no ruler to hold an arbitrary pixel count
+ * to the way `DEFAULT_SPACE_DIAMETER` below is held to the printed sample, so a
+ * fixed set of known shapes is what a "size" control can honestly mean. What
+ * they cannot do is match a picture: an author who has drawn or commissioned a
+ * board arrives with an aspect of their own, and forcing it into 1337 × 866
+ * either letterboxes it or stretches it. `custom` is the answer to that — the
+ * board takes the artwork's own aspect and the export follows.
  *
  * `width`/`height` are the **exported PNG's own pixel dimensions**, not a
  * physical size — the board's physical printed width is `MAP_WIDTH_MM`,
- * the same for every preset so the map still lines up with the threat
+ * the same for every size so the map still lines up with the threat
  * track sitting above it (see there). Picking a size changes the board's
  * *shape* (its aspect ratio, so `mapHeightMm` prints a different height off
  * the same fixed width) and how many pixels that shape rasterises to; it
  * does not change how wide the board prints.
  */
-export const MAP_SIZES: Readonly<Record<MapSize, { width: number; height: number }>> = {
+export const MAP_SIZES: Readonly<Record<MapPreset, { width: number; height: number }>> = {
   small: { width: 1337, height: 742 },
   medium: { width: 1337, height: 866 },
   large: { width: 1637, height: 1131 }
@@ -105,9 +120,31 @@ export function boardHeightMm(map: AdventureMap): number {
   return mapHeightMm(map) + THREAT_TRACK.mm.height;
 }
 
+/**
+ * The exported PNG's own pixel dimensions, for this map's chosen `size`.
+ *
+ * A preset reads its own row of `MAP_SIZES`. `custom` has no row — it is
+ * whatever shape the artwork is — so its height is solved from `aspect` against
+ * the widest preset's width: a custom board is the one an author has supplied a
+ * picture for, so it is the last one that should be rasterised small.
+ *
+ * The height is rounded because it is a pixel count. `renderMapImage` derives
+ * its own height from `aspect` rather than reading this, so a rounded pixel here
+ * and an exact ratio there cannot drift into each other — this number is for
+ * telling an author what they will get.
+ */
+export function mapPrintSize(map: AdventureMap): { width: number; height: number } {
+  if (map.size === 'custom') {
+    const width = MAP_SIZES.large.width;
+    return { width, height: Math.round(width / (map.aspect || DEFAULT_MAP_ASPECT)) };
+  }
+  const preset = MAP_SIZES[map.size];
+  return { width: preset.width, height: preset.height };
+}
+
 /** The exported PNG's own pixel width, for this map's chosen `size`. */
 export function mapPrintWidth(map: AdventureMap): number {
-  return MAP_SIZES[map.size].width;
+  return mapPrintSize(map).width;
 }
 
 /** Space diameter as a fraction of the map's width. Measured: 0.0757. */
@@ -230,15 +267,26 @@ export interface AdventureMap {
   enabled: boolean;
   name: string;
   /**
-   * Which of `MAP_SIZES` this board is exported at. Setting it also sets
-   * `aspect` to match — see `size`'s own picker in `MapEditor.svelte` — but
-   * the two are stored separately rather than `aspect` being derived at
-   * read time, so a document written before `size` existed keeps the exact
-   * `aspect` it always had (see `sets/normalize.ts`) instead of being
-   * snapped to whichever preset happens to read closest.
+   * Which of `MAP_SIZES` this board is exported at, or `custom`. Setting it
+   * also sets `aspect` to match — see `size`'s own picker in
+   * `MapEditor.svelte` — but the two are stored separately rather than
+   * `aspect` being derived at read time, so a document written before `size`
+   * existed keeps the exact `aspect` it always had (see `sets/normalize.ts`)
+   * instead of being snapped to whichever preset happens to read closest.
+   *
+   * That separation is what makes `custom` possible at all: on `custom` there
+   * is no preset to derive from, and `aspect` is simply the attached artwork's
+   * own — measured once when the picture is imported or when `custom` is
+   * chosen, never at render time.
    */
   size: MapSize;
-  /** Width ÷ height. The artwork behind it should match, or it letterboxes. */
+  /**
+   * Width ÷ height.
+   *
+   * On a preset this is the preset's ratio and the artwork behind it should
+   * match, or it letterboxes. On `custom` the relationship is the other way
+   * round: this *follows* the artwork, so it cannot letterbox.
+   */
   aspect: number;
   /** The painted board. Everything else is drawn over it. */
   artwork: Artwork;

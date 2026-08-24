@@ -6,6 +6,7 @@
   import type { Fill } from '$lib/cards/style';
   import { fillCss } from '$lib/cards/style';
   import AngleDial from './AngleDial.svelte';
+  import HexInput from './HexInput.svelte';
   import Icon from './Icon.svelte';
 
   interface Props {
@@ -57,7 +58,14 @@
   <div class="body">
     <span class="preview" style:background={fillCss(value)}></span>
 
-    <label class="stop">
+    <!--
+      A `<div>`, not the `<label>` this used to be: the hex readout beside the
+      swatch is a real input now, and a `<label>` may only ever have one
+      labelable descendant — with two, a click resolves against the label
+      rather than the box it landed on. The swatch carries its own `aria-label`
+      already, so nothing is lost by dropping the wrapper.
+    -->
+    <div class="stop">
       <span class="chip" style:background={value.color}>
         <input
           type="color"
@@ -66,11 +74,15 @@
           oninput={(event) => patch({ color: event.currentTarget.value })}
         />
       </span>
-      <span class="hex numeric">{value.color}</span>
-    </label>
+      <HexInput
+        value={value.color}
+        label="{label} colour, hex"
+        onchange={(color) => patch({ color })}
+      />
+    </div>
 
     {#if isGradient}
-      <label class="stop">
+      <div class="stop">
         <span class="chip" style:background={value.color2}>
           <input
             type="color"
@@ -79,8 +91,12 @@
             oninput={(event) => patch({ color2: event.currentTarget.value })}
           />
         </span>
-        <span class="hex numeric">{value.color2}</span>
-      </label>
+        <HexInput
+          value={value.color2}
+          label="{label} second colour, hex"
+          onchange={(color2) => patch({ color2 })}
+        />
+      </div>
 
       <AngleDial
         value={value.angle}
@@ -185,7 +201,6 @@
     display: flex;
     align-items: center;
     gap: var(--space-1);
-    cursor: pointer;
     min-width: 0;
   }
 
@@ -206,11 +221,12 @@
     cursor: pointer;
   }
 
-  .hex {
-    font-size: var(--text-2xs);
-    color: var(--text-muted);
-    text-transform: uppercase;
-  }
+  /*
+   * `HexInput`'s defaults are this row's sizing already — 7ch, so the row does
+   * not reflow between `#fff` and `#ffffff` while it is being typed in — so
+   * there is nothing to set here. Kept as a note rather than an empty rule:
+   * the box is styled through `--hex-*`, see `HexInput`.
+   */
 
   /* The dial closes the row, so it takes the slack rather than the stops. */
   .body :global(.angle) {

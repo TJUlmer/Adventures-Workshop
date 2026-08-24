@@ -90,7 +90,7 @@ advertise it.
 | Unnamed character | Any character's name is blank. |
 | Untitled cards | A card still falls back to its "Untitled …" label. |
 | Cards without artwork | An **action** card has no artwork. Other templates carry none, so they are not counted. |
-| Cards with no rules text | Action: both ability blocks empty. Initiative: Right Now *and* End of Round empty. Rules and event: empty body. |
+| Cards with no rules text | Initiative: Right Now *and* End of Round empty. Rules and event: empty body. |
 
 The dial and figure checks count **per character**, not per set — one dial does
 not cover three minions. "Fielded" means every role that goes on the board:

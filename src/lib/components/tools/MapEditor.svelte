@@ -24,6 +24,7 @@
     findSpace,
     mapHeight,
     mapHeightMm,
+    mapPrintSize,
     MAP_SIZES,
     MAP_WIDTH_MM,
     neighbours,
@@ -32,10 +33,13 @@
   } from '$lib/map/types';
   import type { MapNote, MapSize, MapSpaceId, MapStartSide } from '$lib/map/types';
   import { workshop } from '$lib/state/workshop.svelte';
-  import { Button, EmptyState, Icon, Slider, Switch, TextInput } from '$lib/ui';
+  import { Button, EmptyState, HexInput, Icon, Slider, Switch, TextInput } from '$lib/ui';
 
   const set = $derived(workshop.adventure);
   const map = $derived(set.map);
+  /** What the export will actually produce — a preset's own row, or solved
+      from `aspect` on `custom`. See `mapPrintSize`. */
+  const printSize = $derived(mapPrintSize(map));
 
   type Mode = 'place' | 'link' | 'move' | 'text';
   let mode = $state<Mode>('place');
@@ -69,15 +73,57 @@
   const SIZES: { value: MapSize; label: string }[] = [
     { value: 'small', label: 'Small' },
     { value: 'medium', label: 'Medium' },
-    { value: 'large', label: 'Large' }
+    { value: 'large', label: 'Large' },
+    { value: 'custom', label: 'Custom' }
   ];
 
-  /** Sets `aspect` to match — see the doc comment on `AdventureMap.size`. */
-  function setSize(size: MapSize): void {
+  /**
+   * An image's own width ÷ height, or `null` for anything that will not load.
+   *
+   * `onload` rather than `decode()`, which can stall indefinitely in a
+   * backgrounded tab — the trap `core/image-import.ts` and `card-image.ts` both
+   * document. Called only from the two handlers below, never from a render: the
+   * board's aspect is a stored number precisely so nothing has to decode a
+   * multi-megabyte data URL to lay the map out.
+   */
+  function imageAspect(source: string): Promise<number | null> {
+    return new Promise((resolve) => {
+      const image = new Image();
+      image.onload = () =>
+        resolve(
+          image.naturalWidth > 0 && image.naturalHeight > 0
+            ? image.naturalWidth / image.naturalHeight
+            : null
+        );
+      image.onerror = () => resolve(null);
+      image.src = source;
+    });
+  }
+
+  /**
+   * Sets `aspect` to match — see the doc comment on `AdventureMap.size`.
+   *
+   * A preset's aspect is its own. `custom` has none of its own, so it takes the
+   * artwork's; with no artwork attached it keeps whatever aspect the board
+   * already had, which is the only non-destructive answer — snapping to a
+   * default would throw away the shape an author had already arrived at, and
+   * every space on the board is positioned against it.
+   */
+  async function setSize(size: MapSize): Promise<void> {
+    if (size !== 'custom') {
+      workshop.editMap((m) => {
+        m.size = size;
+        const preset = MAP_SIZES[size];
+        m.aspect = preset.width / preset.height;
+      });
+      return;
+    }
+
+    const source = map.artwork.source;
+    const aspect = source ? await imageAspect(source) : null;
     workshop.editMap((m) => {
-      m.size = size;
-      const preset = MAP_SIZES[size];
-      m.aspect = preset.width / preset.height;
+      m.size = 'custom';
+      if (aspect !== null) m.aspect = aspect;
     });
   }
 
@@ -422,16 +468,30 @@
     artError = null;
     try {
       const source = await readArtworkFile(file);
+      /* On `custom` the board's shape *is* the picture's, so a new picture is a
+         new shape — measured here, once, rather than at render time. Read before
+         the edit so the whole change lands in one mutation. A preset keeps its
+         own aspect and lets the picture letterbox, which is what choosing a
+         preset means. */
+      const aspect = map.size === 'custom' ? await imageAspect(source) : null;
       workshop.editMap((m) => {
         m.artwork.source = source;
         m.artwork.label = file.name;
+        if (aspect !== null) m.aspect = aspect;
       });
     } catch (cause) {
       artError = cause instanceof Error ? cause.message : 'Could not read that file.';
     }
   }
 
-  /** Back to a fresh `Artwork`, so crop and grade go with the picture. */
+  /**
+   * Back to a fresh `Artwork`, so crop and grade go with the picture.
+   *
+   * `aspect` is deliberately left alone, even on `custom`. It is what every
+   * space's `y` is stored against, so resetting it would move the whole board's
+   * contents; a custom board that has lost its picture keeps the shape it was
+   * built at until another picture gives it a new one.
+   */
   function clearArtwork(): void {
     workshop.editMap((m) => (m.artwork = createArtwork()));
   }
@@ -674,8 +734,10 @@
                     type="button"
                     class="mode"
                     class:active={map.size === entry.value}
-                    title="{MAP_SIZES[entry.value].width} × {MAP_SIZES[entry.value].height} px exported"
-                    onclick={() => setSize(entry.value)}
+                    title={entry.value === 'custom'
+                      ? 'Takes the board artwork’s own shape, so it is never stretched or letterboxed'
+                      : `${MAP_SIZES[entry.value].width} × ${MAP_SIZES[entry.value].height} px exported`}
+                    onclick={() => void setSize(entry.value)}
                   >
                     {entry.label}
                   </button>
@@ -685,20 +747,55 @@
               <p class="hint">
                 {MAP_WIDTH_MM} × {mapHeightMm(map).toFixed(0)} mm printed — the threat
                 track's own width, because on the table they are one board — at
-                {MAP_SIZES[map.size].width} × {MAP_SIZES[map.size].height} px exported.
+                {printSize.width} × {printSize.height} px exported.
               </p>
 
-              <label class="field">
+              {#if map.size === 'custom'}
+                <!--
+                  Said plainly, because "Custom" on its own does not explain
+                  itself: it is not a size to dial in, it is "follow the
+                  picture". The no-artwork case has to be named too, or the
+                  button looks like it did nothing.
+                -->
+                <p class="hint">
+                  {#if map.artwork.source}
+                    Shaped by the board artwork, at {map.aspect.toFixed(3)} : 1 — so it is
+                    never stretched or letterboxed. Choosing a different picture reshapes
+                    the board to match it.
+                  {:else}
+                    Attach board artwork below and the board will take its shape. Until
+                    then it keeps the shape it already had, {map.aspect.toFixed(3)} : 1 —
+                    every space's position is stored against it.
+                  {/if}
+                </p>
+              {/if}
+
+              <!--
+                A `<div>`, not the `<label>` it was: the hex box beside the
+                swatch is a second labelable element, and a `<label>` may hold
+                only one — with two, a click resolves against the label rather
+                than the box it landed on. The swatch takes its own
+                `aria-label` in exchange.
+              -->
+              <div class="field">
                 <span class="field-label">Behind the artwork</span>
-                <input
-                  type="color"
-                  value={map.background.color}
-                  oninput={(event) => {
-                    const value = event.currentTarget.value;
-                    workshop.editMap((m) => (m.background = solid(value)));
-                  }}
-                />
-              </label>
+                <div class="color-row">
+                  <input
+                    type="color"
+                    value={map.background.color}
+                    aria-label="Behind the artwork"
+                    oninput={(event) => {
+                      const value = event.currentTarget.value;
+                      workshop.editMap((m) => (m.background = solid(value)));
+                    }}
+                  />
+                  <HexInput
+                    value={map.background.color}
+                    label="Behind the artwork, hex"
+                    onchange={(color) => workshop.editMap((m) => (m.background = solid(color)))}
+                  />
+                </div>
+              </div>
 
               {#if usedColors.length > 0}
                 <div class="field">
@@ -746,15 +843,22 @@
                       }}
                     />
                     <div class="link-row">
-                      <input
-                        type="color"
-                        value={note.color}
-                        aria-label="Text colour"
-                        oninput={(event) => {
-                          const value = event.currentTarget.value;
-                          editNote(note, (n) => (n.color = value));
-                        }}
-                      />
+                      <div class="color-row">
+                        <input
+                          type="color"
+                          value={note.color}
+                          aria-label="Text colour"
+                          oninput={(event) => {
+                            const value = event.currentTarget.value;
+                            editNote(note, (n) => (n.color = value));
+                          }}
+                        />
+                        <HexInput
+                          value={note.color}
+                          label="Text colour, hex"
+                          onchange={(color) => editNote(note, (n) => (n.color = color))}
+                        />
+                      </div>
                       <button
                         type="button"
                         class="unlink"
@@ -935,17 +1039,26 @@
                     where it would be the one colour with nothing else in
                     that panel about markers at all.
                   -->
-                  <label class="field">
+                  <!-- `<div>` rather than `<label>` — see "Behind the artwork". -->
+                  <div class="field">
                     <span class="field-label">Marker number colour</span>
-                    <input
-                      type="color"
-                      value={map.startInk}
-                      oninput={(event) => {
-                        const value = event.currentTarget.value;
-                        workshop.editMap((m) => (m.startInk = value));
-                      }}
-                    />
-                  </label>
+                    <div class="color-row">
+                      <input
+                        type="color"
+                        value={map.startInk}
+                        aria-label="Marker number colour"
+                        oninput={(event) => {
+                          const value = event.currentTarget.value;
+                          workshop.editMap((m) => (m.startInk = value));
+                        }}
+                      />
+                      <HexInput
+                        value={map.startInk}
+                        label="Marker number colour, hex"
+                        onchange={(startInk) => workshop.editMap((m) => (m.startInk = startInk))}
+                      />
+                    </div>
+                  </div>
                 {/if}
 
                 <div class="field">
@@ -1276,6 +1389,25 @@
     flex-direction: column;
     gap: var(--space-2);
     width: 100%;
+  }
+
+  /*
+   * A swatch and its typable hex, side by side. No width of its own: as a flex
+   * item of `.field` (a column) it stretches to full width already, and inside
+   * `.link-row` (a row) it takes the slack so the remove button stays hard
+   * right. See `HexInput` for what the custom properties drive.
+   */
+  .color-row {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    min-width: 0;
+    --hex-size: var(--text-xs);
+    --hex-color: var(--text-secondary);
+  }
+
+  .link-row .color-row {
+    flex: 1 1 auto;
   }
 
   .note-row {

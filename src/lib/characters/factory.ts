@@ -66,6 +66,7 @@ export function createCharacterCard(): CharacterCardDesign {
     healthBadgeAccent: solid('#f9f6ee'),
     healthInk: solid('#ffffff'),
     quoteInk: solid('#f6eada'),
+    quoteScale: 1,
     abilityInk: solid('#000000'),
     moveInk: solid('#000000'),
     hero: band('#001722'),

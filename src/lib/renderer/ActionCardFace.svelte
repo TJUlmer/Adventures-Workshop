@@ -22,6 +22,7 @@
   import { primaryCardName, resolvedHeroName } from '$lib/characters/factory';
   import type { Character } from '$lib/characters/types';
   import type { CustomSymbol } from '$lib/symbols/types';
+  import { parseAbilityText } from '$lib/text/tokens';
   import AbilityText from './AbilityText.svelte';
   import { CARD_SYMBOL_COLORS, CARD_SYMBOL_SIZES, CARD_SYMBOLS, patternAspect } from './assets';
   import type { CardSymbolName } from './assets';
@@ -59,6 +60,7 @@
     INTERIOR,
     INTERIOR_RADIUS,
     NAME,
+    NAME_METRICS,
     NAME_TOP,
     OWNER_LINE,
     px,
@@ -87,6 +89,16 @@
   }
 
   let { card, character, theme, customSymbols = [] }: Props = $props();
+
+  /**
+   * How many lines a card title may wrap to before it is clipped.
+   *
+   * A policy rather than a measurement, which is why it lives here and not in
+   * `geometry.ts`: no printed card has a title this long, so there is nothing
+   * to measure — two lines is as far as one can run before it starts pushing
+   * the ability copy somewhere the card cannot hold it.
+   */
+  const TITLE_MAX_LINES = 2;
 
   interface ValueRow {
     key: CardSymbolName;
@@ -385,9 +397,43 @@
       style:line-height={TITLE.lineHeight}
       style:letter-spacing="{TITLE.tracking}em"
       style:scale="{TITLE.condense} 1"
+      style:max-height={pu(TITLE.size * TITLE.lineHeight * TITLE_MAX_LINES)}
       style:color={theme.bodyInk}
     >
-      {title}
+      <!--
+        Tokens, same as ability copy — the editor offers the palette here, so
+        this has to understand what it inserts or the braces print. `subject`
+        resolves to `ribbonName`, matching the ability text below, so `{{name}}`
+        means the same thing wherever it is written on the card.
+
+        Inline content of an ordinary block, which is the whole of why this
+        works — see `.title`'s own note on why it is no longer a `-webkit-box`.
+        Sized inline in `pu()` like every other symbol on this face rather than
+        through an `em` and a custom property, so there is one mechanism to be
+        wrong about instead of three.
+      -->
+      <!--
+        Written without a break between the tags on purpose. This is inline
+        content now, so any newline Svelte keeps between a symbol and the text
+        beside it collapses to a real space — `Hit{{attack}}` would print as
+        "HIT ⚔". Legibility is bought back by the comment above rather than by
+        indentation.
+      -->
+      {#each parseAbilityText(title) as segment, index (index)}{#if segment.kind === 'symbol'}<img
+            class="title-symbol"
+            src={CARD_SYMBOLS[segment.name]}
+            alt={segment.name}
+            style:height={pu(TITLE.size * NAME_METRICS.cap)}
+            style:scale="{1 / TITLE.condense} 1"
+          />{:else if segment.kind === 'customSymbol'}{@const custom = customSymbols.find(
+          (s) => s.id === segment.id
+        )}{#if custom?.source}<img
+              class="title-symbol"
+              src={custom.source}
+              alt={custom.name}
+              style:height={pu(TITLE.size * NAME_METRICS.cap)}
+              style:scale="{1 / TITLE.condense} 1"
+            />{/if}{:else if segment.kind === 'subject'}{ribbonName}{:else}{segment.value}{/if}{/each}
     </div>
 
     <div class="panel-lead" style:height={pu(TITLE_RULE_GAP)}></div>
@@ -1186,12 +1232,25 @@
    * for why. The squeeze is anchored left because that is the edge the title is
    * positioned by; scaling about the centre would walk it off its measured `x`.
    *
-   * In flow rather than pinned, so it can wrap — and clamped to two lines
-   * rather than left to wrap indefinitely: a title long enough to want a
-   * third reads the two-line ellipsis as the honest signal that it does not
-   * fit, the same as every other overflow this face clips rather than
-   * measures. `-webkit-line-clamp` rather than a fixed `height`, because a
-   * height would have to already know how many lines the title wrapped to.
+   * In flow rather than pinned, so it can wrap, and bounded to two lines so a
+   * long title cannot push the ability copy an unbounded distance down the
+   * card.
+   *
+   * **An ordinary block, deliberately not a `-webkit-box`.** The bound used to
+   * be `-webkit-line-clamp`, which buys an ellipsis on the clipped line and
+   * costs the ability to put anything but text in here: legacy box layout
+   * blockifies every child of the box, so a symbol inserted into a title took a
+   * line of its own wherever it sat. Wrapping the run in a single inline child
+   * was tried and did not fix it. `max-height` at exactly `TITLE_MAX_LINES`
+   * line boxes bounds the same thing through the ordinary inline layout every
+   * other piece of copy on this card already uses.
+   *
+   * What that gives up is the ellipsis, which this face can afford: `.split`,
+   * `.half` and `.ability-block` all clip rather than ellipsise, so a clipped
+   * title reads as the same "this does not fit" signal they do. Nothing legible
+   * is lost to the clip either — at this face's metrics the second line's
+   * capitals sit about 0.15em clear of the cut, because `line-height` is 0.9
+   * against a cap height of 0.703.
    */
   .title {
     /*
@@ -1207,16 +1266,39 @@
      */
     position: relative;
     z-index: 1;
-    display: -webkit-box;
+    display: block;
     font-family: var(--card-font-name);
     font-weight: var(--card-font-name-weight);
-    -webkit-box-orient: vertical;
-    -webkit-line-clamp: 2;
-    line-clamp: 2;
     transform-origin: left center;
     text-transform: uppercase;
+    /* `max-height` is inline, in `pu()` — two of this face's own line boxes. */
     overflow: hidden;
-    text-overflow: ellipsis;
+  }
+
+  /*
+   * A symbol inserted into the title, sized to the title's own cap height so
+   * it stands exactly as tall as the capitals either side of it. No printed
+   * card sets a symbol in its title, so there is no template to measure this
+   * against — matching the caps is the only choice with a reason behind it.
+   *
+   * Height alone is enough to place it: an image sits its bottom edge on the
+   * baseline by default, which is where a capital's foot is too.
+   *
+   * Both the height and the counter-scale are set **inline**, in `pu()`, like
+   * every other measured thing on this face — not through an inherited custom
+   * property and a `calc()` in `em`, which is what they were while this was
+   * still being debugged and which added two more things that could be wrong
+   * about a symbol's size.
+   *
+   * The counter-scale undoes `.title`'s own 4% horizontal squeeze. That
+   * squeeze is a type correction — the stand-in face sets wider than Knockout
+   * — and applying it to a round symbol would just make it an oval. A
+   * transform does not affect layout, so the glyph's advance stays squeezed
+   * with the type around it while its ink comes out circular.
+   */
+  .title-symbol {
+    width: auto;
+    object-fit: contain;
   }
 
   /* Now a flow sibling of `.title`, so it rides down when the title wraps. */

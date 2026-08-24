@@ -6,12 +6,10 @@
    * card actually is — an ability with no "After Combat" clause shows no
    * "After Combat" field.
    */
-  import { CARD_SYMBOL_LABELS, CARD_SYMBOLS } from '$lib/renderer/assets';
-  import type { CardSymbolName } from '$lib/renderer/assets';
   import type { CustomSymbol } from '$lib/symbols/types';
-  import { customSymbolLabel } from '$lib/symbols/types';
-  import { customSymbolToken, insertToken, SUBJECT_TOKEN, symbolToken } from '$lib/text/tokens';
+  import { insertToken } from '$lib/text/tokens';
   import { Icon } from '$lib/ui';
+  import SymbolPalette from './SymbolPalette.svelte';
 
   interface Props {
     label: string;
@@ -66,8 +64,6 @@
     element.dispatchEvent(new Event('input', { bubbles: true }));
   }
 
-  const SYMBOL_NAMES = Object.keys(CARD_SYMBOLS) as CardSymbolName[];
-
   function insert(token: string): void {
     const element = field;
     if (!element) {
@@ -96,42 +92,7 @@
     <span class="label">{label}</span>
 
     <div class="tools">
-      <div class="symbols" role="group" aria-label="Insert symbol">
-        {#each SYMBOL_NAMES as name (name)}
-          <button
-            type="button"
-            class="symbol"
-            title="Insert {CARD_SYMBOL_LABELS[name]} symbol"
-            onclick={() => insert(symbolToken(name))}
-          >
-            <img src={CARD_SYMBOLS[name]} alt={CARD_SYMBOL_LABELS[name]} />
-          </button>
-        {/each}
-
-        <!--
-          Prints the figure the card belongs to, so a card that names its owner
-          keeps naming it after a rename or a move to another deck.
-        -->
-        <button
-          type="button"
-          class="symbol token"
-          title="Insert the figure’s name"
-          onclick={() => insert(SUBJECT_TOKEN)}
-        >
-          Name
-        </button>
-
-        {#each customSymbols.filter((s) => s.source) as symbol (symbol.id)}
-          <button
-            type="button"
-            class="symbol"
-            title="Insert {customSymbolLabel(symbol)} symbol"
-            onclick={() => insert(customSymbolToken(symbol.id))}
-          >
-            <img src={symbol.source} alt={customSymbolLabel(symbol)} />
-          </button>
-        {/each}
-      </div>
+      <SymbolPalette oninsert={insert} {customSymbols} />
 
       {#if onremove}
         <button type="button" class="remove" title="Remove {label}" onclick={onremove}>
@@ -183,52 +144,14 @@
   }
 
   /*
-   * Quiet at rest, full strength on hover or focus — but never invisible.
-   * It was `opacity: 0` until touched, which hid the whole custom-symbol
-   * feature from anyone who did not already know to hover an ability field:
-   * the palette is the only route to inserting a symbol at the caret, so a
-   * palette nobody sees is a feature nobody finds.
+   * The palette lights up for the whole field, not just for itself — hovering
+   * the text box has to reveal it too. Set as an inherited custom property
+   * because the row now lives in `SymbolPalette`, whose scoped styles no
+   * selector here can reach; see the note on `.symbols` there.
    */
-  .symbols {
-    display: flex;
-    gap: 1px;
-    opacity: 0.55;
-    transition: opacity var(--duration-fast) var(--ease-out);
-  }
-
-  .block:hover .symbols,
-  .block:focus-within .symbols {
-    opacity: 1;
-  }
-
-  .symbol {
-    display: grid;
-    place-items: center;
-    width: 22px;
-    height: 22px;
-    border-radius: var(--radius-xs);
-    transition: background-color var(--duration-fast) var(--ease-out);
-  }
-
-  .symbol:hover {
-    background: var(--surface-hover);
-  }
-
-  .symbol img {
-    width: 14px;
-    height: 14px;
-    object-fit: contain;
-  }
-
-  .symbol.token {
-    width: auto;
-    padding-inline: var(--space-2);
-    font-size: var(--text-2xs);
-    color: var(--text-muted);
-  }
-
-  .symbol.token:hover {
-    color: var(--text-primary);
+  .block:hover,
+  .block:focus-within {
+    --palette-opacity: 1;
   }
 
   .remove {

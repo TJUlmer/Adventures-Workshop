@@ -29,6 +29,7 @@
     Section,
     SegmentedControl,
     Select,
+    Slider,
     Switch,
     Tabs,
     TextArea,
@@ -554,6 +555,20 @@
                 onchange={(quoteInk: Fill) =>
                   workshop.editCharacterCard(character.id, (card) => (card.quoteInk = quoteInk))}
               />
+              <Slider
+                label="Quote text size"
+                value={character.characterCard.quoteScale}
+                min={0.6}
+                max={1.6}
+                step={0.02}
+                neutral={1}
+                format={(scale) => `${Math.round(scale * 100)}%`}
+                onchange={(quoteScale) =>
+                  workshop.editCharacterCard(
+                    character.id,
+                    (card) => (card.quoteScale = quoteScale)
+                  )}
+              />
             </div>
           {/if}
         </Section>
@@ -633,6 +648,21 @@
             value={extra.characterCard.quoteInk}
             onchange={(quoteInk: Fill) =>
               workshop.editCharacterCard(character.id, (card) => (card.quoteInk = quoteInk), extra.id)}
+          />
+          <Slider
+            label="Quote text size"
+            value={extra.characterCard.quoteScale}
+            min={0.6}
+            max={1.6}
+            step={0.02}
+            neutral={1}
+            format={(scale) => `${Math.round(scale * 100)}%`}
+            onchange={(quoteScale) =>
+              workshop.editCharacterCard(
+                character.id,
+                (card) => (card.quoteScale = quoteScale),
+                extra.id
+              )}
           />
         </div>
 

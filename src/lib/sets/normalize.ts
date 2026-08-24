@@ -12,7 +12,13 @@
  */
 import { CARD_OWNERS, COMBAT_SYMBOLS, createAbilityBlocks, createHeadingPlacement } from '$lib/cards/types';
 import type { AdventureMap, MapNoteId, MapPath, MapPathId, MapSpace, MapSpaceId } from '$lib/map/types';
-import { createAdventureMap, createMapNote, createMapPath, createMapSpace } from '$lib/map/types';
+import {
+  createAdventureMap,
+  createMapNote,
+  createMapPath,
+  createMapSpace,
+  MAP_SIZES_ALL
+} from '$lib/map/types';
 import type {
   ActionCard,
   Card,
@@ -241,6 +247,7 @@ function characterCard(value: unknown): CharacterCardDesign {
     healthBadgeAccent: fill(raw['healthBadgeAccent'], defaults.healthBadgeAccent),
     healthInk: fill(raw['healthInk'], defaults.healthInk),
     quoteInk: fill(raw['quoteInk'], defaults.quoteInk),
+    quoteScale: num(raw['quoteScale'], defaults.quoteScale),
     abilityInk: fill(raw['abilityInk'], defaults.abilityInk),
     moveInk: fill(raw['moveInk'], defaults.moveInk),
     ...(Object.fromEntries(CHARACTER_BAND_NAMES.map((name) => [name, band(name)])) as Pick<
@@ -380,8 +387,11 @@ function adventureMap(value: unknown): AdventureMap {
     name: str(raw['name']),
     /* Absent on anything written before `size` existed, which read `aspect`
        below verbatim rather than through a preset — defaulting to `large`
-       here is a label for that existing shape, not a repair of it. */
-    size: (['small', 'medium', 'large'] as const).includes(raw['size'] as never)
+       here is a label for that existing shape, not a repair of it.
+       `MAP_SIZES_ALL` rather than a literal list, so adding a shape is one
+       edit: the literal that used to be here silently rejected `custom` the
+       moment it was added and snapped every custom board back to `large`. */
+    size: (MAP_SIZES_ALL as readonly string[]).includes(raw['size'] as string)
       ? (raw['size'] as AdventureMap['size'])
       : defaults.size,
     /* A zero or negative aspect would divide by nothing in `mapHeight`. */
