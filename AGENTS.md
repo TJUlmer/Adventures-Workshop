@@ -6,17 +6,20 @@ Kiro's expanded steering lives in `.kiro/steering/`. Keep all three consistent.
 
 ## Product
 
-A local-first, offline builder for custom **Unmatched Adventures** sets — villains,
-minions, initiative decks, rules and event cards, and the printable card art.
-Authors are Unmatched fans, not developers. No backend, no account, no network call:
-the document lives in `localStorage` and leaves the machine only on export.
+A local-first builder for custom **Unmatched Adventures** sets — heroes, villains,
+minions, initiative decks, rules and event cards, the adventure map, threat track,
+and the printable card art. Authors are Unmatched fans, not developers. Authoring
+works fully offline: the document lives in the browser (IndexedDB) and leaves the
+machine only on export. Signing in is optional, needed only to publish, share, or
+contribute back — the cloud (`src/lib/cloud/`, hand-rolled Supabase HTTP) is a
+publish target, never the source of truth.
 
 Shell is three panes: set hierarchy (left), workspace editor (centre), live card
 preview (right). The card editor splits **Content** (per-card) from **Design** (set once).
 
 ## Stack and commands
 
-Svelte 5 (runes) + TypeScript + Vite. Browser only.
+Svelte 5 (runes) + TypeScript + Vite.
 
 ```bash
 npm run dev      # Vite dev server, HMR, :5173
@@ -34,9 +37,9 @@ TypeScript is pinned to `~6` because `svelte-check` does not run on 7 yet.
 ## Hard constraints
 
 - **Zero runtime dependencies.** `package.json` has `devDependencies` only. The ZIP
-  writer, PNG rasteriser, WebGL viewer, STL/OBJ parsers and rich-text sanitiser are
-  hand-rolled for this reason. Only reach for a library when hand-rolling is
-  genuinely unreasonable.
+  writer, PNG rasteriser, WebGL viewer, STL/OBJ parsers, rich-text sanitiser and the
+  Supabase client are all hand-rolled for this reason. Only reach for a library when
+  hand-rolling is genuinely unreasonable.
 - **Runes only.** `svelte.config.js` sets `runes: true`; legacy `$:` will not compile.
 - **No test suite, no test runner.** Do not add one unless asked. Verify by driving
   the app and measuring what it renders.
@@ -49,29 +52,54 @@ TypeScript is pinned to `~6` because `svelte-check` does not run on 7 yet.
   `src/lib/export/card-image.ts` photographs that same DOM. There is no second
   drawing path. Anything rasterised must render values as **text**, not in form
   controls — a control's value does not survive `cloneNode` (hence `ThreatBoard`'s
-  `editable` prop).
+  `editable` prop). Print sheets (`src/lib/print/`) are a browser-print screen, not
+  a file exporter — there is no `print-pdf` slot.
 - **Geometry is measured, not estimated.** `renderer/geometry.ts` holds numbers read
   off print templates in bleed pixels, converted to `%` and `cqw`. Text is placed by
   cap height via `capTopToBoxTop()`. Measure templates with Python/PIL; do not eyeball.
 - **Nothing measures text at runtime.** Dynamic sizes fall out of flex layout
   (vertical writing mode, bottom-anchored panel).
 - **Template art is a CSS alpha mask over a fill**, so shapes take any colour.
-- **The document is four flat arrays** related by ID (`characters`, `decks`, `cards`);
-  every grouping the UI shows is derived. `sets/queries.ts` holds the derivations.
-  IDs are branded types.
+- **The document is four flat arrays** related by ID (`characters`, `decks`, `cards`),
+  plus set-level singletons (style, threat track, map); every grouping the UI shows is
+  derived. `sets/queries.ts` holds the derivations. IDs are branded types, preserved
+  across a fork except the set's own.
 - **Style cascade:** `stock template → set.style → character.style → card.style`,
   flattened by `resolveStyleForCard()`. Overrides are sparse — "inherit" is an
-  absent key. Card colours are concrete values, never `var(--…)`.
+  absent key. Card colours are concrete values, never `var(--…)`. The hero character
+  card is the one card that does not go through this cascade.
+- **Roles:** `hero`, `villain`, `minion`, `sidekick` — `sidekick` is a field on a
+  hero (`Character.sidekick`), not a directly-selectable roster role.
 - **One store:** `state/workshop.svelte.ts`. Editors read their subject from the
   store, never as a prop. Shared child editors address subjects by typed reference
-  (`{ entity: 'card', id }`) and mutate through store commands.
+  (`{ entity: 'card', id }`) and mutate through store commands. Library commands are
+  `async` (IndexedDB has no sync API).
 - **Any new persisted field needs a branch in `sets/normalize.ts`**, or existing
-  documents load without it. `SET_SCHEMA_VERSION` is 6; newer files are refused.
+  documents load without it. `SET_SCHEMA_VERSION` is 29; newer files are refused.
+  `normalizeSet` must be idempotent.
 - **`src/styles/tokens.css` is the only source of colour.** No component hardcodes a hex.
 - **Comments explain *why*** — usually the failure that forced the code — and never
   restate the line. Some carry a bug's history so it is not reintroduced.
 - **British spelling** in prose and comments; `colour` in user-facing copy, `color`
   only where a CSS or DOM API demands it.
+
+## Persistence and cloud
+
+- **Storage is IndexedDB** (`src/lib/storage/`), not `localStorage` — it moved
+  because `localStorage`'s ~5MB-per-origin ceiling was too small for embedded
+  artwork. Migration from the old `localStorage` library is automatic and runs
+  on every startup.
+- **Deleting a set is a soft delete** (`deletedAt` on its index row); permanent
+  removal is a separate, explicit "Delete forever" action.
+- **Cloud reads that are meant to be public must never carry a user's own access
+  token** — a stale token breaks the read for its own owner while strangers see it
+  fine. RLS is the actual security boundary, not the client.
+- **A fork preserves every entity id and records a per-entity content hash**
+  (`SetOrigin.fingerprint`) at copy time, because there is no server-side revision
+  history to diff against later.
+- **A contribution is a proposal only** — accepting one mutates the owner's own
+  document in their own browser; the database row never lets a stranger's write
+  touch a published set directly.
 
 ## Known traps
 
@@ -84,5 +112,8 @@ TypeScript is pinned to `~6` because `svelte-check` does not run on 7 yet.
 
 ## Further reading
 
-`README.md` (document model, cascade, shell in depth) · `SET-HEALTH.md` (set-health
-checks) · `.kiro/steering/` (expanded, auto-loaded topic guidance).
+`README.md` (document model, cascade, shell), `CLAUDE.md` (full architecture,
+including cloud/gallery/contributions/hero/map detail), `CHANGELOG.md` (how it
+was built and what is still open), `COLLABORATION.md` (fork/contribution design),
+`SET-HEALTH.md` (set-health checks), `.kiro/steering/` (expanded, auto-loaded
+topic guidance).

@@ -52,6 +52,42 @@ templates**, not authored:
 - `event_logo.png` / `event_logo_ink.png` — the Unmatched Adventures lockup lifted
   out of `event_back_template_blank.png` as two alpha layers (box, and the lettering
   knocked out of it).
+- The hero card's five files (`hero_action_frame.png`, `hero_action_ribbon.png`,
+  `hero_combat_banner.png`, `hero_action_ribbon_edge.png`, and the character-card
+  border/ink split) — produced by `tools/hero-card-assets.py` from the supplied
+  `hero_action_card_border.png` and `Hero_Character_Card_Template_*_frame.png`. Its
+  output also prints the measurements `geometry.ts`'s `HERO_RIBBON` constants are
+  checked against — run it after touching a source template and compare.
 
 They were produced with Python/PIL from files still in the repo. **If a source
 template changes, regenerate rather than hand-editing.**
+
+## Export surfaces, and what is deliberately not an `Exporter`
+
+`src/lib/export/registry.ts` lists `Exporter`s that hand back one blob for the
+browser to save — currently just the `.json` set file. Two things that leave the
+app are deliberately **not** in that registry, for the same underlying reason: an
+`Exporter`'s one-blob shape does not fit what they actually produce.
+
+- **The Tabletop Simulator bundle** (`tts-bundle.ts`) writes a *folder* of images
+  plus a save file that names them by path — it needs `exports/` (see
+  `schema-and-persistence.md`) or falls back to a ZIP with URLs blanked. Squeezing
+  it into `Exporter` would mean it could only ever produce that fallback.
+- **Print sheets** (`src/lib/print/`) are a **screen**, not a file exporter. There
+  was a `print-pdf` slot in the registry for a long time; building it revealed that
+  a PDF would have had to rasterise every card as a JPEG (the app has no
+  compression beyond a stored ZIP entry), which is the worst possible treatment of
+  black line on white. Printed from the DOM the type stays vector, and the
+  browser's own print dialogue writes a better PDF than this app could. See
+  `PrintScreen.svelte`, rendered outside `AppShell` on purpose — a print view
+  nested in the title bar and nav has chrome to hide and a chance to shift the
+  sheet by a millimetre.
+- **Per-card PNGs** (`card-pngs.ts`) *do* go through the same rasterisation path as
+  everything else (`card-stage.ts`, shared with the TTS export) but are offered
+  from `ExportPanel` directly rather than through the `Exporter` registry, because
+  the result is a folder-per-category ZIP rather than one file.
+
+`ExportPanel.svelte` and the exporters it calls all take an `AdventureSet` as a
+prop and read nothing from the `workshop` store — this is what lets the same panel
+work against a published set someone else made, which is never the one open in
+the workshop.

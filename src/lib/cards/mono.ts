@@ -19,7 +19,7 @@
  * rather than in the theme, and artwork is not a colour at all.
  */
 import type { CardStyleOverride } from './style';
-import { NO_PATTERN, solid } from './style';
+import { NO_CUSTOM_PATTERN, NO_PATTERN, solid } from './style';
 
 /** Paper and ink. Not `currentColor` or a token — a print file resolves neither. */
 export const MONO_PAPER = '#ffffff';
@@ -55,5 +55,17 @@ export const MONO_LAYER: CardStyleOverride = {
   boostInk: MONO_INK,
   /* Both exist to lay tone over a panel. There is no tone to lay. */
   pattern: NO_PATTERN,
-  texture: { kind: 'none', opacity: 0 }
+  texture: { kind: 'none', opacity: 0 },
+  /*
+   * And the third of that group, which was missed for a release.
+   *
+   * `pattern` is a recolourable tiled mask, so blanking it was obviously this
+   * layer's job; `customPattern` is a *picture* the author uploaded, which put
+   * it mentally with artwork — and artwork is handled in `CardRenderer`'s
+   * stylesheet rather than here, so it fell between the two and printed in
+   * full colour over a card that was otherwise line on white. It is a theme
+   * key, so the cascade can reach it, and blanking the source is enough: every
+   * face guards on `theme.customPattern.source` before drawing anything.
+   */
+  customPattern: NO_CUSTOM_PATTERN
 };

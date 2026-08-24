@@ -4,7 +4,9 @@ inclusion: always
 
 # Tech
 
-Svelte 5 (runes) + TypeScript + Vite. Browser-only, no backend.
+Svelte 5 (runes) + TypeScript + Vite. Browser-first: the document and every
+export are local, but the app also talks to a Supabase backend for publishing,
+the gallery and collaboration — see "Cloud" below.
 
 ## Commands
 
@@ -39,13 +41,24 @@ pin when `svelte-check` catches up.
 ## Constraints that shape everything
 
 **Zero runtime dependencies.** `package.json` has `devDependencies` only. The ZIP
-writer, the PNG rasteriser, the WebGL model viewer, the STL/OBJ parsers and the
-rich-text sanitiser are all hand-rolled for this reason. Reach for a library only
-after establishing that hand-rolling is genuinely unreasonable.
+writer, the PNG rasteriser, the WebGL model viewer, the STL/OBJ parsers, the
+rich-text sanitiser, and the Supabase client (`src/lib/cloud/http.ts`, hand-rolled
+against plain PostgREST/Storage/Auth HTTP) are all hand-rolled for this reason.
+Reach for a library only after establishing that hand-rolling is genuinely
+unreasonable.
 
-**Local-first, offline, no backend.** The document lives in `localStorage`; every
-user asset is embedded as a data URL. Static chrome is served from `public/assets`
-as stable URLs, **never bundler-imported**.
+**Local-first, offline-capable.** The library — every set, indexed for the Home
+screen — lives in **IndexedDB** (`src/lib/storage/`), not `localStorage`; every
+user asset is embedded as a data URL so a set survives being handed to someone
+else as one file. Static chrome is served from `public/assets` as stable URLs,
+**never bundler-imported**. Everything about authoring a set works with no network
+at all.
+
+**Cloud is a publish target, never the source of truth.** `src/lib/cloud/` talks
+to Supabase for sharing, the public gallery, forking and contributions. A
+published row is a copy of a document that still lives in the author's browser —
+losing the network loses sharing, never the set. See `schema-and-persistence.md`
+for the persisted `SetOrigin`/fork/contribution shapes.
 
 **Runes only.** `svelte.config.js` sets `runes: true`, so legacy `$:` reactivity
 will not compile.
@@ -53,10 +66,20 @@ will not compile.
 ## Subsystems
 
 - `src/lib/models/` — STL (binary + ASCII) and OBJ parsing into an unindexed,
-  flat-shaded `Mesh`, plus `token.ts`, which *generates* a disc or hex prism from a
-  spec. Built at **1 unit = 1 inch** for Tabletop Simulator.
+  flat-shaded `Mesh`, plus `token.ts`, which *generates* a disc or an N-sided
+  prism from a spec. Built at **1 unit = 1 inch** for Tabletop Simulator.
 - `src/lib/threat/` + `renderer/ThreatBoard.svelte` — the threat track, laid out as
   the printed 495 × 70 mm strip and sized in `cqw` so it never needs scrolling.
+- `src/lib/map/` + `renderer/MapBoard.svelte` — the adventure map: spaces, the
+  paths between them, and the board they sit on. SVG rather than DOM rectangles,
+  because a map is a graph, not a stack of masked chrome.
+- `src/lib/figures/` — the health dial and other physical components; a `dial`
+  figure is the app's own fixed component (generated mesh + Lua counter script),
+  not an author-designed one.
+- `src/lib/print/` — A4/Letter print sheets. A screen the browser's own print
+  dialogue outputs from, not a file exporter.
+- `src/lib/cloud/` — hand-rolled Supabase HTTP: auth, sets (publish/fork/gallery),
+  contributions, thumbnails.
 - `src/lib/text/rich-text.ts` — allowlist sanitiser. Attributes are allowlisted **by
   value**: the single permitted inline style is rebuilt from a parsed number, never
   passed through.
@@ -64,4 +87,7 @@ will not compile.
 ## Tooling outside npm
 
 Geometry work uses **Python with PIL and numpy** to read print templates. It is a
-measurement tool, not a project dependency — see `geometry.md`.
+measurement tool, not a project dependency — see `geometry.md`. `tools/` also holds
+one-off asset-derivation scripts (font comparison, hero card asset splitting, skin
+template generation, the hand-rolled PSD writer) — regenerate derived assets from
+these rather than hand-editing them.

@@ -51,9 +51,7 @@ export function assessSet(set: AdventureSet): SetHealth {
    * four items on the list that could not be actioned.
    *
    * A kind is what makes the difference expressible: skipped entirely here,
-   * rather than softened. The map is deliberately *not* in this group — heroes
-   * need somewhere to fight each other, which is why `MAP_SIZES` offers boards
-   * smaller than an adventure's.
+   * rather than softened.
    */
   if (!heroesSet) {
     if (set.characters.every((character) => character.role !== 'villain')) {
@@ -95,9 +93,22 @@ export function assessSet(set: AdventureSet): SetHealth {
     issues.push({ severity: 'blocker', message: 'No heroes yet — a heroes set is its heroes.' });
   }
 
-  if (!set.map.enabled) {
-    issues.push({ severity: 'gap', message: 'No map — there is nowhere to play.' });
-  }
+  /*
+   * There is deliberately no map check, of any severity.
+   *
+   * It was a `gap` — "No map — there is nowhere to play." — on the reasoning
+   * that a fight needs a board. That reasoning does not survive contact with
+   * how these sets are actually used: an Adventures map is a printed mat, and
+   * an author writing a set for boards they already own is finished without
+   * ever drawing one. A permanent, unactionable gap is exactly the failure the
+   * set kind was introduced to fix for villains and threat tracks, and this was
+   * the same failure one check over.
+   *
+   * Not demoted to `polish` either, which was the tempting middle: `polish`
+   * still holds a set at "Ready — a few polish items" forever, and a set that
+   * is genuinely finished has to be able to read "Complete". The map editor is
+   * discoverable on its own; health is not the place to advertise it.
+   */
 
   /*
    * Every figure on the board needs two things in the box: something to stand

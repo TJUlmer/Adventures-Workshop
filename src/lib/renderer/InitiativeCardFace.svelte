@@ -93,6 +93,10 @@
    * is what it prints until the author writes something else. Derived rather
    * than seeded into the document, so it follows the figure's name instead of
    * going stale the moment they rename it.
+   *
+   * An *effect* card gets no such default — there is nothing a generic effect
+   * can be assumed to do — so this is legitimately empty, and an empty band
+   * must print empty. See the two guards below.
    */
   const rightNowText = $derived(
     card.rightNow.trim() || (card.variant === 'card' ? `${actor} takes a turn.` : '')
@@ -194,19 +198,27 @@
     style:line-height={INITIATIVE.bodyLineHeight}
     style:color={card.bands.rightNow.ink}
   >
-    <AbilityText
-      ability={{
-        plain: rightNowText,
-        immediately: '',
-        duringCombat: '',
-        afterCombat: '',
-        bonusAbility: '',
-        bonusIcon: ''
-      }}
-      placeholder="What happens right now."
-      subject={actor}
-      {customSymbols}
-    />
+    <!--
+      Guarded rather than handed a placeholder. `AbilityText`'s placeholder is
+      drawn copy, not editor chrome — this component *is* what the exporter
+      photographs — so a blank Right Now printed a grey "What happens right
+      now." onto the finished card. A band the author deliberately left empty
+      has to come out empty; the editor's own field carries the hint instead.
+    -->
+    {#if rightNowText}
+      <AbilityText
+        ability={{
+          plain: rightNowText,
+          immediately: '',
+          duringCombat: '',
+          afterCombat: '',
+          bonusAbility: '',
+          bonusIcon: ''
+        }}
+        subject={actor}
+        {customSymbols}
+      />
+    {/if}
   </div>
 
   {#if card.showMove}
@@ -260,19 +272,21 @@
     style:line-height={INITIATIVE.bodyLineHeight}
     style:color={card.bands.endOfRound.ink}
   >
-    <AbilityText
-      ability={{
-        plain: card.endOfRound,
-        immediately: '',
-        duringCombat: '',
-        afterCombat: '',
-        bonusAbility: '',
-        bonusIcon: ''
-      }}
-      placeholder="What happens at the end of the round."
-      subject={actor}
-      {customSymbols}
-    />
+    <!-- Same reasoning as the Right Now band above: blank prints blank. -->
+    {#if card.endOfRound.trim()}
+      <AbilityText
+        ability={{
+          plain: card.endOfRound,
+          immediately: '',
+          duringCombat: '',
+          afterCombat: '',
+          bonusAbility: '',
+          bonusIcon: ''
+        }}
+        subject={actor}
+        {customSymbols}
+      />
+    {/if}
   </div>
 {/if}
 

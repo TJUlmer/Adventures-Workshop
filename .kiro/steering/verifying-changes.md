@@ -21,6 +21,19 @@ Do not start the dev server as a blocking foreground command. `.claude/launch.js
 registers it as `adventures-workshop` on port 5173 for Claude Code's preview
 tooling; under Kiro, run it as a background process or have the developer start it.
 
+## Storage and cloud changes need their own check
+
+- **Storage lives in IndexedDB, not `localStorage`.** Verify a persistence change
+  by inspecting IndexedDB directly (devtools Application tab, or driving the app
+  and reading it back through `storage/library.ts`'s own functions) — do not
+  assume a `localStorage` inspection tells you anything current.
+- **Cloud/RLS changes should be verified by attacking them**, the same way the
+  existing policies were: try the write or read a policy is supposed to refuse
+  (as an anonymous caller, as a non-owner, with a stale/forged token) and confirm
+  it is actually refused, not just that the intended path works. `CLAUDE.md`'s
+  "Sharing and the gallery" and "Contributions" sections record what was already
+  tested this way.
+
 ## Traps that have cost real time here
 
 - **`document.fonts.ready` resolving does not mean a face is usable by canvas

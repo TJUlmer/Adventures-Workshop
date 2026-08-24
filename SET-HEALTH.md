@@ -47,11 +47,26 @@ every hero drawn, dials and figures listed, a map — read "Playable, still
 rough" forever, with four items on its list that could never be actioned.
 Measured on Lucy & Piper: four gaps as an adventure, none as a heroes set.
 
-**The map is deliberately not in that list.** Heroes need somewhere to fight
-each other, which is why `MAP_SIZES` offers boards smaller than an adventure's.
-
 A heroes set gains one check of its own: *No heroes* is a **blocker**, on the
 same reasoning that makes "No cards" one — a heroes set is its heroes.
+
+## There is no map check
+
+Not for either kind, and not at any severity. A map used to be a **gap** —
+"No map — there is nowhere to play." — on the reasoning that a fight needs a
+board. That does not survive contact with how sets are actually used: an
+Adventures map is a printed mat, and an author writing a set for boards they
+already own is finished without ever drawing one.
+
+A permanent, unactionable gap is precisely the failure the set kind was added
+to fix for villains and threat tracks; this was the same failure one check
+over. It is not demoted to **polish** either, which was the tempting middle
+ground — polish still pins a set at "Ready — a few polish items" forever, and a
+set that is genuinely finished has to be able to read **Complete**. A set with
+no map can now reach Complete.
+
+The map editor is discoverable on its own; set health is not the place to
+advertise it.
 
 ## Every check
 

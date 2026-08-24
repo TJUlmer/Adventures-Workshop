@@ -49,3 +49,14 @@ face's mean advance in `renderer/fonts.ts` — still without measuring.
 
 Keep it that way. Introducing a runtime text measurement re-opens the font-loading
 and canvas-metrics problems catalogued in `verifying-changes.md`.
+
+## Newer templates follow the same rule
+
+The hero action card and hero character card (`HeroActionCardFace`,
+`HeroCharacterCardFace`) are measured exactly the same way, off their own supplied
+templates (`Hero_Action_Card_Template.png`, `Hero_Character_Card_Template_*.png`,
+plus the Photoshop guide files that shipped alongside them). `tools/hero-card-assets.py`
+both derives the hero's chrome assets *and* checks `geometry.ts`'s `HERO_RIBBON`
+constants against what it measures — run it after touching a hero source template,
+since the masks and the numbers that place them have drifted apart before, and each
+time it printed as a chrome bug rather than a stale-measurement one.
