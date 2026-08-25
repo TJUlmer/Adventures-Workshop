@@ -741,22 +741,42 @@ could tell them apart. Home's gallery sample wants four *permanently
 labeled* slots — Adventures set, Heroes set, and two Single hero spots — and
 guessing the first two from other columns would mean a label that is
 sometimes wrong, which is worse than no label. `0009_set_kind.sql` adds
-`sets.kind` (nullable, no default, checked against `SET_KINDS`), `publishSet`
-sends `scoped.kind` on every publish (`heroSlice` already forces `kind:
-'heroes'` on a standalone hero regardless of which box it came from,
-`sets/scope.ts` — so a lone hero is correctly categorised for free), and
-`listPublicSets` gained a `kind` filter alongside `scope`. Nullable and never
-backfilled: a row published before this migration reads `null`, which never
-matches `kind=eq.adventure`/`kind=eq.heroes` — it simply sits out of the two
-whole-box slots until its author republishes, the same "repairs itself on the
-next natural write" pattern `LibraryEntry.blockers` already follows locally.
+`sets.kind` (checked against `SET_KINDS`), `publishSet` sends `scoped.kind` on
+every publish (`heroSlice` already forces `kind: 'heroes'` on a standalone
+hero regardless of which box it came from, `sets/scope.ts` — so a lone hero is
+correctly categorised for free), and `listPublicSets` gained a `kind` filter
+alongside `scope`. `0010_hero_count_and_kind_backfill.sql` adds `hero_count`
+beside it, because `character_count` counts the whole roster — villain and
+minions included — and cannot answer "how many heroes", which is what splits
+a one-hero box from a multi-hero one.
+
+**Leaving 0009's column null and waiting for authors to republish was the
+mistake, and it is worth keeping the reason.** The stated argument was that a
+row "repairs itself on the next natural write, the same as
+`LibraryEntry.blockers` does locally". That analogy does not hold: a local
+index is rewritten constantly by an author simply working, while a *published
+row* is rewritten only by a deliberate re-publish, which nobody performs
+because a column appeared. So every existing row stayed `null`, both whole-box
+slots read "None published yet" against a gallery that visibly had both, and
+would have stayed that way indefinitely. 0010 backfills from each row's own
+stored `document`, which is the authority rather than a guess: `document->
+'set'->>'kind'` where the document carries one (schema v28+), and otherwise
+inferred the way `sets/health.ts` already defines an adventure — it needs a
+villain. That last rule deliberately differs from `normalizeSet`'s own
+fallback, which opens a kind-less document as `'adventure'` unconditionally:
+that default exists so pre-heroes-set documents still *open*, and every set
+was an adventure back then. Applied to a villain-less box of three heroes it
+is simply false. **The general rule: a denormalised column on a published row
+needs a backfill in the same migration that adds it, because nothing else will
+ever write it.**
 
 **The gallery sample is four labeled slots, not a flat list — and still
 queries rather than hardcodes.** Nothing pins a specific set's name or slug
 into a slot; that breaks the moment its author unpublishes or renames it.
 `gallerySlots` runs three parallel `listPublicSets` calls — `{ scope: 'full',
-kind: 'adventure' }`, `{ scope: 'full', kind: 'heroes' }`, `{ scope: 'hero'
-}` — each an 8-wide pool sorted by `popular`, and a small local Fisher-Yates
+kind: 'adventure' }`, `{ scope: 'full', kind: 'heroes', heroes: 'multi' }`,
+and `{ kind: 'heroes', heroes: 'single' }` — each an 8-wide pool sorted by
+`popular`, and a small local Fisher-Yates
 `pickRandom` chooses 1 / 1 / 2 from the pools **once, when the fetch
 resolves**, storing the picks in state rather than a `$derived`: a derived
 re-running `Math.random()` on every unrelated reactive tick (autosave
@@ -773,6 +793,21 @@ than each screen asking separately. Neither renders anything and neither
 shows an error if the fetch fails or `cloudEnabled()` is false — same
 silent-fallback precedent as the attention strip's own cloud calls, just
 below.
+
+**The three slots split on `kind` and `hero_count`, never on `scope`** — and
+the first version got that wrong in a way worth naming, because `scope` reads
+like the right axis and is not. It says how much of a set was published, so
+`scope: 'hero'` found only a hero *sliced out of a box and published alone*,
+while a published box whose entire content is one hero — which is what most
+"single hero" sets actually are — never matched, and that slot sat empty
+against a gallery holding three of them. The taxonomy is the author's own:
+`kind: 'adventure'` is an Adventures set; `kind: 'heroes'` with more than one
+hero is a Heroes set; `kind: 'heroes'` with exactly one is a Single hero,
+which a sliced-out hero also satisfies on its own terms (`heroSlice` forces
+`kind: 'heroes'`, and the slice holds one hero). Only the two whole-box slots
+constrain `scope: 'full'`; the single-hero query deliberately does not, so
+both shapes qualify. `GalleryQuery.heroes` is `'single' | 'multi'` rather
+than a raw number because those are the only two cuts anything asks for.
 
 **The "Design your own Unmatched adventure" pitch is not only a first-visit
 thing, and `.top-row` is three columns, not two.** It used to live solely in
@@ -1451,6 +1486,18 @@ Traps that have cost real time here:
   first classed on `.frame`, which looked right on screen and in the print view
   and photographed the artwork back in, in colour — caught by sampling a
   rasterised mono card and finding 45% of it salmon pink.
+- **Inside `white-space: pre-wrap`, the source file's own indentation prints.**
+  Ability copy sets it so an author's newlines survive (`AbilityText`'s
+  `.line`, `HeroCharacterCardFace`'s `.ability-text`), which also means a
+  readably-formatted `{#each}`/`{#if}` around an inline `<img>` emits a real
+  line break either side of every symbol: a one-line ability with two symbols
+  measured 5.05 line boxes instead of 1.02. Every such loop is therefore
+  written with no line break between the branch tags and the element — ugly on
+  purpose, and commented as such in all three places (`ActionCardFace`'s title
+  loop learnt it first, the other two repeated the mistake). Measure it as
+  `element.height / line-height`, not with `Range.getClientRects()`: that
+  returns one rect per inline box, so a correctly-rendered line containing two
+  vertically-offset images still reports four rects and looks like a bug.
 - `clip-path` clips `box-shadow` and `outline` away entirely.
 - A negative margin on a `flex: 1 1 0` item wins it extra width.
 - An SVG asked for a shape that is not its own letterboxes rather than

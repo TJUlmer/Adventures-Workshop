@@ -12,7 +12,7 @@
  * untouched by whether a set has ever been published.
  */
 import { parseSetFile, serializeSet } from '$lib/export/json';
-import { setStats } from '$lib/sets/queries';
+import { charactersByRole, setStats } from '$lib/sets/queries';
 import { computeScopedSet } from '$lib/sets/scope';
 import type { PublishScope } from '$lib/sets/scope';
 import type { AdventureSet, SetKind } from '$lib/sets/types';
@@ -106,6 +106,13 @@ export interface PublishedSet {
    * it simply never matches a `kind` filter until its author republishes.
    */
   kind: SetKind | null;
+  /**
+   * Heroes on the roster — its own column because `character_count` cannot
+   * stand in: that counts the whole roster, villain and minions included.
+   * Home splits a heroes set by this (one hero is "Single hero", more than
+   * one is a "Heroes set"). See `0010_hero_count_and_kind_backfill.sql`.
+   */
+  hero_count: number;
 }
 
 /** Just enough of a published set to say whether it has moved on. */
@@ -151,7 +158,7 @@ export interface PublishedSetWithDocument extends PublishedSet {
 const SUMMARY_COLUMNS =
   'id,owner_id,local_id,slug,name,subtitle,card_count,character_count,schema_version,' +
   'revision,visibility,created_at,updated_at,thumbnail_url,cover_url,cover_bleeds,published_at,' +
-  'view_count,change_note,forked_from,forked_from_revision,scope,character_id,kind';
+  'view_count,change_note,forked_from,forked_from_revision,scope,character_id,kind,hero_count';
 
 /**
  * The same, plus the author and — for a fork — the set it came from.
@@ -411,7 +418,11 @@ export async function publishSet(
      * it came out of (`sets/scope.ts`), so a lone hero publish is already
      * categorised correctly by the time it reaches this row.
      */
-    kind: scoped.kind
+    kind: scoped.kind,
+    /* Off `scoped`, like `kind` — a hero slice holds exactly its own hero, so
+       this is 1 there without a special case. Counted rather than taken from
+       `stats.characterCount`, which includes the villain and every minion. */
+    hero_count: charactersByRole(scoped, 'hero').length
   };
 
   /*
@@ -483,6 +494,14 @@ export interface GalleryQuery {
       `PublishedSet.kind`. Omitted rather than `'all'`, since a caller that
       does not care about this axis should not have to write it out. */
   kind?: SetKind;
+  /**
+   * Split a heroes set by roster size — `'single'` is exactly one hero,
+   * `'multi'` is more than one. Only meaningful alongside `kind: 'heroes'`,
+   * and named rather than exposed as a raw number because those two are the
+   * only cuts anything asks for (Home's "Single hero" and "Heroes set"
+   * slots).
+   */
+  heroes?: 'single' | 'multi';
   limit?: number;
   /** Rows to skip, for paging. */
   offset?: number;
@@ -539,7 +558,15 @@ function galleryOrder(sort: GallerySort, nameColumn = 'name'): string {
  * trusted to filter out.
  */
 export async function listPublicSets(query: GalleryQuery = {}): Promise<GallerySet[]> {
-  const { search = '', sort = 'newest', scope = 'all', kind, limit = 36, offset = 0 } = query;
+  const {
+    search = '',
+    sort = 'newest',
+    scope = 'all',
+    kind,
+    heroes,
+    limit = 36,
+    offset = 0
+  } = query;
 
   const parts = [
     `select=${GALLERY_COLUMNS}`,
@@ -556,6 +583,7 @@ export async function listPublicSets(query: GalleryQuery = {}): Promise<GalleryS
 
   if (scope !== 'all') parts.push(`scope=eq.${scope}`);
   if (kind) parts.push(`kind=eq.${kind}`);
+  if (heroes) parts.push(heroes === 'single' ? 'hero_count=eq.1' : 'hero_count=gt.1');
 
   /*
    * Deliberately anonymous, even for a signed-in author.

@@ -56,17 +56,27 @@
   });
 </script>
 
+<!--
+  Written without a line break anywhere inside the loop, and that is load
+  bearing rather than a style choice: `.line` below sets `white-space:
+  pre-wrap` so an author's own newlines print, which also means *this file's*
+  indentation prints. Laid out readably — one branch per line, the `<img>`
+  indented under it — every inserted symbol printed a line break before and
+  after itself, turning a one-line ability into three. `ActionCardFace`'s
+  title loop already carries the same warning for the same reason.
+-->
 {#snippet run(text: string)}
-  {#each parseAbilityText(text) as segment, index (index)}
-    {#if segment.kind === 'symbol'}
-      <img class="symbol" src={symbolUrl(segment.name)} alt={segment.name} />
-    {:else if segment.kind === 'customSymbol'}
-      {@const custom = customSymbols.find((s) => s.id === segment.id)}
-      {#if custom?.source}
-        <img class="symbol" src={custom.source} alt={custom.name} />
-      {/if}
-    {:else if segment.kind === 'subject'}{subject}{:else}{segment.value}{/if}
-  {/each}
+  {#each parseAbilityText(text) as segment, index (index)}{#if segment.kind === 'symbol'}<img
+        class="symbol"
+        src={symbolUrl(segment.name)}
+        alt={segment.name}
+      />{:else if segment.kind === 'customSymbol'}{@const custom = customSymbols.find(
+        (s) => s.id === segment.id
+      )}{#if custom?.source}<img
+          class="symbol"
+          src={custom.source}
+          alt={custom.name}
+        />{/if}{:else if segment.kind === 'subject'}{subject}{:else}{segment.value}{/if}{/each}
 {/snippet}
 
 <div class="ability">

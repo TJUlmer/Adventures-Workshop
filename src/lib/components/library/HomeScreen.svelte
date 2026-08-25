@@ -361,17 +361,27 @@
    * Heroes set, and two Single hero spots — rather than a flat list of
    * whatever came back. Not pinned to specific sets by name or slug: that
    * breaks the moment an author unpublishes or renames one. Each slot pulls
-   * from an 8-wide pool of its own category (`PublishedSet.kind` for the
-   * two whole-box slots, `scope: 'hero'` for the single-hero pair — see
-   * `supabase/migrations/0009_set_kind.sql`), and `pickRandom` below chooses
-   * within that pool once per fetch, so the labels stay meaningful even
-   * with only one or two sets published in a category today, and the picks
-   * genuinely rotate once there are more to choose from.
+   * from an 8-wide pool of its own category and `pickRandom` below chooses
+   * within it once per fetch, so the labels stay meaningful with only one
+   * candidate published today and the picks genuinely rotate once there are
+   * more.
+   *
+   * **The three categories split on `kind` and `hero_count`, not `scope`.**
+   * `scope` says how much of a set was published (a whole box, one hero, the
+   * villain side); it cannot tell an adventure from a box of heroes, and the
+   * first version of this asked it to — `scope: 'hero'` for the two Single
+   * hero slots, which meant only a hero *sliced out and published on its own*
+   * ever qualified, while a set whose entire content is one hero did not.
+   * The taxonomy is the author's own: an adventure is `kind: 'adventure'`; a
+   * box of heroes with more than one hero is a "Heroes set"; a box of heroes
+   * with exactly one is a "Single hero" — which a sliced-out hero also
+   * satisfies on its own terms, since `heroSlice` forces `kind: 'heroes'` and
+   * the slice holds one hero. See `0010_hero_count_and_kind_backfill.sql`.
    *
    * Fetched regardless of library size — the zero-state welcome panel shows
-   * all four slots full-width, and the "Design your own adventure" card
-   * beside the stat row shows the same four, condensed, for a returning
-   * author too.
+   * all four slots full-width, and the "Design your own adventure" card in
+   * the middle of the top row shows the same four, condensed, for a
+   * returning author too.
    */
   interface GallerySlots {
     adventure: GallerySet | null;
@@ -410,8 +420,18 @@
       try {
         const [adventures, heroBoxes, singleHeroes] = await Promise.all([
           listPublicSets({ scope: 'full', kind: 'adventure', sort: 'popular', limit: POOL }),
-          listPublicSets({ scope: 'full', kind: 'heroes', sort: 'popular', limit: POOL }),
-          listPublicSets({ scope: 'hero', sort: 'popular', limit: POOL })
+          listPublicSets({
+            scope: 'full',
+            kind: 'heroes',
+            heroes: 'multi',
+            sort: 'popular',
+            limit: POOL
+          }),
+          /* No `scope` filter, unlike the two above: a whole box holding one
+             hero and a hero published on its own are both "a single hero" to
+             a reader, and pinning `scope` here is what made this slot only
+             ever find the latter. */
+          listPublicSets({ kind: 'heroes', heroes: 'single', sort: 'popular', limit: POOL })
         ]);
         gallerySlots = {
           adventure: pickRandom(adventures, 1)[0] ?? null,
@@ -877,11 +897,16 @@
       -->
       <div class="about-card">
         <h2 class="about-title">Design your own Unmatched adventure</h2>
+        <!-- Two, two, then one — the fifth spans both columns rather than
+             sitting in a half-empty third row. -->
         <ol class="about-steps">
           <li class="about-step"><span class="step-index numeric">1</span> Start a set</li>
           <li class="about-step"><span class="step-index numeric">2</span> Add your characters</li>
           <li class="about-step"><span class="step-index numeric">3</span> Design the cards</li>
-          <li class="about-step"><span class="step-index numeric">4</span> Publish your set</li>
+          <li class="about-step"><span class="step-index numeric">4</span> Design the components</li>
+          <li class="about-step wide">
+            <span class="step-index numeric">5</span> Publish your set
+          </li>
         </ol>
 
         {#if cloudEnabled()}
@@ -894,8 +919,9 @@
             {@render gallerySlot('Single hero', gallerySlots.singleHeroes[0] ?? null)}
             {@render gallerySlot('Single hero', gallerySlots.singleHeroes[1] ?? null)}
           </ul>
+          <!-- "more", because four examples are sitting right above it. -->
           <Button variant="ghost" size="sm" onclick={() => navigation.openGallery()}>
-            Browse the gallery for examples
+            Browse the gallery for more examples
           </Button>
         {/if}
       </div>
@@ -1053,6 +1079,16 @@
           </li>
           <li class="welcome-step">
             <span class="step-index numeric">4</span>
+            <div class="step-body">
+              <span class="step-title">Design the components</span>
+              <p class="step-text">
+                Figures, tokens and a health dial for everyone on the board, plus the threat
+                track and the map the adventure is played on.
+              </p>
+            </div>
+          </li>
+          <li class="welcome-step wide">
+            <span class="step-index numeric">5</span>
             <div class="step-body">
               <span class="step-title">Publish your set</span>
               <p class="step-text">
@@ -1413,9 +1449,11 @@
     color: var(--text-primary);
   }
 
+  /* Staggered two-up: 1 & 2, then 3 & 4, then 5 across the full width. Five
+     in a single column made this card far taller than the two beside it. */
   .about-steps {
-    display: flex;
-    flex-direction: column;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
     gap: var(--space-2);
     list-style: none;
   }
@@ -1424,8 +1462,13 @@
     display: flex;
     align-items: center;
     gap: var(--space-2);
+    min-width: 0;
     font-size: var(--text-xs);
     color: var(--text-secondary);
+  }
+
+  .about-step.wide {
+    grid-column: 1 / -1;
   }
 
   .about-gallery-title {
@@ -1436,14 +1479,19 @@
   }
 
   /*
-   * The slot grid, shared between the `.about-card` (2×2, small) and the
-   * zero-state `.welcome` panel (`.welcome-gallery-slots`, 4-across,
-   * larger) — same markup from the same `gallerySlot` snippet either way,
-   * only the sizing differs by context.
+   * The slot grid, shared between the `.about-card` (2×2) and the zero-state
+   * `.welcome` panel (`.welcome-gallery-slots`, 4-across) — same markup from
+   * the same `gallerySlot` snippet either way, only the column count differs.
+   *
+   * Fixed 110px columns, not `1fr`: these are a glance at four sets, not a
+   * gallery, and stretching them to fill their container made each one wider
+   * than a card tile on the Overview page. 110px is that page's own smallest
+   * zoom (`AssetsOverview`'s `--tile` at `ZOOM.min`), so "small" here means
+   * the same size "small" already means elsewhere in the app.
    */
   .gallery-slots {
     display: grid;
-    grid-template-columns: repeat(2, 1fr);
+    grid-template-columns: repeat(2, 110px);
     gap: var(--space-2);
     list-style: none;
   }
@@ -1517,7 +1565,7 @@
   }
 
   .welcome-gallery-slots {
-    grid-template-columns: repeat(4, 1fr);
+    grid-template-columns: repeat(4, 110px);
     gap: var(--space-3);
     margin-bottom: var(--space-6);
   }
@@ -1927,10 +1975,12 @@
      (a set's own "How card styles cascade") — copied rather than imported,
      since that component is tightly coupled to an open set's own
      `SetOutline`/`workshop` state that this app-level screen doesn't have. */
+  /* Staggered two-up, same shape as `.about-steps` — five stacked in one
+     column ran the panel far down the page. */
   .welcome-steps {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-4);
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--space-4) var(--space-5);
     list-style: none;
     padding-top: var(--space-5);
     border-top: 1px dashed var(--border-subtle);
@@ -1939,6 +1989,11 @@
   .welcome-step {
     display: flex;
     gap: var(--space-3);
+    min-width: 0;
+  }
+
+  .welcome-step.wide {
+    grid-column: 1 / -1;
   }
 
   .step-index {

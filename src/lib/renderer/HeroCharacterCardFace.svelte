@@ -399,16 +399,20 @@
             so a stray one falls through as literal text like any other
             unrecognised token.
           -->
-          {#each parseAbilityText(ability.text) as segment, index (index)}
-            {#if segment.kind === 'symbol'}
-              <img class="ability-symbol" src={symbolUrl(segment.name)} alt={segment.name} />
-            {:else if segment.kind === 'customSymbol'}
-              {@const custom = customSymbols.find((s) => s.id === segment.id)}
-              {#if custom?.source}
-                <img class="ability-symbol" src={custom.source} alt={custom.name} />
-              {/if}
-            {:else if segment.kind === 'text'}{segment.value}{/if}
-          {/each}
+          <!-- No line break inside the loop: `.ability-text` sets
+               `white-space: pre-wrap` so authored newlines print, which means
+               this file's own indentation prints too. See `AbilityText`. -->
+          {#each parseAbilityText(ability.text) as segment, index (index)}{#if segment.kind === 'symbol'}<img
+                class="ability-symbol"
+                src={symbolUrl(segment.name)}
+                alt={segment.name}
+              />{:else if segment.kind === 'customSymbol'}{@const custom = customSymbols.find(
+                (s) => s.id === segment.id
+              )}{#if custom?.source}<img
+                  class="ability-symbol"
+                  src={custom.source}
+                  alt={custom.name}
+                />{/if}{:else if segment.kind === 'text'}{segment.value}{/if}{/each}
         {:else}
           Ability text goes here.
         {/if}
