@@ -9,6 +9,8 @@ dist-ssr
 !.vscode/extensions.json
 *.log
 exports
+guides-intake/*
+!guides-intake/README.md
 
 # Local environment. .env.local holds the Supabase project keys.
 .env

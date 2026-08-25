@@ -56,7 +56,10 @@ from PIL import Image
 
 ROOT = Path(__file__).resolve().parent.parent
 RAW = ROOT / "exports" / "guides-raw"
+INTAKE = ROOT / "guides-intake"
 OUT = ROOT / "public" / "assets" / "guides"
+
+INTAKE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".webp"}
 
 # Background put back around the trimmed content, each side.
 MARGIN = 12
@@ -141,10 +144,10 @@ def trim(image: Image.Image) -> tuple[Image.Image, tuple[int, int]]:
     return padded, (MARGIN - left, MARGIN - top)
 
 
-def main() -> None:
+def process_captures() -> int:
+    """Trim, pad and convert everything under `exports/guides-raw/`."""
     if not RAW.is_dir():
-        print(f"nothing to do: {RAW.relative_to(ROOT)} does not exist")
-        return
+        return 0
 
     count = 0
     for source in sorted(RAW.rglob("*.png")):
@@ -157,13 +160,55 @@ def main() -> None:
 
         kb = target.stat().st_size / 1024
         print(
-            f"{source.relative_to(RAW)}  {image.width}x{image.height}"
+            f"[capture] {source.relative_to(RAW)}  {image.width}x{image.height}"
             f"  ->  {cropped.width}x{cropped.height}  {kb:.0f}KB"
             f"   offset {dx:+d},{dy:+d}"
         )
         count += 1
+    return count
 
-    print(f"\n{count} shot(s) written to {OUT.relative_to(ROOT)}")
+
+def process_intake() -> int:
+    """Convert everything under `guides-intake/` — no trim, no offset.
+
+    These are supplied already framed, so the one thing this does is format:
+    whatever comes in (`INTAKE_EXTENSIONS`) goes out as WebP under the same
+    subfolder and filename, in `public/assets/guides/`.
+    """
+    if not INTAKE.is_dir():
+        return 0
+
+    count = 0
+    for source in sorted(INTAKE.rglob("*")):
+        if source.suffix.lower() not in INTAKE_EXTENSIONS:
+            continue
+        target = (OUT / source.relative_to(INTAKE)).with_suffix(".webp")
+        target.parent.mkdir(parents=True, exist_ok=True)
+
+        image = Image.open(source).convert("RGB")
+        image.save(target, "WEBP", quality=WEBP_QUALITY, method=6)
+
+        kb = target.stat().st_size / 1024
+        print(
+            f"[intake]  {source.relative_to(INTAKE)}  {image.width}x{image.height}"
+            f"  ->  {target.relative_to(OUT)}  {kb:.0f}KB"
+        )
+        count += 1
+    return count
+
+
+def main() -> None:
+    captured = process_captures()
+    supplied = process_intake()
+
+    if captured == 0 and supplied == 0:
+        print(
+            f"nothing to do: neither {RAW.relative_to(ROOT)} nor "
+            f"{INTAKE.relative_to(ROOT)} has anything in it"
+        )
+        return
+
+    print(f"\n{captured + supplied} shot(s) written to {OUT.relative_to(ROOT)}")
 
 
 if __name__ == "__main__":

@@ -78,6 +78,25 @@
       guides.back();
     }
   }
+
+  /**
+   * Click the backdrop to close, the same as `NewSetDialog`'s own click
+   * handler would if it had needed one.
+   *
+   * A `<dialog>` opened with `showModal()` has no separate backdrop element
+   * to attach a listener to — `::backdrop` is a pseudo-element, unreachable
+   * from script — so the trick is that a click *on the dialog itself* only
+   * happens on the backdrop. Anything inside `.inner` is a real descendant
+   * and the click never reaches this handler at all; anything to say
+   * "outside" would have to stop the event from bubbling, and nothing here
+   * does. `event.target === dialog` confirms the click line up with that
+   * reasoning rather than assuming it, since a click that lands exactly on
+   * one of `.inner`'s own edge pixels could in principle still be read as
+   * the dialog if this were checked any other way.
+   */
+  function onbackdrop(event: MouseEvent): void {
+    if (event.target === dialog) guides.close();
+  }
 </script>
 
 <dialog
@@ -85,6 +104,7 @@
   class="guide"
   aria-labelledby="guide-title"
   onclose={() => guides.close()}
+  onclick={onbackdrop}
   {onkeydown}
 >
   {#if guide && step}
@@ -234,9 +254,13 @@
     overflow-y: auto;
   }
 
+  /* No max-width: the body column is already sized to the dialog (see
+     `.guide`), so capping the line length here just leaves a blank margin
+     beside a shot that is often narrower than the column — the shot is
+     capped by height, not width. A very wide dialog would want a cap; this
+     one tops out at 760px, which is well inside comfortable measure. */
   .text {
     margin: 0;
-    max-width: 62ch;
     font-size: var(--text-sm);
     line-height: var(--leading-relaxed, 1.6);
     color: var(--text-secondary);

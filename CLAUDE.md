@@ -991,6 +991,16 @@ nobody will update. Three things that route learnt the hard way:
   a differing pixel in every row of the empty tail, so nothing is uniform until
   that column has been eaten.
 
+**Not every screenshot has to come from that tool.** `guides-intake/` is a
+second, simpler drop zone for shots someone already has or takes by hand —
+see `guides-intake/README.md` for the convention. `guide-shots.py` converts
+anything found there straight to WebP, untrimmed, on the theory that a
+supplied picture is already framed the way it should end up; a DOM capture's
+element bounds rarely are. Committed to the repo is only the README — the
+folder itself, and anything dropped into it, is gitignored the same way
+`exports/` is, so a half-finished set of screenshots for a guide nobody has
+wired up yet never shows up as noise in `git status`.
+
 `TitleBar` carries a "Home" button beside "Gallery" now, for the same reason
 the gallery already paired the two: leaving a set used to mean finding
 `SetNav`'s small back-chevron in the tab strip, which this replaces rather
