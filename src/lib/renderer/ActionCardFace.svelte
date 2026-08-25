@@ -67,6 +67,7 @@
     pu,
     py,
     QUANTITY,
+    RIBBON_FOOT,
     seamBed,
     SPLIT,
     SPLIT_DEFAULT_HEIGHT,
@@ -235,6 +236,34 @@
    * returns the value it had.
    */
   const showSymbolValue = $derived(heroSymbol !== 'scheme' && card.symbolValue !== null);
+
+  /*
+   * The ribbon's foot follows whichever ribbon this card carries — a hero's
+   * (252 wide, its own axis at 262) or a villain's (230, centred on its run).
+   * Offsets are relative to `.interior`, which is what the strip lives in.
+   *
+   * A villain's ribbon starts left of the interior, so `footLeft` is negative
+   * there. That is correct and not a clamp waiting to happen: the strip is
+   * exactly as wide as the ribbon above it, and `.interior` crops the overhang
+   * the printed frame covers anyway.
+   */
+  const footLeft = $derived((isHero ? HERO_RIBBON.x : BANNER.x) - INTERIOR.x);
+  const footWidth = $derived(isHero ? HERO_RIBBON.width : BANNER.width);
+  const footAxis = $derived(
+    (isHero ? HERO_RIBBON.centerX : BANNER.x + BANNER.width / 2) - INTERIOR.x
+  );
+
+  /* Resolved exactly as `AbilityText` resolves `bonusIcon` — same token, same
+     lookup — so a built-in and an author's own glyph behave identically. */
+  const ribbonSymbolSrc = $derived.by(() => {
+    if (!card.showRibbonSymbol || !card.ribbonSymbol) return null;
+    const [segment] = parseAbilityText(card.ribbonSymbol);
+    if (segment?.kind === 'symbol') return CARD_SYMBOLS[segment.name];
+    if (segment?.kind === 'customSymbol') {
+      return customSymbols.find((entry) => entry.id === segment.id)?.source ?? null;
+    }
+    return null;
+  });
 </script>
 
 <!--
@@ -276,6 +305,42 @@
     card.
   -->
   <div class="stack" style:max-height={pu(INTERIOR.height - ART_WINDOW.minHeight)}>
+  <!--
+    The ribbon's foot: the strip between the ribbon's point and the divider.
+
+    Drawn as one tall column standing *on* the divider and running up behind
+    the ribbon, rather than as a box measured to fit the gap — because the gap
+    has no measurable size. The ribbon's length is its contents (see `.banner`)
+    and the divider rides up with the body panel, so both ends of that strip
+    move independently and nothing in this file is allowed to measure text at
+    runtime. Over-running upward costs nothing: the ribbon paints over it, and
+    `.interior`'s own `overflow: hidden` crops whatever reaches the top.
+
+    In `divider` so the ribbon's stroke, this strip and the divider bar are one
+    colour by construction — which is the whole point of it, the continuous
+    line down the ribbon's right edge and into the bar.
+  -->
+  {#if card.showRibbonSymbol}
+    <div
+      class="ribbon-foot"
+      style:left={pu(footLeft)}
+      style:width={pu(footWidth)}
+      style:height={pu(INTERIOR.height)}
+      style:background={theme.divider}
+    >
+      {#if ribbonSymbolSrc}
+        <img
+          class="ribbon-foot-symbol"
+          src={ribbonSymbolSrc}
+          alt=""
+          style:left={pu(footAxis - footLeft)}
+          style:bottom={pu(RIBBON_FOOT.gap)}
+          style:height={pu(theme.ribbonSymbolSize)}
+        />
+      {/if}
+    </div>
+  {/if}
+
   <!--
     The divider, drawn rather than masked: it is a plain bar in the art. Only
     the boost ring has shape, so only the ring is masked — and it hangs off the
@@ -967,6 +1032,32 @@
    * Lifted above the panel because the boost ring hangs well below the bar,
    * and the panel's background would otherwise paint over its lower half.
    */
+  /*
+   * Stands on the divider (`bottom: 100%` against `.stack`, whose first flow
+   * child is the bar) and runs up behind the ribbon. No `z-index`: it must
+   * stay *under* `.divider`, which has one, and under the ribbon, which is
+   * outside `.interior` and painted after it.
+   */
+  .ribbon-foot {
+    position: absolute;
+    bottom: 100%;
+    pointer-events: none;
+  }
+
+  /*
+   * Bottom-aligned, and centred on the ribbon's own axis rather than on the
+   * strip's — a hero's ribbon comes to its point at 262, not at the middle of
+   * its run, and the symbol has to stand over the point like the name above it
+   * does. `translateX(-50%)` is what lets `left` be that axis directly.
+   */
+  .ribbon-foot-symbol {
+    position: absolute;
+    display: block;
+    width: auto;
+    transform: translateX(-50%);
+    object-fit: contain;
+  }
+
   .divider {
     position: relative;
     flex: none;

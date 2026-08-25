@@ -537,6 +537,45 @@ and previewed, but not yet exported outside a PNG of one card at a time. That
 was the deliberately chosen scope for the first pass; wiring the character
 card and hero decks into those three files is the natural next one.
 
+### The ribbon's foot
+
+The strip between a name ribbon's point and the divider, filled so the ribbon's
+stroke and the divider bar read as one continuous line, with a symbol standing
+in it — `ActionCard.showRibbonSymbol`/`ribbonSymbol`, drawn by
+`ActionCardFace`'s `.ribbon-foot`. Modelled on `AbilityBlocks.bonusIcon`: the
+symbol is a token string resolved through the same `parseAbilityText` lookup,
+so a built-in and an author's own glyph are the same kind of thing, and its
+size is a themed key (`CardTheme.ribbonSymbolSize`) rather than card data.
+
+**It has its own toggle rather than being "on when a symbol is chosen."** The
+filled strip is the visible half of the idea — a card can want the unbroken
+line with no glyph in it — so `ribbonSymbol: ''` means an empty foot, not the
+absence of one.
+
+**The strip has no measurable size, which is what dictates how it is drawn.**
+Its top is wherever the ribbon's contents ended (the ribbon's length *is* its
+contents — see `.banner`) and its bottom is wherever the body panel has pushed
+the divider, so both ends move independently and neither is knowable without
+measuring text, which nothing in this renderer is allowed to do. So it is not a
+box fitted to the gap: it is one tall column standing *on* the divider
+(`bottom: 100%` inside `.stack`, whose first flow child is the bar) and running
+up **behind** the ribbon. Over-running upward costs nothing — the ribbon paints
+over it, the printed frame covers the rest, and `.interior`'s own `overflow:
+hidden` crops whatever reaches the top.
+
+Painted in `divider`, which is what makes the continuous line automatic rather
+than something to keep in sync: the ribbon's stroke, this strip and the bar are
+one colour by construction. It carries no `z-index` for the same reason — it
+must stay under `.divider`, which has one, and under the ribbon, which is
+outside `.interior` and painted after it.
+
+The symbol is centred on the **ribbon's own axis**, not the strip's: a hero's
+ribbon comes to its point at 262, not at the middle of its run, and the glyph
+has to stand over the point the way the name above it does. A villain's is
+centred on its run, and its strip starts left of `INTERIOR.x` — that negative
+offset is correct rather than a clamp waiting to happen, since the strip is
+exactly as wide as the ribbon above it and the frame covers the overhang.
+
 ### The adventure map
 
 `src/lib/map/` is the model, `renderer/MapBoard.svelte` draws it, and

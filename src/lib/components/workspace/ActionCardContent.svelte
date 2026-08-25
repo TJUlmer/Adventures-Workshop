@@ -18,6 +18,8 @@
   import { asId } from '$lib/core/id';
   import { CARD_SYMBOL_LABELS, CARD_SYMBOLS } from '$lib/renderer/assets';
   import { characterForCard, deckOwner, resolveStyleForCard, styleOriginForCard } from '$lib/sets/queries';
+  import { customSymbolLabel } from '$lib/symbols/types';
+  import { customSymbolToken, symbolToken } from '$lib/text/tokens';
   import { workshop } from '$lib/state/workshop.svelte';
   import {
     Field,
@@ -25,6 +27,7 @@
     Section,
     SegmentedControl,
     Select,
+    Slider,
     Switch,
     TextArea,
     TextInput
@@ -323,11 +326,121 @@
   </Section>
 {/if}
 
+<!--
+  The strip between the name ribbon's point and the divider, filled so the two
+  read as one line, with a symbol standing in it. Its own section rather than a
+  field inside Combat: it is neither a value nor ability copy, and the toggle
+  governs a piece of the card's chrome rather than anything printed as text.
+-->
+<Section
+  title="Ribbon symbol"
+  description="Carries the ribbon down to the divider, with a symbol standing at its foot."
+>
+  {#snippet actions()}
+    <Switch
+      label="Show"
+      checked={card.showRibbonSymbol}
+      onchange={(show) => edit((target) => (target.showRibbonSymbol = show))}
+    />
+  {/snippet}
+
+  {#if card.showRibbonSymbol}
+    <div class="icon-picker" role="group" aria-label="Ribbon symbol">
+      <button
+        type="button"
+        class="icon-choice"
+        class:active={!card.ribbonSymbol}
+        onclick={() => edit((target) => (target.ribbonSymbol = ''))}
+      >
+        None
+      </button>
+      {#each COMBAT_SYMBOLS as name (name)}
+        <button
+          type="button"
+          class="icon-choice"
+          class:active={card.ribbonSymbol === symbolToken(name)}
+          onclick={() => edit((target) => (target.ribbonSymbol = symbolToken(name)))}
+        >
+          <img src={CARD_SYMBOLS[name]} alt="" />
+          {CARD_SYMBOL_LABELS[name]}
+        </button>
+      {/each}
+      {#each workshop.adventure.customSymbols.filter((s) => s.source) as symbol (symbol.id)}
+        <button
+          type="button"
+          class="icon-choice"
+          class:active={card.ribbonSymbol === customSymbolToken(symbol.id)}
+          onclick={() => edit((target) => (target.ribbonSymbol = customSymbolToken(symbol.id)))}
+        >
+          <img src={symbol.source} alt="" />
+          {customSymbolLabel(symbol)}
+        </button>
+      {/each}
+    </div>
+
+    <!-- Bleed pixels, not a multiple of the ability text — this symbol stands
+         alone rather than sitting in a run of copy. See `ribbonSymbolSize`. -->
+    <Slider
+      label="Symbol size"
+      value={resolvedTheme.ribbonSymbolSize}
+      min={40}
+      max={220}
+      step={2}
+      neutral={110}
+      format={(value) => `${Math.round(value)}`}
+      onchange={(size) => workshop.setStyle(styleTarget, 'ribbonSymbolSize', size)}
+    />
+  {/if}
+</Section>
+
 <Section title="Notes" description="Working notes. Never printed.">
   <TextArea bind:value={card.notes} rows={2} placeholder="Balance thoughts, references…" />
 </Section>
 
 <style>
+  /*
+   * The same chip row `AbilityStack` uses for the Bonus icon, repeated rather
+   * than shared: component styles are scoped, and the two rows are four
+   * declarations, not a component's worth of behaviour.
+   */
+  .icon-picker {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+  }
+
+  .icon-choice {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    height: 28px;
+    padding-inline: var(--space-2);
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border-subtle);
+    font-size: var(--text-xs);
+    color: var(--text-muted);
+    transition:
+      color var(--duration-fast) var(--ease-out),
+      border-color var(--duration-fast) var(--ease-out);
+  }
+
+  .icon-choice:hover {
+    color: var(--text-secondary);
+    border-color: var(--border-strong);
+  }
+
+  .icon-choice.active {
+    color: var(--text-primary);
+    border-color: var(--border-accent);
+    background: var(--accent-soft);
+  }
+
+  .icon-choice img {
+    width: 14px;
+    height: 14px;
+    object-fit: contain;
+  }
+
   .values {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));

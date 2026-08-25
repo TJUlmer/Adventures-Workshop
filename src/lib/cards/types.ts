@@ -171,6 +171,22 @@ export interface ActionCard extends CardCommon {
    */
   split: boolean;
   defenseAbility: AbilityBlocks;
+  /**
+   * The ribbon's foot: the strip between the name ribbon's point and the
+   * divider, filled in `divider` so the ribbon's own stroke and the divider
+   * read as one continuous line, with a symbol standing at its bottom.
+   *
+   * Its own toggle rather than "on when a symbol is chosen", because the
+   * filled strip is the visible half of the idea — a card can want the
+   * unbroken line with no glyph in it, and `''` then means an empty foot
+   * rather than no foot at all.
+   *
+   * `ribbonSymbol` is a token string, exactly like `AbilityBlocks.bonusIcon`
+   * and resolved through the same `parseAbilityText` lookup, so a built-in
+   * and an author's own glyph are the same kind of thing here.
+   */
+  showRibbonSymbol: boolean;
+  ribbonSymbol: string;
 }
 
 /**

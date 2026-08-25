@@ -223,6 +223,14 @@ export interface CardTheme {
    */
   bonusIconSize: number;
   /**
+   * `ActionCard.ribbonSymbol`'s printed height, in bleed pixels — not in
+   * multiples of anything, unlike `bonusIconSize` above. The bonus icon sits
+   * in a run of ability text and has to scale with it; this one stands alone
+   * in the ribbon's foot, where the only thing it has to agree with is the
+   * ribbon's own width, which is fixed.
+   */
+  ribbonSymbolSize: number;
+  /**
    * Ability text size on an action card, in the same "artwork units" every
    * other measured size in `renderer/geometry.ts` is expressed in — see
    * `ABILITY.size` there, which this overrides. A temporary dial rather than
@@ -274,6 +282,9 @@ export const DEFAULT_CARD_THEME: CardTheme = {
    * from here down for exactly that reason.
    */
   bonusIconSize: 2.1,
+  /* Bleed pixels. A literal rather than a `geometry.ts` import: this
+     module is deliberately import-free — see the head of the file. */
+  ribbonSymbolSize: 110,
   abilityFontSize: 90,
   pattern: NO_PATTERN,
   customPattern: NO_CUSTOM_PATTERN,
@@ -345,6 +356,7 @@ export const THEME_KEYS = [
   'boostInk',
   'bonusAbilityInk',
   'bonusIconSize',
+  'ribbonSymbolSize',
   'abilityFontSize',
   'pattern',
   'customPattern',

@@ -99,7 +99,9 @@ export function createCard<TType extends CardType>(
         symbolValue: 2,
         owner: 'hero',
         split: false,
-        defenseAbility: createAbilityBlocks()
+        defenseAbility: createAbilityBlocks(),
+        showRibbonSymbol: false,
+        ribbonSymbol: ''
       } as CardOfType<TType>;
   }
 }

@@ -679,7 +679,11 @@ function normalizeCard(value: unknown): Card | null {
         symbolValue: nullableNum(raw['symbolValue'], 2),
         owner: cardOwner(raw['owner']),
         split: bool(raw['split'], false),
-        defenseAbility: abilityBlocks(raw['defenseAbility'])
+        defenseAbility: abilityBlocks(raw['defenseAbility']),
+        /* Off on a document written before the ribbon foot existed, which is
+           what keeps every existing card looking exactly as it did. */
+        showRibbonSymbol: bool(raw['showRibbonSymbol'], false),
+        ribbonSymbol: str(raw['ribbonSymbol'])
       } as ActionCard;
   }
 }

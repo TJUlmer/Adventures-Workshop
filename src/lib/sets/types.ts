@@ -218,6 +218,14 @@ export type SetId = Id<'Set'>;
  *      for a dial before now. See `figures/health-dial.ts`'s
  *      `healthDialSpec`.
  *
+ * v32 — an action card gained `showRibbonSymbol`/`ribbonSymbol`: the ribbon's
+ *      foot, the strip between the name ribbon's point and the divider, filled
+ *      so the two read as one line, with a symbol standing in it. Two added
+ *      fields with `false`/`''` defaults, so a v31 document opens with the
+ *      foot off and looks exactly as it did — the bump is here because a v32
+ *      document opened by a v31 build would silently drop the foot, not
+ *      because anything repairs wrongly without it.
+ *
  * v31 — `AdventureMap.size` gained a fourth value, `custom`, which takes the
  *      board's aspect from the attached artwork rather than from one of
  *      `MAP_SIZES`' three fixed shapes. An added enum value rather than an
@@ -238,7 +246,7 @@ export type SetId = Id<'Set'>;
  * Older documents are *repaired*, not rejected — see `sets/normalize.ts`. Only
  * a version newer than this build understands is refused.
  */
-export const SET_SCHEMA_VERSION = 31;
+export const SET_SCHEMA_VERSION = 32;
 
 /**
  * What a set is for.

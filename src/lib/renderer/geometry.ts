@@ -308,6 +308,18 @@ export const BOOST_DISC_RADIUS = (BOOST.innerRadius + BOOST.outerRadius) / 2;
  * the ring's interior crosses it, so lifting out this box gives the ring plus
  * the two bar stubs meeting it — which is exactly what the bar draws anyway.
  */
+/**
+ * The ribbon's foot — the strip between a name ribbon's point and the divider.
+ *
+ * Only one number, because the strip has no measurable size of its own: its
+ * top is wherever the ribbon's contents ended and its bottom is wherever the
+ * body panel has pushed the divider, and neither is knowable without
+ * measuring text. `ActionCardFace` draws it as a column standing on the
+ * divider and running up behind the ribbon instead. This is the clearance
+ * between the symbol's foot and the divider bar.
+ */
+export const RIBBON_FOOT = { gap: 24 } as const;
+
 export const BOOST_RING = {
   x: BOOST.cx - BOOST.outerRadius,
   y: BOOST.cy - BOOST.outerRadius,
