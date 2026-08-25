@@ -341,10 +341,10 @@ export const GUIDES: readonly Guide[] = [
           },
           {
             x: 0.35,
-            y: 0.555,
+            y: 0.54,
             w: 0.3,
-            h: 0.1,
-            label: 'How large — independent of every other use'
+            h: 0.12,
+            label: 'How large'
           }
         ]
       }
@@ -359,13 +359,13 @@ export const GUIDES: readonly Guide[] = [
     steps: [
       {
         text:
-          'Select a character and open their Identity tab. Every figure starts with one action deck, but "Add deck" beside the Decks tile isn\'t limited to that — it gives the character a second deck of their own, empty and ready to name.',
+          'Select a character and open their Identity tab. Every character starts with one action deck, but "Add deck" beside the Decks tile isn\'t limited to that — it gives the character a second deck of their own, empty and ready to name.',
         shot: 'adding-multiple-decks/01-add-deck.webp',
         alt: 'A character\'s Identity tab, with the Identity tile on the left and the Decks tile — one Action deck, and an "Add deck" button — on the right.',
         hotspots: [
           {
             x: 0.795,
-            y: 0.045,
+            y: 0.085,
             w: 0.155,
             h: 0.065,
             label: 'One click, one new empty deck'
@@ -374,13 +374,13 @@ export const GUIDES: readonly Guide[] = [
       },
       {
         text:
-          'Rename it to whatever the extra cards actually are — say, "Supplies" for a set of gear cards a villain hands out beyond their normal 30-card action deck. Its kind stays "Special" unless you have a real reason to change it; that\'s just the label for "not one of the deck types the app already has a use for."',
+          'Rename it to whatever the extra cards actually are — say, "Supplies" for a set of gear cards a hero utilizes beyond their normal 30-card action deck. It is labeled as "Special" unless you have a real reason to change it; that\'s just the label for "not one of the deck types the app already has a use for."',
         shot: 'adding-multiple-decks/02-rename.webp',
         alt: 'The Decks tile with two decks: Action deck, and a renamed Supplies deck of kind Special, both with cards in them.',
         hotspots: [
           {
             x: 0.475,
-            y: 0.44,
+            y: 0.48,
             w: 0.51,
             h: 0.26,
             label: 'A second deck, named for what it holds'
@@ -389,7 +389,7 @@ export const GUIDES: readonly Guide[] = [
       },
       {
         text:
-          'This is where it earns its keep while you work: the sidebar lists a character\'s decks separately, each with its own card count. A villain with thirty action cards and a handful of supply cards mixed into one pile is a scroll to find anything; split apart, each deck is short enough to see at a glance.',
+          'This is where it earns its keep while you work: the left sidebar lists a character\'s decks separately, each with its own card count.',
         shot: 'adding-multiple-decks/03-sidebar.webp',
         alt: 'The sidebar under The Huntsman, showing Action deck and Supplies as two separate, separately-counted groups.',
         hotspots: [
@@ -404,7 +404,7 @@ export const GUIDES: readonly Guide[] = [
       },
       {
         text:
-          'One thing this does not do on its own: separate the cards into their own pile in the Tabletop Simulator export. TTS piles are built by card type, not by which deck an author filed something in — every action card a character has, whichever deck it lives in here, deals from the same pile on the table. A second deck is genuinely useful for keeping your own workspace readable, and for splitting off cards of a different type (rules text, say) that would already export separately regardless of which deck holds them. Just don\'t reach for it expecting Tabletop Simulator to hand a player two separate stacks — that isn\'t what it changes.'
+          'One thing this does not do on its own: separate the cards into their own pile in the Tabletop Simulator export. TTS piles are built by card type, not by which deck an author filed something in. Every action card a character has, whichever deck it lives in here, deals from the same pile on the table. A second deck is genuinely useful for keeping your own workspace readable, and for splitting off cards of a different type (rules text, say) that would already export separately regardless of which deck holds them.'
       }
     ],
     action: { label: 'Open the card editor', run: { to: 'setPage', page: 'editor' } }
@@ -417,16 +417,16 @@ export const GUIDES: readonly Guide[] = [
     steps: [
       {
         text:
-          'The Export block on a set\'s own page (its Edit tab) covers every way to get a set out of the app. One thing applies to all of it: the picker at the top. Left on "Whole set," every export below covers everything. Pick one hero — or, if the set has a villain side, that — and every export below switches to just that slice, nothing else along for the ride.',
+          'The Export block on a set\'s own page (its Edit tab) covers every way to get a set out of the app. One thing applies to all of it: the picker at the top. When left on "Whole set," every export below covers everything. Pick one hero or villain and every export below switches to just that slice, nothing else goes along for the ride.',
         shot: 'sharing-a-set/01-scope.webp',
         alt: 'The Export scope picker set to a hero named Red, with a hint reading "Just Red — not the rest of Wicked Woods."',
         hotspots: [
           {
             x: 0.0,
-            y: 0.14,
+            y: 0.12,
             w: 0.98,
-            h: 0.44,
-            label: 'Everything below follows this'
+            h: 0.60,
+            label: ''
           }
         ]
       },
@@ -447,13 +447,13 @@ export const GUIDES: readonly Guide[] = [
       },
       {
         text:
-          'The Tabletop Simulator export is not a single JSON to import — it\'s a folder: every pile\'s face sheets, the health dial and every generated token, and one saved-object file that ties them together. Unzip it, then copy the whole unzipped folder into your Tabletop Simulator Saved Objects folder — not just the one file inside it. Type that folder\'s path in once below and every future export already points there, so nothing needs editing by hand.',
+          'The Tabletop Simulator export will create a zipped folder of all the assets needed for TTS. Unzip it, then copy the whole unzipped folder into your Tabletop Simulator Saved Objects folder. Type that folder\'s path in once below before exporting and every future export already points there, so nothing needs editing by hand.',
         shot: 'sharing-a-set/03-tts.webp',
         alt: 'The Tabletop Simulator export button, with its note explaining to copy the entire unzipped folder into the Saved Objects folder.',
         hotspots: [
           {
             x: 0.0,
-            y: 0.26,
+            y: 0.28,
             w: 1.0,
             h: 0.2,
             label: 'The whole folder — not one file out of it'
@@ -477,21 +477,21 @@ export const GUIDES: readonly Guide[] = [
       },
       {
         text:
-          '"Set file (.json)" is the odd one out on this list: everything else is for playing the set somewhere else, this is for the app itself. It\'s the complete document, re-importable on this or any other machine running Adventures Workshop — the format to keep backups in, or to hand a finished set to a co-author to keep working on locally.',
+          '"Set file (.json)" is the odd one out on this list: everything else is for playing the set somewhere else, this is for the app itself. It\'s the complete document, re-importable on this or any other machine running Unmatched Labs. It is useful for backups, or to hand a finished set to a co-author to keep working on locally.',
         shot: 'sharing-a-set/05-jsonfile.webp',
         alt: 'The "Set file (.json)" export button, described as the complete, re-importable document.',
         hotspots: [{ x: 0.0, y: 0.0, w: 1.0, h: 0.95, label: 'A whole copy of the document itself' }]
       },
       {
         text:
-          'Publishing is a different thing from exporting: it puts a copy on Adventures Workshop\'s own servers and hands you a link, and "Who can see it" decides who that link is good for. Listed publicly puts it in the gallery, where anyone can find it browsing. Anyone with the link is unlisted — nobody stumbles onto it, but the link itself works for whoever has it, forever. Only me stops the link working at all, without unpublishing the set itself — flip it back the moment you want it live again.',
+          'Publishing is a different thing from exporting: it puts a copy on Unmatched Lab\'s own servers and hands you a link, and "Who can see it" decides who that link is good for. "Listed publicly" puts it in the gallery, where anyone can find it browsing. "Anyone with the link" is unlisted — nobody stumbles onto it, but the link itself works for whoever has it, forever. "Only me" stops the link working at all, without unpublishing the set itself — flip it back the moment you want it live again.',
         shot: 'sharing-a-set/06-visibility.webp',
         alt: 'The Share this set panel, with "Who can see it" set to Anyone with the link, and the share link above it.',
         hotspots: [
           {
-            x: 0.06,
-            y: 0.53,
-            w: 0.88,
+            x: 0.04,
+            y: 0.45,
+            w: 0.92,
             h: 0.13,
             label: 'Three different answers to "who has this link"'
           }
