@@ -22,6 +22,7 @@
   import { fetchSetSummaryBySlug, listMyPublishedSets, listPublicSets } from '$lib/cloud/sets';
   import type { GallerySet } from '$lib/cloud/sets';
   import { asId } from '$lib/core/id';
+  import { CARD_FORMATS, trimBox } from '$lib/renderer/geometry';
   import { healthSummaryFromCounts } from '$lib/sets/health';
   import type { SetId, SetKind } from '$lib/sets/types';
   import { navigation } from '$lib/state/navigation.svelte';
@@ -522,6 +523,24 @@
   }
 
   /**
+   * A slot tile's picture box is the printed card's own shape, and the two
+   * constants below are what let a bleeding cover fill it *at trim*.
+   *
+   * Most of these pictures are a deck back, and a hero's replacement back is
+   * supplied on the action card's full bleed canvas — so showing the file as
+   * it stands shows 3.28mm of printer's margin all the way round, the part
+   * that exists to be guillotined off. Scaling about the centre pushes that
+   * margin outside the tile's own `overflow: hidden`, cropping it away
+   * without resampling anything, and it works because the bleed is symmetric.
+   * `TALL` rather than `WIDE` because the box is the card's *own* aspect, so
+   * `object-fit: cover` fits by height — see `GalleryScreen`, which does the
+   * same thing for the same reason and is where both numbers come from.
+   */
+  const CARD_ASPECT = `${CARD_FORMATS.action.mm.width} / ${CARD_FORMATS.action.mm.height}`;
+  const TRIM_SCALE_TALL =
+    CARD_FORMATS.action.bleed.height / trimBox(CARD_FORMATS.action).height;
+
+  /**
    * Total browser storage this origin is using, against what it could use —
    * not just this library's own byte counts, which is why it is fetched
    * separately from `entries` rather than summed from `entry.bytes`: the
@@ -740,9 +759,17 @@
   <li class="slot">
     {#if set}
       <button type="button" class="slot-tile" onclick={() => navigation.openShared(set.slug)}>
-        <span class="slot-thumb" style:background={tint(set.id)}>
+        <span
+          class="slot-thumb"
+          style:aspect-ratio={CARD_ASPECT}
+          style:--trim-scale={TRIM_SCALE_TALL}
+          style:background={tint(set.id)}
+        >
           {#if galleryImage(set)}
-            <img src={galleryImage(set)} alt="" loading="lazy" />
+            <!-- `cover_bleeds` governs the thumbnail as well as the cover:
+                 both are the same artwork, and a plain downscale keeps the
+                 bleed the same proportion of the frame. -->
+            <img src={galleryImage(set)} class:trimmed={set.cover_bleeds} alt="" loading="lazy" />
           {:else}
             <span class="initials">{initials(set.name)}</span>
           {/if}
@@ -751,9 +778,11 @@
         <span class="slot-name">{set.name || 'Untitled Adventure'}</span>
       </button>
     {:else}
-      <div class="slot-tile slot-empty">
+      <div class="slot-tile">
+        <span class="slot-thumb slot-empty" style:aspect-ratio={CARD_ASPECT}>
+          <span class="slot-empty-note">None published yet</span>
+        </span>
         <span class="slot-label">{label}</span>
-        <span class="slot-empty-note">None published yet</span>
       </div>
     {/if}
   </li>
@@ -1489,9 +1518,17 @@
    * zoom (`AssetsOverview`'s `--tile` at `ZOOM.min`), so "small" here means
    * the same size "small" already means elsewhere in the app.
    */
+  /*
+   * All four on one row. `minmax(0, 110px)` rather than a flat `110px`: 110
+   * is the ceiling, and the columns give way below it when the panel is
+   * narrower than 4 × 110 + gaps — which the middle column of `.top-row` is
+   * at ordinary window widths. One row that tightens is better than a 2×2
+   * that doubles the height of a card-shaped tile, and `aspect-ratio` keeps
+   * the shape right at whatever width the column settles on.
+   */
   .gallery-slots {
     display: grid;
-    grid-template-columns: repeat(2, 110px);
+    grid-template-columns: repeat(4, minmax(0, 110px));
     gap: var(--space-2);
     list-style: none;
   }
@@ -1504,19 +1541,24 @@
     text-align: left;
   }
 
-  /* A short strip, not a tall box — a 4:3 photo panel read as oversized next
-     to two lines of text under it, out of proportion with every other
-     thumbnail on this screen. */
+  /* The printed card's own shape — `aspect-ratio` is set inline from
+     `CARD_ASPECT` so the mm figures stay the single source. `overflow` is
+     what crops a bleeding cover back to trim; see `.slot-thumb img.trimmed`. */
   .slot-thumb {
     display: grid;
     place-items: center;
     width: 100%;
-    height: 50px;
     border-radius: var(--radius-sm);
     overflow: hidden;
     outline: 1px solid transparent;
     outline-offset: -1px;
     transition: outline-color var(--duration-fast) var(--ease-out);
+  }
+
+  /* Pushes the printer's margin outside the box above. Nothing is resampled;
+     the only number is `--trim-scale`, which comes from `trimBox`. */
+  .slot-thumb img.trimmed {
+    transform: scale(var(--trim-scale));
   }
 
   .slot-tile:hover .slot-thumb {
@@ -1547,14 +1589,11 @@
 
   /* A category with nothing published yet still holds its place in the
      grid, at the same footprint a real tile would take. */
+  /* Holds a real tile's footprint exactly — same box, same aspect — so an
+     empty category keeps its place in the row instead of collapsing it. */
   .slot-empty {
-    align-items: center;
-    justify-content: center;
-    gap: var(--space-1);
-    height: 50px;
     padding: var(--space-2);
     border: 1px dashed var(--border-subtle);
-    border-radius: var(--radius-sm);
     text-align: center;
   }
 

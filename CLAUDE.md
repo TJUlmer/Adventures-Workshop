@@ -1486,6 +1486,17 @@ Traps that have cost real time here:
   first classed on `.frame`, which looked right on screen and in the print view
   and photographed the artwork back in, in colour — caught by sampling a
   rasterised mono card and finding 45% of it salmon pink.
+- **`base.css` resets every `img` to `display: block`, so an image used as
+  inline content needs `display: inline-block` back.** Without it the glyph is
+  a block-level box and breaks the line either side of itself — a symbol in an
+  action card's title printed the words on one line and the shield alone on
+  the next, with nothing near the box's width to blame it on (105px of text
+  plus an 18px glyph in a 289px box). `.title-symbol` was the only symbol on
+  `ActionCardFace` missing the override, and that is exactly why it was easy
+  to miss: every *other* symbol on that face is absolutely positioned, where
+  `block` is correct and no override is wanted. Two separate bugs produce the
+  same "a symbol adds a line break" report — this one and the `pre-wrap` one
+  below — so check `getComputedStyle(img).display` before assuming whitespace.
 - **Inside `white-space: pre-wrap`, the source file's own indentation prints.**
   Ability copy sets it so an author's newlines survive (`AbilityText`'s
   `.line`, `HeroCharacterCardFace`'s `.ability-text`), which also means a

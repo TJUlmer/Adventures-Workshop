@@ -1297,6 +1297,19 @@
    * with the type around it while its ink comes out circular.
    */
   .title-symbol {
+    /*
+     * `inline-block`, and it is not optional: `base.css` resets every `img`
+     * to `display: block`, so a symbol in the title came out block-level and
+     * broke the line either side of itself — `Card Title{{defense}}` printed
+     * the words on one line and the shield alone on the next, with nothing
+     * near the box's width to blame it on (105px of text plus an 18px glyph
+     * in a 289px box). Every *other* symbol on this face is absolutely
+     * positioned, where `block` is right and no override is wanted, which is
+     * exactly why this one was easy to miss — it is the only one that is
+     * inline content. `AbilityText`'s `.symbol` and `HeroCharacterCardFace`'s
+     * `.ability-symbol` already carry the same override for the same reason.
+     */
+    display: inline-block;
     width: auto;
     object-fit: contain;
   }
