@@ -190,5 +190,89 @@ export const GUIDES: readonly Guide[] = [
       }
     ],
     action: { label: 'Browse the gallery', run: { to: 'gallery' } }
+  },
+  {
+    id: 'how-components-work',
+    title: 'How components work',
+    summary: 'Miniatures, tokens and the health dial — the pieces beyond the cards.',
+    icon: 'users',
+    steps: [
+      {
+        text:
+          'A set is more than its cards — Unmatched is played with miniatures, tokens and a health dial for every villain and minion, and Tabletop Simulator needs digital versions of all of it to actually play a fan set. The Components page is where you list what your adventure needs: figures to stand in for characters, tokens the rules place or remove, health dials, and anything else that goes in the box. A few common tokens have their sizes filled in for you; everything else starts blank.',
+        shot: 'how-components-work/01-what.webp',
+        alt: 'The Components page, with preset token buttons, kind buttons, and an empty list.',
+        hotspots: [
+          {
+            x: 0.615,
+            y: 0.07,
+            w: 0.375,
+            h: 0.17,
+            label: 'Presets first, then any kind on its own'
+          }
+        ]
+      },
+      {
+        text:
+          'Every component has a kind — figure, token, health dial or game piece — and can be tied to a character. Assigning one matters beyond bookkeeping: a health dial with no name takes the character\'s automatically, and Tabletop Simulator uses the link to know whose token is whose. A component with nothing to do with a specific character — a threat track marker, a deck box insert — is just left unassigned.',
+        shot: 'how-components-work/02-add-assign.webp',
+        alt: 'A token named Red, assigned to the character Red, with a reference image attached.',
+        hotspots: [
+          {
+            x: 0.115,
+            y: 0.3,
+            w: 0.8,
+            h: 0.16,
+            label: 'Which character this piece belongs to'
+          }
+        ]
+      },
+      {
+        text:
+          'A component is built from whichever of three sources you give it. Reference art is a picture the app can wrap onto a generated piece itself — see the next step. If you already have a sculpt, attach an STL or OBJ model directly and the reference art becomes just a picture for reference. A ready-made Tabletop Simulator object — with its own working script, like the health dial\'s — can be attached whole and spliced into the export as-is.',
+        shot: 'how-components-work/03-sources.webp',
+        alt: 'A figure called The Huntsman with a 3D model and a Tabletop Simulator object attached, and no reference image.',
+        hotspots: [
+          {
+            x: 0.115,
+            y: 0.44,
+            w: 0.8,
+            h: 0.42,
+            label: 'Your own model, or one you attach whole'
+          }
+        ]
+      },
+      {
+        text:
+          'No sculpt of your own? Turn on "Build a token from the image" and the app generates one — a flat disc or polygon with your reference art wrapped onto its face, sized however you like. Shape, diameter, thickness and the rim colour left showing at the edge are all yours to set, and the preview below updates as you go. This is what every preset token already does, and it is enough for most tokens a set needs.',
+        shot: 'how-components-work/04-customize.webp',
+        alt: 'A generated token\'s shape, diameter, thickness, rim colour and zoom controls, with a live 3D preview of the finished disc below.',
+        hotspots: [
+          {
+            x: 0.115,
+            y: 0.235,
+            w: 0.8,
+            h: 0.1,
+            label: 'Shape, size and colour — the piece updates live'
+          }
+        ]
+      },
+      {
+        text:
+          'The health dial is the one component the app already knows how to build — every villain and minion needs one, so it is its own kind rather than something you configure from scratch. Give it a face image and the range it should count, and everything else — the disc, the click-to-adjust triggers, the script that runs them in Tabletop Simulator — comes built in.',
+        shot: 'how-components-work/05-dial.webp',
+        alt: 'A health dial\'s value range and face art settings, with a live 3D preview of the finished dial below.',
+        hotspots: [
+          {
+            x: 0.115,
+            y: 0.19,
+            w: 0.245,
+            h: 0.36,
+            label: 'The one range you actually set'
+          }
+        ]
+      }
+    ],
+    action: { label: 'Open Components', run: { to: 'setPage', page: 'figures' } }
   }
 ];
