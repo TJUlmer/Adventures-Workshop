@@ -1611,6 +1611,81 @@ fill**, so shapes keep their drawn form while taking any colour or gradient.
 Chrome that must sample a gradient across the whole card is painted as a
 full-card layer and cut to shape with `clip-path` (see `clipRect`/`seamBed`).
 
+### The app's own theme: Light Slate / Twilight Blue
+
+Not to be confused with the *card* style cascade two sections down — that is
+an author's own design choices for their printed cards, carried in the
+document. This is the app's chrome around it: `styles/tokens.css`, switched
+by a `data-theme="light"`/`"dark"` attribute on `<html>`, with a `ThemeToggle`
+in `TitleBar` and on Home. Light Slate (pale blue-grey) is the default;
+Twilight Blue (a cooler, noticeably *brighter* dark theme than the old "Warm
+Slate") is `:root[data-theme="dark"]`.
+
+**Two full palettes, not one with overrides.** `:root` carries the complete
+light theme and the dark block redefines every neutral, accent, text, border,
+role-tint and shadow token from scratch, rather than starting from Warm
+Slate's numbers and patching a few. A shadow tuned for a near-black canvas is
+a heavy charcoal smear once the ground goes pale — alpha, not just hue, has to
+change — and a hairline top-edge highlight that simulates light catching a
+*dark* raised panel has nothing to catch on a white one, so light's
+`--edge-highlight` is `transparent` rather than a fainter version of dark's.
+Only what sits outside the surface palette — `--kind-*`, typography, spacing,
+radii, motion, layout — lives once, unscoped, because a printed card must not
+depend on which theme the app happens to be in (see *Style cascade*, next).
+
+**`--role-*`/`--section-*` got their own light-theme step; `--kind-*` did
+not, on purpose.** Both look like the same kind of token — a named accent
+colour — but only one of them is tied to card data. `--kind-attack` etc.
+mirror `CARD_KIND_META[kind].color` and must stay theme-independent for
+exactly the reason above. `--role-hero`/`-villain`/`-minion`/`-sidekick` and
+`--section-initiative`/`-event`/`-rules` are editor-chrome-only — nothing in
+card data reads them — and `SetHome`'s roster prints a role as small coloured
+text (`.roster-role`), which is the one place the dark theme's values would
+fail contrast on a light ground outright. Deepened for light the same way the
+four status colours (`--success`/`-warning`/-`danger`/`-info`) are, for the
+same reason: `CharacterRow`'s delete-armed label prints `--danger` as text,
+and `--rose-500` at the dark theme's L60% is a dark-ground colour.
+
+**`--brand-gold` is gone, not repointed at blue.** It existed only because
+`--accent-press` (`gold-600`) already *was* its value — the file said so:
+"`--brand-gold` drops one step to `gold-600` so it stays a distinct, deeper
+shade instead of colliding with `--accent`". A token that was already a spare
+name for another token's value doesn't need to survive a re-theme; every
+former `var(--brand-gold)` call site (the logo mark's gradient, `SetHome`'s
+badges, `ValueControl`'s modified-state border, `SetEditor`'s
+`WorkspaceHeader` `colorVar`, …) now reads `var(--accent-press)` directly,
+and tracks whichever theme is active for free.
+
+**Primitive ramps are redefined whole per theme, not flipped end-for-end.**
+`--grey-1000` means "darkest step of *this* theme's own ramp" in both blocks
+— light's `--grey-1000` is a dark navy, dark's is near-black — never
+"whichever end happened to hold dark before." This is what lets the ~35
+places outside the semantic layer that reach for a raw `--grey-*` (a
+`Switch`/`Slider` track, `ModelViewer`'s void, `ArtworkPanel`'s placeholder
+gradients, the card preview panel's own backdrop) track the active theme
+automatically, without auditing each one — they were already asking for "the
+darkest/lightest neutral available," which is exactly what the convention
+still means once the ramp underneath it changes. Flipping which grey step
+`--surface-canvas`/`--text-primary` point to, instead, would have kept "1000"
+sometimes meaning darkest and sometimes lightest depending on which theme was
+active — confusing on its own terms even before touching the ~35 direct
+callers.
+
+**The switch itself has to beat first paint, so it is not Svelte state
+first.** `index.html` carries a small inline `<script>` in `<head>` that reads
+`localStorage['workshop-theme']`, falls back to
+`matchMedia('(prefers-color-scheme: dark)')`, and stamps `data-theme` before
+the stylesheet is even parsed — set any later than that (inside `main.ts`,
+after `mount()`) and every load flashes the wrong theme once, visibly, before
+Svelte's effect catches up. `state/theme.svelte.ts` re-derives the identical
+value the identical way for everything *after* that first paint — the click
+handler, and a `readInitial()` that trusts the attribute the boot script
+already set rather than recomputing it, so the two can't disagree about where
+they started. `localStorage`, not IndexedDB: this is one small string, not a
+multi-megabyte document, so none of the reasoning in *Local-first, offline,
+no backend* about `localStorage`'s 5MB ceiling applies — `cloud/auth.svelte.ts`
+already keeps the Supabase session the same way, for the same reason.
+
 ### Style cascade
 
 `stock template → set.style → character.style → card.style`, flattened by

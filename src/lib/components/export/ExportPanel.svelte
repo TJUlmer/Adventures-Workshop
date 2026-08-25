@@ -381,7 +381,7 @@
   }
 
   .bleed input {
-    accent-color: var(--brand-gold);
+    accent-color: var(--accent-press);
   }
 
   .bleed:has(input:disabled) {

@@ -193,7 +193,7 @@
 
   .on .ring {
     opacity: 1;
-    border-color: var(--brand-gold);
+    border-color: var(--accent-press);
   }
 
   .name {

@@ -33,7 +33,7 @@
   import type { LibraryEntry } from '$lib/storage/library';
   import { readStorageEstimate } from '$lib/storage/indexeddb';
   import type { StorageEstimate } from '$lib/storage/indexeddb';
-  import { Button, Icon, SegmentedControl, Select } from '$lib/ui';
+  import { Button, Icon, SegmentedControl, Select, ThemeToggle } from '$lib/ui';
   import NewSetDialog from './NewSetDialog.svelte';
 
   let fileInput = $state<HTMLInputElement | null>(null);
@@ -813,6 +813,7 @@
         accept=".json,application/json"
         onchange={importSet}
       />
+      <ThemeToggle />
       <!--
         The way into the gallery. Beside Import rather than promoted above New
         set: someone opening the app usually came to work on their own set, and
@@ -1265,8 +1266,8 @@
     height: 22px;
     rotate: 45deg;
     border-radius: 4px;
-    background: linear-gradient(140deg, var(--gold-400), var(--gold-600));
-    box-shadow: 0 0 20px color-mix(in oklab, var(--brand-gold) 45%, transparent);
+    background: linear-gradient(140deg, var(--accent-hover), var(--accent-press));
+    box-shadow: 0 0 20px color-mix(in oklab, var(--accent-press) 45%, transparent);
   }
 
   .titles {

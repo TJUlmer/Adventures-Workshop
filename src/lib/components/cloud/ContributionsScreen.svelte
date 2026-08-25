@@ -542,7 +542,7 @@
   }
 
   .entry-head input {
-    accent-color: var(--brand-gold);
+    accent-color: var(--accent-press);
   }
 
   .badge,

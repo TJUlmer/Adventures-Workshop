@@ -1,12 +1,39 @@
 <!doctype html>
-<html lang="en" data-theme="dark">
+<html lang="en">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="color-scheme" content="dark" />
+    <meta name="color-scheme" content="light dark" />
     <meta name="description" content="Adventures Workshop — a local-first builder for custom Unmatched Adventures sets." />
     <link rel="icon" type="image/png" href="/assets/favicon.png" />
     <title>Adventures Workshop</title>
+    <!--
+      Stamps `data-theme` before the stylesheet is even parsed, so the first
+      paint is already the right theme — `styles/tokens.css` keys its whole
+      dark palette off this attribute, and setting it any later (in Svelte,
+      after `mount()`) would mean one visible flash of the wrong theme on
+      every load. `state/theme.svelte.ts` re-derives the identical value
+      from the identical rule for everything after this first paint; kept
+      here as plain script rather than imported from there because a module
+      import is deferred past first paint, which defeats the point.
+    -->
+    <script>
+      (function () {
+        var stored = null;
+        try {
+          stored = window.localStorage.getItem('workshop-theme');
+        } catch (error) {
+          // Private browsing, or storage disabled — fall through to system.
+        }
+        var theme =
+          stored === 'light' || stored === 'dark'
+            ? stored
+            : window.matchMedia('(prefers-color-scheme: dark)').matches
+              ? 'dark'
+              : 'light';
+        document.documentElement.dataset.theme = theme;
+      })();
+    </script>
   </head>
   <body>
     <div id="app"></div>

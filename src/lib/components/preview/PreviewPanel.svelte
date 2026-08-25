@@ -392,7 +392,7 @@
         thing to export at all.
       -->
       <div class="facts">
-        <span class="fact type" style:--type-color="var(--brand-gold)">Set style</span>
+        <span class="fact type" style:--type-color="var(--accent-press)">Set style</span>
         <span class="fact">Defaults for every card in the set</span>
       </div>
     {:else}

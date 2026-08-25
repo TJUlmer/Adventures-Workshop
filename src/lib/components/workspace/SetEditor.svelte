@@ -33,7 +33,7 @@
   eyebrow="Adventure set"
   title={setLabel(set)}
   subtitle={set.subtitle || 'The base look every card in this set inherits.'}
-  colorVar="--brand-gold"
+  colorVar="--accent-press"
 >
   {#snippet actions()}
     <!-- The name, subtitle, author and version moved to Settings — one home

@@ -431,7 +431,7 @@
     font-weight: var(--weight-semibold);
     letter-spacing: var(--tracking-caps);
     text-transform: uppercase;
-    color: var(--brand-gold);
+    color: var(--accent-press);
   }
 
   .title {
@@ -485,7 +485,7 @@
     width: 100%;
     padding: var(--space-3);
     border-radius: var(--radius-sm);
-    border: 1px solid color-mix(in oklab, var(--brand-gold) 40%, transparent);
+    border: 1px solid color-mix(in oklab, var(--accent-press) 40%, transparent);
     text-align: left;
     color: var(--text-secondary);
     transition: background-color var(--duration-fast) var(--ease-out);
@@ -504,7 +504,7 @@
   .waiting-count {
     font-family: var(--font-display);
     font-size: var(--text-lg);
-    color: var(--brand-gold);
+    color: var(--accent-press);
   }
 
   .contributors {

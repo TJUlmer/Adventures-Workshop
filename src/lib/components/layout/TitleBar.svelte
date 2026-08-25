@@ -5,7 +5,7 @@
   import { navigation } from '$lib/state/navigation.svelte';
   import { setLabel } from '$lib/sets/factory';
   import { workshop } from '$lib/state/workshop.svelte';
-  import { Button, Icon } from '$lib/ui';
+  import { Button, Icon, ThemeToggle } from '$lib/ui';
 
   let message = $state<string | null>(null);
 
@@ -155,6 +155,8 @@
       {/if}
     </div>
 
+    <ThemeToggle />
+
     <AccountMenu />
   </div>
 </div>
@@ -191,8 +193,8 @@
     flex: none;
     rotate: 45deg;
     border-radius: 2px;
-    background: linear-gradient(140deg, var(--gold-400), var(--gold-600));
-    box-shadow: 0 0 12px color-mix(in oklab, var(--brand-gold) 45%, transparent);
+    background: linear-gradient(140deg, var(--accent-hover), var(--accent-press));
+    box-shadow: 0 0 12px color-mix(in oklab, var(--accent-press) 45%, transparent);
   }
 
   .wordmark {

@@ -6,102 +6,126 @@
  *  - Raw palette scales (`--grey-700`) are the *primitive* layer. Prefer the
  *    semantic layer (`--surface-raised`, `--text-secondary`) in components so
  *    the palette can be re-tuned in one place.
+ *
+ * Two themes, not one: `:root` is the default (**Light Slate**, a pale
+ * blue-grey light theme) and `:root[data-theme="dark"]` (**Twilight Blue**, a
+ * cooler, brighter dark theme than the old "Warm Slate") redefines every
+ * token that differs. `state/theme.svelte.ts` is what sets that attribute —
+ * see it and `ThemeToggle.svelte` for the switch itself; nothing here reads
+ * `prefers-color-scheme` directly, because the boot script in `index.html`
+ * resolves system preference into an explicit `data-theme` before first
+ * paint, and from then on the attribute is the only thing that matters.
+ *
+ * Everything that is *not* part of the surface palette — card-kind colours,
+ * typography, spacing, radii, motion, layout — lives once, unscoped, at the
+ * bottom of this file. `--kind-*` in particular must stay theme-independent:
+ * it mirrors `CARD_KIND_META[kind].color` in card data, and a printed card
+ * must not depend on which theme the app happens to be in.
  */
 
 :root {
-  color-scheme: dark;
+  color-scheme: light;
 
   /* ------------------------------------------------------------------ */
   /* Primitives — neutrals                                              */
-  /* "Warm Slate": stone/taupe rather than the orange-leaning "Warm Ink" */
-  /* this replaced — that one read as literally brown once it covered a  */
-  /* full screen rather than a swatch. Hue sits higher (40-48, toward    */
-  /* yellow-grey) and saturation runs noticeably flatter throughout, so  */
-  /* the warmth reads as a considered neutral rather than a colour.      */
+  /* "Light Slate": a pale, blue-leaning grey rather than a warm paper   */
+  /* tone — hue sits around 210-220 throughout, the same family as the   */
+  /* accent, so the neutral reads as chosen rather than a default.       */
+  /* Convention: 1000 is the darkest step in *this* theme's own ramp,    */
+  /* 50 the lightest — which theme is active decides which end feeds     */
+  /* `--text-primary` versus `--surface-canvas` below, not the numbers.  */
   /* ------------------------------------------------------------------ */
-  --grey-1000: hsl(48 8% 7%);
-  --grey-950: hsl(47 7.5% 9.5%);
-  --grey-900: hsl(46 7% 12.5%);
-  --grey-850: hsl(45 6% 15.5%);
-  --grey-800: hsl(44 6% 18.5%);
-  --grey-750: hsl(43 6% 22%);
-  --grey-700: hsl(43 5% 26.5%);
-  --grey-600: hsl(42 5% 35%);
-  --grey-500: hsl(42 4% 48%);
-  --grey-400: hsl(41 5% 60%);
-  --grey-300: hsl(40 6% 74%);
-  --grey-200: hsl(40 8% 85%);
-  --grey-100: hsl(40 10% 95%);
-  --grey-50: hsl(40 12% 98%);
+  --grey-1000: hsl(220 30% 14%);
+  --grey-950: hsl(219 26% 20%);
+  --grey-900: hsl(218 22% 27%);
+  --grey-850: hsl(217 19% 34%);
+  --grey-800: hsl(216 17% 41%);
+  --grey-750: hsl(215 15% 48%);
+  --grey-700: hsl(214 13% 55%);
+  --grey-600: hsl(213 12% 63%);
+  --grey-500: hsl(212 11% 71%);
+  --grey-400: hsl(211 13% 79%);
+  --grey-300: hsl(210 15% 85%);
+  --grey-200: hsl(210 18% 90%);
+  --grey-100: hsl(210 22% 94%);
+  --grey-50: hsl(210 26% 97%);
 
   /* ------------------------------------------------------------------ */
-  /* Primitives — accents                                               */
-  /* The interactive accent moved onto the existing gold ramp rather     */
-  /* than minting a new one — `gold-500`/`400` were already sitting      */
-  /* right next to it unused, and pushing the same three steps brighter  */
-  /* (more saturated, not just relabelled) is the "pop" this was missing */
-  /* — `--brand-gold` drops one step to `gold-600` so it stays a         */
-  /* distinct, deeper shade instead of colliding with the now-brighter   */
-  /* `--accent` at the same value. The old violet ramp is gone — nothing */
-  /* outside this file read it directly.                                */
+  /* Primitives — accent                                                 */
+  /* A blue ramp, replacing the old gold — see `--accent-press` below    */
+  /* for why `--brand-gold` is gone rather than repointed at blue.       */
   /* ------------------------------------------------------------------ */
-  --gold-600: hsl(36 72% 46%);
-  --gold-500: hsl(38 88% 58%);
-  --gold-400: hsl(40 92% 70%);
+  --blue-600: hsl(213 80% 40%);
+  --blue-500: hsl(212 88% 50%);
+  --blue-400: hsl(210 90% 62%);
 
-  --emerald-500: hsl(152 52% 46%);
-  --amber-500: hsl(36 88% 58%);
-  --rose-500: hsl(356 70% 60%);
-  --sky-500: hsl(206 78% 58%);
+  /*
+   * Status colours, deepened from their dark-theme values rather than
+   * reused as-is. Several of these print as small text (a delete-armed
+   * label, a health-status pill) — `--rose-500` at the dark theme's L60%
+   * reads fine on a near-black canvas and fails contrast on a near-white
+   * one, so light and dark carry their own steps of each ramp rather than
+   * one value doing both jobs.
+   */
+  --emerald-500: hsl(152 60% 32%);
+  --amber-500: hsl(32 85% 40%);
+  --rose-500: hsl(356 72% 46%);
+  --sky-500: hsl(206 80% 42%);
 
   /* ------------------------------------------------------------------ */
   /* Semantic — surfaces & structure                                    */
-  /* Elevation goes *lighter* as it comes forward, never via drop        */
-  /* shadows alone.                                                      */
+  /* Elevation goes *lighter* as it comes forward in the dark theme;     */
+  /* here it goes toward white, culminating in `--surface-raised` at a   */
+  /* flat white rather than a step of the tinted ramp — a light theme's  */
+  /* "card floating above the page" is conventionally paper-white, not   */
+  /* a lighter grey, and a tinted white read as slightly dirty.          */
   /* ------------------------------------------------------------------ */
-  --surface-canvas: var(--grey-1000);
-  --surface-sunken: var(--grey-950);
-  --surface-base: var(--grey-900);
-  --surface-raised: var(--grey-850);
-  --surface-overlay: var(--grey-800);
-  --surface-inset: hsl(48 10% 4.5%);
+  --surface-canvas: hsl(212 24% 95%);
+  --surface-sunken: hsl(212 22% 91%);
+  --surface-base: hsl(210 20% 98%);
+  --surface-raised: hsl(0 0% 100%);
+  --surface-overlay: hsl(0 0% 100%);
+  --surface-inset: hsl(212 20% 93%);
 
-  --surface-hover: hsl(45 12% 100% / 0.035);
-  --surface-active: hsl(45 12% 100% / 0.06);
-  --surface-selected: hsl(38 88% 58% / 0.11);
+  --surface-hover: hsl(220 30% 10% / 0.035);
+  --surface-active: hsl(220 30% 10% / 0.06);
+  --surface-selected: hsl(212 88% 50% / 0.1);
 
-  --border-subtle: hsl(45 12% 100% / 0.05);
-  --border-default: hsl(45 12% 100% / 0.08);
-  --border-strong: hsl(45 12% 100% / 0.14);
-  --border-accent: hsl(38 88% 58% / 0.45);
+  --border-subtle: hsl(218 18% 88%);
+  --border-default: hsl(216 16% 82%);
+  --border-strong: hsl(214 14% 72%);
+  --border-accent: hsl(212 88% 50% / 0.4);
 
-  /* Hairline highlight used along the top edge of raised panels. */
-  --edge-highlight: hsl(45 20% 100% / 0.045);
+  /*
+   * The dark theme's hairline highlight simulates light catching the top
+   * edge of a raised *dark* surface — on a white-on-pale-blue panel there
+   * is no dark edge for a light line to catch, so it is switched off
+   * rather than given a value nobody would see.
+   */
+  --edge-highlight: transparent;
 
   /* ------------------------------------------------------------------ */
   /* Semantic — text                                                    */
   /* ------------------------------------------------------------------ */
-  --text-primary: var(--grey-100);
-  --text-secondary: var(--grey-300);
-  --text-tertiary: var(--grey-400);
-  --text-muted: var(--grey-500);
-  --text-inverse: var(--grey-1000);
-  --text-accent: var(--gold-400);
-  /* Gold at this saturation reads light, not dark like the violet it
-     replaced — accent-filled controls need dark text to stay legible. */
-  --text-on-accent: hsl(38 30% 10%);
+  --text-primary: hsl(220 28% 15%);
+  --text-secondary: hsl(218 16% 34%);
+  --text-tertiary: hsl(216 12% 46%);
+  --text-muted: hsl(214 9% 58%);
+  --text-inverse: hsl(210 26% 98%);
+  /* A step deeper than `--accent` itself — legible as small text on a
+     light ground, where the button-strength accent below is not. */
+  --text-accent: hsl(212 85% 44%);
+  --text-on-accent: hsl(210 30% 99%);
 
   /* ------------------------------------------------------------------ */
   /* Semantic — interactive                                             */
   /* ------------------------------------------------------------------ */
-  --accent: var(--gold-500);
-  --accent-hover: var(--gold-400);
-  --accent-press: var(--gold-600);
-  --accent-soft: hsl(38 88% 58% / 0.14);
-  --accent-soft-hover: hsl(38 88% 58% / 0.22);
-  --accent-ring: hsl(38 88% 58% / 0.5);
-
-  --brand-gold: var(--gold-600);
+  --accent: var(--blue-500);
+  --accent-hover: var(--blue-400);
+  --accent-press: var(--blue-600);
+  --accent-soft: hsl(212 88% 50% / 0.1);
+  --accent-soft-hover: hsl(212 88% 50% / 0.16);
+  --accent-ring: hsl(212 88% 50% / 0.45);
 
   --success: var(--emerald-500);
   --warning: var(--amber-500);
@@ -109,12 +133,43 @@
   --info: var(--sky-500);
 
   /* ------------------------------------------------------------------ */
-  /* Semantic — card taxonomy                                           */
-  /* Used by the editor chrome: sidebar dots, badges, segmented          */
-  /* controls. The card renderer does NOT read these — a printed card    */
-  /* must not depend on the app's stylesheet — so these values mirror    */
-  /* `CARD_KIND_META[kind].color` in src/lib/cards/types.ts. Change      */
-  /* both together.                                                      */
+  /* Semantic — role tint                                               */
+  /* Editor-chrome-only accents (sidebar dots, roster labels, starter    */
+  /* icons) — unlike `--kind-*` below, nothing in card data reads these,  */
+  /* so they are free to carry their own light/dark step. The dark        */
+  /* theme's values are closer to full saturation, tuned to sit on a      */
+  /* near-black canvas; these are deepened the same way the status        */
+  /* colours above are, since `SetHome`'s roster prints a role directly   */
+  /* as small text.                                                       */
+  /* ------------------------------------------------------------------ */
+  --role-villain: hsl(348 66% 42%);
+  --role-minion: hsl(268 45% 50%);
+  --role-sidekick: hsl(190 65% 34%);
+  --role-hero: hsl(200 75% 38%);
+
+  --section-initiative: hsl(42 80% 40%);
+  --section-event: hsl(152 55% 34%);
+  --section-rules: hsl(25 75% 42%);
+
+  /* ------------------------------------------------------------------ */
+  /* Elevation                                                           */
+  /* Lower opacity throughout, not just a hue swap — a shadow strength    */
+  /* tuned for a near-black canvas reads as a heavy charcoal smear once   */
+  /* the ground it sits on is pale, so light and dark do not share a      */
+  /* single alpha curve the way the rest of this file's tokens share a    */
+  /* single set of component rules.                                      */
+  /* ------------------------------------------------------------------ */
+  --shadow-xs: 0 1px 2px hsl(220 25% 15% / 0.06);
+  --shadow-sm: 0 1px 2px hsl(220 25% 15% / 0.06), 0 2px 6px hsl(220 25% 15% / 0.08);
+  --shadow-md: 0 2px 4px hsl(220 25% 15% / 0.06), 0 8px 20px hsl(220 25% 15% / 0.1);
+  --shadow-lg: 0 4px 10px hsl(220 25% 15% / 0.08), 0 18px 44px hsl(220 25% 15% / 0.14);
+  --shadow-card: 0 2px 6px hsl(220 25% 15% / 0.1), 0 16px 40px hsl(220 25% 15% / 0.16),
+    0 0 0 1px hsl(216 16% 82%);
+
+  /* ------------------------------------------------------------------ */
+  /* Card taxonomy, typography, space, radii, motion, layout             */
+  /* Theme-independent — see the file banner for why `--kind-*` in       */
+  /* particular must stay that way.                                      */
   /* ------------------------------------------------------------------ */
   --kind-attack: #e05a52;
   --kind-defense: #4d94e8;
@@ -122,32 +177,6 @@
   --kind-scheme: #45b880;
   --kind-initiative: #d4a355;
 
-  --role-villain: hsl(348 66% 58%);
-  --role-minion: hsl(268 50% 64%);
-  --role-sidekick: hsl(190 60% 52%);
-  --role-hero: hsl(200 70% 60%);
-
-  /* ------------------------------------------------------------------ */
-  /* Semantic — sidebar section tint                                    */
-  /* One accent per SetSidebar group, so Heroes/Villains/Minions/        */
-  /* Initiative/Events/Rules read apart from each other at a glance —    */
-  /* see SidebarGroup's `tint` prop. Hero, Villain and Minion reuse      */
-  /* `--role-hero`/`-villain`/`-minion` above rather than mint a second   */
-  /* set that would drift from the colours a character's own role badge  */
-  /* already uses elsewhere (`SetEditor`'s starter icons). Initiative,   */
-  /* Event and Rules have no existing token at this saturation — the     */
-  /* card-kind taxonomy's colours for those decks (`--kind-defense` for  */
-  /* rules, `--kind-versatile` for event) were chosen for a different    */
-  /* purpose and do not land on the six colours asked for here.          */
-  /* ------------------------------------------------------------------ */
-  --section-initiative: hsl(48 85% 58%);
-  --section-event: hsl(152 55% 50%);
-  --section-rules: hsl(25 85% 56%);
-
-  /* ------------------------------------------------------------------ */
-  /* Typography                                                          */
-  /* System stacks only — the app must work fully offline.               */
-  /* ------------------------------------------------------------------ */
   --font-sans:
     'Inter var', 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI Variable Text',
     'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
@@ -181,9 +210,6 @@
   --tracking-wide: 0.02em;
   --tracking-caps: 0.075em;
 
-  /* ------------------------------------------------------------------ */
-  /* Space — 4px base grid                                              */
-  /* ------------------------------------------------------------------ */
   --space-0: 0;
   --space-px: 1px;
   --space-1: 0.25rem; /* 4 */
@@ -197,9 +223,6 @@
   --space-9: 3rem; /* 48 */
   --space-10: 4rem; /* 64 */
 
-  /* ------------------------------------------------------------------ */
-  /* Radii                                                               */
-  /* ------------------------------------------------------------------ */
   --radius-xs: 4px;
   --radius-sm: 6px;
   --radius-md: 9px;
@@ -207,21 +230,8 @@
   --radius-xl: 18px;
   --radius-full: 999px;
 
-  /* ------------------------------------------------------------------ */
-  /* Elevation                                                           */
-  /* ------------------------------------------------------------------ */
-  --shadow-xs: 0 1px 2px hsl(45 30% 2% / 0.4);
-  --shadow-sm: 0 1px 2px hsl(45 30% 2% / 0.35), 0 2px 6px hsl(45 30% 2% / 0.3);
-  --shadow-md: 0 2px 4px hsl(45 30% 2% / 0.3), 0 8px 20px hsl(45 30% 2% / 0.35);
-  --shadow-lg: 0 4px 10px hsl(45 30% 2% / 0.35), 0 18px 44px hsl(45 30% 2% / 0.45);
-  --shadow-card: 0 2px 6px hsl(45 30% 2% / 0.5), 0 16px 40px hsl(45 30% 2% / 0.55),
-    0 0 0 1px hsl(45 20% 100% / 0.06);
-
   --focus-ring: 0 0 0 2px var(--surface-base), 0 0 0 4px var(--accent-ring);
 
-  /* ------------------------------------------------------------------ */
-  /* Motion                                                              */
-  /* ------------------------------------------------------------------ */
   --duration-instant: 80ms;
   --duration-fast: 130ms;
   --duration-normal: 200ms;
@@ -231,9 +241,6 @@
   --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
   --ease-spring: cubic-bezier(0.34, 1.32, 0.64, 1);
 
-  /* ------------------------------------------------------------------ */
-  /* Layout                                                              */
-  /* ------------------------------------------------------------------ */
   --titlebar-height: 48px;
   --sidebar-width: 272px;
   --preview-width: 424px;
@@ -247,4 +254,102 @@
   --z-dropdown: 100;
   --z-overlay: 200;
   --z-toast: 300;
+}
+
+/* ======================================================================= */
+/* Dark theme — "Twilight Blue"                                            */
+/*                                                                         */
+/* Every neutral, accent, text, surface, role-tint and shadow token above  */
+/* redefined; nothing in the theme-independent block at the bottom of      */
+/* `:root` needs to change here; a dark theme's shadows and its light      */
+/* theme's shadows both composite fine over `--surface-canvas`, and the    */
+/* card taxonomy is fixed on purpose (see the file banner).                */
+/*                                                                         */
+/* Cooler and noticeably *brighter* than the "Warm Slate" this replaced —  */
+/* every surface sits several points lighter than Warm Slate's own ramp,   */
+/* and the hue moves from stone (40-48°) to a blue-grey (210-222°) that    */
+/* matches the accent, rather than sitting in contrast to it.              */
+/* ======================================================================= */
+:root[data-theme='dark'] {
+  color-scheme: dark;
+
+  --grey-1000: hsl(222 18% 13%);
+  --grey-950: hsl(221 17% 16%);
+  --grey-900: hsl(220 16% 20%);
+  --grey-850: hsl(219 15% 24%);
+  --grey-800: hsl(218 14% 28%);
+  --grey-750: hsl(217 13% 32%);
+  --grey-700: hsl(216 12% 37%);
+  --grey-600: hsl(215 11% 47%);
+  --grey-500: hsl(214 10% 59%);
+  --grey-400: hsl(213 11% 71%);
+  --grey-300: hsl(212 13% 82%);
+  --grey-200: hsl(211 16% 91%);
+  --grey-100: hsl(210 22% 97%);
+  --grey-50: hsl(210 26% 99%);
+
+  --blue-600: hsl(211 82% 46%);
+  --blue-500: hsl(210 88% 58%);
+  --blue-400: hsl(208 92% 70%);
+
+  --emerald-500: hsl(152 52% 46%);
+  --amber-500: hsl(36 88% 58%);
+  --rose-500: hsl(356 70% 60%);
+  --sky-500: hsl(206 78% 58%);
+
+  --surface-canvas: var(--grey-1000);
+  --surface-sunken: var(--grey-950);
+  --surface-base: var(--grey-900);
+  --surface-raised: var(--grey-850);
+  --surface-overlay: var(--grey-800);
+  --surface-inset: hsl(222 20% 9%);
+
+  --surface-hover: hsl(210 30% 100% / 0.04);
+  --surface-active: hsl(210 30% 100% / 0.07);
+  --surface-selected: hsl(210 88% 58% / 0.14);
+
+  --border-subtle: hsl(210 30% 100% / 0.06);
+  --border-default: hsl(210 30% 100% / 0.1);
+  --border-strong: hsl(210 30% 100% / 0.16);
+  --border-accent: hsl(210 88% 58% / 0.45);
+
+  --edge-highlight: hsl(210 30% 100% / 0.05);
+
+  --text-primary: var(--grey-100);
+  --text-secondary: var(--grey-300);
+  --text-tertiary: var(--grey-400);
+  --text-muted: var(--grey-500);
+  --text-inverse: var(--grey-1000);
+  --text-accent: var(--blue-400);
+  /* Blue at this lightness reads bright enough that accent-filled controls
+     still want dark text, same as the gold it replaced. */
+  --text-on-accent: hsl(212 45% 12%);
+
+  --accent: var(--blue-500);
+  --accent-hover: var(--blue-400);
+  --accent-press: var(--blue-600);
+  --accent-soft: hsl(210 88% 58% / 0.16);
+  --accent-soft-hover: hsl(210 88% 58% / 0.24);
+  --accent-ring: hsl(210 88% 58% / 0.5);
+
+  --success: var(--emerald-500);
+  --warning: var(--amber-500);
+  --danger: var(--rose-500);
+  --info: var(--sky-500);
+
+  --role-villain: hsl(348 66% 58%);
+  --role-minion: hsl(268 50% 64%);
+  --role-sidekick: hsl(190 60% 52%);
+  --role-hero: hsl(200 70% 60%);
+
+  --section-initiative: hsl(48 85% 58%);
+  --section-event: hsl(152 55% 50%);
+  --section-rules: hsl(25 85% 56%);
+
+  --shadow-xs: 0 1px 2px hsl(222 30% 3% / 0.4);
+  --shadow-sm: 0 1px 2px hsl(222 30% 3% / 0.35), 0 2px 6px hsl(222 30% 3% / 0.3);
+  --shadow-md: 0 2px 4px hsl(222 30% 3% / 0.3), 0 8px 20px hsl(222 30% 3% / 0.35);
+  --shadow-lg: 0 4px 10px hsl(222 30% 3% / 0.35), 0 18px 44px hsl(222 30% 3% / 0.45);
+  --shadow-card: 0 2px 6px hsl(222 30% 3% / 0.5), 0 16px 40px hsl(222 30% 3% / 0.55),
+    0 0 0 1px hsl(210 20% 100% / 0.06);
 }
