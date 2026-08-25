@@ -298,9 +298,8 @@
         style:top={pu(BOOST_RING.y - DIVIDER.y)}
         style:width={pu(BOOST_RING.width)}
         style:height={pu(BOOST_RING.height)}
-        style:--ring-size="{pu(BLEED.width)} {pu(BLEED.height)}"
-        style:--ring-position="{pu(-BOOST_RING.x)} {pu(-BOOST_RING.y)}"
-        style:background={theme.divider}
+        style:border-width={pu(BOOST.outerRadius - BOOST.innerRadius)}
+        style:border-color={theme.divider}
       ></div>
 
       <div
@@ -1120,20 +1119,29 @@
   }
 
   /*
-   * The ring, lifted out of the divider art at its natural size so it keeps
-   * its drawn shape wherever the divider has ended up.
+   * Drawn, not masked. It used to be lifted out of `inner_border.png` at
+   * natural size, which kept its drawn shape — but a mask can only ever be as
+   * smooth as its own alpha, and that art's ring was thresholded flat: its
+   * inner edge ran 255,255,239,16,0, a transition crammed into a single pixel.
+   * That is the stepped inner circle on an exported card, and no amount of
+   * resampling recovers a curve the art no longer has.
+   *
+   * `BOOST_RING` is exactly the annulus's bounding box (`cx/cy ± outerRadius`),
+   * so the ring *is* a circle with a 16px stroke — `outerRadius - innerRadius`
+   * — and a `border-radius: 50%` border draws precisely that, antialiased by
+   * the browser at whatever size the card is rasterised to. Nothing about the
+   * geometry moves: both radii still come from `BOOST`, which was measured off
+   * that same art. It leaves `inner_border.png` unused, which is why nothing
+   * in `card-masks.py` touches it.
+   *
+   * `box-sizing: border-box` comes from `base.css`, so the border grows inward
+   * from `BOOST_RING.width` rather than adding to it.
    */
   .boost-ring {
     position: absolute;
     pointer-events: none;
-    mask-image: url('/assets/templates/inner_border.png');
-    -webkit-mask-image: url('/assets/templates/inner_border.png');
-    mask-size: var(--ring-size);
-    -webkit-mask-size: var(--ring-size);
-    mask-position: var(--ring-position);
-    -webkit-mask-position: var(--ring-position);
-    mask-repeat: no-repeat;
-    -webkit-mask-repeat: no-repeat;
+    border-radius: 50%;
+    border-style: solid;
   }
 
   /* -- name ribbon ----------------------------------------------------- */

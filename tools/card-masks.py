@@ -16,8 +16,7 @@ pipeline did to it.
 
 **Neither mask is antialiased.** Both are pure 0/255 — zero intermediate alpha
 across the whole head — so the pennant's diagonal taper renders as a hard
-staircase at any size. That is the jaggedness on the point; the boost ring
-next to it looks smoother because `inner_border.png` kept its soft edge.
+staircase at any size. That is the jaggedness on the point.
 
 Both are fixed here rather than by hand, so the numbers stay reproducible:
 
@@ -32,14 +31,23 @@ Both are fixed here rather than by hand, so the numbers stay reproducible:
           lands where it already was — this adds a soft edge, it does not move
           anything — which is what keeps `BANNER`'s measured numbers valid.
 
-`inner_border.png` gets the same softening, for the same reason and nothing
-else: it is the boost ring's mask and only the boost ring's — nothing else in
-`src/` reads it. Its circumference is antialiased in places and hard in
-others, so the ring printed with a stepped edge on part of its arc. Softening
-is stable rather than merely idempotent — it re-derives the edge from the
->=128 silhouette every time, so running it twice gives a byte-identical file
-and cannot compound into a blur. That is also what keeps `BOOST`'s radii,
-measured off this same alpha channel, still true.
+  hold    the fill is then clipped to sit `INSET` inside the outline's outer
+          edge, so the stroke covers it with room to spare. Making the two
+          coincide exactly was not enough: a hair of banner colour still came
+          through the stroke's own antialiasing at the point.
+
+The boost ring is deliberately *not* handled here. It had the same fault — its
+inner edge ran 255,255,239,16,0, a whole transition crammed into one pixel —
+but supersampling cannot recover a curve that thresholding has already
+destroyed, and it did not have to: `BOOST_RING` is exactly the annulus's
+bounding box, so `ActionCardFace` now draws the ring as a `border-radius: 50%`
+border rather than masking it out of `inner_border.png`. The browser
+antialiases that exactly, at any size. That art is unused as a result.
+
+This is a **one-shot generator**, not an idempotent one — it reads the files it
+writes, and neither `soften` nor `hold_under` survives being applied to its own
+output. `already_generated` detects that and stops, so running it twice is
+harmless even though running it twice *properly* is not.
 
     python tools/card-masks.py
 """
@@ -61,6 +69,9 @@ GAP = 3
 # Supersampling factor for the added soft edge.
 SS = 4
 
+# How far the fill retreats under the outline at the pennant, in bleed pixels.
+INSET = 3
+
 
 def alpha_of(name: str) -> np.ndarray:
     return np.array(Image.open(TEMPLATES / name).convert("RGBA"))[:, :, 3]
@@ -72,21 +83,46 @@ def soften(a: np.ndarray) -> np.ndarray:
     Supersampled: the >=128 silhouette is re-rasterised at `SS` and averaged
     back down, so the edge lands where it already was and only gains a ramp.
 
-    Pixels that *already* carry intermediate alpha are kept as they are, and
-    that is what makes this stable rather than merely repeatable. Re-deriving
-    an edge that some other tool had already antialiased re-thresholds its
-    ramp, which moves the boundary a fraction and gives a different answer
-    every run — `inner_border.png`, antialiased along part of its ring and
-    hard along the rest, did exactly that. Keeping existing soft pixels means
-    a second run finds every edge soft, changes nothing, and writes a
-    byte-identical file.
+    Every edge is re-derived, including one that already carries some
+    intermediate alpha. An earlier version kept those pixels, on the grounds
+    that re-thresholding a ramp could move the boundary — but the supplied art
+    carries *token* antialiasing in places (the boost ring's inner edge ran
+    255,255,239,16,0: a transition crammed into a single pixel), and
+    preserving that is preserving the jaggedness this exists to remove.
+
+    Only ever run against the supplied art — see `already_generated`.
     """
     h, w = a.shape
     big = Image.fromarray(a).resize((w * SS, h * SS), Image.BILINEAR)
     big = Image.fromarray((np.array(big) >= 128).astype(np.uint8) * 255)
-    softened = np.array(big.resize((w, h), Image.BOX))
-    already = (a > 8) & (a < 247)
-    return np.where(already, a, softened).astype(np.uint8)
+    return np.array(big.resize((w, h), Image.BOX))
+
+
+def already_generated() -> bool:
+    """Has this already run over these files?
+
+    This is a one-shot generator, not an idempotent one, and the honest thing
+    is to say so and stop. It reads the two masks it also writes, and two of
+    its steps do not survive being applied to their own output: `soften`
+    re-thresholds a ramp it wrote (which oscillates once `hold_under` has left
+    a hard cut beside it), and `hold_under` would clip an already-clipped fill
+    against an outline that no longer bounds it. Both are fine from the
+    supplied art and wrong from anything else, so the guard is the fix rather
+    than contorting each step into idempotence.
+
+    The test is the tool's own two invariants: the fill carries a soft edge,
+    and it sits clear of the outline through the pennant.
+    """
+    fill = alpha_of("banner_fill.png")
+    outline = alpha_of("banner_border.png")
+    if not ((fill > 8) & (fill < 247)).any():
+        return False
+    for y in range(HEAD_TOP, HEAD_BOTTOM + 1):
+        f = np.where(fill[y] > 8)[0]
+        o = np.where(outline[y] > 8)[0]
+        if len(f) and len(o) and (f.min() - o.min() < INSET or o.max() - f.max() < INSET):
+            return False
+    return True
 
 
 def write(name: str, a: np.ndarray) -> None:
@@ -96,35 +132,71 @@ def write(name: str, a: np.ndarray) -> None:
     Image.fromarray(rgba).save(TEMPLATES / name)
 
 
+def hold_under(fill: np.ndarray, outline: np.ndarray, by: int) -> np.ndarray:
+    """Clip the pennant's fill to sit `by` pixels inside the outline's edge.
+
+    Expressed against the *outline's* outer edge rather than by eroding the
+    fill, so the amount taken off is a property of where the stroke is rather
+    than of how many times this has run.
+
+    Horizontal only, and deliberately: the head art's top row abuts the plain
+    rectangle that masks the straight run above it, so taking anything off the
+    top would open a transparent seam across the ribbon exactly where the two
+    layers meet. Clipping the sides retracts the point on its own, because the
+    taper's last rows are only a few pixels wide to begin with.
+    """
+    out = fill.copy()
+    for y in range(HEAD_TOP, HEAD_BOTTOM + 1):
+        ink = np.where(outline[y] > 8)[0]
+        if not len(ink):
+            continue
+        row = np.zeros_like(fill[y])
+        lo, hi = ink.min() + by, ink.max() - by
+        if lo <= hi:
+            row[lo : hi + 1] = fill[y, lo : hi + 1]
+        out[y] = row
+    return out
+
+
 def main() -> None:
-    fill = soften(alpha_of("banner_fill.png"))
-    write("banner_fill.png", fill)
-    print("banner_fill.png     softened")
+    if already_generated():
+        print("already generated from the supplied art; nothing to do")
+        return
+
+    # The outline is built against the fill's *full* silhouette, so the ribbon
+    # keeps its drawn size — only the colour inside it retreats.
+    full_fill = soften(alpha_of("banner_fill.png"))
 
     border = soften(alpha_of("banner_border.png"))
-    print("banner_border.png   softened")
 
     # The strip of fill the outline fails to cover, head rows only.
-    shifted = np.zeros_like(fill)
-    shifted[:, GAP:] = fill[:, :-GAP]
-    strip = np.clip(fill.astype(np.int16) - shifted.astype(np.int16), 0, 255).astype(np.uint8)
+    shifted = np.zeros_like(full_fill)
+    shifted[:, GAP:] = full_fill[:, :-GAP]
+    strip = np.clip(full_fill.astype(np.int16) - shifted.astype(np.int16), 0, 255).astype(np.uint8)
     mask = np.zeros_like(strip)
     mask[HEAD_TOP : HEAD_BOTTOM + 1] = strip[HEAD_TOP : HEAD_BOTTOM + 1]
 
     merged = np.maximum(border, mask)
     write("banner_border.png", merged)
 
+    # Now hold the fill clear of the outline's outer edge, so the stroke covers
+    # it with room to spare rather than landing on it exactly. Coinciding to
+    # the pixel left a hair of banner colour showing through the stroke's own
+    # antialiasing at the point.
+    fill = hold_under(full_fill, merged, INSET)
+    write("banner_fill.png", fill)
+    print(f"banner_fill.png     softened, pennant inset {INSET}px under the stroke")
+    print("banner_border.png   softened")
+
     # Report the registration the way it was measured, so a regression is loud.
     worst = 0
     for y in range(HEAD_TOP, HEAD_BOTTOM + 1):
-        f = np.where(fill[y] > 8)[0]
+        f = np.where(full_fill[y] > 8)[0]
         b = np.where(merged[y] > 8)[0]
         if len(f) and len(b):
             worst = max(worst, int(b.min() - f.min()), int(f.max() - b.max()))
     print(f"banner_border.png   outline now covers the fill; worst overhang {worst}px")
 
-    write("inner_border.png", soften(alpha_of("inner_border.png")))
-    print("inner_border.png    softened (boost ring)")
 
 
 if __name__ == "__main__":
