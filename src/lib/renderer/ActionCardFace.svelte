@@ -904,9 +904,37 @@
     pointer-events: none;
   }
 
+  /*
+   * `isolation: isolate` is load bearing, and the reason is worth keeping.
+   *
+   * `.divider`, `.title`, `.rule` and `.below-title` all carry `z-index: 1`
+   * so they paint above `.pattern`/`.custom-pattern` — see `.title`'s own
+   * note on why that had to be pinned explicitly for the `foreignObject`
+   * rasteriser. But `position: absolute` with `z-index: auto` does **not**
+   * establish a stacking context, so those z-indexes were not scoped to the
+   * interior at all: they resolved against the *plate*, and a positioned
+   * element with `z-index: 1` paints above one with `z-index: auto`
+   * regardless of DOM order — which is what `.outer-border` is. The frame
+   * was therefore painted *under* the divider rather than over it.
+   *
+   * Invisible on a villain or minion, whose frame window is exactly
+   * `INTERIOR` (143..1488 in `outer_border.png`), so the divider has nothing
+   * to stick out past. A hero's window sits four pixels further in
+   * (148..1484 in `hero_action_frame.png` — the difference the frame comment
+   * above calls out), so the divider printed 5px into the frame on the left
+   * and 4px on the right. `overflow: hidden` still clipped it to `INTERIOR`,
+   * which is why it looked like a neat couple-pixel overhang rather than
+   * anything wilder.
+   *
+   * Isolating here keeps the ordering those z-indexes were added for — every
+   * one of them is a descendant of this box, as are the pattern layers they
+   * sit above — while putting the interior as a whole back underneath the
+   * frame where DOM order already had it.
+   */
   .interior {
     position: absolute;
     overflow: hidden;
+    isolation: isolate;
   }
 
   /*

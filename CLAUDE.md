@@ -1522,6 +1522,33 @@ Traps that have cost real time here:
   `element.height / line-height`, not with `Range.getClientRects()`: that
   returns one rect per inline box, so a correctly-rendered line containing two
   vertically-offset images still reports four rects and looks like a bug.
+- **`position: absolute` with `z-index: auto` does not make a stacking
+  context, so a child's `z-index` escapes to the nearest one that is.**
+  `ActionCardFace`'s `.divider`/`.title`/`.rule`/`.below-title` carry
+  `z-index: 1` to sit above `.pattern`/`.custom-pattern` (see `.title`'s note
+  on the `foreignObject` rasteriser). Their parent `.interior` was
+  `position: absolute` with no `z-index`, so those 1s resolved against the
+  *plate* instead — and a positioned element with `z-index: 1` paints above
+  one with `z-index: auto` whatever the DOM order, which is what
+  `.outer-border` is. The frame was painted *under* the divider. Invisible on
+  a villain or minion, whose window is exactly `INTERIOR` (143..1488) so
+  there is nothing to stick out past; a hero's window is 148..1484, so the
+  divider printed 5px into the frame on the left and 4px on the right.
+  `overflow: hidden` still clipped it to `INTERIOR`, which is why it looked
+  like a tidy couple-pixel overhang rather than anything wilder. Fixed with
+  `isolation: isolate` on `.interior` — it scopes the z-indexes to the box
+  they were meant for without touching layout or their relative order. When
+  something inside the interior paints over the frame, check for a leaked
+  `z-index` before touching geometry.
+- **The stock `artBackground` is `#ffffff`, and it shows wherever artwork
+  does not reach.** Art with rounded (transparent) corners over that default
+  prints a thin white curve at the art window's own rounded corner — the
+  interior's radius is 46, and anywhere the picture pulls inside that, white
+  is what is behind it. Measured: pure 255,255,255 for four pixels between
+  dark art and a dark frame, following the arc. Reported, reasonably, as "a
+  gap between the artwork and the frame". It is not a geometry bug — check
+  the artwork's own alpha and `theme.artBackground` before hunting the
+  corner maths.
 - `clip-path` clips `box-shadow` and `outline` away entirely.
 - A negative margin on a `flex: 1 1 0` item wins it extra width.
 - An SVG asked for a shape that is not its own letterboxes rather than
