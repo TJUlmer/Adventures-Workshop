@@ -1381,6 +1381,29 @@ templates**, not authored:
 - The hero card's five, all from `tools/hero-card-assets.py` — see *The hero
   role*. Its output prints the measurements `geometry.ts`'s `HERO_RIBBON` is
   checked against, so run it after touching a source template and compare.
+- `banner_fill.png`, `banner_border.png` and `inner_border.png` are passed
+  through `tools/card-masks.py`, which fixes two faults in the supplied art.
+  **The villain ribbon's outline did not cover its fill:** measured across all
+  86 rows of the pennant head, the border's left edge sat 1–3px *inside* the
+  fill's while the right edges agreed exactly, so a sliver of banner colour ran
+  down the left of the point and past its tip. Present in
+  `banner_border_raw.png` too, so it is the drawing's own registration. The
+  tool gives the outline exactly the strip of fill lying outside it — `fill AND
+  NOT shift_right(fill, 3)`, head rows only — which makes the outline's outer
+  silhouette the fill's *by construction*, so it cannot drift again. Head rows
+  only because the straight run carries an outline on its right edge alone
+  (`BANNER.edge`), and widening it there would draw one down the left.
+  **And none of the three was antialiased where it mattered:** the two banner
+  masks were pure 0/255, and the boost ring's arc was soft in places and hard
+  in others, which is the jaggedness on the pennant and the ring. Softening is
+  supersampled from the `>=128` silhouette, so the boundary does not move and
+  `BANNER`/`BOOST`'s measured numbers stay true — verified: 0 silhouette pixels
+  changed, `BOOST`'s radii still 73/89. Pixels that already carry intermediate
+  alpha are kept, which is what makes the tool *stable* rather than merely
+  repeatable: re-deriving an already-antialiased edge re-thresholds its ramp
+  and lands somewhere slightly different every run, which is exactly what
+  `inner_border.png` did before that guard. It now writes byte-identical files
+  on a second run.
 
 They were produced with Python/PIL from files still in the repo. If a source
 template changes, regenerate rather than hand-editing.
