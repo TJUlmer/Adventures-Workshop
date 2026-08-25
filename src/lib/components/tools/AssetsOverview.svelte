@@ -207,6 +207,19 @@
 
     for (const kind of ['rules', 'event'] as const) {
       for (const deck of set.decks.filter((deck) => deck.kind === kind)) {
+        /*
+         * A rules/event deck owned by a character was already taken above,
+         * in the per-character `owned` pass — that filters by `ownerId`
+         * alone, no kind restriction, so it already claims one of these the
+         * moment a card is assigned to a character (see `workshop.
+         * setCardOwner`). Skipping an already-placed deck here is what the
+         * orphan sweep two passes down already does; this loop was missing
+         * the same guard, so an owned rules/event deck was pushed twice —
+         * two `Group`s sharing one `key: deck.id`, which Svelte's `#each`
+         * (keyed by `group.key`) throws `each_key_duplicate` on rather than
+         * silently rendering.
+         */
+        if (placed.has(deck.id)) continue;
         take(deck, deck.name, null);
       }
     }
