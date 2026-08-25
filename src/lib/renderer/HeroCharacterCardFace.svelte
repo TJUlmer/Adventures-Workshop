@@ -496,7 +496,22 @@
   to whichever lockup the template happened to show, so a longer one loses its
   tail to that edge.
 -->
-<div class="mask full border" style:--border-art="url('{border}')" style:background={fillCss(design.border)}></div>
+<!--
+  The three `--card-*` values are for printer-friendly mode alone, and are set
+  here because this is where the geometry is: `CardRenderer`'s own stylesheet
+  owns that mode (see there) but knows nothing about this card's measurements.
+  What it does with them is clip this mask back to a keyline, because the
+  border is a 144px band of colour around the whole card — pale pink on the
+  printed sheet, and a 2.9mm solid black picture frame if it is simply inked.
+-->
+<div
+  class="mask full border"
+  style:--border-art="url('{border}')"
+  style:--card-inset-x={px(CHARACTER_CARD.x)}
+  style:--card-inset-y={py(CHARACTER_CARD.y)}
+  style:--card-radius={pu(CHARACTER_CARD.radius)}
+  style:background={fillCss(design.border)}
+></div>
 <div class="mask full badge" style:--badge-art="url('{badge}')" style:background={fillCss(design.healthBadge)}></div>
 <div
   class="mask full badge-accent"
@@ -513,8 +528,16 @@
 {@render attackRow(CHARACTER_BANDS.heroAttack, identity.attackType)}
 {@render healthValue(CHARACTER_HEALTH.heroCenterY, identity.health ?? 0)}
 
+<!--
+  `move-figure`, not `move`: the initiative card's MOVE *badge* is a `.move`
+  too, and `CardRenderer`'s printer-friendly rules reach both through
+  `:global()` — a component's styles are scoped to the component, but a
+  `:global` selector written in another one is not. Sharing the name painted
+  `background: #000` (right for a badge that is a mask) across this card's
+  move numeral, which is a `<span>` of text, as a black slab.
+-->
 <span
-  class="move"
+  class="move-figure"
   style:left={px(CHARACTER_MOVE.centerX)}
   style:top={py(digitTopToBoxTop(CHARACTER_MOVE.digitTop, CHARACTER_MOVE.size))}
   style:font-size={pu(CHARACTER_MOVE.size)}
@@ -917,7 +940,7 @@
 
   /* -- figures ------------------------------------------------------------- */
   .health,
-  .move,
+  .move-figure,
   .token-count {
     position: absolute;
     translate: -50% 0;

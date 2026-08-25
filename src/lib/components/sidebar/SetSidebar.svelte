@@ -46,7 +46,13 @@
 </script>
 
 {#snippet deckBlock(entry: DeckEntry, ownerName: string | null, depth: 0 | 1)}
-  <DeckRow deck={entry.deck} printCount={entry.printCount} {ownerName} {depth} />
+  <DeckRow
+    deck={entry.deck}
+    printCount={entry.printCount}
+    cardCount={entry.cards.length}
+    {ownerName}
+    {depth}
+  />
   {#each entry.cards as card (card.id)}
     <CardRow {card} depth={depth === 0 ? 1 : 2} />
   {/each}

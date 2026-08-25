@@ -1248,6 +1248,29 @@ an inline style written by a face component.
 Measured, on an action card: 3.7% of the trimmed face is dark, against 53.9% in
 colour.
 
+**The hero's character card needs the most of any face, for a structural
+reason.** It is the one card that does not go through the style cascade at all
+— `Character.characterCard` is its own small design object — so `MONO_LAYER`
+has nothing to override and the sheet printed in full colour. The whole of the
+missing layer is CSS, scoped by a `hero-character` class on its `.face`,
+because the face's class names are *not* all unique: `.fill`, `.border` and
+`.move` are each shared with another template. `.move` had already collided —
+the initiative card's MOVE badge is a mask, so `background: #000` is right for
+it and painted this card's move numeral, which is a `<span>` of text, as a
+black slab across the health badge. Renamed here to `.move-figure`; a
+component's styles are scoped to the component, but a `:global` selector
+written in *another* one is not.
+
+The card's own split does the rest of the work: what the frame art draws is
+line art and inks black, what an author fills goes white. The exception is the
+border mask, which is not only the bars between the bands — it is also a 144px
+band of colour around the whole card, pale pink on the printed sheet and 2.9mm
+of solid black outside the trim if it is inked like everything else. It is
+clipped back to the printed rectangle plus one `--keyline`, which turns the
+band into the card's own outline and leaves every interior bar untouched — the
+same trade every other template makes, except that here the drawn-back edge is
+the border art's own inner boundary rather than a rule beside it. Measured:
+25.4% of the trimmed face dark before the clip, 12.1% after, 0% saturated.
 
 ### Skin templates
 

@@ -12,13 +12,15 @@
     deck: Deck;
     /** Printed cards in this deck, counting quantities. */
     printCount: number;
+    /** Cards actually in the deck. Not `printCount`, which counts copies. */
+    cardCount: number;
     /** Owner name, shown when the deck is listed away from its character. */
     ownerName?: string | null;
     /** Indent step; decks under a character sit one level in. */
     depth?: 0 | 1;
   }
 
-  let { deck, printCount, ownerName = null, depth = 1 }: Props = $props();
+  let { deck, printCount, cardCount, ownerName = null, depth = 1 }: Props = $props();
 
   const meta = $derived(DECK_KIND_META[deck.kind]);
 
@@ -104,6 +106,33 @@
   >
     <Icon name="plus" size={12} />
   </button>
+
+  <!--
+    Empty decks only, and that is the whole of the control rather than a
+    disabled state on a fuller one.
+
+    Picking a character in `RulesCardContent`'s "Belongs to" creates a deck for
+    them (`workshop.setCardOwner` → `ensureOwnedDeck`), so changing one's mind
+    used to strand an empty rules or event deck in the tree with no way to
+    remove it — the sidebar has only ever offered "add card", and
+    `CharacterEditor`'s own trash button lists a character's *action* decks.
+    An empty deck can be removed without asking, because there is nothing in it
+    to lose; a deck with cards in it is a different act, and this app has no
+    undo and no confirm dialogs anywhere (deleting a *set* is soft precisely
+    because an author lost work to a one-click delete once). Deleting its cards
+    first is the deliberate path, and it is already there.
+  -->
+  {#if cardCount === 0}
+    <button
+      type="button"
+      class="remove"
+      aria-label="Delete empty {deckLabel(deck)}"
+      title="Delete this empty deck"
+      onclick={() => workshop.removeDeck(deck.id)}
+    >
+      <Icon name="trash" size={12} />
+    </button>
+  {/if}
 </div>
 
 <style>
@@ -205,11 +234,31 @@
   }
 
   .row:hover .add,
-  .add:focus-visible {
+  .add:focus-visible,
+  .row:hover .remove,
+  .remove:focus-visible {
     opacity: 1;
   }
 
   .add:hover {
     color: var(--text-primary);
+  }
+
+  .remove {
+    display: grid;
+    place-items: center;
+    width: 20px;
+    height: 20px;
+    flex: none;
+    border-radius: var(--radius-xs);
+    color: var(--text-muted);
+    opacity: 0;
+    transition:
+      opacity var(--duration-fast) var(--ease-out),
+      color var(--duration-fast) var(--ease-out);
+  }
+
+  .remove:hover {
+    color: var(--danger);
   }
 </style>

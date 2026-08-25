@@ -249,8 +249,15 @@
         {/if}
       </article>
     {:else if statCard}
+      <!--
+        `hero-character` on the existing `.face` rather than a wrapper of its
+        own: the printer-friendly rules below need something to scope to, and
+        this face's class names are not all unique (`.fill`, `.border`,
+        `.move` were all shared with another template). No new element, so no
+        chance of disturbing a layout where every child is positioned.
+      -->
       <article
-        class="face"
+        class="face hero-character"
         aria-label="{statCardEntry?.name.trim() || characterLabel(statCard)} character card"
       >
         <HeroCharacterCardFace character={statCard} card={statCardEntry} {customSymbols} />
@@ -472,6 +479,93 @@
   /* The MOVE badge is a mask painted in its band's ink, so it inks like one. */
   .printer-friendly :global(.move) {
     background: #000 !important;
+  }
+
+  /*
+   * The hero's character card, which needs the most of any face here — and
+   * needs it for one structural reason: it is the only card that does not go
+   * through the style cascade at all. `Character.characterCard` is its own
+   * small design object (a border colour and three band fills, see
+   * `HeroCharacterCardFace`), so `MONO_LAYER` has nothing to override and the
+   * sheet printed in full colour. Everything below is that missing layer,
+   * written as CSS because there is no theme to write it in.
+   *
+   * The split follows the card's own: what the frame art *draws* is line art
+   * and inks black; what an author *fills* goes white and lets the line art
+   * carry the shape.
+   */
+
+  /* The three band fills, and the health badge's shield — all fields. */
+  .printer-friendly :global(.hero-character .fill),
+  .printer-friendly :global(.hero-character .mask.badge) {
+    background: #fff !important;
+  }
+
+  /*
+   * The border mask is the outline and the bars between the bands: the card's
+   * whole structure, and the only reason the white fields above read as
+   * separate rows at all. Note this is a *mask over a fill*, so it takes
+   * `background`, not the `border-color` the event card's real border above
+   * takes — same class name, two different mechanisms.
+   */
+  .printer-friendly :global(.hero-character .mask.border),
+  .printer-friendly :global(.hero-character .mask.badge-accent),
+  .printer-friendly :global(.hero-character .mask.move-ink),
+  .printer-friendly :global(.hero-character .mask.quote-marks) {
+    background: #000 !important;
+  }
+
+  /*
+   * …but the border is not only those bars. It is also a 144px band of colour
+   * around the whole card — pale pink on the printed sheet, and 2.9mm of solid
+   * black outside the trim if it is inked like the rest. Measured before this
+   * clip: 25.4% of the trimmed face dark, against 3.7% for an action card.
+   *
+   * So it is clipped back to the printed rectangle plus one `--keyline`, which
+   * turns the band into the card's outline and leaves every interior bar
+   * untouched — the same "the frame goes white, the window gets an edge drawn
+   * back on" trade every other template here makes, except that here the edge
+   * is the border art's own inner boundary rather than a rule drawn beside it.
+   *
+   * The three `--card-*` values are set inline by `HeroCharacterCardFace`,
+   * which is the only place that knows this card's measurements.
+   */
+  .printer-friendly :global(.hero-character .mask.border) {
+    clip-path: inset(
+      calc(var(--card-inset-y) - var(--keyline)) calc(var(--card-inset-x) - var(--keyline))
+      round calc(var(--card-radius) + var(--keyline))
+    ) !important;
+  }
+
+  /*
+   * Copy. `.heading` and `.token-count` are white on the printed card, so they
+   * are the two that would otherwise vanish rather than merely darken; the
+   * rest carry an inline colour from the design object, which is why these
+   * need `!important` like everything else here.
+   */
+  .printer-friendly :global(.hero-character .heading),
+  .printer-friendly :global(.hero-character .token-count),
+  .printer-friendly :global(.hero-character .health),
+  .printer-friendly :global(.hero-character .move-figure),
+  .printer-friendly :global(.hero-character .ability),
+  .printer-friendly :global(.hero-character .quote-text),
+  .printer-friendly :global(.hero-character .quote-attribution) {
+    color: #000 !important;
+  }
+
+  /*
+   * The attack lockup is one supplied picture, word and icon together, in the
+   * colour that identifies the attack type — so like the value symbols above
+   * it inks rather than recolours, keeping the shapes instead of filling
+   * their boxes.
+   */
+  .printer-friendly :global(.hero-character .attack img) {
+    filter: brightness(0) !important;
+  }
+
+  /* A swarm's tokens are drawn discs, not art: the ring is already black. */
+  .printer-friendly :global(.hero-character .token) {
+    background: #fff !important;
   }
 
   /* Cut line, for checking that nothing important sits in the bleed. */
