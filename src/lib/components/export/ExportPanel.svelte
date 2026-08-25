@@ -44,9 +44,17 @@
      * everywhere else, `SetHome` included.
      */
     initialScope?: PublishScope;
+    /**
+     * Fired whenever the picker below changes, including once for the
+     * starting value. `SharedSetScreen` uses this to make its own read-only
+     * overview follow the same pick — "what will this export" and "what am I
+     * looking at" are one question there, so they share one control rather
+     * than the page growing a second, redundant selector.
+     */
+    onscopechange?: (scope: PublishScope) => void;
   }
 
-  let { set, onprint, initialScope }: Props = $props();
+  let { set, onprint, initialScope, onscopechange }: Props = $props();
 
   /**
    * Every export below reads from this, never from `set` directly — the one
@@ -59,6 +67,10 @@
    */
   let scope = $state<PublishScope>(untrack(() => initialScope ?? { kind: 'full' }));
   const scopedSet = $derived(computeScopedSet(set, scope));
+
+  $effect(() => {
+    onscopechange?.(scope);
+  });
 
   const heroes = $derived(charactersByRole(set, 'hero'));
   /* Villain-side content is one bundle and never split further — same

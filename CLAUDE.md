@@ -1198,6 +1198,46 @@ back to that same creation-order search — matching how an author thinks about
 their own adventure (see "Heroes, above Villains" in `SetSidebar`), not an
 accident of which character was added first.
 
+**A shared link's preview picture is not the gallery tile's.** It used to be
+— `thumbnail_url` did both jobs — until a link posted to Discord showed a
+hero's deck-back *replacement image* exactly as the author drew it: full
+bleed, margin and all, because `renderThumbnail` has only ever been a
+downscale of whatever `coverArtwork` finds, never a render. That is the right
+job for a square gallery tile and the wrong one for a link preview, which is
+read much larger and has no tile to crop into. `cloud/social-image.ts`'s
+`renderSocialImage` is a second, purpose-built picture stored in its own
+`social_image_url` column: box art still wins outright when an author
+supplied one (unchanged from `coverArtwork`'s own priority), but failing
+that, a set with heroes gets an actual **rendered, trimmed** picture of its
+own cards — one hero's deck back beside their character card, several heroes'
+deck backs in a grid two to a row, capped at four before it would read as a
+contact sheet rather than a preview. Reuses `cloud/character-cards.ts`'s
+stage exactly (`withCardStage`/`photograph`), just with `cardback` instead of
+`statCard`, or both. A set with no heroes to compose from — villain-only, or
+still early — falls through to the same downscale `renderThumbnail` already
+does, checked *before* opening a card stage so that case pays nothing extra.
+
+**This is the one column in this project that a migration cannot backfill.**
+Every prior denormalised-column addition (`kind`, `hero_count`) backfilled
+from the stored `document`, because the fact was already sitting in JSON a
+migration's SQL could read. A composed picture is not a fact sitting
+anywhere — producing one needs the browser's own DOM and canvas, which a
+migration running on the server has neither of. So a row published before
+this shipped simply keeps `social_image_url = ''` until its author
+re-publishes, and `middleware.ts` falls back to `thumbnail_url` whenever it
+is empty — an old link's preview does not regress, it just stays what it
+already was.
+
+**The shared-set screen's character filter is not a second picker.** It
+reads as one — pick a hero and the overview above narrows to just their
+content — but it is wired entirely through `ExportPanel`'s own scope
+selector (`onscopechange`), the same one that already decides what "export
+just this hero" produces via `sets/scope.ts`'s `computeScopedSet`. "What
+will this export" and "what am I looking at" were the same question the
+moment a viewer could filter at all, so `SharedSetScreen` mirrors that one
+control's value into what it passes `AssetsOverview`, rather than growing a
+second selector that could disagree with the first.
+
 ### Contributions
 
 Rung 2, and the shape of the trust is the thing to hold on to: **a contribution

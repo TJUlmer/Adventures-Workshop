@@ -26,6 +26,8 @@
    * same reason the export photographs the renderer: one drawing path, so what
    * a viewer sees cannot drift from what the author approved.
    */
+  import { untrack } from 'svelte';
+  import { characterLabel } from '$lib/characters/factory';
   import type { CharacterId } from '$lib/characters/types';
   import ExportPanel from '$lib/components/export/ExportPanel.svelte';
   import AssetsOverview from '$lib/components/tools/AssetsOverview.svelte';
@@ -41,6 +43,8 @@
   import { cloudEnabled } from '$lib/cloud/config';
   import PrintScreen from '$lib/print/PrintScreen.svelte';
   import { forkSet, sourceOf } from '$lib/sets/fork';
+  import { computeScopedSet } from '$lib/sets/scope';
+  import type { PublishScope } from '$lib/sets/scope';
   import type { AdventureSet } from '$lib/sets/types';
   import { navigation } from '$lib/state/navigation.svelte';
   import { workshop } from '$lib/state/workshop.svelte';
@@ -75,6 +79,33 @@
   let error = $state<string | null>(null);
   let loading = $state(true);
   let progress = $state<string | null>(null);
+
+  /**
+   * What the overview below is currently showing — driven entirely by
+   * `ExportPanel`'s own scope picker in the rail (`onscopechange`), rather
+   * than a second selector: "what will this export" and "what am I looking
+   * at" are the same question here, so one control answers both. Starts on
+   * `characterHint` for the same reason `ExportPanel`'s `initialScope` does.
+   */
+  let viewScope = $state<PublishScope>(
+    untrack(() =>
+      characterHint ? { kind: 'hero', characterId: characterHint as CharacterId } : { kind: 'full' }
+    )
+  );
+
+  /**
+   * Named for the strip above the overview; `null` for "Whole set", where
+   * nothing needs saying. Takes `active` rather than reading `set` directly
+   * — `{@const}` below is what narrows it, the same trick `authorName`'s
+   * `ownerId` and `parent`'s `box` already use in this file for the same
+   * reason: the `{#if}` above cannot narrow a reactive read on its own.
+   */
+  function scopeLabel(active: AdventureSet, scope: PublishScope): string | null {
+    if (scope.kind === 'full') return null;
+    if (scope.kind === 'villain') return 'Villain side';
+    const hero = active.characters.find((character) => character.id === scope.characterId);
+    return hero ? characterLabel(hero) : null;
+  }
 
   /*
    * Print sheets are a screen, not a file, and this screen is outside the
@@ -120,6 +151,9 @@
     error = null;
     forked = null;
     parent = null;
+    // A stale hero id from the previous set would otherwise survive the
+    // navigation and quietly filter the overview down to nothing.
+    viewScope = characterHint ? { kind: 'hero', characterId: characterHint as CharacterId } : { kind: 'full' };
 
     void (async () => {
       try {
@@ -274,6 +308,8 @@
     {:else if error}
       <p class="message error" role="alert">{error}</p>
     {:else if set}
+      {@const shown = computeScopedSet(set, viewScope)}
+      {@const label = scopeLabel(set, viewScope)}
       <!--
         The set left, its exports right — the same arrangement as the map
         editor, and for the same reason: the thing being looked at is by far
@@ -282,7 +318,12 @@
       -->
       <div class="split">
         <div class="main">
-          <AssetsOverview {set} interactive={false} heading={false} />
+          {#if label}
+            <p class="scope-strip">
+              Showing <strong>{label}</strong> — pick “Whole set” in Export to see everything.
+            </p>
+          {/if}
+          <AssetsOverview set={shown} interactive={false} heading={false} />
         </div>
 
         <aside class="rail scroll-y">
@@ -326,8 +367,8 @@
             <h2 class="panel-title">Export</h2>
             <p class="panel-hint">
               {characterHint
-                ? 'Set to just the character you opened below — pick "Whole set" to get everything.'
-                : 'Everything here covers the whole set, or pick one character below.'}
+                ? 'Set to just the character you opened — pick "Whole set" to see everything. The overview above follows this too.'
+                : 'Pick one character to see just their own cards, above and in every export below.'}
             </p>
             <ExportPanel
               {set}
@@ -335,6 +376,7 @@
               initialScope={characterHint
                 ? { kind: 'hero', characterId: characterHint as CharacterId }
                 : undefined}
+              onscopechange={(scope) => (viewScope = scope)}
             />
           </section>
         </aside>
@@ -500,8 +542,24 @@
   /* The overview owns its own scrolling; this is only the box it fills. */
   .main {
     display: flex;
+    flex-direction: column;
     min-width: 0;
     min-height: 0;
+  }
+
+  /* `AssetsOverview`'s own `.page` carries `flex: 1 1 auto`, which is what
+     lets it still fill the column below this rather than needing a size of
+     its own here. */
+  .scope-strip {
+    flex: none;
+    margin: 0;
+    padding: var(--space-3) var(--space-8) 0;
+    font-size: var(--text-xs);
+    color: var(--text-muted);
+  }
+
+  .scope-strip strong {
+    color: var(--text-default);
   }
 
   .rail {

@@ -28,6 +28,7 @@ import type { EmbeddedAsset } from './assets';
 import { auth } from './auth.svelte';
 import { shortHash } from '$lib/core/hash';
 import { renderCharacterCards } from './character-cards';
+import { renderSocialImage } from './social-image';
 import { renderThumbnail } from './thumbnail';
 import { ASSET_BUCKET, cloudConfig } from './config';
 import { CloudError, endpoint, headers, request } from './http';
@@ -51,6 +52,13 @@ export interface PublishedSet {
   updated_at: string;
   /** Small cover for a gallery tile. Empty when the set has no artwork. */
   thumbnail_url: string;
+  /**
+   * The picture a link unfurler shows — Discord, Slack, and the rest. See
+   * `cloud/social-image.ts`. Empty for a row published before this existed,
+   * or wherever the render failed; `middleware.ts` falls back to
+   * `thumbnail_url` either way.
+   */
+  social_image_url: string;
   /**
    * A full-size picture out of the document, derived on the row by the
    * database (`set_cover_image`, `0007_gallery_browse.sql`).
@@ -157,8 +165,8 @@ export interface PublishedSetWithDocument extends PublishedSet {
 /** Columns for a listing. Never `document` — that is the whole point of them. */
 const SUMMARY_COLUMNS =
   'id,owner_id,local_id,slug,name,subtitle,card_count,character_count,schema_version,' +
-  'revision,visibility,created_at,updated_at,thumbnail_url,cover_url,cover_bleeds,published_at,' +
-  'view_count,change_note,forked_from,forked_from_revision,scope,character_id,kind,hero_count';
+  'revision,visibility,created_at,updated_at,thumbnail_url,social_image_url,cover_url,cover_bleeds,' +
+  'published_at,view_count,change_note,forked_from,forked_from_revision,scope,character_id,kind,hero_count';
 
 /**
  * The same, plus the author and — for a fork — the set it came from.
@@ -351,6 +359,19 @@ export async function publishSet(
   }
 
   /*
+   * The link-preview picture — see `cloud/social-image.ts`. Best-effort for
+   * the same reason the thumbnail is: a failed render is a plainer preview,
+   * not a publish that should not have happened.
+   */
+  let socialImageUrl = '';
+  try {
+    const social = await renderSocialImage(scoped);
+    if (social) socialImageUrl = await uploadBlob(social, user.id, set.id, 'social');
+  } catch {
+    socialImageUrl = '';
+  }
+
+  /*
    * One picture of each hero's character card, for the gallery to show on
    * hover — see `character-cards.ts` for why this has to be rendered here
    * rather than looked up later.
@@ -388,6 +409,7 @@ export async function publishSet(
     schema_version: SET_SCHEMA_VERSION,
     document,
     thumbnail_url: thumbnailUrl,
+    social_image_url: socialImageUrl,
     character_cards: characterCards,
     /* Trimmed and capped here as well as in the field: a note is printed under
        someone else's set, so its length is not the author's alone to decide. */

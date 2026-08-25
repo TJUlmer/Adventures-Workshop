@@ -73,6 +73,9 @@ interface SetSummaryRow {
   name: string;
   subtitle: string;
   thumbnail_url: string;
+  social_image_url: string;
+  character_count: number;
+  card_count: number;
 }
 
 /**
@@ -108,9 +111,32 @@ async function fetchSummary(slug: string): Promise<SetSummaryRow | null> {
 
 function renderPreview(slug: string, summary: SetSummaryRow | null): string {
   const title = summary?.name || 'Unmatched Labs';
-  const description =
-    summary?.subtitle || 'A local-first builder for custom Unmatched Adventures sets.';
-  const image = summary?.thumbnail_url || '';
+
+  /*
+   * The subtitle first, then the one line of stats an author never has to
+   * write themselves — free information a reader would otherwise only get by
+   * opening the link. Skipped when both counts are zero, which is what an
+   * empty (never-hydrated) summary row looks like, so a broken lookup does
+   * not print "0 characters · 0 cards" under the generic fallback text.
+   */
+  const stats =
+    summary && (summary.character_count > 0 || summary.card_count > 0)
+      ? `${summary.character_count} ${summary.character_count === 1 ? 'character' : 'characters'} · ${summary.card_count} cards`
+      : '';
+  const description = summary?.subtitle
+    ? stats
+      ? `${summary.subtitle} — ${stats}`
+      : summary.subtitle
+    : stats || 'A local-first builder for custom Unmatched Adventures sets.';
+
+  /*
+   * The composed, trimmed render (`cloud/social-image.ts`) over the plain
+   * gallery-tile downscale — see `social_image_url`'s own note in
+   * `cloud/sets.ts` for why the two are different pictures at all. Empty for
+   * a row published before that existed, which is exactly when the fallback
+   * matters.
+   */
+  const image = summary?.social_image_url || summary?.thumbnail_url || '';
 
   return `<!doctype html>
 <html lang="en">
