@@ -350,5 +350,63 @@ export const GUIDES: readonly Guide[] = [
       }
     ],
     action: { label: 'Open Symbols', run: { to: 'setPage', page: 'symbols' } }
+  },
+  {
+    id: 'adding-multiple-decks',
+    title: 'Give a character a second deck',
+    summary: 'Split cards that don\'t belong in the normal action deck into one of their own.',
+    icon: 'layers',
+    steps: [
+      {
+        text:
+          'Select a character and open their Identity tab. Every figure starts with one action deck, but "Add deck" beside the Decks tile isn\'t limited to that — it gives the character a second deck of their own, empty and ready to name.',
+        shot: 'adding-multiple-decks/01-add-deck.webp',
+        alt: 'A character\'s Identity tab, with the Identity tile on the left and the Decks tile — one Action deck, and an "Add deck" button — on the right.',
+        hotspots: [
+          {
+            x: 0.795,
+            y: 0.045,
+            w: 0.155,
+            h: 0.065,
+            label: 'One click, one new empty deck'
+          }
+        ]
+      },
+      {
+        text:
+          'Rename it to whatever the extra cards actually are — say, "Supplies" for a set of gear cards a villain hands out beyond their normal 30-card action deck. Its kind stays "Special" unless you have a real reason to change it; that\'s just the label for "not one of the deck types the app already has a use for."',
+        shot: 'adding-multiple-decks/02-rename.webp',
+        alt: 'The Decks tile with two decks: Action deck, and a renamed Supplies deck of kind Special, both with cards in them.',
+        hotspots: [
+          {
+            x: 0.475,
+            y: 0.44,
+            w: 0.51,
+            h: 0.26,
+            label: 'A second deck, named for what it holds'
+          }
+        ]
+      },
+      {
+        text:
+          'This is where it earns its keep while you work: the sidebar lists a character\'s decks separately, each with its own card count. A villain with thirty action cards and a handful of supply cards mixed into one pile is a scroll to find anything; split apart, each deck is short enough to see at a glance.',
+        shot: 'adding-multiple-decks/03-sidebar.webp',
+        alt: 'The sidebar under The Huntsman, showing Action deck and Supplies as two separate, separately-counted groups.',
+        hotspots: [
+          {
+            x: 0.0,
+            y: 0.32,
+            w: 1.0,
+            h: 0.66,
+            label: 'Two decks, two counts, easy to tell apart'
+          }
+        ]
+      },
+      {
+        text:
+          'One thing this does not do on its own: separate the cards into their own pile in the Tabletop Simulator export. TTS piles are built by card type, not by which deck an author filed something in — every action card a character has, whichever deck it lives in here, deals from the same pile on the table. A second deck is genuinely useful for keeping your own workspace readable, and for splitting off cards of a different type (rules text, say) that would already export separately regardless of which deck holds them. Just don\'t reach for it expecting Tabletop Simulator to hand a player two separate stacks — that isn\'t what it changes.'
+      }
+    ],
+    action: { label: 'Open the card editor', run: { to: 'setPage', page: 'editor' } }
   }
 ];
