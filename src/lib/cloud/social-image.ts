@@ -136,12 +136,25 @@ export async function renderSocialImage(set: AdventureSet): Promise<Blob | null>
   }
 
   return withCardStage(async (photograph) => {
+    /*
+     * One `photograph` call at a time, on purpose. Every other caller of this
+     * stage (`character-cards.ts`, the TTS and PNG exporters) does the same —
+     * a `for` loop, never `Promise.all` — and that turned out not to be
+     * incidental: two concurrent calls each mount their own `CardRenderer`
+     * into their own slot, which looks independent, but a live publish with
+     * three heroes came back with a populated `thumbnail_url` and
+     * `character_cards` (both rendered by sequential callers) and an empty
+     * `social_image_url` — the one step that was calling `photograph`
+     * concurrently. Sequential is slower by a card apiece and is what every
+     * proven caller already does.
+     */
     if (heroes.length === 1) {
       const hero = heroes[0];
       if (!hero) return renderThumbnail(set);
 
       try {
-        const [back, card] = await Promise.all([heroBack(photograph, hero), heroCard(photograph, hero)]);
+        const back = await heroBack(photograph, hero);
+        const card = await heroCard(photograph, hero);
         const pictures = [back, card].filter((blob): blob is Blob => blob !== null);
         if (pictures.length === 0) return renderThumbnail(set);
         return (await composeRow(pictures)) ?? renderThumbnail(set);
@@ -153,9 +166,11 @@ export async function renderSocialImage(set: AdventureSet): Promise<Blob | null>
 
     try {
       const shown = heroes.slice(0, MAX_GRID_HEROES);
-      const backs = (await Promise.all(shown.map((hero) => heroBack(photograph, hero)))).filter(
-        (blob): blob is Blob => blob !== null
-      );
+      const backs: Blob[] = [];
+      for (const hero of shown) {
+        const back = await heroBack(photograph, hero);
+        if (back) backs.push(back);
+      }
       if (backs.length === 0) return renderThumbnail(set);
       return (await composeGrid(backs)) ?? renderThumbnail(set);
     } catch (cause) {
