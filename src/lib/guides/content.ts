@@ -46,14 +46,14 @@ export const GUIDES: readonly Guide[] = [
       },
       {
         text:
-          'Select the rules card and find "Belongs to" in its editor. It lists every deck of the same kind that already exists, plus every character who does not yet have one — so picking a name is what creates their deck. You never have to go and build one first.',
+          'Select the rules card and find "Belongs to" in its editor. It lists every deck of the same kind that already exists, plus every character who does not yet have one, so picking a name is what creates their deck. You never have to go and build one first.',
         shot: 'character-rules-deck/02-belongs-to.webp',
         alt: 'The rules card editor’s Deck section, showing the Belongs to field set to "Whole set".',
         hotspots: [{ x: 0.495, y: 0.2, w: 0.495, h: 0.7 }]
       },
       {
         text:
-          'Pick the character. Their own rules deck appears in the sidebar with the card in it, and the shared deck keeps everything else. A scoped export of that character now carries this card along with them.',
+          'Pick the character. Their own rules deck appears in the sidebar with the card in it, and the shared deck keeps everything else. A scoped export of that character now carries this card with them, along with any other rules card in this deck.',
         shot: 'character-rules-deck/03-owned-deck.webp',
         alt: 'The sidebar showing a second Rules cards deck, labelled with the character who owns it.',
         hotspots: [
@@ -73,7 +73,7 @@ export const GUIDES: readonly Guide[] = [
         alt: 'An empty rules deck in the sidebar, with its delete button showing.',
         hotspots: [
           {
-            x: 0.933,
+            x: 0.925,
             y: 0.665,
             w: 0.045,
             h: 0.155,
@@ -100,15 +100,15 @@ export const GUIDES: readonly Guide[] = [
     steps: [
       {
         text:
-          'Every published set has a "Build on this" panel with one button: make a copy to work on. It records where the copy came from — who published it, and which revision — so you never lose track of the set you started from.',
+          'Every published set has a "Build on this" panel with one button: make a copy to work on. It records where the copy came from, who published it, and which revision...so you never lose track of the set you started from.',
         shot: 'collaborate-on-a-project/01-shared-set.webp',
         alt: 'A shared set’s page, with the "Make a copy to work on" button in its Build on this panel.',
         hotspots: [
           {
-            x: 0.715,
+            x: 0.725,
             y: 0.57,
             w: 0.185,
-            h: 0.11,
+            h: 0.13,
             label: 'One click makes the copy'
           }
         ]
@@ -120,9 +120,9 @@ export const GUIDES: readonly Guide[] = [
         alt: 'A set’s own page, showing "Based on Wicked Woods by Priya Achar · revision 3" under its title.',
         hotspots: [
           {
-            x: 0.135,
-            y: 0.68,
-            w: 0.40,
+            x: 0.115,
+            y: 0.66,
+            w: 0.25,
             h: 0.14,
             label: 'Where this copy came from'
           }
@@ -130,29 +130,29 @@ export const GUIDES: readonly Guide[] = [
       },
       {
         text:
-          'Once you have made a change, an "Offer your changes back" panel appears, listing everything that is different from the set you copied. Add a note if you like, then send it — the original author decides what happens next, and your own copy is never at risk either way.',
+          'Once you have made any changes, an "Offer your changes back" panel appears, listing everything that is different from the set you copied. Add a note if you like, then send it. The original author decides what happens next, and your own copy is never at risk either way.',
         shot: 'collaborate-on-a-project/03-offer.webp',
         alt: 'The Offer your changes back panel, listing one changed card and a Send to Priya Achar button.',
         hotspots: [
           {
             x: 0.03,
-            y: 0.79,
-            w: 0.42,
-            h: 0.14,
+            y: 0.76,
+            w: 0.85,
+            h: 0.17,
             label: 'Sends the whole list, in one offer'
           }
         ]
       },
       {
         text:
-          'Changed your mind, or want to add more before the author looks at it? Withdraw the offer at any time before it is reviewed. Nothing is lost — keep working, and send an updated one whenever you are ready.',
+          'Changed your mind, or want to add more before the author looks at it? Withdraw the offer at any time before it is reviewed. Nothing is lost, just keep working and send an updated one whenever you are ready.',
         shot: 'collaborate-on-a-project/04-withdraw.webp',
         alt: 'The same panel, now showing "You have an offer waiting on this set" and a Withdraw the offer button.',
         hotspots: [
           {
-            x: 0.03,
-            y: 0.65,
-            w: 0.40,
+            x: 0.035,
+            y: 0.63,
+            w: 0.30,
             h: 0.27,
             label: 'Only before it’s reviewed'
           }
@@ -160,7 +160,7 @@ export const GUIDES: readonly Guide[] = [
       },
       {
         text:
-          'The author sees exactly what you saw: every change, before and after, drawn as real cards rather than a list of field names. They tick the ones they want — all of it, some of it, or none — and nothing moves until they decide. Taking a change edits their own set; nothing you did to yours is affected either way.',
+          'The author sees exactly what you saw: every change, showing the before and after versions. They tick the ones they want — all of it, some of it, or none. Taking a change edits their own set; nothing you did to yours is affected either way.',
         shot: 'collaborate-on-a-project/05-review.webp',
         alt: 'The owner’s review screen, comparing a card as it stands against the offered version, with a checkbox and Take/Decline buttons.',
         hotspots: [
@@ -169,20 +169,20 @@ export const GUIDES: readonly Guide[] = [
             y: 0.34,
             w: 0.375,
             h: 0.48,
-            label: 'Before and after, as real cards'
+            label: 'Before and after shown for approval'
           }
         ]
       },
       {
         text:
-          'Once the author republishes with your change taken, your name appears on the set’s own page — a credit for what actually landed, visible to anyone who opens it. Not a changelog of what you proposed, just a plain "with contributions from" naming everyone who helped.',
+          'Once the author republishes with your change taken, your name appears on the set’s own page with a contribution credit naming everyone who helped.',
         shot: 'collaborate-on-a-project/06-credit.webp',
         alt: 'The published set’s page reading "With contributions from Jonas Weir" under its latest change note.',
         hotspots: [
           {
-            x: 0.008,
-            y: 0.51,
-            w: 0.28,
+            x: 0.04,
+            y: 0.455,
+            w: 0.25,
             h: 0.1,
             label: 'Everyone whose work is in this set'
           }
@@ -199,13 +199,13 @@ export const GUIDES: readonly Guide[] = [
     steps: [
       {
         text:
-          'A set is more than its cards — Unmatched is played with miniatures, tokens and a health dial for every villain and minion, and Tabletop Simulator needs digital versions of all of it to actually play a fan set. The Components page is where you list what your adventure needs: figures to stand in for characters, tokens the rules place or remove, health dials, and anything else that goes in the box. A few common tokens have their sizes filled in for you; everything else starts blank.',
+          'A set is more than its cards: Unmatched is played with miniatures, tokens and a health dial for every hero, sidekick, villain and minion, and Tabletop Simulator needs digital versions of all of it to actually play a fan set. The Components page is where you list what your adventure needs: figures to stand in for characters, character tokens, game pieces, health dials, and anything else that goes in the box. A few common tokens have their sizes filled in for you while everything else starts blank.',
         shot: 'how-components-work/01-what.webp',
         alt: 'The Components page, with preset token buttons, kind buttons, and an empty list.',
         hotspots: [
           {
-            x: 0.615,
-            y: 0.07,
+            x: 0.59,
+            y: 0.11,
             w: 0.375,
             h: 0.17,
             label: 'Presets first, then any kind on its own'
@@ -214,12 +214,12 @@ export const GUIDES: readonly Guide[] = [
       },
       {
         text:
-          'Every component has a kind — figure, token, health dial or game piece — and can be tied to a character. Assigning one matters beyond bookkeeping: a health dial with no name takes the character\'s automatically, and Tabletop Simulator uses the link to know whose token is whose. A component with nothing to do with a specific character — a threat track marker, a deck box insert — is just left unassigned.',
+          'Every component has a kind (figure, token, health dial or game piece) and can be tied to a character. Assign one them to the characters to ensure the JSONs for each character is created accurately, and Tabletop Simulator uses the link to know whose token is whose. A component with nothing to do with a specific character like a threat track marker or a deck box insert is left unassigned.',
         shot: 'how-components-work/02-add-assign.webp',
         alt: 'A token named Red, assigned to the character Red, with a reference image attached.',
         hotspots: [
           {
-            x: 0.115,
+            x: 0.125,
             y: 0.3,
             w: 0.8,
             h: 0.16,
@@ -229,22 +229,22 @@ export const GUIDES: readonly Guide[] = [
       },
       {
         text:
-          'A component is built from whichever of three sources you give it. Reference art is a picture the app can wrap onto a generated piece itself — see the next step. If you already have a sculpt, attach an STL or OBJ model directly and the reference art becomes just a picture for reference. A ready-made Tabletop Simulator object — with its own working script, like the health dial\'s — can be attached whole and spliced into the export as-is.',
+          'A component is built from whichever of three sources you give it. Reference art is a picture the app can wrap onto a generated piece itself — see the next step. If you already have a sculpt, attach an STL or OBJ model directly.',
         shot: 'how-components-work/03-sources.webp',
         alt: 'A figure called The Huntsman with a 3D model and a Tabletop Simulator object attached, and no reference image.',
         hotspots: [
           {
-            x: 0.115,
-            y: 0.44,
+            x: 0.12,
+            y: 0.41,
             w: 0.8,
-            h: 0.42,
-            label: 'Your own model, or one you attach whole'
+            h: 0.45,
+            label: 'Your own model and texture, or one you attach whole'
           }
         ]
       },
       {
         text:
-          'No sculpt of your own? Turn on "Build a token from the image" and the app generates one — a flat disc or polygon with your reference art wrapped onto its face, sized however you like. Shape, diameter, thickness and the rim colour left showing at the edge are all yours to set, and the preview below updates as you go. This is what every preset token already does, and it is enough for most tokens a set needs.',
+          'No sculpt of your own? Toggle on "Build a token from the image" and the app generates one — a flat disc or polygon with your reference art wrapped onto its face, sized however you like. Shape, diameter, thickness and the rim colour left showing at the edge are all yours to set, and the preview below updates as you go. This is what every preset token already does, and it is enough for most tokens a set needs.',
         shot: 'how-components-work/04-customize.webp',
         alt: 'A generated token\'s shape, diameter, thickness, rim colour and zoom controls, with a live 3D preview of the finished disc below.',
         hotspots: [
@@ -253,26 +253,102 @@ export const GUIDES: readonly Guide[] = [
             y: 0.235,
             w: 0.8,
             h: 0.1,
-            label: 'Shape, size and colour — the piece updates live'
+            label: 'Shape, size and colour. The piece updates live'
           }
         ]
       },
       {
         text:
-          'The health dial is the one component the app already knows how to build — every villain and minion needs one, so it is its own kind rather than something you configure from scratch. Give it a face image and the range it should count, and everything else — the disc, the click-to-adjust triggers, the script that runs them in Tabletop Simulator — comes built in.',
+          'The health dial is one component the app already knows how to build — every hero, villain, and minion needs one (plus many sidekicks), so it is its own kind rather than something you configure from scratch. Give it a face image and the range it should count, and everything else — the disc, the click-to-adjust triggers, the script that runs them in Tabletop Simulator — comes built in.',
         shot: 'how-components-work/05-dial.webp',
         alt: 'A health dial\'s value range and face art settings, with a live 3D preview of the finished dial below.',
         hotspots: [
           {
-            x: 0.115,
-            y: 0.19,
-            w: 0.245,
+            x: 0.12,
+            y: 0.18,
+            w: 0.265,
             h: 0.36,
-            label: 'The one range you actually set'
+            label: 'The one range you set'
           }
         ]
       }
     ],
     action: { label: 'Open Components', run: { to: 'setPage', page: 'figures' } }
+  },
+  {
+    id: 'custom-symbols',
+    title: 'Design your own symbols',
+    summary: 'Upload a glyph once, then insert it anywhere the built-in symbols go.',
+    icon: 'sparkle',
+    steps: [
+      {
+        text:
+          'Upload a transparent PNG on the Symbols page and give it a short, one-word name. That name is what you\'ll type to use it — "Hook" becomes {{hook}} — as long as it\'s not already claimed by another symbol or one of the four built-ins. A name that can\'t work as a word still inserts fine from the palette button; it just keeps a longer id form in the text.',
+        shot: 'custom-symbols/01-upload.webp',
+        alt: 'A custom symbol named Hook, with its image attached and the {{hook}} token shown.',
+        hotspots: [
+          {
+            x: 0.06,
+            y: 0.63,
+            w: 0.6,
+            h: 0.28,
+            label: 'Its name is the word you\'ll type'
+          }
+        ]
+      },
+      {
+        text:
+          'Once it exists, it shows up in every symbol palette in the app — the small row above any ability field, the card title, rules and event text, character sheets. Click it, or type its name, and it inserts right where the caret is. It prints inline in the ability text exactly like the built-in combat symbols do, at the same size as the surrounding words.',
+        shot: 'custom-symbols/02-insert.webp',
+        alt: 'The symbol palette above an ability field, with the custom Hook symbol as its last icon, and the printed card showing the glyph inline in its ability text.',
+        hotspots: [
+          {
+            x: 0.415,
+            y: 0.02,
+            w: 0.185,
+            h: 0.045,
+            label: 'The same row, on every ability field'
+          }
+        ]
+      },
+      {
+        text:
+          'A hero or villain card can also carry a symbol below its name ribbon, standing on its own in the strip that connects the ribbon to the divider. This is a separate placement from anything typed into ability text — pick it from "Ribbon symbol" in the card\'s Combat section, set how large it prints, and it\'s there whether or not the same symbol appears anywhere else on the card.',
+        shot: 'custom-symbols/03-ribbon.webp',
+        alt: 'The Ribbon symbol control with Hook selected, and the printed card showing the glyph in the strip below its name ribbon.',
+        hotspots: [
+          {
+            x: 0.445,
+            y: 0.135,
+            w: 0.115,
+            h: 0.075,
+            label: 'A different placement from ability text'
+          }
+        ]
+      },
+      {
+        text:
+          'A Bonus ability — the extra paragraph printed last on the card — can carry a larger icon of its own beside the text, picked the same way. Its size is independent of everywhere else the symbol appears: the "Bonus icon size" slider only scales this one instance, so the same upload can sit small inside a sentence and large beside the bonus ability on the very same card.',
+        shot: 'custom-symbols/04-bonus.webp',
+        alt: 'The Bonus icon picker with Hook selected and its size slider, next to the printed card showing a large Hook glyph beside the bonus ability text.',
+        hotspots: [
+          {
+            x: 0.0,
+            y: 0.31,
+            w: 0.35,
+            h: 0.2,
+            label: 'Which symbol'
+          },
+          {
+            x: 0.53,
+            y: 0.555,
+            w: 0.145,
+            h: 0.1,
+            label: 'How large — independent of every other use'
+          }
+        ]
+      }
+    ],
+    action: { label: 'Open Symbols', run: { to: 'setPage', page: 'symbols' } }
   }
 ];
