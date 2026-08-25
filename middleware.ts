@@ -127,7 +127,7 @@ function renderPreview(slug: string, summary: SetSummaryRow | null): string {
     ? stats
       ? `${summary.subtitle} — ${stats}`
       : summary.subtitle
-    : stats || 'A local-first builder for custom Unmatched Adventures sets.';
+    : stats || 'A local-first builder for custom Unmatched sets.';
 
   /*
    * The composed, trimmed render (`cloud/social-image.ts`) over the plain
