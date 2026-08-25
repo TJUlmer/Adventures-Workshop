@@ -132,6 +132,19 @@
     return document.cards.find((card) => card.id === key) ?? null;
   }
 
+  /**
+   * A hero's own character card is drawn straight off the `Character` —
+   * `HeroCharacterCardFace` reads `character.characterCard`, not anything in
+   * `set.cards` — so a `character`-kind entry needs its own lookup here
+   * rather than falling through `cardIn` and finding nothing. Villain and
+   * minion changes stay unprevewed, as they already were: neither role has
+   * a printed "character card" for this to draw.
+   */
+  function heroIn(document: AdventureSet, key: string) {
+    const character = document.characters.find((entry) => entry.id === key) ?? null;
+    return character?.role === 'hero' ? character : null;
+  }
+
   async function accept(): Promise<void> {
     if (!open) return;
     busy = true;
@@ -226,6 +239,8 @@
         {@const preview = entry.change === 'removed' ? null : previewOf(entry)}
         {@const after = preview ? cardIn(preview, entry.key) : null}
         {@const before = cardIn(set, entry.key)}
+        {@const afterHero = entry.kind === 'character' && preview ? heroIn(preview, entry.key) : null}
+        {@const beforeHero = entry.kind === 'character' ? heroIn(set, entry.key) : null}
         <li class="entry" class:conflict={entry.conflict}>
           <label class="entry-head">
             <input type="checkbox" checked={chosen.has(entry.key)} onchange={() => toggle(entry.key)} />
@@ -258,6 +273,41 @@
                       card={after}
                       character={characterForCard(preview, after)}
                       theme={resolveStyleForCard(preview, after)}
+                      customSymbols={preview.customSymbols}
+                    />
+                  </div>
+                </figure>
+              {/if}
+            </div>
+          {:else if beforeHero || afterHero}
+            <!--
+              A hero's own entity bundles its stats *and* its printed
+              character-card design (`Character.characterCard`) — neither
+              lives in `set.cards`, so `cardIn` above finds nothing and this
+              entry fell through with no preview at all. `HeroCharacterCardFace`
+              reads straight off the `Character`, the same way a deck back
+              does, so it takes the same `statCard` prop `PreviewPanel` already
+              uses rather than a second drawing path. Always the primary
+              identity (`statCardEntry` left unset) — an offer names one
+              character, not which of its "+1 character card" sheets changed.
+            -->
+            <div class="compare">
+              {#if beforeHero}
+                <figure class="side">
+                  <figcaption>Yours now</figcaption>
+                  <div class="card">
+                    <CardRenderer card={null} statCard={beforeHero} customSymbols={set.customSymbols} />
+                  </div>
+                </figure>
+              {/if}
+
+              {#if afterHero && preview}
+                <figure class="side">
+                  <figcaption>Offered</figcaption>
+                  <div class="card">
+                    <CardRenderer
+                      card={null}
+                      statCard={afterHero}
                       customSymbols={preview.customSymbols}
                     />
                   </div>

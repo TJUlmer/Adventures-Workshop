@@ -1084,6 +1084,19 @@ Two traps already paid for:
   document has nothing left to read a name off. `reviewEntries` relabels it from
   the owner's copy, which still has it — otherwise the owner is asked to approve
   deleting "Untitled card" when the card was called "Melting".
+- **A `character`-kind entry drew nothing at all**, for any hero. A hero's
+  stats *and* its printed character-card design (`Character.characterCard`,
+  read by `HeroCharacterCardFace`) both live on the `Character`, not in
+  `set.cards` — so `ContributionsScreen`'s original `cardIn(document, key)`,
+  which only ever searched `set.cards`, silently found nothing for `kind:
+  'character'` and the whole comparison was skipped. `heroIn(document, key)`
+  is `cardIn`'s sibling for this case — looks the character up, returns it
+  only when `role === 'hero'` — and renders through `CardRenderer`'s existing
+  `statCard` prop, the same one `PreviewPanel` already uses for a hero's own
+  sheet, rather than a second drawing path. Villain and minion `character`
+  entries are unchanged by this and still render nothing: neither role has a
+  printed character-card sheet for `statCard` to draw, so there is nothing
+  new to show them.
 
 The review screen renders the proposed card from a **preview document** —
 `applyEntries(set, [entry])` — rather than from the set as it stands, because
