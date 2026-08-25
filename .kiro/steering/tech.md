@@ -24,7 +24,7 @@ npm run preview  # serve the production build
 `noUncheckedIndexedAccess` — an unused import or an unguarded array index is a
 **build failure**, not a warning.
 
-`Start Adventures Workshop.cmd` launches the app for non-developer use.
+`Start Unmatched Labs.cmd` launches the app for non-developer use.
 
 ## No test suite
 

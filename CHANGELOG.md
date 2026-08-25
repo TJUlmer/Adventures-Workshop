@@ -1,6 +1,6 @@
 # Changelog
 
-How Adventures Workshop got built, day by day.
+How Unmatched Labs got built, day by day.
 
 This is a working record rather than a release history — the project has no
 version tags and was never under version control, so the timeline below is

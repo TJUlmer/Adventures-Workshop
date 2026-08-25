@@ -6,6 +6,8 @@
    * prints on, so it is edited beside those cards rather than here, a page away
    * from anything it changes.
    */
+  import { auth } from '$lib/cloud/auth.svelte';
+  import { listMyPublishedSets } from '$lib/cloud/sets';
   import { hasArtwork } from '$lib/core/artwork';
   import { readArtworkFile } from '$lib/core/image-import';
   import { SET_KINDS, SET_KIND_META } from '$lib/sets/types';
@@ -17,6 +19,39 @@
   import ReplacementPanel from '../workspace/ReplacementPanel.svelte';
 
   const set = $derived(workshop.adventure);
+
+  /**
+   * The whole-set publish's own revision, read from the published row rather
+   * than kept on the document. Unlike the old free-text Version field, this
+   * one is not an author's to set: the database trigger that owns `revision`
+   * (see `cloud/sets.ts`) is the only thing that ever moves it, on a
+   * re-publish that actually changes something. `null` covers both "never
+   * published" and "not signed in to check" — both read the same here: no
+   * tally to show yet.
+   */
+  let publishedRevision = $state<number | null>(null);
+
+  async function refreshRevision(): Promise<void> {
+    if (!auth.signedIn) {
+      publishedRevision = null;
+      return;
+    }
+    try {
+      const rows = await listMyPublishedSets();
+      const whole = rows.find((row) => row.local_id === set.id && row.scope === 'full');
+      publishedRevision = whole?.revision ?? null;
+    } catch {
+      publishedRevision = null;
+    }
+  }
+
+  $effect(() => {
+    // Re-runs when the open set changes or a session begins — same trigger
+    // shape as `SharePanel`'s own `refresh`.
+    void set.id;
+    void auth.signedIn;
+    void refreshRevision();
+  });
 
   let boxInput = $state<HTMLInputElement | null>(null);
   let error = $state<string | null>(null);
@@ -136,10 +171,16 @@
         <TextInput bind:value={set.meta.author} placeholder="Your name" />
       </label>
 
-      <label class="stack">
-        <span class="field-label">Version</span>
-        <TextInput bind:value={set.meta.version} placeholder="0.1.0" />
-      </label>
+      <div class="stack">
+        <span class="field-label">Revision</span>
+        <p class="field-value">
+          {#if publishedRevision !== null}
+            {publishedRevision}
+          {:else}
+            Not yet published
+          {/if}
+        </p>
+      </div>
     </EditorSection>
 
     <EditorSection title="Box art" hint="Shown on the set's home page and in the library.">
@@ -367,6 +408,21 @@
   .field-label {
     font-size: var(--text-xs);
     color: var(--text-tertiary);
+  }
+
+  /* Matches TextInput's own height so a read-only value beside an editable
+     one — Revision beside Author — lines up rather than sitting shorter. */
+  .field-value {
+    display: flex;
+    align-items: center;
+    height: 32px;
+    margin: 0;
+    padding-inline: var(--space-3);
+    border-radius: var(--radius-sm);
+    background: var(--surface-inset);
+    border: 1px solid var(--border-subtle);
+    font-size: var(--text-sm);
+    color: var(--text-secondary);
   }
 
   .box-row {

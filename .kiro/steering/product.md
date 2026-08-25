@@ -4,7 +4,7 @@ inclusion: always
 
 # Product
 
-**Adventures Workshop** is a local-first builder for custom **Unmatched Adventures**
+**Unmatched Labs** is a local-first builder for custom **Unmatched Adventures**
 sets — heroes, villains, minions, initiative decks, rules and event cards, the
 adventure map and threat track, and the printable card art that goes with them.
 

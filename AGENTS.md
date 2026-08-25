@@ -1,6 +1,6 @@
 # AGENTS.md
 
-Shared always-relevant context for AI coding tools working on **Adventures Workshop**.
+Shared always-relevant context for AI coding tools working on **Unmatched Labs**.
 Kiro reads this automatically; Claude Code's fuller guidance lives in `CLAUDE.md`, and
 Kiro's expanded steering lives in `.kiro/steering/`. Keep all three consistent.
 

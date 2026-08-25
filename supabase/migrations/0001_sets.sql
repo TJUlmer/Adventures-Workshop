@@ -1,4 +1,4 @@
--- Adventures Workshop: published sets.
+-- Unmatched Labs: published sets.
 --
 -- Run this once in the Supabase SQL editor. It is written to be re-runnable.
 --

@@ -1,4 +1,4 @@
-# Adventures Workshop — Layout & Navigation Rework
+# Unmatched Labs — Layout & Navigation Rework
 
 A walk-through of the live app (both your near-empty "Untitled Adventure" and the fully-built "Oz Adventure" set), cross-referenced against your tips-and-tricks file, to find exactly *why* those capabilities feel hidden and what to change so they don't.
 

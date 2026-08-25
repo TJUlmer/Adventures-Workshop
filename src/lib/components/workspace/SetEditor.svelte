@@ -20,13 +20,6 @@
     return 'template';
   }
   const isEmpty = $derived(set.characters.length === 0 && set.cards.length === 0);
-
-  let confirmingReset = $state(false);
-
-  function resetSet(): void {
-    workshop.reset();
-    confirmingReset = false;
-  }
 </script>
 
 <WorkspaceHeader
@@ -36,8 +29,8 @@
   colorVar="--accent-press"
 >
   {#snippet actions()}
-    <!-- The name, subtitle, author and version moved to Settings — one home
-         each, rather than the same field live on two pages. -->
+    <!-- The name, subtitle and author moved to Settings — one home each,
+         rather than the same field live on two pages. -->
     <Button size="sm" variant="ghost" onclick={() => navigation.go('settings')}>
       <Icon name="settings" size={13} />
       Set details
@@ -123,26 +116,6 @@
       </div>
     </div>
   </Section>
-
-  <Section
-    title="Danger zone"
-    description="Everything lives in this browser. Export before you clear."
-  >
-    <div class="danger">
-      {#if confirmingReset}
-        <span class="danger-text">Discard this set and start over?</span>
-        <Button size="sm" variant="ghost" onclick={() => (confirmingReset = false)}>
-          Cancel
-        </Button>
-        <Button size="sm" variant="danger" onclick={resetSet}>Discard</Button>
-      {:else}
-        <span class="danger-text">Start a new, empty set.</span>
-        <Button size="sm" variant="secondary" onclick={() => (confirmingReset = true)}>
-          New set
-        </Button>
-      {/if}
-    </div>
-  </Section>
 </div>
 
 <style>
@@ -220,18 +193,6 @@
     font-size: var(--text-2xs);
     letter-spacing: var(--tracking-caps);
     text-transform: uppercase;
-    color: var(--text-muted);
-  }
-
-  .danger {
-    display: flex;
-    align-items: center;
-    gap: var(--space-3);
-  }
-
-  .danger-text {
-    flex: 1 1 auto;
-    font-size: var(--text-xs);
     color: var(--text-muted);
   }
 </style>

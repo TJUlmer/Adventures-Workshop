@@ -1735,6 +1735,16 @@ from the raw value when it is there. Worth asserting rather than assuming:
 normalise a document three times and compare `fingerprintSet` across the
 passes; they must be identical.
 
+**The app was renamed from Adventures Workshop to Unmatched Labs; the on-disk
+format string was not.** `SET_FILE_FORMAT` (`src/lib/export/json.ts`) is still
+`'adventures-workshop-set'`, checked on every `.json` import
+(`parseSetFile`). It is never displayed — only the user-facing rejection
+message next to it changed — and it is stamped into every set file anyone has
+ever exported. Rewriting it would make the new build refuse every one of
+those files on the strength of a cosmetic rename. A string like this earns a
+change only when the shape it identifies changes, not when the product wearing
+it does.
+
 ### Other subsystems
 
 - `src/lib/models/` — STL (binary + ASCII) and OBJ parsing into an unindexed,

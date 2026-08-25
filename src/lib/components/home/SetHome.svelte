@@ -139,7 +139,6 @@
         <span class="status" data-state={health.blockers > 0 ? 'blocked' : health.gaps > 0 ? 'rough' : 'ready'}>
           {healthSummary(health)}
         </span>
-        <span class="version numeric">v{set.meta.version}</span>
         {#if set.meta.author}<span class="author">{set.meta.author}</span>{/if}
       </div>
 

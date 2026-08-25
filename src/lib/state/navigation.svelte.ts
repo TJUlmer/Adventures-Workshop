@@ -42,7 +42,7 @@ export const SET_PAGE_META: Readonly<Record<SetPage, SetPageMeta>> = {
     icon: 'sparkle'
   },
   assets: { label: 'Overview', hint: 'Every component in one place', icon: 'layers' },
-  settings: { label: 'Settings', hint: 'Theme defaults, notes and version', icon: 'settings' },
+  settings: { label: 'Settings', hint: 'Identity, theme defaults and notes', icon: 'settings' },
   /*
    * Reached from Export rather than from the nav bar, and rendered outside the
    * app shell — a print view with a title bar above it has three things to hide

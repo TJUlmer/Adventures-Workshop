@@ -10,16 +10,18 @@
    * The trigger only ever runs once, so this is not fighting it on every
    * load; it is the only way to overwrite what it wrote.
    *
-   * Renders nothing when signed out. There is no sign-in entry point here —
-   * that already exists, contextually, on `SignInPanel` wherever sharing or
-   * contributing comes up — this is only for someone who already has an
-   * identity worth managing, findable from anywhere rather than only at the
-   * moment of publishing.
+   * Also the one entry point into signing in that is not tied to sharing or
+   * contributing — findable from the corner at any time, not only at the
+   * moment of publishing, since an author sitting down to build a set has no
+   * other reason yet to land on `SharePanel` or `ContributePanel`. Signed
+   * out, it renders `SignInPanel` in place of the profile form; signed in,
+   * it is the display-name editor described above.
    */
   import { auth } from '$lib/cloud/auth.svelte';
   import { cloudEnabled } from '$lib/cloud/config';
   import { fetchOwnProfile, updateOwnDisplayName } from '$lib/cloud/profile';
   import { Button, Icon, TextInput } from '$lib/ui';
+  import SignInPanel from './SignInPanel.svelte';
 
   let open = $state(false);
   let host = $state<HTMLDivElement | null>(null);
@@ -107,7 +109,7 @@
   });
 </script>
 
-{#if cloudEnabled() && auth.signedIn}
+{#if cloudEnabled()}
   <div class="account" bind:this={host}>
     <Button
       size="sm"
@@ -116,7 +118,7 @@
       aria-haspopup="menu"
       aria-expanded={open}
       aria-label="Account"
-      title={auth.isAnonymous ? 'Sharing anonymously' : auth.user?.email}
+      title={auth.signedIn ? (auth.isAnonymous ? 'Sharing anonymously' : auth.user?.email) : 'Sign in'}
       onclick={() => (open = !open)}
     >
       <Icon name="user" size={14} />
@@ -124,36 +126,40 @@
 
     {#if open}
       <div class="menu" role="menu">
-        <p class="who">
-          {#if auth.isAnonymous}
-            Sharing anonymously, from this browser.
-          {:else}
-            Signed in as <strong>{auth.user?.email}</strong>
-          {/if}
-        </p>
+        {#if !auth.signedIn}
+          <SignInPanel reason="Sign in to publish and share sets from anywhere." />
+        {:else}
+          <p class="who">
+            {#if auth.isAnonymous}
+              Sharing anonymously, from this browser.
+            {:else}
+              Signed in as <strong>{auth.user?.email}</strong>
+            {/if}
+          </p>
 
-        <label class="field">
-          <span class="field-label">Display name</span>
-          <TextInput
-            bind:value={displayName}
-            placeholder={loading ? 'Loading…' : 'Shown under anything you publish'}
-            disabled={loading}
-          />
-        </label>
-        <p class="fineprint">
-          Shown under any set you publish and on any contribution you offer. A
-          Google sign-in starts this as your account's real name — change or
-          clear it any time; blank shows as “Anonymous”.
-        </p>
+          <label class="field">
+            <span class="field-label">Display name</span>
+            <TextInput
+              bind:value={displayName}
+              placeholder={loading ? 'Loading…' : 'Shown under anything you publish'}
+              disabled={loading}
+            />
+          </label>
+          <p class="fineprint">
+            Shown under any set you publish and on any contribution you offer. A
+            Google sign-in starts this as your account's real name — change or
+            clear it any time; blank shows as “Anonymous”.
+          </p>
 
-        {#if error}<p class="error" role="alert">{error}</p>{/if}
+          {#if error}<p class="error" role="alert">{error}</p>{/if}
 
-        <div class="row">
-          <Button size="sm" variant="primary" disabled={saving || loading || !dirty} onclick={save}>
-            {saving ? 'Saving…' : justSaved ? 'Saved' : 'Save'}
-          </Button>
-          <Button size="sm" variant="ghost" onclick={signOut}>Sign out</Button>
-        </div>
+          <div class="row">
+            <Button size="sm" variant="primary" disabled={saving || loading || !dirty} onclick={save}>
+              {saving ? 'Saving…' : justSaved ? 'Saved' : 'Save'}
+            </Button>
+            <Button size="sm" variant="ghost" onclick={signOut}>Sign out</Button>
+          </div>
+        {/if}
       </div>
     {/if}
   </div>

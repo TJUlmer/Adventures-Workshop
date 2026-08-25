@@ -346,12 +346,6 @@ export class WorkshopStore {
     this.selection = SET_SELECTION;
   }
 
-  reset(): void {
-    this.load(createEmptySet());
-    this.savedAt = null;
-    this.saveError = null;
-  }
-
   markSaved(at: IsoDateTime = now()): void {
     this.savedAt = at;
     this.saveError = null;

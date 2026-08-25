@@ -80,7 +80,7 @@ export function parseSetFile(raw: string): ParseResult {
   if (!isRecord(parsed)) return { ok: false, error: 'File is not an object.' };
 
   if (parsed['format'] !== SET_FILE_FORMAT) {
-    return { ok: false, error: 'File was not produced by Adventures Workshop.' };
+    return { ok: false, error: 'File was not produced by Unmatched Labs.' };
   }
 
   const schemaVersion = parsed['schemaVersion'];

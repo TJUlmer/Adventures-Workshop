@@ -1,8 +1,8 @@
 {
-  "name": "adventures-workshop",
+  "name": "unmatched-labs",
   "version": "0.1.0",
   "private": true,
-  "description": "Local-first card and set builder for Unmatched Adventures content.",
+  "description": "Local-first card, set and hero builder for Unmatched content.",
   "type": "module",
   "engines": {
     "node": ">=20"

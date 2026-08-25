@@ -1,4 +1,4 @@
--- Adventures Workshop: the community gallery.
+-- Unmatched Labs: the community gallery.
 --
 -- Run after `0001_sets.sql`. Written to be re-runnable.
 --

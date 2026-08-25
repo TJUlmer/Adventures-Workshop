@@ -107,7 +107,7 @@ async function fetchSummary(slug: string): Promise<SetSummaryRow | null> {
 }
 
 function renderPreview(slug: string, summary: SetSummaryRow | null): string {
-  const title = summary?.name || 'Adventures Workshop';
+  const title = summary?.name || 'Unmatched Labs';
   const description =
     summary?.subtitle || 'A local-first builder for custom Unmatched Adventures sets.';
   const image = summary?.thumbnail_url || '';
@@ -125,7 +125,7 @@ ${image ? `<meta property="og:image" content="${escapeAttr(image)}">\n` : ''}<me
 <body>
 <h1>${escapeAttr(title)}</h1>
 <p>${escapeAttr(description)}</p>
-<p><a href="/shared/${encodeURIComponent(slug)}">Open in Adventures Workshop</a></p>
+<p><a href="/shared/${encodeURIComponent(slug)}">Open in Unmatched Labs</a></p>
 </body>
 </html>`;
 }

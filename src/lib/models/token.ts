@@ -380,7 +380,7 @@ export function tokenObj(mesh: TokenMesh, materialName: string): string {
       : `${mesh.spec.diameterMm}mm across`;
 
   const lines: string[] = [
-    '# Unmatched Adventures Workshop — generated token',
+    '# Unmatched Labs — generated token',
     `# ${mesh.spec.shape} · ${size} · ${mesh.spec.thicknessMm}mm thick`,
     `# 1 unit = 1 inch (${MM_PER_TTS_UNIT}mm)`,
     `mtllib ${materialName}.mtl`,
@@ -419,7 +419,7 @@ export function tokenObj(mesh: TokenMesh, materialName: string): string {
 
 export function tokenMtl(materialName: string, textureFile: string): string {
   return [
-    '# Unmatched Adventures Workshop — generated token',
+    '# Unmatched Labs — generated token',
     `newmtl ${materialName}`,
     'Ka 1.000 1.000 1.000',
     'Kd 1.000 1.000 1.000',

@@ -70,8 +70,8 @@
     and clears "last open".
   -->
   <button class="brand" type="button" onclick={() => void workshop.closeSet()} title="Home">
-    <span class="mark" aria-hidden="true"></span>
-    <span class="wordmark">Adventures Workshop</span>
+    <img class="mark" src="/assets/labs_beaker5.png" alt="" aria-hidden="true" />
+    <span class="wordmark">Unmatched Labs</span>
   </button>
 
   <button class="doc" type="button" onclick={() => workshop.selectSet()} title="Set details">
@@ -157,6 +157,11 @@
 
     <ThemeToggle />
 
+    <!--
+      Always here now, signed in or not — the one entry point into signing in
+      that is not tied to sharing or contributing; see `AccountMenu`'s own
+      note.
+    -->
     <AccountMenu />
   </div>
 </div>
@@ -188,13 +193,10 @@
   }
 
   .mark {
-    width: 12px;
-    height: 12px;
+    width: 22px;
+    height: 22px;
     flex: none;
-    rotate: 45deg;
-    border-radius: 2px;
-    background: linear-gradient(140deg, var(--accent-hover), var(--accent-press));
-    box-shadow: 0 0 12px color-mix(in oklab, var(--accent-press) 45%, transparent);
+    object-fit: contain;
   }
 
   .wordmark {

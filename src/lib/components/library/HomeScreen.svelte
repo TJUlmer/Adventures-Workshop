@@ -16,6 +16,7 @@
   import { parseSetFile } from '$lib/export/json';
   import { CHARACTER_ROLE_META, SELECTABLE_ROLES } from '$lib/characters/types';
   import type { CharacterId, CharacterRole } from '$lib/characters/types';
+  import AccountMenu from '$lib/components/cloud/AccountMenu.svelte';
   import { auth } from '$lib/cloud/auth.svelte';
   import { openContributionCounts } from '$lib/cloud/contributions';
   import { cloudEnabled } from '$lib/cloud/config';
@@ -793,10 +794,10 @@
 <div class="library scroll-y">
   <header class="head">
     <div class="brand">
-      <span class="mark" aria-hidden="true"></span>
+      <img class="mark" src="/assets/labs_beaker5.png" alt="" aria-hidden="true" />
       <div class="titles">
-        <h1 class="title">Adventures Workshop</h1>
-        <p class="subtitle">Everything lives inside a set.</p>
+        <h1 class="title">Unmatched Labs</h1>
+        <p class="subtitle">The unmatched toolkit for Unmatched creation</p>
         {#if storage}
           <p class="storage-line">
             {formatSize(storage.usageBytes)} of {formatSize(storage.quotaBytes)} used
@@ -814,6 +815,16 @@
         onchange={importSet}
       />
       <ThemeToggle />
+
+      <!--
+        Always here, signed in or not — the one entry point into signing in
+        that is not tied to sharing or contributing; see `AccountMenu`'s own
+        note. This is the screen an author lands on before any set is open,
+        so it is also the earliest place signing in ahead of publishing can
+        happen.
+      -->
+      <AccountMenu />
+
       <!--
         The way into the gallery. Beside Import rather than promoted above New
         set: someone opening the app usually came to work on their own set, and
@@ -1223,6 +1234,10 @@
       </div>
     {/if}
   </div>
+
+  <p class="disclaimer">
+    Unmatched Labs is a fan-made tool, not affiliated with Restoration Games.
+  </p>
 </div>
 
 <NewSetDialog
@@ -1262,12 +1277,13 @@
   }
 
   .mark {
-    width: 22px;
-    height: 22px;
-    rotate: 45deg;
-    border-radius: 4px;
-    background: linear-gradient(140deg, var(--accent-hover), var(--accent-press));
-    box-shadow: 0 0 20px color-mix(in oklab, var(--accent-press) 45%, transparent);
+    /* Matches the measured height of the three-line .titles stack beside it,
+       so the mark spans the full title block rather than sitting undersized
+       next to it. */
+    width: 69px;
+    height: 69px;
+    flex: none;
+    object-fit: contain;
   }
 
   .titles {
@@ -1481,7 +1497,8 @@
 
   .about-title {
     font-family: var(--font-display);
-    font-size: var(--text-sm);
+    font-size: var(--text-lg);
+    font-weight: var(--weight-semibold);
     letter-spacing: var(--tracking-tight);
     color: var(--text-primary);
   }
@@ -2222,5 +2239,12 @@
     border-color: var(--role-tint);
     text-transform: uppercase;
     letter-spacing: var(--tracking-wide);
+  }
+
+  .disclaimer {
+    padding-block: var(--space-6) var(--space-4);
+    text-align: center;
+    font-size: var(--text-2xs);
+    color: var(--text-muted);
   }
 </style>

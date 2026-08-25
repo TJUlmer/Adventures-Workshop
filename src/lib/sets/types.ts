@@ -329,8 +329,6 @@ export interface SetOrigin {
 export interface SetMeta {
   author: string;
   description: string;
-  /** Author-facing release string, e.g. "0.3.0". Distinct from the schema. */
-  version: string;
   readonly createdAt: IsoDateTime;
   updatedAt: IsoDateTime;
 }
