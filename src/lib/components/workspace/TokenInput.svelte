@@ -12,8 +12,9 @@
    * borrows that structure wholesale, down to the class names, and reads
    * identically to the `Field`s beside it.
    */
+  import { untrack } from 'svelte';
   import type { CustomSymbol } from '$lib/symbols/types';
-  import { insertToken } from '$lib/text/tokens';
+  import { insertToken, toDisplayTokens, toStoredTokens } from '$lib/text/tokens';
   import SymbolPalette from './SymbolPalette.svelte';
 
   interface Props {
@@ -28,7 +29,7 @@
 
   let {
     label,
-    value = $bindable(''),
+    value = '',
     placeholder,
     prominent = false,
     onchange,
@@ -36,6 +37,43 @@
   }: Props = $props();
 
   let field = $state<HTMLInputElement | null>(null);
+
+  /**
+   * The DOM value: the title with every custom symbol shown by name rather
+   * than by id. `AbilityField` carries the same pair and the same reasoning —
+   * the document keeps the id form, this is only what the author reads and
+   * types, and `emit` converts back on the way out.
+   */
+  // `untrack`: this seeds the field once and the effect below owns every
+  // sync after it, the same deliberate one-time read `PreviewPanel` marks
+  // the same way for its zoom.
+  let display = $state(untrack(() => toDisplayTokens(value, customSymbols)));
+
+  /*
+   * Re-render only when `display` has stopped being a *view* of `value`.
+   *
+   * The test is the round trip, not "did `value` change since I wrote it".
+   * That was the first version and it missed a rename: renaming a symbol
+   * leaves the stored text untouched, so the field went on showing the old
+   * name forever. Converting `display` back and comparing catches both cases
+   * from one rule — mid-edit the round trip matches by construction (`emit`
+   * sets `value` to exactly it) so the caret is left alone, while a card
+   * switch, an undo, or a rename all fail it and redraw.
+   *
+   * `display` is read untracked: it is written just below, and tracking it
+   * here would make this effect its own trigger.
+   */
+  $effect(() => {
+    const incoming = toDisplayTokens(value, customSymbols);
+    untrack(() => {
+      if (toStoredTokens(display, customSymbols) !== value) display = incoming;
+    });
+  });
+
+  function emit(next: string): void {
+    display = next;
+    onchange(toStoredTokens(next, customSymbols));
+  }
 
   /**
    * Splice the token in where the caret was.
@@ -49,17 +87,17 @@
   function insert(token: string): void {
     const element = field;
     if (!element) {
-      onchange(value + token);
+      emit(display + token);
       return;
     }
 
     const { text, caret } = insertToken(
-      value,
-      element.selectionStart ?? value.length,
-      element.selectionEnd ?? value.length,
+      display,
+      element.selectionStart ?? display.length,
+      element.selectionEnd ?? display.length,
       token
     );
-    onchange(text);
+    emit(text);
 
     // Restore the caret after Svelte writes the new value back.
     requestAnimationFrame(() => {
@@ -83,14 +121,14 @@
   -->
   <input
     bind:this={field}
-    bind:value
+    bind:value={display}
     class="input"
     class:prominent
     type="text"
     spellcheck="false"
     {placeholder}
     aria-label={label}
-    oninput={(event) => onchange(event.currentTarget.value)}
+    oninput={(event) => emit(event.currentTarget.value)}
   />
 </div>
 

@@ -8,13 +8,30 @@
    * picture of its own, so a glyph uploaded here is immediately available on
    * every action card, rules card and character sheet.
    */
+  import { CARD_SYMBOLS } from '$lib/renderer/assets';
   import { readArtworkFile } from '$lib/core/image-import';
   import type { CustomSymbol, CustomSymbolId } from '$lib/symbols/types';
   import { customSymbolLabel } from '$lib/symbols/types';
   import { workshop } from '$lib/state/workshop.svelte';
+  import { namedSymbols } from '$lib/text/tokens';
   import { Button, EmptyState, Icon, TextInput } from '$lib/ui';
 
   const symbols = $derived(workshop.adventure.customSymbols);
+
+  /**
+   * The token an author writes for this symbol, or `null` when its name
+   * cannot be one and only the palette button will do. Read from
+   * `namedSymbols` rather than re-deriving the rule, so this panel and the
+   * fields can never disagree about which names work.
+   */
+  const named = $derived(namedSymbols(symbols));
+
+  function tokenFor(symbol: CustomSymbol): string | null {
+    for (const [name, id] of named) if (id === symbol.id) return `{{${name}}}`;
+    return null;
+  }
+
+  const reservedList = [...Object.keys(CARD_SYMBOLS), 'name'].map((n) => `{{${n}}}`).join(', ');
 
   let fileInputs: Record<string, HTMLInputElement | null> = $state({});
   let error = $state<string | null>(null);
@@ -121,6 +138,24 @@
               placeholder="Symbol name"
               oninput={(event) => rename(symbol, event.currentTarget.value)}
             />
+
+            <!--
+              What this symbol is written as in ability text. Shown because
+              the fallback is otherwise silent: a name that cannot be a token
+              — blank, spaced, punctuated, one a built-in already claims, or
+              one shared with another symbol — keeps the id form, and an
+              author who typed `{{two words}}` and got literal braces would
+              have nothing to go on. See `namedSymbols`.
+            -->
+            {#if tokenFor(symbol) === null}
+              <span class="token-hint muted">
+                Insert-only — give it a one-word name no other symbol uses
+                (and not {reservedList}) to write it as a word.
+              </span>
+            {:else}
+              <span class="token-hint"><code>{tokenFor(symbol)}</code> in ability text</span>
+            {/if}
+
             {#if symbol.source}
               <button
                 type="button"
@@ -242,6 +277,25 @@
     flex-direction: column;
     gap: var(--space-2);
     min-width: 0;
+  }
+
+  .token-hint {
+    font-size: var(--text-2xs);
+    line-height: var(--leading-normal);
+    color: var(--text-tertiary);
+    text-wrap: pretty;
+  }
+
+  .token-hint.muted {
+    color: var(--text-muted);
+  }
+
+  .token-hint code {
+    padding: 1px var(--space-1);
+    border-radius: var(--radius-xs);
+    background: var(--surface-sunken);
+    font-family: var(--font-mono, monospace);
+    color: var(--text-secondary);
   }
 
   .ghost {

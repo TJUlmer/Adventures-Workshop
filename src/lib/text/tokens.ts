@@ -88,3 +88,97 @@ export function insertToken(
   const next = text.slice(0, selectionStart) + token + text.slice(selectionEnd);
   return { text: next, caret: selectionStart + token.length };
 }
+
+// -- Writing a custom symbol by name ------------------------------------
+//
+// A custom symbol is *stored* as `{{custom:symbol_<uuid>}}` and always will
+// be: the id is what survives a rename, so a card that uses a symbol keeps
+// using it after its author renames it, and nothing has to rewrite every
+// card's text to keep up. That is worth keeping and is not what anyone wants
+// to read or type.
+//
+// So the id form is the storage form and `{{hook}}` is the *display* form,
+// translated at the edge of the two fields that show token text at all —
+// `AbilityField` and `TokenInput`. (Rich text has never shown a token: it
+// carries a real `<img data-symbol-id>`, so there is nothing to translate.)
+// The document is untouched by any of this, which means an older set opens
+// exactly as before and a name can be changed as often as the author likes.
+
+/** Names a custom symbol may not take, because a token already means them. */
+const RESERVED = new Set([...Object.keys(CARD_SYMBOLS), 'name']);
+
+/** What a name has to look like to be a token: the token grammar, minus `:`. */
+const NAME_PATTERN = /^[a-zA-Z][a-zA-Z0-9_-]*$/;
+
+/**
+ * Which symbols may be written by name, as `name → id`.
+ *
+ * A name earns that only if it is unambiguous — anything else keeps the id
+ * form, in the editor as well as in storage, so what is shown is always
+ * something that can be typed back. Excluded: a blank name, one that is not
+ * shaped like a token (spaces, punctuation, a leading digit), one that a
+ * built-in token already claims (`attack`, `name`, …), and one that two
+ * symbols share, where resolving it would be a guess. Case-insensitive,
+ * because typing `{{Hook}}` and meaning `hook` is not a mistake worth
+ * punishing.
+ */
+export function namedSymbols(
+  symbols: readonly { id: CustomSymbolId; name: string }[]
+): Map<string, CustomSymbolId> {
+  const seen = new Map<string, CustomSymbolId | null>();
+  for (const symbol of symbols) {
+    const name = symbol.name.trim().toLowerCase();
+    if (!name || !NAME_PATTERN.test(name) || RESERVED.has(name)) continue;
+    // A repeat poisons the name for everyone, rather than the first winning.
+    seen.set(name, seen.has(name) ? null : symbol.id);
+  }
+  const usable = new Map<string, CustomSymbolId>();
+  for (const [name, id] of seen) if (id) usable.set(name, id);
+  return usable;
+}
+
+/** The token to show and to insert for a symbol — its name where it can be. */
+export function displaySymbolToken(
+  symbol: { id: CustomSymbolId; name: string },
+  symbols: readonly { id: CustomSymbolId; name: string }[]
+): string {
+  for (const [name, id] of namedSymbols(symbols)) {
+    if (id === symbol.id) return `{{${name}}}`;
+  }
+  return customSymbolToken(symbol.id);
+}
+
+/** Storage form → what the author reads: `{{custom:…}}` becomes `{{hook}}`. */
+export function toDisplayTokens(
+  text: string,
+  symbols: readonly { id: CustomSymbolId; name: string }[]
+): string {
+  const byId = new Map<CustomSymbolId, string>();
+  for (const [name, id] of namedSymbols(symbols)) byId.set(id, name);
+  if (byId.size === 0) return text;
+  return text.replace(TOKEN_PATTERN, (raw, inner: string) => {
+    if (!inner.startsWith(CUSTOM_SYMBOL_PREFIX)) return raw;
+    const name = byId.get(inner.slice(CUSTOM_SYMBOL_PREFIX.length) as CustomSymbolId);
+    return name ? `{{${name}}}` : raw;
+  });
+}
+
+/**
+ * What the author typed → storage form.
+ *
+ * A name this does not recognise is left exactly as written rather than
+ * dropped, so a typo stays visible and fixable instead of silently becoming
+ * nothing — the same way `parseAbilityText` leaves an unknown token as
+ * literal text.
+ */
+export function toStoredTokens(
+  text: string,
+  symbols: readonly { id: CustomSymbolId; name: string }[]
+): string {
+  const byName = namedSymbols(symbols);
+  if (byName.size === 0) return text;
+  return text.replace(TOKEN_PATTERN, (raw, inner: string) => {
+    const id = byName.get(inner.toLowerCase());
+    return id ? customSymbolToken(id) : raw;
+  });
+}

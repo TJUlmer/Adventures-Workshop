@@ -9,12 +9,21 @@
    * plain text, and a field that prints its value verbatim would print the
    * braces — so adding this to a new field means teaching that field's face
    * `parseAbilityText` in the same change.
+   *
+   * A custom symbol inserts its **display** token — `{{hook}}` where the name
+   * is unambiguous, falling back to `{{custom:<id>}}` where it is not (see
+   * `namedSymbols`). That is what the author reads in the field, and it is
+   * *not* what gets stored, so the second half of the rule above is: the
+   * field must put its value through `toStoredTokens` before it writes.
+   * `AbilityField` and `TokenInput` both do; a new one that forgets would
+   * store a name the renderer does not resolve, and it would print as
+   * literal braces.
    */
   import { CARD_SYMBOL_LABELS, CARD_SYMBOLS } from '$lib/renderer/assets';
   import type { CardSymbolName } from '$lib/renderer/assets';
   import type { CustomSymbol } from '$lib/symbols/types';
   import { customSymbolLabel } from '$lib/symbols/types';
-  import { customSymbolToken, SUBJECT_TOKEN, symbolToken } from '$lib/text/tokens';
+  import { displaySymbolToken, SUBJECT_TOKEN, symbolToken } from '$lib/text/tokens';
 
   interface Props {
     /** Called with the token to splice in at the caret. */
@@ -58,7 +67,7 @@
       type="button"
       class="symbol"
       title="Insert {customSymbolLabel(symbol)} symbol"
-      onclick={() => oninsert(customSymbolToken(symbol.id))}
+      onclick={() => oninsert(displaySymbolToken(symbol, customSymbols))}
     >
       <img src={symbol.source} alt={customSymbolLabel(symbol)} />
     </button>

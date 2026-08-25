@@ -6,8 +6,9 @@
    * card actually is — an ability with no "After Combat" clause shows no
    * "After Combat" field.
    */
+  import { untrack } from 'svelte';
   import type { CustomSymbol } from '$lib/symbols/types';
-  import { insertToken } from '$lib/text/tokens';
+  import { insertToken, toDisplayTokens, toStoredTokens } from '$lib/text/tokens';
   import { Icon } from '$lib/ui';
   import SymbolPalette from './SymbolPalette.svelte';
 
@@ -25,7 +26,7 @@
 
   let {
     label,
-    value = $bindable(''),
+    value = '',
     placeholder,
     rows = 3,
     onremove,
@@ -34,6 +35,49 @@
   }: Props = $props();
 
   let field = $state<HTMLTextAreaElement | null>(null);
+
+  /**
+   * What the textarea holds: the document's text with every custom symbol
+   * shown by name (`{{hook}}`) rather than by id. The document keeps the id
+   * form — see the note at the foot of `text/tokens.ts` — so this is a view
+   * of `value`, converted back by `emit` on the way out.
+   *
+   * Held as its own state rather than derived, because it *is* the DOM value
+   * while the author types: re-deriving it from the store on every keystroke
+   * is what sends a caret to the end of the field. Only a change that did not
+   * come from this field — switching cards, renaming a symbol, an undo —
+   * rewrites it, which is what the guard below tests for.
+   */
+  // `untrack`: this seeds the field once and the effect below owns every
+  // sync after it, the same deliberate one-time read `PreviewPanel` marks
+  // the same way for its zoom.
+  let display = $state(untrack(() => toDisplayTokens(value, customSymbols)));
+
+  /*
+   * Re-render only when `display` has stopped being a *view* of `value`.
+   *
+   * The test is the round trip, not "did `value` change since I wrote it".
+   * That was the first version and it missed a rename: renaming a symbol
+   * leaves the stored text untouched, so the field went on showing the old
+   * name forever. Converting `display` back and comparing catches both cases
+   * from one rule — mid-edit the round trip matches by construction (`emit`
+   * sets `value` to exactly it) so the caret is left alone, while a card
+   * switch, an undo, or a rename all fail it and redraw.
+   *
+   * `display` is read untracked: it is written just below, and tracking it
+   * here would make this effect its own trigger.
+   */
+  $effect(() => {
+    const incoming = toDisplayTokens(value, customSymbols);
+    untrack(() => {
+      if (toStoredTokens(display, customSymbols) !== value) display = incoming;
+    });
+  });
+
+  function emit(next: string): void {
+    display = next;
+    onchange(toStoredTokens(next, customSymbols));
+  }
 
   /*
    * Enter was being silently swallowed for this field in some (but not all)
@@ -67,17 +111,17 @@
   function insert(token: string): void {
     const element = field;
     if (!element) {
-      onchange(value + token);
+      emit(display + token);
       return;
     }
 
     const { text, caret } = insertToken(
-      value,
+      display,
       element.selectionStart,
       element.selectionEnd,
       token
     );
-    onchange(text);
+    emit(text);
 
     // Restore the caret after Svelte writes the new value back.
     requestAnimationFrame(() => {
@@ -104,12 +148,12 @@
 
   <textarea
     bind:this={field}
-    bind:value
+    bind:value={display}
     class="input"
     {rows}
     {placeholder}
     aria-label={label}
-    oninput={(event) => onchange(event.currentTarget.value)}
+    oninput={(event) => emit(event.currentTarget.value)}
     onkeydown={handleKeydown}
   ></textarea>
 </div>

@@ -1494,6 +1494,30 @@ passes; they must be identical.
 - `src/lib/text/rich-text.ts` — allowlist sanitiser. Attributes are allowlisted
   **by value**: the single permitted inline style is rebuilt from a parsed
   number, never passed through.
+- `src/lib/text/tokens.ts` — inline `{{…}}` tokens, and **a custom symbol has
+  two forms**. It is *stored* as `{{custom:symbol_<uuid>}}` and always will
+  be: the id is what survives a rename, so renaming a symbol never has to
+  rewrite every card that uses it, and a card cannot be broken by one.
+  `{{hook}}` is the *display* form, translated by `toDisplayTokens` /
+  `toStoredTokens` at the only two fields that ever show token text —
+  `AbilityField` and `TokenInput`. Rich text has never shown a token (it
+  carries a real `<img data-symbol-id>`), so there is nothing to translate
+  there, and the document is untouched by any of this.
+
+  A name earns the short form only if it is unambiguous (`namedSymbols`):
+  non-blank, shaped like a token, not one a built-in already claims
+  (`attack`, `name`, …), and not shared with another symbol — a duplicate
+  poisons the name for *both* rather than letting the first win. Anything
+  else keeps the id form in the editor too, so what is shown is always
+  something that can be typed back. `SymbolsPanel` prints which form each
+  symbol will use, because that fallback is otherwise silent.
+
+  Both fields hold the display text as their own `$state` rather than
+  deriving it, since it *is* the DOM value while someone types. The re-sync
+  guard is a **round trip** — redraw only when `toStoredTokens(display)` no
+  longer equals `value` — not "did `value` change since I wrote it". That
+  first version missed a rename: renaming leaves the stored text identical,
+  so the field went on showing the old name indefinitely.
 
 ## Verifying changes
 
