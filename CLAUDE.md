@@ -905,12 +905,91 @@ away building a bare `Set<string>`. `publishedSlugByLocalId` keeps both, as a
 `Map<SetId, string>` — the Published/Unpublished split below still just calls
 `.has()` on it, so nothing else about that effect changed.
 
-**"Guides" is an earmark, not a feature.** A small panel, three inert rows,
-a "Coming soon" tag — reachable content for Collaboration/sharing/exporting
-topics that don't exist yet and have nowhere to link to (nothing in
-`state/navigation.svelte.ts` has a help/docs destination today). Placed
-rather than left to a future patch precisely so the *spot* for it exists
-before the content does.
+### Guides
+
+A guide is a short, step-by-step walkthrough of one thing the app does, shown
+as a modal over whatever screen you were on. `guides/types.ts` is the shape,
+`guides/content.ts` is every guide, `state/guides.svelte.ts` is which one is
+open, and `components/guides/` draws it. Adding one is writing an entry and
+dropping screenshots into `public/assets/guides/` — nothing registers, imports
+or is told about it, because Home lists whatever is in the array.
+
+**A guide is an overlay, not a place**, so it is its own store rather than a
+`View` in `navigation.svelte.ts`. Closing one has to put you back exactly where
+you were, which as a `View` would mean every guide remembering and restoring
+what was underneath it — `openAuthor`'s `#returnTo` problem, for nothing. The
+store is app-level, and `GuideModal` is mounted once in `App.svelte` above the
+view switch, because half the topics worth a guide (adding decks, custom
+symbols) are things an author is doing *inside* a set. Home's card is the first
+entry point, not the only possible one.
+
+**The screenshots are clean and every annotation is data.** A step's `hotspots`
+are fractions of the image; `GuideShot` draws the boxes and the callouts.
+Baking arrows into the picture was the alternative and is worse in three ways
+that all cost time later: an image editor for every wording change, no way to
+follow the app's own theme, and text that turns illegible on a narrow window
+because it scales with the bitmap.
+
+That makes one thing load-bearing that reads as tidiness: **the frame takes the
+picture's own aspect ratio.** A hotspot is a fraction of the frame, so if the
+frame is any other shape `object-fit: contain` letterboxes the image inside it
+and every box lands where the picture is not — a portrait sidebar shot in a
+landscape frame put a box meant for a 245px row across the whole dialog. The
+aspect is read on mount *and* on `load`, because an image already in the cache
+— every step you go back to — is `complete` before the component exists and its
+`load` event has already been and gone.
+
+**`GuideAction.run` is a name, not a callback**, resolved by `GuideModal` to a
+real handler. Content that reached into the store would make a data file depend
+on half the app, and a typo would be a crash inside a modal. It also lets the
+modal *check* an action: a `setPage` action is hidden unless `navigation.inSet`,
+so a guide read from Home never offers a button that goes somewhere unexpected.
+
+**The dialog is a native `<dialog>` driven from the store**, the same as
+`NewSetDialog` and for the same reasons — focus trapping, Escape, the top layer
+and an inert background, none of which this app has a dependency to
+reimplement. One thing the store cannot express, though: `dialog.open` is a DOM
+property and nothing reactive can read it, so if the element is ever closed
+without `onclose` running, the store still believes it is open — and
+`open(sameId)` then changes no state, the effect never re-runs, and the guide
+can never be opened again. `Guides.#opened` is a counter bumped by every
+`open()` and read by the effect for no other purpose than to make re-opening
+re-assert the DOM.
+
+Worth knowing when verifying any of this in the preview browser: **that pane
+does not fire `dialog`'s `close` event at all** — confirmed on a bare,
+freshly-created `<dialog>`, not just this one. So the Escape path cannot be
+exercised there, and a test that closes the element directly leaves the store
+and the DOM disagreeing in a way that looks exactly like broken reactivity and
+is not. (The other half of that afternoon: `import('/src/lib/state/guides.svelte.ts')`
+from the console is a *different module instance* from the `$lib/state/guides.svelte`
+the components import — the same trap the `?t=` cache-buster note records. Every
+reading taken through it was of a store nothing was watching. Drive the UI.)
+
+**The screenshots are captured, not drawn**, and repeatably:
+`tools/capture-guide-shot.js` runs in the dev console and photographs a DOM
+element with the app's own rasteriser (`renderPlateImage` with a synthetic
+`format` — only `format.bleed` is read on the `bleed: true` path), and
+`tools/guide-shots.py` trims, pads and converts to WebP. A guide's shots go
+stale every time the UI they show moves, so one nobody can re-take is one
+nobody will update. Three things that route learnt the hard way:
+
+- **Form controls must be mirrored into attributes first.** A `<select>`'s
+  chosen option is a property and does not survive `cloneNode` — the trap
+  `ThreatBoard`'s `editable` prop exists for. Without it every select in a shot
+  shows its *first* option: a deck owned by a character photographed as "Whole
+  set", which is not a blank or an error but a confident picture of the wrong
+  thing.
+- **Flatten onto an opaque backdrop before writing.** Most panels here are
+  tinted rather than painted, so photographed alone they keep their alpha and
+  anything that later drops the alpha channel gets the colour at full strength.
+  A dark orange band came back as a slab of pure orange.
+- **Trim per edge, iteratively.** A single pass measured against the corner
+  pixel does nothing to a panel whose header is a different colour from its
+  body, and a whole-image "is this background" test crops a section's heading
+  off. Per-edge works, but only if repeated: one border pixel down an edge puts
+  a differing pixel in every row of the empty tail, so nothing is uniform until
+  that column has been eaten.
 
 `TitleBar` carries a "Home" button beside "Gallery" now, for the same reason
 the gallery already paired the two: leaving a set used to mean finding

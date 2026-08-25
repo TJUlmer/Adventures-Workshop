@@ -12,6 +12,7 @@
   import SetNav from '$lib/components/layout/SetNav.svelte';
   import StatusBar from '$lib/components/layout/StatusBar.svelte';
   import TitleBar from '$lib/components/layout/TitleBar.svelte';
+  import GuideModal from '$lib/components/guides/GuideModal.svelte';
   import ContributionsScreen from '$lib/components/cloud/ContributionsScreen.svelte';
   import AuthorProfileScreen from '$lib/components/cloud/AuthorProfileScreen.svelte';
   import GalleryScreen from '$lib/components/cloud/GalleryScreen.svelte';
@@ -189,4 +190,13 @@
       {/snippet}
     </AppShell>
   {/if}
+
+  <!--
+    Mounted once, outside the view switch, because a guide is an overlay on
+    wherever you already are rather than a place of its own — see
+    `state/guides.svelte.ts`. It renders nothing at all until something calls
+    `guides.open(id)`, so the cost of it being here on every screen is a
+    closed `<dialog>` element.
+  -->
+  <GuideModal />
 {/if}

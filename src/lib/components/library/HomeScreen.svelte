@@ -22,9 +22,11 @@
   import { fetchSetSummaryBySlug, listMyPublishedSets, listPublicSets } from '$lib/cloud/sets';
   import type { GallerySet } from '$lib/cloud/sets';
   import { asId } from '$lib/core/id';
+  import { GUIDES } from '$lib/guides/content';
   import { CARD_FORMATS, trimBox } from '$lib/renderer/geometry';
   import { healthSummaryFromCounts } from '$lib/sets/health';
   import type { SetId, SetKind } from '$lib/sets/types';
+  import { guides } from '$lib/state/guides.svelte';
   import { navigation } from '$lib/state/navigation.svelte';
   import { workshop } from '$lib/state/workshop.svelte';
   import { saveSet } from '$lib/storage/library';
@@ -956,28 +958,33 @@
       </div>
 
       <!--
-        The earmarked spot for a Collaboration/sharing tutorial — not built
-        out yet, on purpose. Every row here is inert: nothing in
-        `state/navigation.svelte.ts` has a help/docs destination to send
-        them to today, so this is a placeholder to write real content into
-        later rather than a feature shipping half-finished now.
+        Whatever is in `guides/content.ts`, in the order it is written there.
+        No list of its own: a guide that exists is a guide that is offered,
+        so adding one is editing that file and nothing else.
+
+        The card opens the guide at step 1 — `guides.open` always starts from
+        the top; see `state/guides.svelte.ts` for why resuming would be worse.
       -->
       <div class="guides">
-        <h2 class="about-title">Guides <span class="coming-soon">Coming soon</span></h2>
-        <ul class="guides-list">
-          <li class="guides-row">
-            <Icon name="layers" size={14} />
-            <span>Sharing a set</span>
-          </li>
-          <li class="guides-row">
-            <Icon name="users" size={14} />
-            <span>Working with contributions</span>
-          </li>
-          <li class="guides-row">
-            <Icon name="printer" size={14} />
-            <span>Exporting to Tabletop Simulator</span>
-          </li>
-        </ul>
+        <h2 class="about-title">Guides</h2>
+        {#if GUIDES.length === 0}
+          <p class="guides-empty">More walkthroughs are on the way.</p>
+        {:else}
+          <ul class="guides-list">
+            {#each GUIDES as guide (guide.id)}
+              <li>
+                <button type="button" class="guides-row" onclick={() => guides.open(guide.id)}>
+                  <Icon name={guide.icon} size={14} />
+                  <span class="guides-text">
+                    <span class="guides-title">{guide.title}</span>
+                    <span class="guides-summary">{guide.summary}</span>
+                  </span>
+                  <span class="guides-steps numeric">{guide.steps.length} steps</span>
+                </button>
+              </li>
+            {/each}
+          </ul>
+        {/if}
       </div>
     </div>
   {/if}
@@ -2075,17 +2082,6 @@
     color: rgb(255 255 255 / 0.75);
   }
 
-  .coming-soon {
-    margin-left: var(--space-2);
-    padding: 1px var(--space-2);
-    border-radius: var(--radius-full);
-    background: var(--surface-sunken);
-    border: 1px solid var(--border-subtle);
-    font-size: var(--text-2xs);
-    font-weight: var(--weight-medium);
-    color: var(--text-muted);
-    vertical-align: middle;
-  }
 
   .guides-list {
     display: flex;
@@ -2096,11 +2092,59 @@
 
   .guides-row {
     display: flex;
+    width: 100%;
     align-items: center;
     gap: var(--space-3);
-    height: 34px;
-    padding-inline: var(--space-3);
+    padding: var(--space-2) var(--space-3);
     border-radius: var(--radius-sm);
+    font-size: var(--text-sm);
+    color: var(--text-muted);
+    text-align: left;
+  }
+
+  .guides-row:hover {
+    background: var(--surface-hover);
+    color: var(--text-secondary);
+  }
+
+  .guides-text {
+    flex: 1 1 auto;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+  }
+
+  .guides-title {
+    color: var(--text-secondary);
+    font-weight: var(--weight-medium);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .guides-row:hover .guides-title {
+    color: var(--text-primary);
+  }
+
+  /* Two lines at most: the summary is one line of copy, and a third row of
+     text per guide would make this column taller than the two beside it. */
+  .guides-summary {
+    font-size: var(--text-xs);
+    color: var(--text-muted);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .guides-steps {
+    flex: none;
+    font-size: var(--text-xs);
+    color: var(--text-muted);
+    opacity: 0.7;
+  }
+
+  .guides-empty {
+    padding-inline: var(--space-3);
     font-size: var(--text-sm);
     color: var(--text-muted);
   }
