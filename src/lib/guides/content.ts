@@ -283,22 +283,22 @@ export const GUIDES: readonly Guide[] = [
     steps: [
       {
         text:
-          'Upload a transparent PNG on the Symbols page and give it a short, one-word name. That name is what you\'ll type to use it — "Hook" becomes {{hook}} — as long as it\'s not already claimed by another symbol or one of the four built-ins. A name that can\'t work as a word still inserts fine from the palette button; it just keeps a longer id form in the text.',
+          'Upload a transparent PNG on the Symbols page and give it a short, one-word name. "Hook" becomes {{hook}} — as long as it\'s not already claimed by another symbol or one of the four built-ins. A name that can\'t work as a word still inserts fine from the palette button; it just keeps a longer ID form in the text.',
         shot: 'custom-symbols/01-upload.webp',
         alt: 'A custom symbol named Hook, with its image attached and the {{hook}} token shown.',
         hotspots: [
           {
-            x: 0.06,
-            y: 0.63,
-            w: 0.6,
-            h: 0.28,
-            label: 'Its name is the word you\'ll type'
+            x: 0.01,
+            y: 0.5,
+            w: 0.75,
+            h: 0.4,
+            label: ''
           }
         ]
       },
       {
         text:
-          'Once it exists, it shows up in every symbol palette in the app — the small row above any ability field, the card title, rules and event text, character sheets. Click it, or type its name, and it inserts right where the caret is. It prints inline in the ability text exactly like the built-in combat symbols do, at the same size as the surrounding words.',
+          'Once it exists, it shows up in every symbol palette in the app — the small row above any ability field, the card title, rules and event text, and character sheets. Click it, or type its name, and it inserts right where the cursor is.',
         shot: 'custom-symbols/02-insert.webp',
         alt: 'The symbol palette above an ability field, with the custom Hook symbol as its last icon, and the printed card showing the glyph inline in its ability text.',
         hotspots: [
@@ -313,7 +313,7 @@ export const GUIDES: readonly Guide[] = [
       },
       {
         text:
-          'A hero or villain card can also carry a symbol below its name ribbon, standing on its own in the strip that connects the ribbon to the divider. This is a separate placement from anything typed into ability text — pick it from "Ribbon symbol" in the card\'s Combat section, set how large it prints, and it\'s there whether or not the same symbol appears anywhere else on the card.',
+          'A hero or villain card can also carry a symbol below its name ribbon, standing on its own in the strip that connects the ribbon to the divider. Pick it from "Ribbon symbol" in the card\'s Combat section, set how large it prints, and it\'s there whether or not the same symbol appears anywhere else on the card.',
         shot: 'custom-symbols/03-ribbon.webp',
         alt: 'The Ribbon symbol control with Hook selected, and the printed card showing the glyph in the strip below its name ribbon.',
         hotspots: [
@@ -328,7 +328,7 @@ export const GUIDES: readonly Guide[] = [
       },
       {
         text:
-          'A Bonus ability — the extra paragraph printed last on the card — can carry a larger icon of its own beside the text, picked the same way. Its size is independent of everywhere else the symbol appears: the "Bonus icon size" slider only scales this one instance, so the same upload can sit small inside a sentence and large beside the bonus ability on the very same card.',
+          'A Bonus ability — the colored text printed last on the card — can carry a larger icon of its own beside the text, picked the same way. Its size is independent of everywhere else the symbol appears: the "Bonus icon size" slider only scales this one instance, so the same upload can sit small inside a sentence and large beside the bonus ability on the very same card.',
         shot: 'custom-symbols/04-bonus.webp',
         alt: 'The Bonus icon picker with Hook selected and its size slider, next to the printed card showing a large Hook glyph beside the bonus ability text.',
         hotspots: [
@@ -340,9 +340,9 @@ export const GUIDES: readonly Guide[] = [
             label: 'Which symbol'
           },
           {
-            x: 0.53,
+            x: 0.35,
             y: 0.555,
-            w: 0.145,
+            w: 0.3,
             h: 0.1,
             label: 'How large — independent of every other use'
           }
@@ -408,5 +408,96 @@ export const GUIDES: readonly Guide[] = [
       }
     ],
     action: { label: 'Open the card editor', run: { to: 'setPage', page: 'editor' } }
+  },
+  {
+    id: 'sharing-a-set',
+    title: 'Sharing a set',
+    summary: 'Every way a set leaves the app — exports, print sheets, and publishing.',
+    icon: 'download',
+    steps: [
+      {
+        text:
+          'The Export block on a set\'s own page (its Edit tab) covers every way to get a set out of the app. One thing applies to all of it: the picker at the top. Left on "Whole set," every export below covers everything. Pick one hero — or, if the set has a villain side, that — and every export below switches to just that slice, nothing else along for the ride.',
+        shot: 'sharing-a-set/01-scope.webp',
+        alt: 'The Export scope picker set to a hero named Red, with a hint reading "Just Red — not the rest of Wicked Woods."',
+        hotspots: [
+          {
+            x: 0.0,
+            y: 0.14,
+            w: 0.98,
+            h: 0.44,
+            label: 'Everything below follows this'
+          }
+        ]
+      },
+      {
+        text:
+          '"All cards as PNGs" renders every card as its own full-resolution image, foldered by kind, in one zip. This is the export for anyone who wants to work with the actual card art — a print shop, another piece of design software, or just a folder of pictures to browse. "Include bleed" keeps the extra margin around each card meant to be trimmed off; leave it off for images sized to the card itself.',
+        shot: 'sharing-a-set/02-pngs.webp',
+        alt: 'The "All cards as PNGs (.zip)" export button with Include bleed checked.',
+        hotspots: [
+          {
+            x: 0.0,
+            y: 0.68,
+            w: 0.55,
+            h: 0.28,
+            label: 'On for a print shop\'s margin, off for plain images'
+          }
+        ]
+      },
+      {
+        text:
+          'The Tabletop Simulator export is not a single JSON to import — it\'s a folder: every pile\'s face sheets, the health dial and every generated token, and one saved-object file that ties them together. Unzip it, then copy the whole unzipped folder into your Tabletop Simulator Saved Objects folder — not just the one file inside it. Type that folder\'s path in once below and every future export already points there, so nothing needs editing by hand.',
+        shot: 'sharing-a-set/03-tts.webp',
+        alt: 'The Tabletop Simulator export button, with its note explaining to copy the entire unzipped folder into the Saved Objects folder.',
+        hotspots: [
+          {
+            x: 0.0,
+            y: 0.26,
+            w: 1.0,
+            h: 0.2,
+            label: 'The whole folder — not one file out of it'
+          }
+        ]
+      },
+      {
+        text:
+          '"Print sheets" lays cards out at true size on real paper — A4 or Letter, with crop marks if you want them. Printer friendly swaps every card to black line on white with no artwork, the cheapest way to proof a set on a home inkjet or a laser printer before committing to colour copies. The other three switches are independent of it: duplicates, reverse sheets for double-sided printing, and the crop marks themselves.',
+        shot: 'sharing-a-set/04-print.webp',
+        alt: 'The Print sheets screen with Printer friendly switched on, alongside Print duplicates, Card backs and Crop marks.',
+        hotspots: [
+          {
+            x: 0.0,
+            y: 0.53,
+            w: 0.19,
+            h: 0.2,
+            label: 'Black and white, no artwork'
+          }
+        ]
+      },
+      {
+        text:
+          '"Set file (.json)" is the odd one out on this list: everything else is for playing the set somewhere else, this is for the app itself. It\'s the complete document, re-importable on this or any other machine running Adventures Workshop — the format to keep backups in, or to hand a finished set to a co-author to keep working on locally.',
+        shot: 'sharing-a-set/05-jsonfile.webp',
+        alt: 'The "Set file (.json)" export button, described as the complete, re-importable document.',
+        hotspots: [{ x: 0.0, y: 0.0, w: 1.0, h: 0.95, label: 'A whole copy of the document itself' }]
+      },
+      {
+        text:
+          'Publishing is a different thing from exporting: it puts a copy on Adventures Workshop\'s own servers and hands you a link, and "Who can see it" decides who that link is good for. Listed publicly puts it in the gallery, where anyone can find it browsing. Anyone with the link is unlisted — nobody stumbles onto it, but the link itself works for whoever has it, forever. Only me stops the link working at all, without unpublishing the set itself — flip it back the moment you want it live again.',
+        shot: 'sharing-a-set/06-visibility.webp',
+        alt: 'The Share this set panel, with "Who can see it" set to Anyone with the link, and the share link above it.',
+        hotspots: [
+          {
+            x: 0.06,
+            y: 0.53,
+            w: 0.88,
+            h: 0.13,
+            label: 'Three different answers to "who has this link"'
+          }
+        ]
+      }
+    ],
+    action: { label: 'Open the set', run: { to: 'setPage', page: 'home' } }
   }
 ];
