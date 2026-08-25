@@ -23,6 +23,7 @@
   import { workshop } from '$lib/state/workshop.svelte';
   import {
     Field,
+    FillEditor,
     NumberInput,
     Section,
     SegmentedControl,
@@ -67,6 +68,8 @@
    */
   const styleTarget = $derived({ entity: 'card' as const, id: card.id });
   const resolvedTheme = $derived(resolveStyleForCard(workshop.adventure, card));
+  /** This card's own layer, for `FillEditor`'s override/inherit distinction — see `StylePanel`. */
+  const styleLayer = $derived(workshop.styleFor(styleTarget) ?? {});
   function originFor(key: keyof CardTheme): string {
     const origin: StyleOrigin = styleOriginForCard(workshop.adventure, card, key);
     return STYLE_ORIGIN_LABELS[origin];
@@ -389,6 +392,25 @@
       neutral={110}
       format={(value) => `${Math.round(value)}`}
       onchange={(size) => workshop.setStyle(styleTarget, 'ribbonSymbolSize', size)}
+    />
+
+    <!--
+      The strip's own fill, not the symbol's: `ribbonFoot` already exists as
+      one of `StylePanel`'s "Surfaces", but a change here is exactly what
+      this section is for, so it gets a shortcut to the same field rather
+      than sending an author to Design for one colour. A per-symbol colour
+      was tried instead and reverted — the four combat symbols (and any
+      custom upload) are small multi-colour illustrations with no
+      transparency of their own, so masking one to a single colour just
+      filled a rectangle and hid the art.
+    -->
+    <FillEditor
+      label="Fill colour"
+      value={resolvedTheme.ribbonFoot}
+      origin={originFor('ribbonFoot')}
+      overridden={styleLayer.ribbonFoot !== undefined}
+      onchange={(fill) => workshop.setStyle(styleTarget, 'ribbonFoot', fill)}
+      onreset={() => workshop.setStyle(styleTarget, 'ribbonFoot', undefined)}
     />
   {/if}
 </Section>

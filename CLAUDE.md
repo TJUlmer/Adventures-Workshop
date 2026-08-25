@@ -547,6 +547,18 @@ symbol is a token string resolved through the same `parseAbilityText` lookup,
 so a built-in and an author's own glyph are the same kind of thing, and its
 size is a themed key (`CardTheme.ribbonSymbolSize`) rather than card data.
 
+**The symbol itself is not recolourable, and that was tried and reverted.**
+Every other themed shape in this file — the frame, the ribbon, the boost ring
+— is single-colour art on transparency, which is what makes masking it to an
+author's chosen colour work at all. The four combat symbols, and any custom
+upload, are not: they are small multi-colour illustrations with an opaque
+background, so masking one to a flat fill just painted a rectangle and hid
+the art underneath it. What *is* an author's choice is `ribbonFoot` — the
+strip's own fill, already one of `StylePanel`'s "Surfaces" — and
+`ActionCardContent`'s "Ribbon symbol" section carries a second `FillEditor`
+bound to that same field, a shortcut so changing it does not mean a trip to
+Design for one colour. Same field, same cascade, two places to reach it.
+
 **It has its own toggle rather than being "on when a symbol is chosen."** The
 filled strip is the visible half of the idea — a card can want the unbroken
 line with no glyph in it — so `ribbonSymbol: ''` means an empty foot, not the
@@ -1923,6 +1935,40 @@ Traps that have cost real time here:
 - A negative margin on a `flex: 1 1 0` item wins it extra width.
 - An SVG asked for a shape that is not its own letterboxes rather than
   stretching (`preserveDrawingBuffer` aside, this is why `patternAspect` exists).
+- **A box sized "only as large as the calibrated case needs" is a box that
+  clips the first quote longer than that case.** The hero character card's
+  quote panel (`HeroCharacterCardFace`) took two passes to get right. The
+  first kept the box symmetric around the calibrated single-line position,
+  bounded by whichever side (up to the quote marks, down to the attribution
+  line) was tighter — correct for a short quote, but it meant the *other*
+  side's extra room sat unused even for a long one, so `fitScale` was
+  shrinking text to fit a box smaller than the band actually is. Widening the
+  box only after `fitScale` hit its floor and still overflowed fixed some
+  cases and not others, and while chasing the rest a real Svelte trap turned
+  up: assigning a `$state` variable back to the value it already holds does
+  not re-trigger an effect that depends on something derived from it — a
+  second effect reading a `$derived` box height built from that flag never
+  re-ran when an edit left the flag unchanged, so the panel kept showing
+  whatever text had last actually flipped it, one edit behind the field.
+  Both problems went away together: the box now uses the full asymmetric room
+  — up to the marks, down to the attribution or the band's own foot —
+  *unconditionally*, not as a fallback, so there is only one box, one effect,
+  and nothing conditional to desync. What that unconditional sizing gives up:
+  a short quote's visual centre sits a few pixels off the calibrated
+  single-line position rather than exactly on it (the two margins differ by
+  about 26px on Red's own card, so half that as a shift) — not a trade a
+  symmetric-by-default design would make, and worth it anyway.
+- **A shrink-to-fit floor tuned for gameplay text is not automatically right
+  for decorative flavour text.** `fitScale`'s default `min: 0.7` exists so
+  ability copy never becomes illegible — right for text someone has to read
+  to play, wrong for a quote nobody needs to parse at a glance. An author's
+  own 241-character quote still overflowed the widened quote panel at 0.7;
+  passing `{ min: 0.5 }` to `fitScale` for that one call site (not the
+  default, and not `abilityBox`'s) cleared it with room to spare. `overflow:
+  hidden` is still the backstop past *that* floor — this only moved where it
+  starts being needed, which is the honest ceiling: a fixed-size printed
+  panel cannot fit arbitrarily long text at any readable size, and no amount
+  of box-widening or floor-lowering changes that for a true outlier.
 
 ## Writing code here
 

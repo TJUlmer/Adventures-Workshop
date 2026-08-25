@@ -340,6 +340,16 @@
         style:background={theme.divider}
       ></div>
       {#if ribbonSymbolSrc}
+        <!--
+          A plain `<img>`, not a mask over a fill — tried once, reverted.
+          Every *other* themed glyph in this file is a single-colour shape on
+          transparency, which is what makes masking it work at all; a combat
+          symbol is a small multi-colour illustration with an opaque
+          background, so masking it just filled a rectangle with the chosen
+          colour and hid the art entirely. `ribbonFoot` (below) is the actual
+          author-facing colour choice here — the strip behind the symbol, not
+          the symbol itself.
+        -->
         <img
           class="ribbon-foot-symbol"
           src={ribbonSymbolSrc}
