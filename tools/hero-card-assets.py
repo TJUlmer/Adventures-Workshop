@@ -119,6 +119,11 @@ class WINDOW:
 # Overlapping them cannot produce one.
 POINT_OVERLAP = 8
 
+# Alpha at which the stroke counts as opaque enough to hide the fill behind it.
+# Capped per row by that row's own peak, since the last rows of the taper are a
+# few pixels wide and never reach it.
+OPAQUE = 250
+
 
 def load(name: str) -> np.ndarray:
     return np.array(Image.open(TEMPLATES / name).convert("RGBA")).astype(int)
@@ -230,9 +235,20 @@ def split_move_ink() -> None:
     this row does not vary by layout — so one written mask covers every
     layout; `TEMPLATE_ASSETS.heroCharacterMoveInk` points every key at the
     same file for that reason.
+
+    **This stage erases from the files it reads**, so it cannot run twice: the
+    second pass finds an empty `MOVE_ROI` because the first pass emptied it.
+    That is the same "reads its own output" fault `tools/card-masks.py` was
+    rebuilt to avoid, and fixing it properly here means a supplied `_raw` copy
+    of all four ink files, which does not exist. Until it does, an already-run
+    region is *skipped* rather than raised on — the extraction has happened,
+    the mask beside it is already written, and blocking every later stage over
+    work that is finished helps nobody. Genuinely missing ink still raises: the
+    ROI is empty in every file *and* no mask was ever written.
     """
     x0, y0, x1, y1 = MOVE_ROI
     shared_alpha: np.ndarray | None = None
+    written = TEMPLATES / "hero_character_move_ink.png"
 
     for suffix in CHARACTER_INK_SUFFIXES:
         path = TEMPLATES / f"hero_character_ink{suffix}.png"
@@ -240,6 +256,9 @@ def split_move_ink() -> None:
         region = np.zeros(ink.shape[:2], dtype=bool)
         region[y0:y1, x0:x1] = ink[y0:y1, x0:x1, 3] > 128
         if not region.any():
+            if written.exists():
+                print(f"move ink already out of {path.name}; skipping")
+                continue
             raise RuntimeError(f"no move ink found in {path.name}")
 
         # The >128 threshold leaves an antialiased fringe behind — a ring of
@@ -256,8 +275,8 @@ def split_move_ink() -> None:
         ink[claimed, 3] = 0
         Image.fromarray(ink.astype(np.uint8)).save(path)
 
-    assert shared_alpha is not None
-    mask_png(shared_alpha).save(TEMPLATES / "hero_character_move_ink.png")
+    if shared_alpha is not None:
+        mask_png(shared_alpha).save(written)
 
 
 def main() -> None:
@@ -361,6 +380,16 @@ def main() -> None:
     # The stroke never runs right of its bar, so anything that does is the
     # frame's own edge caught by the resample.
     stroke[:, bar_x1 + 1 :] = 0
+
+    # The window's own first column keeps a trace of the frame's *left* edge
+    # through the same resample — about 120 alpha on 1233 rows, the whole
+    # height of the card. `lit`'s 128 threshold dropped it for free; the ∨
+    # keeps the stroke's real alpha now (see `foot_edge` below), so it has to
+    # go explicitly or it prints as a faint hairline down the interior.
+    # Only the part below `lit`: the ∨'s left arm genuinely starts in this
+    # column, and where it does it is fully opaque.
+    stroke[stroke[:, WINDOW.x0] < 128, WINDOW.x0] = 0
+
     lit = stroke > 128
 
     # The foot is one unbroken run of rows below the bar; anything past a gap
@@ -407,14 +436,33 @@ def main() -> None:
     # and the rectangle the renderer draws overlap instead of meeting on one
     # row — a row where each contributes part of its alpha prints as a pale
     # line across the ribbon.
+    #
+    # Carved at the stroke's opaque *ridge* rather than at `lit`'s halfway
+    # point, so the fill runs on under the stroke until the stroke can hide
+    # it. `lit` was right while the ∨ was drawn 0/255 — the fill met an
+    # opaque edge and the two composited solid — but the moment the edge
+    # keeps its own ramp (below), stopping the fill at 50% leaves the pixels
+    # between there and the stroke's core carrying only the stroke's partial
+    # alpha: measured, 89 rows of the taper with a fully transparent pixel
+    # inside the ribbon. Capped by each row's own peak because the last two
+    # rows of the point are a few pixels wide and never reach `OPAQUE`.
+    ridge = stroke >= np.minimum(OPAQUE, stroke.max(axis=1, keepdims=True))
     foot = np.zeros_like(stroke)
     keep = np.zeros(BLEED[0], dtype=bool)
     keep[WINDOW.x0 : body_x1 + 1] = True
     for y in range(foot_top - POINT_OVERLAP, foot_bottom + 1):
-        keep &= ~lit[y]
+        keep &= ~ridge[y]
         foot[y][keep] = 255
 
-    foot_edge = np.where(lit, 255, 0)
+    # The ∨ keeps the stroke's *own* alpha rather than being re-thresholded to
+    # 0/255. `stroke` is a LANCZOS resample onto the bleed canvas, so it
+    # already carries a ramp that tracks the taper's sub-pixel position row by
+    # row; `np.where(lit, 255, 0)` threw that away and printed the point as a
+    # staircase. Nothing here can put it back — measured on the villain's
+    # ribbon, a thresholded taper crosses at a pixel centre on every row and
+    # steps 5, 6, 5, 5, 6 px, where the same taper with its ramp intact steps
+    # a constant 5.23. Antialiasing already in the art can only be preserved.
+    foot_edge = stroke.copy()
     foot_edge[: foot_top - POINT_OVERLAP] = 0
 
     mask_png(head_scaled).save(TEMPLATES / "hero_combat_banner.png")

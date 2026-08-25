@@ -1248,6 +1248,7 @@ an inline style written by a face component.
 Measured, on an action card: 3.7% of the trimmed face is dark, against 53.9% in
 colour.
 
+
 ### Skin templates
 
 `assets/resources/` holds the Photoshop files an author paints a piece's face
@@ -1435,28 +1436,49 @@ templates**, not authored:
 - The hero card's five, all from `tools/hero-card-assets.py` — see *The hero
   role*. Its output prints the measurements `geometry.ts`'s `HERO_RIBBON` is
   checked against, so run it after touching a source template and compare.
-- `banner_fill.png` and `banner_border.png` are passed through
-  `tools/card-masks.py`, which fixes two faults in the supplied art.
-  **The villain ribbon's outline did not cover its fill:** measured across all
-  86 rows of the pennant head, the border's left edge sat 1–3px *inside* the
-  fill's while the right edges agreed exactly, so a sliver of banner colour ran
-  down the left of the point and past its tip. Present in
-  `banner_border_raw.png` too, so it is the drawing's own registration. The
-  tool gives the outline exactly the strip of fill lying outside it — `fill AND
-  NOT shift_right(fill, 3)`, head rows only — which makes the outline's outer
-  silhouette the fill's *by construction*, so it cannot drift again. Head rows
-  only because the straight run carries an outline on its right edge alone
-  (`BANNER.edge`), and widening it there would draw one down the left.
-  The fill is then held `INSET` pixels *inside* the outline rather than merely
-  flush with it — coinciding exactly still let a hair of banner colour through
-  the stroke's own antialiasing at the point.
-  **And neither mask was antialiased:** both were pure 0/255, which is the
-  jagged pennant. Softening is supersampled from the `>=128` silhouette so the
-  boundary does not move and `BANNER`'s measured numbers stay true — verified,
-  0 silhouette pixels changed. It is a **one-shot generator**, not an
-  idempotent one: it reads the files it writes, and neither step survives its
-  own output, so `already_generated` checks the two invariants (soft edge, fill
-  clear of the outline) and stops rather than compounding.
+- `banner_fill.png` and `banner_border.png` come from `banner_fill_raw.png` and
+  `banner_border_raw.png` through `tools/card-masks.py`.
+  **The supplied outline does not cover the supplied fill:** measured across
+  all 86 rows of the pennant head, the border's left edge sits 1–3px *inside*
+  the fill's while the right edges agree exactly, so a sliver of banner colour
+  ran down the left of the point and past its tip. Present in the `_raw` art,
+  so it is the drawing's own registration. **The outline wins:** an outline is
+  what draws a shape's edge, so a fill poking out past it is the registration
+  error rather than a wider ribbon, and the fill is clipped to sit `INSET`
+  pixels inside it — far enough in to clear the outline's own antialiasing,
+  since landing on it exactly still let a hair through at the point. Head rows
+  only, because the straight run carries an outline on its right edge alone
+  (`BANNER.edge`) and clipping to it there would shave 200px off the ribbon.
+
+  **The outline is passed through untouched, and that is the whole of the
+  antialiasing.** This is worth stating flatly because getting it wrong is what
+  made the point jagged for two releases: the supplied outline already carries
+  a real ramp that tracks the taper's sub-pixel position row by row (30/169,
+  20/149, 12/132 …), and an earlier pass *softened* it — supersample ×4,
+  re-threshold at 128, box-downscale. Re-thresholding a ramp discards exactly
+  the sub-pixel information that made it a ramp. What came back was the same
+  quantised `16, 239` step on every head row: an edge snapped to whole pixels.
+  Measured on the taper's own sub-pixel crossings, the softened version lands
+  on a pixel centre every row and steps −5, −6, −5, −5, −6; the supplied ramp
+  steps a constant −5.23. **Antialiasing already in the art can only be
+  preserved, never improved. Supersampling is for art that has none** — the
+  fill, which is pure 0/255, and which turns out not to need it either since
+  the clip overwrites every pixel it would change.
+
+  The other half of the same lesson: the tool used to read the files it also
+  *wrote*, which is what made it a one-shot generator with an
+  `already_generated` guard bolted on — and running it a second time is what
+  destroyed the outline's antialiasing in the first place. Reading `_raw` and
+  writing the derived files makes it simply idempotent, and the guard is gone.
+  `tools/hero-card-assets.py` had the same defect in the ∨ round the hero
+  ribbon's foot (`np.where(lit, 255, 0)` over a LANCZOS resample) and takes the
+  same fix — `foot_edge` keeps `stroke`'s own alpha. Two consequences there
+  worth knowing, both found by measuring rather than looking: the fill under it
+  has to be carved at the stroke's opaque **ridge** rather than at `lit`'s
+  halfway point, or the pixels between leave 89 rows of the taper with a
+  transparent hole in the ribbon; and the frame's own left window edge survives
+  the resample at ~120 alpha down 1233 rows, which `lit`'s threshold used to
+  drop for free and now has to be zeroed by hand.
 
   **The boost ring is not in that tool, and deliberately.** It had the same
   fault — its inner edge ran `255,255,239,16,0`, a whole transition crammed
