@@ -204,6 +204,14 @@ export interface CardTheme {
   artBackground: Fill;
   /** Divider line under the art window, and the boost ring. */
   divider: string;
+  /**
+   * The ribbon's foot — the strip between the name ribbon's point and the
+   * divider. Its own surface rather than reusing `divider`, which paints the
+   * *stroke* running down its right edge: the printed card fills the strip
+   * black and lets that one line carry the eye into the divider bar, so the
+   * two have to be able to differ.
+   */
+  ribbonFoot: Fill;
   /** Disc behind the boost value. */
   boost: Fill;
   boostInk: string;
@@ -272,6 +280,7 @@ export const DEFAULT_CARD_THEME: CardTheme = {
   displayFont: 'edo',
   artBackground: solid('#ffffff'),
   divider: '#001722',
+  ribbonFoot: solid('#000000'),
   boost: solid('#3f474c'),
   boostInk: '#ffffff',
   bonusAbilityInk: '#ffffff',
@@ -352,6 +361,7 @@ export const THEME_KEYS = [
   'displayFont',
   'artBackground',
   'divider',
+  'ribbonFoot',
   'boost',
   'boostInk',
   'bonusAbilityInk',

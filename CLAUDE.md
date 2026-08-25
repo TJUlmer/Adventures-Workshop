@@ -563,11 +563,26 @@ up **behind** the ribbon. Over-running upward costs nothing — the ribbon paint
 over it, the printed frame covers the rest, and `.interior`'s own `overflow:
 hidden` crops whatever reaches the top.
 
-Painted in `divider`, which is what makes the continuous line automatic rather
-than something to keep in sync: the ribbon's stroke, this strip and the bar are
-one colour by construction. It carries no `z-index` for the same reason — it
-must stay under `.divider`, which has one, and under the ribbon, which is
-outside `.interior` and painted after it.
+**Two layers, not one flat colour.** The field is `CardTheme.ribbonFoot` —
+black on the printed card — and only a bar down its right edge, one ribbon
+stroke wide (`BANNER.edge.width` / `HERO_RIBBON.edgeWidth`), is `divider`. That
+bar is the whole point of the feature: it is the ribbon's own stroke carried
+down into the divider, so the two read as one continuous line, and it has to be
+able to differ from the field beside it. Right-aligned because a ribbon's stroke
+sits flush with its outer edge on both layouts — hero 380..399 of 147..399,
+villain 345..362 of 132..362 — so the bar inherits the alignment rather than
+being placed. Painting the whole strip in `divider` (the first pass) got the
+continuous line for free and made the field the wrong colour, which is not a
+trade the printed card offers.
+
+`ribbonFoot` is a `mono.ts` key too: printer-friendly mode would otherwise keep
+a solid black block on an otherwise white card.
+
+The strip carries no `z-index` — it must stay under `.divider`, which has one,
+and under the ribbon, which is outside `.interior` and painted after it. That
+last part is what preserves the ribbon's point: the ∨ notch is the ribbon's own
+outline drawn *over* the strip, so the black starts at the point's edges rather
+than being cut to fit them.
 
 The symbol is centred on the **ribbon's own axis**, not the strip's: a hero's
 ribbon comes to its point at 262, not at the middle of its run, and the glyph

@@ -252,6 +252,8 @@
   const footAxis = $derived(
     (isHero ? HERO_RIBBON.centerX : BANNER.x + BANNER.width / 2) - INTERIOR.x
   );
+  /* The ribbon's own stroke weight, so the bar below it is the same line. */
+  const footEdgeWidth = $derived(isHero ? HERO_RIBBON.edgeWidth : BANNER.edge.width);
 
   /* Resolved exactly as `AbilityText` resolves `bonusIcon` — same token, same
      lookup — so a built-in and an author's own glyph behave identically. */
@@ -316,9 +318,13 @@
     runtime. Over-running upward costs nothing: the ribbon paints over it, and
     `.interior`'s own `overflow: hidden` crops whatever reaches the top.
 
-    In `divider` so the ribbon's stroke, this strip and the divider bar are one
-    colour by construction — which is the whole point of it, the continuous
-    line down the ribbon's right edge and into the bar.
+    Two layers, not one: the strip is filled in `ribbonFoot` — black on the
+    printed card — and only the bar down its right edge is `divider`. That bar
+    is the continuous line, picking up where the ribbon's own stroke ends and
+    running into the divider, and it has to be able to differ from the field it
+    crosses or there is no line to see. It is right-aligned rather than placed,
+    because a ribbon's stroke sits flush with its outer edge on both layouts:
+    380..399 of the hero's 147..399, and 345..362 of the villain's 132..362.
   -->
   {#if card.showRibbonSymbol}
     <div
@@ -326,8 +332,13 @@
       style:left={pu(footLeft)}
       style:width={pu(footWidth)}
       style:height={pu(INTERIOR.height)}
-      style:background={theme.divider}
+      style:background={fillCss(theme.ribbonFoot)}
     >
+      <div
+        class="ribbon-foot-edge"
+        style:width={pu(footEdgeWidth)}
+        style:background={theme.divider}
+      ></div>
       {#if ribbonSymbolSrc}
         <img
           class="ribbon-foot-symbol"
@@ -1050,6 +1061,16 @@
    * its run, and the symbol has to stand over the point like the name above it
    * does. `translateX(-50%)` is what lets `left` be that axis directly.
    */
+  /* Flush with the strip's right edge and running its whole height, so it
+     meets the ribbon's stroke above and the divider bar below with nothing
+     between. Under the symbol, which is a later sibling. */
+  .ribbon-foot-edge {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    right: 0;
+  }
+
   .ribbon-foot-symbol {
     position: absolute;
     display: block;

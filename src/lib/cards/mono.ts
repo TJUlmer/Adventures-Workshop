@@ -51,6 +51,10 @@ export const MONO_LAYER: CardStyleOverride = {
    * rather than becoming an outline of itself.
    */
   divider: MONO_INK,
+  /* Goes to paper with every other fill. The stroke down its edge is
+     `divider` above, which stays black — so the foot becomes an outline of
+     itself exactly as the ribbon does. */
+  ribbonFoot: solid(MONO_PAPER),
   boost: solid(MONO_PAPER),
   boostInk: MONO_INK,
   /* Both exist to lay tone over a panel. There is no tone to lay. */

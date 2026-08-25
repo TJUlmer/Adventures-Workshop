@@ -62,7 +62,8 @@
     { key: 'body', label: 'Body fill' },
     { key: 'back', label: 'Back fill' },
     /* The artwork bed lives with the edge masks that reveal it, in Artwork. */
-    { key: 'boost', label: 'Boost disc' }
+    { key: 'boost', label: 'Boost disc' },
+    { key: 'ribbonFoot', label: 'Ribbon foot' }
   ] as const satisfies readonly { key: keyof CardTheme; label: string }[];
 
   const ALL_INKS = [
