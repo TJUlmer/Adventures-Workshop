@@ -87,9 +87,26 @@
   let modelSnapshots = $state<Record<string, string>>({});
   const snapshotKeys: Record<string, string> = {};
 
+  /** `generatedTokenSpec`, but a malformed token answers `null` rather than throwing. */
+  function tokenSpecFor(figure: (typeof set.figures)[number]) {
+    try {
+      return generatedTokenSpec(figure);
+    } catch (error) {
+      report(`The token spec for ${figureLabel(figure, figureOwnerName(figure))}`, error);
+      return null;
+    }
+  }
+
   $effect(() => {
     for (const figure of set.figures) {
-      const spec = generatedTokenSpec(figure);
+      /*
+       * Per figure, inside the loop, so one unreadable component does not stop
+       * the others being previewed — and so a throw here cannot take the effect
+       * down with it. An effect that throws during mount does not just lose its
+       * own work; it breaks the graph, which is how "one bad figure" became "the
+       * page does not load".
+       */
+      const spec = tokenSpecFor(figure);
       const modelName = figure.model?.name ?? '';
       const modelSource = figure.model?.source ?? null;
       const attached = !spec && modelSource !== null && isViewableModel(modelName);
@@ -103,10 +120,22 @@
 
       const figureId = figure.id;
       void (async () => {
-        const mesh = spec ? buildTokenMesh(spec) : await loadMesh(modelName, modelSource ?? '');
-        const texture = spec ? await tokenTextureUrl(figure) : figure.reference.source;
-        const snapshot = await renderMeshSnapshot(mesh, texture, 160);
-        if (snapshot) modelSnapshots[figureId] = snapshot;
+        /*
+         * Caught rather than left to reject. `loadMesh` throws on a model
+         * format it does not read and `models/gl.ts` throws when the browser
+         * will not give the page a 3D context — neither is a reason for a
+         * *review* page to have a hole in it, and as an unhandled rejection
+         * neither said anything useful either. The figure simply keeps its
+         * flat reference image, which is what a figure with no model shows.
+         */
+        try {
+          const mesh = spec ? buildTokenMesh(spec) : await loadMesh(modelName, modelSource ?? '');
+          const texture = spec ? await tokenTextureUrl(figure) : figure.reference.source;
+          const snapshot = await renderMeshSnapshot(mesh, texture, 160);
+          if (snapshot) modelSnapshots[figureId] = snapshot;
+        } catch (error) {
+          report(`A 3D preview of ${figureLabel(figure, figureOwnerName(figure))}`, error);
+        }
       })();
     }
   });
@@ -250,7 +279,45 @@
    * so there is nothing this would miss by not staying reactive.
    */
   let size = $state(untrack(() => ZOOM.start));
+
+  /**
+   * One tile failing must not take the page with it.
+   *
+   * This is the only screen that draws *every* card, cardback, character card
+   * and board in the set at once — everywhere else renders one at a time. So it
+   * is the only screen where a single malformed entity blanks the lot, and the
+   * page went blank with no clue as to which entity or why. Worse, per the note
+   * in `InitiativeCardFace`: a render that throws does not merely lose that
+   * subtree, it leaves the effect graph broken, so later updates stop painting
+   * too.
+   *
+   * A `<svelte:boundary>` per tile turns "the Overview does not load" into "this
+   * card is broken, here is the message" — the rest of the set still renders,
+   * and the thing to fix names itself. The same argument
+   * `InitiativeCardFace`'s own fallback makes: a review page that is partly
+   * wrong is far more use than one that is dead.
+   */
+  function report(label: string, error: unknown): void {
+    console.error(`[overview] ${label} failed to render:`, error);
+  }
+
+  function message(error: unknown): string {
+    return error instanceof Error ? error.message : String(error);
+  }
 </script>
+
+<!--
+  What a tile shows in place of a component that threw. Deliberately loud: this
+  is a review page, and something that cannot be drawn is exactly what an author
+  is here to find out about.
+-->
+{#snippet broken(label: string, error: unknown)}
+  <div class="broken" role="alert">
+    <Icon name="skull" size={16} />
+    <span class="broken-title">{label} could not be drawn</span>
+    <span class="broken-why">{message(error)}</span>
+  </div>
+{/snippet}
 
 <div class="page scroll-y">
   <header class="head">
@@ -302,7 +369,12 @@
               role={interactive ? 'button' : undefined}
               onclick={interactive ? () => workshop.selectCharacter(character.id) : undefined}
             >
-              <CardRenderer card={null} cardback={character} />
+              <svelte:boundary onerror={(error) => report(`${characterLabel(character)}'s deck back`, error)}>
+                <CardRenderer card={null} cardback={character} />
+                {#snippet failed(error)}
+                  {@render broken(`${characterLabel(character)}'s deck back`, error)}
+                {/snippet}
+              </svelte:boundary>
             </svelte:element>
             <figcaption class="tile-caption">
               <span class="tile-name">{characterLabel(character)}</span>
@@ -332,12 +404,17 @@
               role={interactive ? 'button' : undefined}
               onclick={interactive ? () => workshop.selectCharacter(tileEntry.character.id) : undefined}
             >
-              <CardRenderer
-                card={null}
-                statCard={tileEntry.character}
-                statCardEntry={tileEntry.entry}
-                customSymbols={set.customSymbols}
-              />
+              <svelte:boundary onerror={(error) => report(`${tileEntry.name}'s character card`, error)}>
+                <CardRenderer
+                  card={null}
+                  statCard={tileEntry.character}
+                  statCardEntry={tileEntry.entry}
+                  customSymbols={set.customSymbols}
+                />
+                {#snippet failed(error)}
+                  {@render broken(`${tileEntry.name}'s character card`, error)}
+                {/snippet}
+              </svelte:boundary>
             </svelte:element>
             <figcaption class="tile-caption">
               <span class="tile-name">{tileEntry.name}</span>
@@ -371,13 +448,18 @@
                 role={interactive ? 'button' : undefined}
                 onclick={interactive ? () => workshop.selectCard(card.id) : undefined}
               >
-                <CardRenderer
-                  {card}
-                  character={group.owner}
-                  theme={resolveStyleForCard(set, card)}
-                  customSymbols={set.customSymbols}
-                  {side}
-                />
+                <svelte:boundary onerror={(error) => report(`Card “${cardLabel(card)}”`, error)}>
+                  <CardRenderer
+                    {card}
+                    character={group.owner}
+                    theme={resolveStyleForCard(set, card)}
+                    customSymbols={set.customSymbols}
+                    {side}
+                  />
+                  {#snippet failed(error)}
+                    {@render broken(`Card “${cardLabel(card)}”`, error)}
+                  {/snippet}
+                </svelte:boundary>
               </svelte:element>
               <figcaption class="tile-caption">
                 <span class="tile-name">{cardLabel(card)}</span>
@@ -413,11 +495,16 @@
         role={interactive ? 'button' : undefined}
         onclick={interactive ? () => navigation.go('threat') : undefined}
       >
-        <ThreatBoard
-          track={set.threat}
-          villainName={threatVillain ? characterLabel(threatVillain) : ''}
-          editable={false}
-        />
+        <svelte:boundary onerror={(error) => report('The threat track', error)}>
+          <ThreatBoard
+            track={set.threat}
+            villainName={threatVillain ? characterLabel(threatVillain) : ''}
+            editable={false}
+          />
+          {#snippet failed(error)}
+            {@render broken('The threat track', error)}
+          {/snippet}
+        </svelte:boundary>
       </svelte:element>
     </section>
   {/if}
@@ -447,7 +534,12 @@
         role={interactive ? 'button' : undefined}
         onclick={interactive ? () => navigation.go('map') : undefined}
       >
-        <MapBoard map={set.map} />
+        <svelte:boundary onerror={(error) => report('The map', error)}>
+          <MapBoard map={set.map} />
+          {#snippet failed(error)}
+            {@render broken('The map', error)}
+          {/snippet}
+        </svelte:boundary>
       </svelte:element>
     </section>
   {/if}
@@ -542,6 +634,38 @@
 
   .zoom input {
     width: 120px;
+  }
+
+  /*
+   * A tile whose component threw. Sized to fill whatever the tile would have
+   * been, so the grid keeps its shape and the failure reads as one item rather
+   * than as the page having collapsed.
+   */
+  .broken {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-2);
+    width: 100%;
+    aspect-ratio: 63 / 88;
+    padding: var(--space-3);
+    border-radius: var(--radius-sm);
+    background: var(--surface-inset);
+    box-shadow: inset 0 0 0 1px var(--danger);
+    color: var(--danger);
+    text-align: center;
+  }
+
+  .broken-title {
+    font-size: var(--text-2xs);
+    font-weight: var(--weight-semibold);
+  }
+
+  .broken-why {
+    font-size: var(--text-2xs);
+    color: var(--text-muted);
+    overflow-wrap: anywhere;
   }
 
   .group {
