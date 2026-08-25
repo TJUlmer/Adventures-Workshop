@@ -11,8 +11,6 @@
    *
    * The panel chrome is the caller's: this is the list, not the box round it.
    */
-  import { untrack } from 'svelte';
-  import { characterLabel } from '$lib/characters/factory';
   import {
     EXPORTERS,
     exportCardPngs,
@@ -21,8 +19,7 @@
     saveExport,
     tabletopDeckSummary
   } from '$lib/export';
-  import { charactersByRole } from '$lib/sets/queries';
-  import { computeScopedSet, parseScopeKey, scopeKeyOf } from '$lib/sets/scope';
+  import { computeScopedSet, parseScopeKey, scopeKeyOf, scopeOptionsFor } from '$lib/sets/scope';
   import type { PublishScope } from '$lib/sets/scope';
   import type { AdventureSet } from '$lib/sets/types';
   import { readTtsSavedObjectsPath, writeTtsSavedObjectsPath } from '$lib/storage/settings';
@@ -37,24 +34,16 @@
      */
     onprint?: () => void;
     /**
-     * The scope to default the picker to below — a visitor who arrived here by
-     * clicking one specific hero inside a box with no listing of its own
-     * (`SharedSetScreen`'s `characterHint`) gets that hero pre-selected rather
-     * than the whole set, without a separate screen. Defaults to the whole set
-     * everywhere else, `SetHome` included.
+     * The scope the picker below shows and edits — bindable so a caller can
+     * both seed it (`SharedSetScreen`'s `characterHint`, one hero pre-selected
+     * rather than the whole set) and read every change back out. Uncontrolled
+     * where nothing binds it (`SetHome`), which is why the default still lives
+     * here rather than requiring every caller to pass one.
      */
-    initialScope?: PublishScope;
-    /**
-     * Fired whenever the picker below changes, including once for the
-     * starting value. `SharedSetScreen` uses this to make its own read-only
-     * overview follow the same pick — "what will this export" and "what am I
-     * looking at" are one question there, so they share one control rather
-     * than the page growing a second, redundant selector.
-     */
-    onscopechange?: (scope: PublishScope) => void;
+    scope?: PublishScope;
   }
 
-  let { set, onprint, initialScope, onscopechange }: Props = $props();
+  let { set, onprint, scope = $bindable({ kind: 'full' }) }: Props = $props();
 
   /**
    * Every export below reads from this, never from `set` directly — the one
@@ -65,26 +54,11 @@
    * machine, from a set they already have the whole of, and thrown away
    * rather than sent anywhere.
    */
-  let scope = $state<PublishScope>(untrack(() => initialScope ?? { kind: 'full' }));
   const scopedSet = $derived(computeScopedSet(set, scope));
 
-  $effect(() => {
-    onscopechange?.(scope);
-  });
-
-  const heroes = $derived(charactersByRole(set, 'hero'));
-  /* Villain-side content is one bundle and never split further — same
-     reasoning as `SharePanel`'s own `hasVillainSide`. */
-  const hasVillainSide = $derived(
-    charactersByRole(set, 'villain').length > 0 || charactersByRole(set, 'minion').length > 0
-  );
-  /* Only worth offering once there is something to slice — a set with one
-     hero and no villain has nothing a picker would do. */
-  const scopeOptions = $derived([
-    { value: 'full', label: 'Whole set' },
-    ...heroes.map((hero) => ({ value: `hero:${hero.id}`, label: characterLabel(hero) })),
-    ...(hasVillainSide ? [{ value: 'villain', label: 'Villain side' }] : [])
-  ]);
+  /* Shared with `SharedSetScreen`'s own picker, so "which scopes exist" can
+     only ever be answered one way — see `scopeOptionsFor`. */
+  const scopeOptions = $derived(scopeOptionsFor(set));
 
   let message = $state<string | null>(null);
 

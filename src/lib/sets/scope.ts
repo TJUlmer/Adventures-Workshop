@@ -56,6 +56,28 @@ export function parseScopeKey(key: string): PublishScope {
 }
 
 /**
+ * Every scope worth offering in a picker, as `<select>` options.
+ *
+ * The one list `ExportPanel` and `SharedSetScreen` both build a scope picker
+ * from — kept here rather than duplicated in each, so "which scopes exist"
+ * can only ever be answered one way. Villain-side content is one bundle and
+ * never split further, so it is a single option regardless of how many
+ * minions there are; only worth offering once there is something to slice —
+ * a set with one hero and no villain has nothing a picker would do.
+ */
+export function scopeOptionsFor(set: AdventureSet): { value: string; label: string }[] {
+  const heroes = charactersByRole(set, 'hero');
+  const hasVillainSide =
+    charactersByRole(set, 'villain').length > 0 || charactersByRole(set, 'minion').length > 0;
+
+  return [
+    { value: 'full', label: 'Whole set' },
+    ...heroes.map((hero) => ({ value: `hero:${hero.id}`, label: characterLabel(hero) })),
+    ...(hasVillainSide ? [{ value: 'villain', label: 'Villain side' }] : [])
+  ];
+}
+
+/**
  * The scoped document `publishSet` should actually publish.
  *
  * `{ kind: 'full' }` still goes through `normalizeSet`, same as the other two
