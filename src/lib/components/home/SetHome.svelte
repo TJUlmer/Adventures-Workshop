@@ -262,10 +262,6 @@
           </button>
         </div>
       </section>
-    </div>
-
-    <div class="column">
-      <StyleCascadePanel {outline} />
 
       <!-- Health -------------------------------------------------------- -->
       <section class="panel">
@@ -296,6 +292,10 @@
           </ul>
         {/if}
       </section>
+    </div>
+
+    <div class="column">
+      <StyleCascadePanel {outline} />
 
       <!--
         Contributions, all three directions, and above Export on purpose.

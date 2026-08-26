@@ -210,6 +210,14 @@
   const TEXT_GAP = TEXT_TOP - (CHARACTER_ABILITY.ruleY + CHARACTER_ABILITY.ruleHeight);
 
   /**
+   * The smallest a quote may shrink to, as a fraction of its *unscaled*
+   * calibrated size — see the effect that uses it below for why dividing by
+   * `design.quoteScale` there, not this constant on its own, is what keeps
+   * that true at every setting of the "Quote text size" slider.
+   */
+  const QUOTE_MIN_SCALE = 0.5;
+
+  /**
    * The vertical band the quote text may occupy, so it can be centred there
    * and grow symmetrically as it wraps rather than only pushing down from a
    * fixed top.
@@ -301,15 +309,27 @@
    * characters) still overflowed at 0.7 even in the full-width band — the
    * default floor, right for gameplay text that must stay legible, is not
    * automatically right for decorative flavour text a few words longer than
-   * most. 0.5 was enough for that quote with room to spare; genuinely
-   * book-length flavour text can still outrun it, and `overflow: hidden` is
-   * still what happens then.
+   * most. `QUOTE_MIN_SCALE` (0.5) was enough for that quote with room to
+   * spare; genuinely book-length flavour text can still outrun it, and
+   * `overflow: hidden` is still what happens then.
+   *
+   * The floor passed to `fitScale` is `QUOTE_MIN_SCALE` divided by
+   * `design.quoteScale`, not `QUOTE_MIN_SCALE` itself — `--fit-scale`
+   * multiplies `quoteTextSize`, which is *already* `quoteScale` times the
+   * calibrated base size, so a bare `0.5` floor only ever bottoms out at
+   * `quoteScale × 0.5` of that base. At the slider's own 160% ceiling that
+   * floor is 80% of the calibrated size — nowhere near small enough for a
+   * long quote to shrink into the same band a 100%-scale one fits in, so an
+   * author who both lengthened a quote and turned it up hit the *effective*
+   * floor without ever reaching the number `0.5` promised. Dividing keeps
+   * the floor an absolute size relative to the base, whatever the slider is
+   * doing on top of it.
    */
   $effect(() => {
     void identity.quote.text;
     void quoteTextSize;
     void quoteZoneHeight;
-    if (quoteBox) fitScale(quoteBox, { min: 0.5 });
+    if (quoteBox) fitScale(quoteBox, { min: QUOTE_MIN_SCALE / design.quoteScale });
   });
 </script>
 
