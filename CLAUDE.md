@@ -1328,6 +1328,48 @@ the same reason, falling back to the open one. Anything else that wants to work
 on a set the author does not own must follow that rule — reach for
 `workshop.adventure` and it will render the wrong set, or an empty one.
 
+### Customizing an export
+
+`sets/export-selection.ts`'s `ExportSelection` is a second, finer prune
+layered on top of `sets/scope.ts`'s `PublishScope` — "leave the special deck
+out of *this* export" rather than "publish just this hero." Deliberately its
+own module rather than folded into `scope.ts`: a `PublishScope` result is a
+document someone else's browser may hold onto for years, addressed by a
+link, where an `ExportSelection` is never written to the document, never
+sent anywhere, and — enforced by `ExportPanel` resetting it on every `scope`
+change — never outlives the picker session that built it. `ExportPanel`
+threads `set` through `scopedSet` (the `PublishScope`) through `finalSet`
+(the `ExportSelection`) and every exporter reads only the last of those.
+
+**Deck-level only, no per-card checkboxes — asked for by name.** A card
+excluded on its own while its deck stays is already safe (the deck just
+prints one card lighter), but "hide one card" was never the request; "toggle
+off the special deck" was. Keeping the unit at the deck is what keeps this a
+single `Set<DeckId>` rather than a tree of tri-state checkboxes that would
+need to show a deck as "some cards on" — simpler to build and simpler for an
+author scanning a long list to reason about.
+
+**Decks are filtered first and cards are derived from the decks that
+survive, never the reverse** — the same discipline `heroSlice`/`villainSlice`
+already keep, for the same reason. `card-pngs.ts` and `tabletop-simulator.ts`
+both build their output by walking decks and looking cards up by `deckId`
+(via `queries.ts`'s `outline()`), so a card whose deck was removed out from
+under it does not error, it just silently stops appearing in either export —
+survivable, if confusing. The set-file export is not so forgiving: `json.ts`
+serialises whatever it is handed with **no validation on write** (validation
+is only ever a read-time concern, in `parseSetFile`), so a document with a
+card pointing at a deck that is not in it would fail to re-import later with
+"File contains a card that points at a missing deck." `applyExportSelection`
+cannot produce that, not even transiently, because it never has an
+independent "excluded cards" list to desync from "excluded decks" in the
+first place.
+
+`ExportSelector`'s dialog reads the set through `queries.ts`'s `outline()`
+rather than walking `set.decks` itself, for the reason every other consumer
+of it does: it is already grouped exactly the way `AssetsOverview` and the
+sidebar show it, so "a hero's decks" or "the loose pile" can only mean one
+thing across the whole app.
+
 ### Print sheets
 
 `src/lib/print/` lays cards out on paper at true size. It is a **screen**, not an

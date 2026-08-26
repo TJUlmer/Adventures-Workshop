@@ -19,11 +19,18 @@
     saveExport,
     tabletopDeckSummary
   } from '$lib/export';
+  import {
+    applyExportSelection,
+    defaultExportSelection,
+    isExportSelectionActive
+  } from '$lib/sets/export-selection';
+  import type { ExportSelection } from '$lib/sets/export-selection';
   import { computeScopedSet, parseScopeKey, scopeKeyOf, scopeOptionsFor } from '$lib/sets/scope';
   import type { PublishScope } from '$lib/sets/scope';
   import type { AdventureSet } from '$lib/sets/types';
   import { readTtsSavedObjectsPath, writeTtsSavedObjectsPath } from '$lib/storage/settings';
   import { Icon, Select, TextInput } from '$lib/ui';
+  import ExportSelector from './ExportSelector.svelte';
 
   interface Props {
     set: AdventureSet;
@@ -60,6 +67,34 @@
      only ever be answered one way — see `scopeOptionsFor`. */
   const scopeOptions = $derived(scopeOptionsFor(set));
 
+  /**
+   * A finer, ad-hoc prune on top of `scopedSet` — "leave the special deck
+   * out of this one export" rather than anything saved or shared. Never
+   * persisted, and reset below whenever `scope` changes: an excluded deck id
+   * from one scope means nothing once a different hero (or the villain side,
+   * or the whole set) is what is being exported, so carrying it forward would
+   * either silently exclude nothing or, worse, exclude a same-named deck it
+   * was never meant to.
+   */
+  let selection = $state<ExportSelection>(defaultExportSelection());
+  let selectorOpen = $state(false);
+
+  $effect(() => {
+    void scope;
+    selection = defaultExportSelection();
+  });
+
+  /** Every export reads this, one level further pruned than `scopedSet`. */
+  const finalSet = $derived(applyExportSelection(scopedSet, selection));
+
+  const hasCustomizableContent = $derived(
+    scopedSet.decks.length > 0 ||
+      scopedSet.figures.length > 0 ||
+      scopedSet.threat.enabled ||
+      scopedSet.map.enabled
+  );
+  const selectionActive = $derived(isExportSelectionActive(selection));
+
   let message = $state<string | null>(null);
 
   function flash(text: string): void {
@@ -71,7 +106,7 @@
     const exporter = getExporter(id);
     if (!exporter) return;
     try {
-      saveExport(await exporter.run(scopedSet));
+      saveExport(await exporter.run(finalSet));
       flash(`Exported ${exporter.label}.`);
     } catch (error) {
       flash(error instanceof Error ? error.message : 'Export failed.');
@@ -90,7 +125,7 @@
     if (pngProgress !== null) return;
     pngProgress = 'Rendering…';
     try {
-      const result = await exportCardPngs(scopedSet, {
+      const result = await exportCardPngs(finalSet, {
         bleed: pngBleed,
         onProgress: (done, total) => (pngProgress = `Rendering ${done} of ${total}…`)
       });
@@ -108,7 +143,7 @@
    * `EXPORTERS` because it does not produce a file — it produces a folder, and
    * where that folder went is the thing the author most needs told.
    */
-  const ttsPiles = $derived(tabletopDeckSummary(scopedSet));
+  const ttsPiles = $derived(tabletopDeckSummary(finalSet));
 
   let ttsProgress = $state<string | null>(null);
   let ttsResult = $state<{
@@ -141,7 +176,7 @@
     ttsProgress = 'Rendering…';
     ttsResult = null;
     try {
-      const result = await exportTabletopSimulator(scopedSet, {
+      const result = await exportTabletopSimulator(finalSet, {
         savedObjectsPath,
         onProgress: (done, total, label) => (ttsProgress = `${label} — ${done} of ${total}…`)
       });
@@ -169,7 +204,7 @@
   <!--
     Only worth showing once there is an actual choice to make — a set with one
     hero and no villain has nothing a picker would do, same reasoning as
-    `SharePanel`'s own scope picker. Every export below reads `scopedSet`, so
+    `SharePanel`'s own scope picker. Every export below reads `finalSet`, so
     changing this changes what all four buttons produce at once.
   -->
   {#if scopeOptions.length > 1}
@@ -187,6 +222,20 @@
         </span>
       {/if}
     </label>
+  {/if}
+
+  <!--
+    A finer prune on top of whichever scope is picked above — see
+    `ExportSelection`. Shown whenever there is anything at all to uncheck,
+    not gated behind the scope picker's own "more than one option" rule:
+    a single-hero set with no villain still has decks worth toggling off one
+    at a time.
+  -->
+  {#if hasCustomizableContent}
+    <button type="button" class="customize" onclick={() => (selectorOpen = true)}>
+      <Icon name="list" size={13} />
+      {selectionActive ? 'Customize what’s included — editing' : 'Customize what’s included'}
+    </button>
   {/if}
 
   <!--
@@ -318,6 +367,16 @@
   {#if message}<p class="message">{message}</p>{/if}
 </div>
 
+{#if hasCustomizableContent}
+  <ExportSelector
+    open={selectorOpen}
+    set={scopedSet}
+    {selection}
+    onchange={(next) => (selection = next)}
+    onclose={() => (selectorOpen = false)}
+  />
+{/if}
+
 <style>
   .exports {
     display: flex;
@@ -344,6 +403,24 @@
     font-size: var(--text-2xs);
     line-height: var(--leading-normal);
     color: var(--text-muted);
+  }
+
+  .customize {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    padding: var(--space-2);
+    padding-bottom: var(--space-3);
+    margin-bottom: var(--space-1);
+    border-bottom: 1px solid var(--border-subtle);
+    color: var(--text-tertiary);
+    font-size: var(--text-xs);
+    text-align: left;
+    transition: color var(--duration-fast) var(--ease-out);
+  }
+
+  .customize:hover {
+    color: var(--text-primary);
   }
 
   /* The bleed choice belongs to the button above it, so they share a box. */
