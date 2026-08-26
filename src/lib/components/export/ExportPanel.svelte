@@ -96,9 +96,11 @@
   const selectionActive = $derived(isExportSelectionActive(selection));
 
   let message = $state<string | null>(null);
+  let messageKind = $state<'success' | 'error'>('success');
 
-  function flash(text: string): void {
+  function flash(text: string, kind: 'success' | 'error' = 'success'): void {
     message = text;
+    messageKind = kind;
     setTimeout(() => (message = null), 3000);
   }
 
@@ -109,7 +111,7 @@
       saveExport(await exporter.run(finalSet));
       flash(`Exported ${exporter.label}.`);
     } catch (error) {
-      flash(error instanceof Error ? error.message : 'Export failed.');
+      flash(error instanceof Error ? error.message : 'Export failed.', 'error');
     }
   }
 
@@ -132,7 +134,7 @@
       saveExport(result);
       flash(`Exported ${result.filename}.`);
     } catch (error) {
-      flash(error instanceof Error ? error.message : 'Export failed.');
+      flash(error instanceof Error ? error.message : 'Export failed.', 'error');
     } finally {
       pngProgress = null;
     }
@@ -171,8 +173,32 @@
     void writeTtsSavedObjectsPath(savedObjectsPath);
   }
 
+  /**
+   * Blank means every `FaceURL`/`MeshURL` in the export comes out as the
+   * `PASTE_THE_FOLDER_URL_HERE` placeholder — a working but easy-to-miss
+   * fallback (see `tts-bundle.ts`) that someone only discovers once TTS
+   * fails to show any art. Checked here, ahead of the render, so the
+   * warning lands before minutes of sheet-drawing are spent on an export
+   * that needs hand-editing anyway.
+   *
+   * Required even while a dev server is answering and would happily write
+   * real paths on its own, making the field genuinely moot there — asked
+   * for by name, to keep the one rule simple ("the field is blank") rather
+   * than one that quietly depends on how the page happens to be served.
+   */
+  function missingSavedObjectsPath(): boolean {
+    return !savedObjectsPath.trim();
+  }
+
   async function exportTts(): Promise<void> {
     if (ttsProgress !== null) return;
+    if (missingSavedObjectsPath()) {
+      flash(
+        'Enter your Tabletop Simulator Saved Objects folder below, then export again.',
+        'error'
+      );
+      return;
+    }
     ttsProgress = 'Rendering…';
     ttsResult = null;
     try {
@@ -193,7 +219,7 @@
           : `Exported ${result.download?.filename ?? 'the bundle'}.`
       );
     } catch (error) {
-      flash(error instanceof Error ? error.message : 'Export failed.');
+      flash(error instanceof Error ? error.message : 'Export failed.', 'error');
     } finally {
       ttsProgress = null;
     }
@@ -293,8 +319,10 @@
       Typed once, remembered from then on. This is what lets an export's JSON
       arrive with real image addresses already in it on a plain deployed page
       with no dev server behind it — the same outcome `HOW_TO_IMPORT.txt`
-      describes for that dev-server case, reached a different way. Left blank,
-      nothing about the export changes from how it already behaved.
+      describes for that dev-server case, reached a different way. Left
+      blank, `exportTts` refuses rather than quietly handing back a JSON full
+      of placeholder URLs — see `missingSavedObjectsPath`, required even
+      when a dev server is running and would have written real paths anyway.
     -->
     <label class="saved-objects">
       <span class="saved-objects-label">Tabletop Simulator Saved Objects folder</span>
@@ -364,7 +392,7 @@
     </button>
   {/each}
 
-  {#if message}<p class="message">{message}</p>{/if}
+  {#if message}<p class="message" class:error={messageKind === 'error'}>{message}</p>{/if}
 </div>
 
 {#if hasCustomizableContent}
@@ -544,5 +572,9 @@
     padding-left: var(--space-2);
     font-size: var(--text-xs);
     color: var(--text-tertiary);
+  }
+
+  .message.error {
+    color: var(--danger);
   }
 </style>
