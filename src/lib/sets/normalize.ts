@@ -61,6 +61,8 @@ import { createArtwork } from '$lib/core/artwork';
 import type { DialRange, Figure, ModelFile, TokenBuild } from '$lib/figures/types';
 import { createDialRange, createFigure, createTokenBuild, FIGURE_KINDS } from '$lib/figures/types';
 import { MAX_POLYGON_SIDES, MIN_POLYGON_SIDES, TOKEN_SHAPES } from '$lib/models/token';
+import type { TokenOutline } from '$lib/models/silhouette';
+import { MAX_OUTLINE_DETAIL, MIN_OUTLINE_DETAIL } from '$lib/models/silhouette';
 import { INITIATIVE_BAND_DEFAULTS } from '$lib/renderer/geometry';
 import type { CustomSymbol } from '$lib/symbols/types';
 import { createCustomSymbol } from '$lib/symbols/types';
@@ -589,6 +591,26 @@ function modelFile(value: unknown): ModelFile | null {
     : null;
 }
 
+/**
+ * Validated point by point rather than trusted: `outline` drives geometry
+ * directly, and a NaN in it produces a mesh with no bounds for the camera to
+ * frame. Anything malformed becomes `null` — which leaves `shape` exactly as
+ * the author chose it and lets the retrace effect fill it back in from the
+ * picture, rather than rewriting `shape` back to `'circle'` and silently
+ * throwing the choice away. Until it is refilled, `faceGeometry` draws the
+ * circle it always drew, which is the same graceful loss `hex` got in v7.
+ */
+function tokenOutline(value: unknown): TokenOutline | null {
+  const raw = asRecord(value);
+  const points = raw['points'];
+  if (!Array.isArray(points) || points.length < 6 || points.length % 2 !== 0) return null;
+  if (points.length > 1024 || !points.every((n) => typeof n === 'number' && Number.isFinite(n))) {
+    return null;
+  }
+  if (typeof raw['key'] !== 'string') return null;
+  return { points: points as number[], key: raw['key'] };
+}
+
 function tokenBuild(value: unknown): TokenBuild {
   const raw = asRecord(value);
   const base = createTokenBuild();
@@ -621,7 +643,14 @@ function tokenBuild(value: unknown): TokenBuild {
     lengthMm: Math.min(200, Math.max(5, num(raw['lengthMm'], diameterMm))),
     thicknessMm: Math.min(30, Math.max(0.5, num(raw['thicknessMm'], base.thicknessMm))),
     rimColor: str(raw['rimColor'], base.rimColor),
-    twoSided: bool(raw['twoSided'], base.twoSided)
+    twoSided: bool(raw['twoSided'], base.twoSided),
+    /* v36. See `tokenOutline`'s own comment for why a malformed outline
+       drops to `null` rather than rewriting `shape`. */
+    outline: tokenOutline(raw['outline']),
+    outlineDetail: Math.min(
+      MAX_OUTLINE_DETAIL,
+      Math.max(MIN_OUTLINE_DETAIL, num(raw['outlineDetail'], base.outlineDetail))
+    )
   };
 }
 

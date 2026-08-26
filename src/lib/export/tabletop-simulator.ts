@@ -646,15 +646,20 @@ export interface TtsModelComponent {
   /** URL of the `.obj`. TTS fetches it at load, as it does a face sheet. */
   readonly meshUrl: string;
   readonly diffuseUrl: string;
+  /**
+   * Whether a simple collider tells the truth about this mesh. Defaults to
+   * `true` — every circle/polygon token and every attached miniature this
+   * app has ever produced behaves better with one, and a concave collider
+   * is slower and stacks badly for no benefit on a disc. `false` for a
+   * traced silhouette specifically: a concave piece given a convex collider
+   * gets its own hull to sit on, so a cut-out reads as the rectangle it was
+   * cut from rather than as its own shape.
+   */
+  readonly convex?: boolean;
 }
 
-/**
- * A generated or attached model, as a custom model object.
- *
- * `Convex` is on because everything this app produces or accepts here is a
- * token or a miniature that behaves better with a simple collider — a concave
- * collider is slower and stacks badly, and neither is worth it for a disc.
- */
+/** A generated or attached model, as a custom model object. See
+    `TtsModelComponent.convex` for why this is not simply always on. */
 export function modelObject(component: TtsModelComponent, index: number): object {
   return {
     Name: 'Custom_Model',
@@ -679,7 +684,7 @@ export function modelObject(component: TtsModelComponent, index: number): object
       DiffuseURL: component.diffuseUrl,
       NormalURL: '',
       ColliderURL: '',
-      Convex: true,
+      Convex: component.convex ?? true,
       /* Plastic, and a generic type — the same answers the token export's own
          instructions give for the import dialogue. */
       MaterialIndex: 0,

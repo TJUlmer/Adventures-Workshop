@@ -273,10 +273,25 @@ export type SetId = Id<'Set'>;
  *      silently drop a chosen frame colour back to that default — no data
  *      loss, but a visible one.
  *
+ * v36 — a generated token gained a third shape, `silhouette`: the piece's
+ *      outline traced from the reference image's own alpha channel, so a
+ *      cut-out skull becomes a skull-shaped token rather than a disc with a
+ *      skull cropped into it. The traced outline is stored on the build as
+ *      `outline` (a closed loop of points normalised to the art frame, plus
+ *      the key of the picture, zoom and detail it was traced from), beside
+ *      `outlineDetail`, how closely the trace follows the edge. Both default
+ *      to absent and 1.5, so an older document opens exactly as it did — no
+ *      token it holds is a silhouette. The bump is here for the enum value
+ *      more than the fields, the same reason v14's `attackType` and v7's
+ *      `hex` needed one: a v35 build opening a v36 document repairs an
+ *      unrecognised `shape` by falling back to `circle`, which is right for
+ *      a damaged document and, here, would silently round a traced piece
+ *      off and drop the trace with it.
+ *
  * Older documents are *repaired*, not rejected — see `sets/normalize.ts`. Only
  * a version newer than this build understands is refused.
  */
-export const SET_SCHEMA_VERSION = 35;
+export const SET_SCHEMA_VERSION = 36;
 
 /**
  * What a set is for.

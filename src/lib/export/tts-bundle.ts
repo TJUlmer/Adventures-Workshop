@@ -48,7 +48,7 @@ import {
   THREAT_CARD_MM
 } from './tabletop-simulator';
 import type { TtsDeckImages, TtsMapImage, TtsSheet, TtsThreatImage } from './tabletop-simulator';
-import { buildTokenArt } from './token-model';
+import { buildTokenArt, resolvedTokenSpec } from './token-model';
 import { imageCount, MAX_SHEET_PIXELS, renderDeckSheets, renderSharedBack } from './tts-sheets';
 import type { ExportResult } from './types';
 import { createZip } from './zip';
@@ -375,7 +375,8 @@ async function componentFor(
    * skipped for having neither a model nor an image.
    */
   if (figure.token.enabled) {
-    const mesh = buildTokenMesh(tokenSpecOf(figure.token));
+    const spec = await resolvedTokenSpec(figure, tokenSpecOf(figure.token));
+    const mesh = buildTokenMesh(spec);
     const meshPath = await writeBytes(
       files, taken, `models/${slug}`, 'obj', encoder.encode(tokenObj(mesh, slug))
     );
@@ -389,7 +390,8 @@ async function componentFor(
           nickname: name,
           description: figure.notes,
           meshUrl: urlFor(meshPath),
-          diffuseUrl: urlFor(texturePath)
+          diffuseUrl: urlFor(texturePath),
+          convex: spec.shape !== 'silhouette'
         },
         index
       )

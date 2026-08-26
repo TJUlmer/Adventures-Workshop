@@ -11,21 +11,24 @@
  */
 import type { Mesh } from './mesh';
 import { createMesh } from './mesh';
+import type { Point, TokenOutline } from './silhouette';
+import { earClip, outlinePoints } from './silhouette';
 
 /**
- * A round token, or one with straight sides.
+ * A round token, one with straight sides, or one traced from its own art.
  *
  * `hex` was its own shape until a `polygon` with a side count subsumed it: six
  * sides *is* the hex, and the same generator now makes a triangle, a square or
  * anything up to a dodecagon. Old documents saying `hex` are mapped to a
  * six-sided polygon on load — see `sets/normalize.ts`.
  */
-export const TOKEN_SHAPES = ['circle', 'polygon'] as const;
+export const TOKEN_SHAPES = ['circle', 'polygon', 'silhouette'] as const;
 export type TokenShape = (typeof TOKEN_SHAPES)[number];
 
 export const TOKEN_SHAPE_LABELS: Readonly<Record<TokenShape, string>> = {
   circle: 'Circle',
-  polygon: 'Polygon'
+  polygon: 'Polygon',
+  silhouette: 'Silhouette'
 } as const;
 
 /** Three sides is the fewest that has an inside; more than twelve reads round. */
@@ -57,6 +60,12 @@ export interface TokenSpec {
    * the one picture is shown on both faces.
    */
   twoSided?: boolean;
+  /**
+   * The traced face, when `shape` is `silhouette` — see `models/silhouette.ts`.
+   * Absent, or one that fails to triangulate, and the piece is the circle it
+   * always falls back to — see `faceGeometry`. Ignored for `circle`/`polygon`.
+   */
+  outline?: TokenOutline | null;
 }
 
 /** A polygon's side count, clamped to what the generator will make. */
@@ -95,14 +104,17 @@ const circumFromApothem = (apothem: number, sides: number) => apothem / Math.cos
  * or any other stretched polygon) is built from when they are not.
  *
  * A circle has one radius and stays a circle — there is no elliptical token —
- * so only the polygon branch ever reads `lengthMm`. `lengthMm` absent, or
- * equal to `diameterMm`, is every polygon this generator used to be able to
- * make: a shared apothem is exactly what makes a regular polygon regular, and
- * is exactly what made a four-sided one always come out a square.
+ * so only the polygon and silhouette branches ever read `lengthMm`. For a
+ * silhouette this is the frame the picture is traced and fitted into, same
+ * as it is the frame a polygon's flats are measured against; `lengthMm`
+ * absent, or equal to `diameterMm`, is every polygon this generator used to
+ * be able to make: a shared apothem is exactly what makes a regular polygon
+ * regular, and is exactly what made a four-sided one always come out a
+ * square.
  */
 function faceExtents(spec: TokenSpec): { x: number; z: number } {
   const x = spec.diameterMm / 2 / MM_PER_TTS_UNIT;
-  if (spec.shape !== 'polygon') return { x, z: x };
+  if (spec.shape === 'circle') return { x, z: x };
   return { x, z: (spec.lengthMm ?? spec.diameterMm) / 2 / MM_PER_TTS_UNIT };
 }
 
@@ -146,6 +158,24 @@ function faceGeometry(spec: TokenSpec): {
 } {
   const { x: extentX, z: extentZ } = faceExtents(spec);
 
+  /*
+   * A silhouette's points are already normalised -1..1 by `traceSilhouette`
+   * against the *same* art frame a polygon's own corners are measured
+   * against — so scaling them by `extentX`/`extentZ` here is exactly the
+   * `unitRadius * extentX/Z` step the polygon branch below already does,
+   * not a new idea. No outline yet, or one that failed to trace, falls
+   * through to the circle every token started as — this is what keeps
+   * `buildTokenMesh` total, so no call site needs a null-check added for a
+   * shape that has not finished tracing.
+   */
+  if (spec.shape === 'silhouette') {
+    const traced = outlinePoints(spec.outline);
+    if (traced) {
+      const points = traced.map((p) => ({ x: p.x * extentX, z: p.z * extentZ }));
+      return { points, artExtent: { x: extentX, z: extentZ } };
+    }
+  }
+
   if (spec.shape === 'polygon') {
     const sides = polygonSides(spec);
     const unitRadius = circumFromApothem(1, sides);
@@ -172,6 +202,14 @@ function faceGeometry(spec: TokenSpec): {
     points.push({ x: Math.cos(angle) * extentX, z: Math.sin(angle) * extentX });
   }
   return { points, artExtent: { x: extentX, z: extentX } };
+}
+
+/** A fan from the first corner — correct for any convex polygon, and the
+    whole reason circle/polygon never need real triangulation. */
+function fanIndices(count: number): (readonly [number, number, number])[] {
+  const faces: (readonly [number, number, number])[] = [];
+  for (let i = 1; i + 1 < count; i += 1) faces.push([0, i, i + 1]);
+  return faces;
 }
 
 /**
@@ -275,6 +313,30 @@ export function buildTokenMesh(spec: TokenSpec): TokenMesh {
    * whole height. One-sided art is the top square of a taller texture, a band of
    * rim colour beneath it, and both faces share it.
    *
+   * **A silhouette's bottom face is the one exception to that X-axis
+   * compensation, and only when there is a single shared picture to keep
+   * consistent with itself.** The compensation above is what keeps a face's
+   * *content* screen-locked — reading the same, unmirrored — when the piece
+   * is physically turned over on the table. That is exactly right for a
+   * circle or a polygon, because their outline is symmetric under a Z-mirror
+   * (the same set of points either way), so the flipped-over silhouette lands
+   * back on itself and the unmirrored content matches it edge to edge. A
+   * traced silhouette generally is *not* symmetric — this mesh's own points
+   * are shared between both faces (there is only one traced outline, not a
+   * mirrored pair — see `faceGeometry`), so turning the piece over always
+   * shows that outline Z-mirrored, whatever the texture does. Keeping the
+   * content screen-locked while the outline mirrors is what desyncs the two:
+   * the flipped outline reaches into a strip the trace never covered, and
+   * that strip samples whatever the source image happens to hold just past
+   * the alpha cut — background, or nothing. Undoing the compensation for
+   * this one case — sampling with the *same* sign both faces, rather than
+   * flipping it back — makes the content mirror right along with the
+   * outline instead, so what shows on the back is a clean, fully filled
+   * mirror image of the front, edge to edge, the way a real asymmetric
+   * two-sided token would actually be printed. `twoSided` already carries
+   * two independent pictures and is untouched by this — there is no shared
+   * silhouette assumption to protect there in the first place.
+   *
    * Deliberately *not* clamped to `[0, 1]` here, even though a polygon with
    * few enough sides reaches past this fixed frame at its corners — a
    * triangle's corners sit 2× its apothem — and an elongated piece reaches
@@ -298,9 +360,10 @@ export function buildTokenMesh(spec: TokenSpec): TokenMesh {
    * not a bug. A source image that does not yet reach the shape it is going
    * on is the thing to fix.
    */
+  const mirrorBack = spec.shape === 'silhouette' && !twoSided;
   const artUv = (x: number, z: number, face: 'top' | 'bottom'): [number, number] => {
     const u = (x / artExtent.x + 1) / 2;
-    const t = ((face === 'top' ? -z : z) / artExtent.z + 1) / 2;
+    const t = ((face === 'top' || mirrorBack ? -z : z) / artExtent.z + 1) / 2;
     if (twoSided) {
       return [face === 'top' ? u * 0.5 : 0.5 + u * 0.5, t];
     }
@@ -318,11 +381,21 @@ export function buildTokenMesh(spec: TokenSpec): TokenMesh {
     for (const [u, v] of uv) uvs.push(u, v);
   };
 
-  // Top and bottom, as fans from the first corner.
-  for (let i = 1; i + 1 < points.length; i += 1) {
-    const a = points[0] as { x: number; z: number };
-    const b = points[i] as { x: number; z: number };
-    const c = points[i + 1] as { x: number; z: number };
+  /*
+   * Top and bottom faces, triangulated. A fan from the first corner is only
+   * correct for a convex polygon — every existing shape here, but not a
+   * traced silhouette, which is generally concave. Ear-clipping is the
+   * general case; the fan stays the circle/polygon path because it is
+   * cheaper and always correct for those, not because ear-clipping would be
+   * wrong for them too.
+   */
+  const faces: (readonly [number, number, number])[] =
+    spec.shape === 'silhouette' ? earClip(points) : fanIndices(points.length);
+
+  for (const [ia, ib, ic] of faces) {
+    const a = points[ia] as Point;
+    const b = points[ib] as Point;
+    const c = points[ic] as Point;
 
     // Wound so the top faces up and the bottom faces down.
     push(a, c, b, [half, half, half], [

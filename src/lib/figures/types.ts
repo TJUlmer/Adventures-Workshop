@@ -5,6 +5,8 @@ import type { Id, IsoDateTime } from '$lib/core/id';
 import { createId, now } from '$lib/core/id';
 import { healthDialSpec } from '$lib/figures/health-dial';
 import type { TokenShape, TokenSpec } from '$lib/models/token';
+import { DEFAULT_OUTLINE_DETAIL } from '$lib/models/silhouette';
+import type { TokenOutline } from '$lib/models/silhouette';
 
 export type FigureId = Id<'Figure'>;
 
@@ -82,6 +84,25 @@ export interface TokenBuild {
    * shown on both faces.
    */
   twoSided: boolean;
+  /**
+   * The outline traced from the reference image's alpha, for `shape:
+   * 'silhouette'` — see `models/silhouette.ts`. Stored rather than
+   * recomputed on demand: it is what the preview showed and what the `.obj`
+   * is written from, and a lossy trace at an author-chosen tolerance is
+   * authored data, not a cache. `null` until traced, or when the most
+   * recent trace failed — either way `faceGeometry` falls back to the
+   * circle every token starts as.
+   */
+  outline: TokenOutline | null;
+  /**
+   * How closely the trace follows the picture's edge — the Douglas-Peucker
+   * tolerance, in the tracer's own pixel units. Lower is more faithful and
+   * more points. Author-facing because the right value is image-dependent
+   * (a hard-edged logo wants little smoothing, a feathered painting wants
+   * more), and without this knob an author with a fussy picture has no way
+   * to rescue a bad trace.
+   */
+  outlineDetail: number;
 }
 
 export function createTokenBuild(enabled = false): TokenBuild {
@@ -93,7 +114,9 @@ export function createTokenBuild(enabled = false): TokenBuild {
     lengthMm: 30,
     thicknessMm: 2,
     rimColor: '#1a1a1a',
-    twoSided: false
+    twoSided: false,
+    outline: null,
+    outlineDetail: DEFAULT_OUTLINE_DETAIL
   };
 }
 
@@ -105,7 +128,8 @@ export function tokenSpecOf(token: TokenBuild): TokenSpec {
     diameterMm: token.diameterMm,
     lengthMm: token.lengthMm,
     thicknessMm: token.thicknessMm,
-    twoSided: token.twoSided
+    twoSided: token.twoSided,
+    outline: token.outline
   };
 }
 

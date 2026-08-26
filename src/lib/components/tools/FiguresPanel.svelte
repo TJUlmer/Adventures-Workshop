@@ -11,7 +11,7 @@
   import { hasArtwork } from '$lib/core/artwork';
   import { readArtworkFile } from '$lib/core/image-import';
   import { saveExport, slugify } from '$lib/export';
-  import { exportTokenModel, tokenTextureUrl } from '$lib/export/token-model';
+  import { exportTokenModel, tokenTextureUrl, traceTokenSilhouette } from '$lib/export/token-model';
   import type { Figure, FigureId, FigureKind } from '$lib/figures/types';
   import {
     FIGURE_KIND_LABELS,
@@ -29,6 +29,8 @@
   import { isViewableModel, loadMesh } from '$lib/models/load';
   import type { Mesh } from '$lib/models/mesh';
   import type { TokenShape } from '$lib/models/token';
+  import { MAX_OUTLINE_DETAIL, MIN_OUTLINE_DETAIL } from '$lib/models/silhouette';
+  import type { TokenOutline } from '$lib/models/silhouette';
   import type { TtsSave } from '$lib/models/tts';
   import { applyTtsEdits, parseTtsSave } from '$lib/models/tts';
   import {
@@ -285,6 +287,81 @@
     }
   });
 
+  /**
+   * Whether a shape's traced outline nearly fills its own frame edge to
+   * edge — the tell for "this picture has no transparent background," the
+   * single most likely first-run confusion (a photo, or a PNG that was
+   * never cut out). Not a failure: the trace succeeded, honestly, at
+   * tracing a rectangle.
+   */
+  function looksLikeFullFrame(outline: TokenOutline): boolean {
+    let minX = Infinity;
+    let maxX = -Infinity;
+    let minZ = Infinity;
+    let maxZ = -Infinity;
+    for (let i = 0; i < outline.points.length; i += 2) {
+      const x = outline.points[i] as number;
+      const z = outline.points[i + 1] as number;
+      if (x < minX) minX = x;
+      if (x > maxX) maxX = x;
+      if (z < minZ) minZ = z;
+      if (z > maxZ) maxZ = z;
+    }
+    return maxX - minX > 1.9 && maxZ - minZ > 1.9;
+  }
+
+  /** Whether a figure's silhouette is being (re)traced right now — the
+      previous outline, if any, stays in the document and on screen while
+      this is true, so the preview never blanks to a circle mid-retrace. */
+  let tracingOutline = $state<Record<string, boolean>>({});
+  const outlineTriggerKeys: Record<string, string> = {};
+  const outlineTimers: Record<string, ReturnType<typeof setTimeout>> = {};
+  const outlineRunTokens: Record<string, number> = {};
+
+  /**
+   * Debounced ~250ms — long enough that a Detail-slider drag fires the
+   * trace once at the end rather than on every tick, short enough that a
+   * single change still feels immediate. A monotonic run token per figure
+   * discards a trace that resolves after a newer one was already started,
+   * which a fast drag can cause (a small image finishing after a large one
+   * queued just before it).
+   */
+  $effect(() => {
+    for (const figure of figures) {
+      if (figure.token.shape !== 'silhouette' || !figure.token.enabled) continue;
+      if (!hasArtwork(figure.reference)) continue;
+      const spec = generatedTokenSpec(figure);
+      if (!spec) continue;
+
+      const trigger = [
+        figure.reference.source ?? '',
+        figure.reference.transform.scale,
+        figure.token.twoSided,
+        figure.token.outlineDetail,
+        tokenFaceAspect(spec).toFixed(4)
+      ].join('|');
+      if (outlineTriggerKeys[figure.id] === trigger) continue;
+      outlineTriggerKeys[figure.id] = trigger;
+
+      const figureId = figure.id;
+      tracingOutline[figureId] = true;
+      const runToken = (outlineRunTokens[figureId] ?? 0) + 1;
+      outlineRunTokens[figureId] = runToken;
+
+      const existing = outlineTimers[figureId];
+      if (existing) clearTimeout(existing);
+      outlineTimers[figureId] = setTimeout(() => {
+        void traceTokenSilhouette(figure, spec).then((outline) => {
+          if (outlineRunTokens[figureId] !== runToken) return; // superseded
+          tracingOutline[figureId] = false;
+          workshop.editFigure(figureId, (f) => {
+            f.token.outline = outline;
+          });
+        });
+      }, 250);
+    }
+  });
+
   const textureKeys: Record<string, string> = {};
 
   /** Parse an attached model the first time it is on screen, and keep it. */
@@ -320,7 +397,7 @@
    * "Length" name which one each field actually is.
    */
   const sidesLabel = (figure: Figure): string =>
-    figure.token.shape === 'polygon' ? 'Width' : 'Diameter';
+    figure.token.shape === 'circle' ? 'Diameter' : 'Width';
 
   /** The assigned character's name, for the dial's default name. */
   function ownerName(figure: Figure): string | null {
@@ -809,6 +886,14 @@
                 />
 
                 {#if figure.token.enabled}
+                  <p class="hint">
+                    Circle and Polygon are regular shapes.
+                    <strong>Silhouette</strong> traces the piece's outline straight
+                    from the picture's own transparency — a sword, a skull, anything
+                    irregular — so the token isn't stuck being round or
+                    straight-sided.
+                  </p>
+
                   <div class="token-fields">
                     <label class="field">
                       <span class="field-label">Shape</span>
@@ -856,9 +941,12 @@
                       that square into a rectangle, and does the same to any
                       other side count (an elongated hexagon, say). Circle has
                       no equivalent field: there is no elliptical token, only a
-                      round one.
+                      round one. A silhouette reads this too — it is the frame
+                      the picture is traced and fitted into, not a shape of its
+                      own, so leaving it square is what keeps a wide cut-out
+                      from coming out narrower than Width says.
                     -->
-                    {#if figure.token.shape === 'polygon'}
+                    {#if figure.token.shape !== 'circle'}
                       <label class="field">
                         <span class="field-label">Length</span>
                         <NumberInput
@@ -929,7 +1017,50 @@
                         />
                       </div>
                     {/if}
+
+                    <!--
+                      Lower (toward the left) follows the picture's edge more
+                      closely, at more points — the right value is
+                      image-dependent (a hard-edged logo wants little
+                      smoothing, a feathered painting wants more), so this is
+                      the knob an author with a fussy trace actually has.
+                    -->
+                    {#if figure.token.shape === 'silhouette'}
+                      <div class="field">
+                        <Slider
+                          label="Outline detail"
+                          value={figure.token.outlineDetail}
+                          min={MIN_OUTLINE_DETAIL}
+                          max={MAX_OUTLINE_DETAIL}
+                          step={0.25}
+                          neutral={1.5}
+                          format={(value) => value.toFixed(2)}
+                          onchange={(detail) =>
+                            workshop.editFigure(figure.id, (f) => (f.token.outlineDetail = detail))}
+                        />
+                      </div>
+                    {/if}
                   </div>
+
+                  {#if figure.token.shape === 'silhouette'}
+                    <p class="hint">
+                      {#if !hasArtwork(figure.reference)}
+                        A silhouette is traced from the picture's transparency. Attach a cut-out
+                        PNG.
+                      {:else if tracingOutline[figure.id]}
+                        Tracing the outline…
+                      {:else if figure.token.outline}
+                        {#if looksLikeFullFrame(figure.token.outline)}
+                          This picture has no transparent background — the token will be a
+                          rectangle. Use a PNG with the background cut out.
+                        {:else}
+                          Outline: {figure.token.outline.points.length / 2} points.
+                        {/if}
+                      {:else}
+                        Could not trace this picture's outline — try a cleaner cut-out.
+                      {/if}
+                    </p>
+                  {/if}
 
                   <Switch
                     label="Two-sided art"
@@ -943,10 +1074,14 @@
                     <div class="note-block">
                       <span class="block-title">This piece</span>
                       <p class="hint">
-                        {figure.token.shape === 'polygon'
-                          ? `${figure.token.sides}-sided polygon`
-                          : 'Circle'},
-                        {#if figure.token.shape === 'polygon' && figure.token.lengthMm !== figure.token.diameterMm}
+                        {#if figure.token.shape === 'circle'}
+                          Circle,
+                        {:else if figure.token.shape === 'polygon'}
+                          {figure.token.sides}-sided polygon,
+                        {:else}
+                          Silhouette traced from the image,
+                        {/if}
+                        {#if figure.token.shape !== 'circle' && figure.token.lengthMm !== figure.token.diameterMm}
                           {figure.token.diameterMm}mm wide by {figure.token.lengthMm}mm long
                         {:else}
                           {figure.token.diameterMm}mm across
@@ -964,6 +1099,17 @@
                           plain fill of the colour above — a marker that needs no
                           picture to render correctly in Tabletop Simulator. Attach an
                           image to put art on it instead.
+                        </p>
+                      {:else if figure.token.shape === 'silhouette'}
+                        <p class="hint">
+                          The traced outline cuts away everything the picture did not
+                          reach, so the rim colour above only ever shows on the piece's
+                          own edge — never the face.
+                          {#if figure.token.twoSided}
+                            Two-sided art still splits left (front) and right (back), the
+                            same as any other piece — the traced outline itself always
+                            comes from the front half.
+                          {/if}
                         </p>
                       {:else if figure.token.twoSided}
                         <p class="hint">

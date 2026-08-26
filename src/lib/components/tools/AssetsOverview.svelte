@@ -22,7 +22,7 @@
   import type { Character, CharacterRole, HeroCharacterCard } from '$lib/characters/types';
   import { hasArtwork } from '$lib/core/artwork';
   import type { Deck, DeckKind } from '$lib/decks/types';
-  import { tokenTextureUrl } from '$lib/export/token-model';
+  import { resolvedTokenSpec, tokenTextureUrl } from '$lib/export/token-model';
   import { figureLabel, FIGURE_KIND_LABELS, generatedTokenSpec } from '$lib/figures/types';
   import { isViewableModel, loadMesh } from '$lib/models/load';
   import { renderMeshSnapshot } from '$lib/models/snapshot';
@@ -129,8 +129,19 @@
          * flat reference image, which is what a figure with no model shows.
          */
         try {
-          const mesh = spec ? buildTokenMesh(spec) : await loadMesh(modelName, modelSource ?? '');
-          const texture = spec ? await tokenTextureUrl(figure) : figure.reference.source;
+          /*
+           * Resolved rather than trusted as stored: this page reviews sets it
+           * may not be the one actively editing them in, so a silhouette's
+           * outline here has to be re-checked for staleness itself rather
+           * than assuming `FiguresPanel`'s own retrace effect already ran —
+           * see `resolvedTokenSpec`. Read-only; never writes the outline
+           * back, matching every other reader of it.
+           */
+          const resolvedSpec = spec ? await resolvedTokenSpec(figure, spec) : null;
+          const mesh = resolvedSpec
+            ? buildTokenMesh(resolvedSpec)
+            : await loadMesh(modelName, modelSource ?? '');
+          const texture = resolvedSpec ? await tokenTextureUrl(figure) : figure.reference.source;
           const snapshot = await renderMeshSnapshot(mesh, texture, 160);
           if (snapshot) modelSnapshots[figureId] = snapshot;
         } catch (error) {

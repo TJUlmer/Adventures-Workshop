@@ -303,6 +303,114 @@ it cannot bleed into the rim strip below. Crop, colour grade and mask are wired 
 everywhere else but not yet read by the token texture builder — reachable, not
 yet applied.
 
+### Silhouette tokens
+
+A third `TokenShape` beside circle and polygon: the piece's own outline,
+traced from its art's alpha channel rather than chosen from a fixed list of
+regular shapes. Tabletop Simulator has an engine-side "Custom Token" feature
+that does something similar, but only for the export — the app's own WebGL
+preview would still show a disc. Full parity meant tracing, simplifying and
+triangulating the outline **in this codebase**, so the same mesh serves the
+live preview and every export, same as every other generated token. No
+contour-tracing or polygon-triangulation code existed anywhere here before
+this; `src/lib/models/silhouette.ts` is all of it, pure and DOM-free —
+threshold → morphological open → largest connected region → Moore-neighbour
+boundary trace (Jacob's stopping criterion, so a one-pixel neck cannot
+truncate the loop early) → closed-loop Douglas-Peucker simplification → ear
+clipping. `faceGeometry` (`models/token.ts`) reads the result as a fourth kind
+of face alongside circle and polygon; the fan-from-`points[0]`
+triangulation every existing shape used only works for a convex polygon, so
+`buildTokenMesh` dispatches to `earClip` for `'silhouette'` and keeps the fan
+(now `fanIndices`) for the other two, which never needed real triangulation
+and still don't.
+
+**Deliberately out of scope for v1**: only the largest connected alpha region
+is traced — no interior holes, no disjoint islands — which is what keeps the
+result a single closed loop and the rim-wall code (`i → (i+1) % n`) untouched.
+A two-sided piece's outline comes from the front half only; both faces share
+it. A trace that fails for any reason — no usable alpha, a polygon that still
+self-intersects after simplification — is `null`, and `faceGeometry` falls
+through to the circle every token already was, never to a fan drawn over a
+concave polygon (which renders as visible spikes and reads as a bug, not a
+limitation).
+
+**The morphological open pass (erode then dilate, 3×3) is not optional
+polish — it is what keeps the traced polygon simple.** Antialiased edges and
+soft shadows in ordinary author artwork produce speckle and pixel-wide necks
+that a raw boundary trace turns into a self-intersecting polygon, which ear
+clipping cannot triangulate. It is also why a thin appendage — a sword, a
+wisp of smoke — can get amputated in the trace: a heuristic, not a defect,
+and the reason the Detail slider and an honest "could not trace this" message
+both ship rather than being deferred as polish.
+
+**A cross product's argument order is not a stylistic choice, and getting it
+backwards fails silently.** `earClip`'s convexity test needs
+`turn(prev, cur, next)` — the signed area at `cur`, ears the right way round.
+It shipped as `turn(cur, prev, next)`, cross-product-equivalent to
+`turn(prev, next, cur)`, which inverts every vertex's convexity: every
+genuinely convex vertex read as reflex, no ear was ever found, and `earClip`
+returned zero triangles for anything but a literal triangle. Every shape this
+would have affected still *renders* — `faceGeometry` falls back to a circle
+on any `earClip` failure — so the bug never crashed or looked wrong on
+screen; a scratch harness catching it needed to assert triangle count
+against `points.length - 2` and triangulated area against the polygon's own
+shoelace area, exactly the "measure, don't eyeball" discipline this file
+already holds itself to elsewhere. Renamed to `turn(a, b, c)` with a doc
+comment naming the trap, since the function reads identically correct with
+either argument order and only the sign tells you which one you have.
+
+**The traced outline is persisted on the document, not computed on demand.**
+Tracing needs a decoded image and a canvas — genuinely async — while
+`buildTokenMesh` and everything downstream of it (the WebGL preview, every
+exporter) needs to stay synchronous, the same as circle and polygon always
+were. `TokenBuild.outline` (`figures/types.ts`) is the traced result;
+`FiguresPanel` runs a debounced (~250ms) `$effect` that retraces on any
+change to the source image, its zoom, two-sidedness or the Outline detail
+slider, and writes the result back through `workshop.editFigure` once it
+resolves — guarded by a monotonic per-figure run token so a fast slider drag
+can't let a stale in-flight trace overwrite a newer one. The **previous**
+outline stays on the document and in the preview while a retrace is in
+flight; nothing here ever blanks to a circle mid-drag. Every *reader* —
+`exportTokenModel`, the TTS bundle exporter, `AssetsOverview`'s snapshot —
+calls `resolvedTokenSpec(figure, spec)` instead of using
+`tokenSpecOf(figure.token)` directly: read-only, it retraces on the spot only
+if the stored outline's key no longer matches the current source (a content
+hash of the image plus aspect, zoom, two-sidedness and detail — see
+`outlineKey`), and never writes to the document itself. Only the editor's own
+effect writes; every export and preview path only ever resolves.
+
+**`artPlacement` is one function read by both the printed texture and the
+traced outline, and it has to be — this file already has a long history of
+UV-mapping bugs in exactly this spot.** It used to be inline math inside
+`buildTokenTexture` (`export/token-model.ts`); extracting it is what
+guarantees the outline traced from the art and the picture actually printed
+on the face agree about where the art sits. The alpha the tracer reads comes
+from compositing the artwork **alone** at `artPlacement`'s placement — not
+`buildTokenTexture`'s finished, rim-filled canvas, which is opaque everywhere
+and would trace a rectangle every time.
+
+**`Convex: true` in the Tabletop Simulator export was hardcoded, with a
+comment reasoning that every app-generated mesh is a token or a miniature —
+true until this shape.** A concave silhouette given a convex TTS collider
+collides and stacks as its bounding hull rather than its actual outline.
+`TtsModelComponent` gained an optional `convex` field (`export/
+tabletop-simulator.ts`), defaulting to `true`, set `false` only for a
+silhouette spec — found by re-reading `modelObject` directly rather than
+trusting the comment, which was exactly the kind of stale justification this
+codebase warns about elsewhere.
+
+Schema v36 (`sets/types.ts`) adds `shape: 'silhouette'`, `TokenBuild.outline`
+and `.outlineDetail`. `sets/normalize.ts` validates a stored outline
+point-by-point — even length, no `NaN`, a string `key`, a hard length cap —
+and drops it to `null` on anything malformed, same as every other
+`normalizeSet` repair; it never rewrites `shape` back to `'circle'` itself,
+because that would be permanent data loss where falling through to the
+circle in `faceGeometry` is transient and self-healing the moment a fresh
+trace lands. An older build opening a v36 document simply doesn't recognise
+`'silhouette'` and repairs it the same way it repairs any other unrecognised
+enum value — silently dropping the trace, which is the whole reason for the
+version bump.
+
 ### The hero role
 
 Villain and minion have always been the two selectable roles; `hero` is the
