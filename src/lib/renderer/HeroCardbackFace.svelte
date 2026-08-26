@@ -2,24 +2,25 @@
   /**
    * The back of a hero's deck.
    *
-   * Almost the plain villain/minion `CardbackFace` — an art window inside a
-   * ring, the character's name printed on it, `useReplacement` swapping the
-   * whole thing for a finished image the same way — but not that component,
-   * because it and its supplied template disagree on canvas: the villain/
-   * minion back is measured at trim size (`CARDBACK_BLEED`, 373×520, no
-   * bleed), and the hero back was supplied at the same bleed canvas every
-   * other hero face uses. Rather than force one coordinate system onto the
-   * other's numbers, this reuses the *action card's* `INTERIOR`/`BLEED` —
-   * which is what the hero back actually measures out to — and stays its own
-   * small file.
+   * Not the plain villain/minion `CardbackFace`, for two reasons. First, the
+   * canvases disagree: that back is measured at trim size (`CARDBACK_BLEED`,
+   * 373×520, no bleed), and the hero back was supplied at the same bleed
+   * canvas every other hero face uses (the action card's `BLEED`). Second,
+   * the templates themselves disagree in kind — the villain/minion art sits
+   * *inside* a ring the template draws, where `hero_cardback_border.png` is
+   * only a thin line near the edge, so this back's own artwork runs the full
+   * bleed canvas behind it rather than being boxed into a smaller window.
+   * The line is drawn as a themed mask (`HERO_CARDBACK.frame`,
+   * `back.frame`) rather than a flat overlay, same technique as every other
+   * recolourable template border in this app, so an author can choose its
+   * colour the way they already can for everything else on a hero's cards.
    */
   import { fillCss } from '$lib/cards/style';
   import type { Character } from '$lib/characters/types';
   import { characterLabel } from '$lib/characters/factory';
   import { hasArtwork } from '$lib/core/artwork';
-  import { TEMPLATE_ASSETS } from './assets';
   import CardArt from './CardArt.svelte';
-  import { BLEED, capTopToBoxTop, inName, INTERIOR, INTERIOR_RADIUS, px, pu, py } from './geometry';
+  import { BLEED, capTopToBoxTop, HERO_CARDBACK, px, pu, py } from './geometry';
 
   interface Props {
     character: Character;
@@ -29,9 +30,6 @@
 
   const back = $derived(character.cardback);
   const replaced = $derived(back.useReplacement && hasArtwork(back.replacement));
-
-  /** Inside the ring, bottom right — the same corner the villain/minion back uses. */
-  const NAME = { right: INTERIOR.x + INTERIOR.width - 60, capTop: INTERIOR.y + INTERIOR.height - 120, size: inName(46) };
 </script>
 
 {#if replaced}
@@ -39,28 +37,18 @@
     <CardArt artwork={back.replacement} background={fillCss(back.background)} />
   </div>
 {:else}
-  <div class="bed" style:background={fillCss(back.background)}></div>
-
-  <div
-    class="window"
-    style:left={px(INTERIOR.x)}
-    style:top={py(INTERIOR.y)}
-    style:width={px(INTERIOR.width)}
-    style:height={py(INTERIOR.height)}
-    style:border-radius={pu(INTERIOR_RADIUS)}
-  >
+  <div class="full" style:background={fillCss(back.background)}>
     <CardArt artwork={back.artwork} background="transparent" />
   </div>
 
-  <!-- Line art over the top: the ring, and nothing else — the supplied
-       template carries no lockup or rule to stand in for. -->
-  <img class="template" src={TEMPLATE_ASSETS.heroCardback} alt="" />
+  <!-- The template's own thin line, recoloured — see the file note above. -->
+  <div class="mask frame" style:background={fillCss(back.frame)}></div>
 
   <div
     class="name"
-    style:right={px(BLEED.width - NAME.right)}
-    style:top={py(capTopToBoxTop(NAME.capTop, NAME.size))}
-    style:font-size={pu(NAME.size)}
+    style:right={px(BLEED.width - HERO_CARDBACK.name.right)}
+    style:top={py(capTopToBoxTop(HERO_CARDBACK.name.capTop, HERO_CARDBACK.name.size))}
+    style:font-size={pu(HERO_CARDBACK.name.size)}
     style:color={back.ink}
   >
     {characterLabel(character)}
@@ -68,23 +56,24 @@
 {/if}
 
 <style>
-  .full,
-  .bed {
+  .full {
     position: absolute;
     inset: 0;
   }
 
-  .window {
-    position: absolute;
-    overflow: hidden;
-  }
-
-  .template {
+  .mask {
     position: absolute;
     inset: 0;
-    width: 100%;
-    height: 100%;
     pointer-events: none;
+    mask-size: 100% 100%;
+    -webkit-mask-size: 100% 100%;
+    mask-repeat: no-repeat;
+    -webkit-mask-repeat: no-repeat;
+  }
+
+  .frame {
+    mask-image: url('/assets/templates/hero_cardback_border.png');
+    -webkit-mask-image: url('/assets/templates/hero_cardback_border.png');
   }
 
   .name {

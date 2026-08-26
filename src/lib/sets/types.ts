@@ -263,10 +263,20 @@ export type SetId = Id<'Set'>;
  *      strips a style declaration it does not recognise, the same graceful
  *      loss any older sanitiser already accepts for markup it predates.
  *
+ * v35 — a character's card back gained `frame`, the printed border's own
+ *      colour. Meaningful only for a hero's back today — `HeroCardbackFace`
+ *      masks it over the template's thin frame line; a villain's or
+ *      minion's own template is still a flat overlay this does nothing to.
+ *      Defaults to `#f6eada`, the colour already sampled off the template,
+ *      so an older document opens looking exactly as it always did. The
+ *      bump is here because an older build opening a v35 document would
+ *      silently drop a chosen frame colour back to that default — no data
+ *      loss, but a visible one.
+ *
  * Older documents are *repaired*, not rejected — see `sets/normalize.ts`. Only
  * a version newer than this build understands is refused.
  */
-export const SET_SCHEMA_VERSION = 34;
+export const SET_SCHEMA_VERSION = 35;
 
 /**
  * What a set is for.

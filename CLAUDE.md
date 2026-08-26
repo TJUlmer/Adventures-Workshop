@@ -537,6 +537,48 @@ and previewed, but not yet exported outside a PNG of one card at a time. That
 was the deliberately chosen scope for the first pass; wiring the character
 card and hero decks into those three files is the natural next one.
 
+### A card back's frame is drawn over full-bleed art, not around a window into it
+
+Both deck-back faces used to box their inset art inside a *clipping* window —
+`HeroCardbackFace` at the action card's own `INTERIOR`, `CardbackFace`
+(villain/minion) at `CARDBACK.window`, a smaller box inside
+`adventures_minion_cardback_nologo.png`'s own ring. That was the wrong model
+for what these templates actually are: measured off their own alpha, neither
+is a ring or a frame with a window *cut into* it — each is a single-colour
+line (a thin rounded-rect for the hero, a border plus the rule above the
+name for villain/minion) sitting near the bleed edge, drawn over whatever is
+behind it, and nothing else. Boxing the art inside it left a wide unprinted
+margin the reference art never has; both backs' art now runs the full bleed
+canvas (full trim canvas for villain/minion, whose template carries no
+bleed — `CARDBACK_BLEED`), with the line drawn *over* it.
+
+`HERO_CARDBACK.frame` (143,143 to 1489,2080) is where the hero's own line
+sits — the same four numbers as the action card's `INTERIOR`, coincidentally,
+since this file does not read that constant. `CARDBACK.window`/`.radius`
+were removed outright rather than left unused, since nothing needs a
+clipping box's numbers once nothing clips to it.
+
+Both lines are now a themed mask rather than a flat overlay —
+`CardbackDesign.frame`, drawn the same "art as a CSS alpha mask over a
+fill" way every other recolourable template border in this app is, with a
+`FillEditor` in `CardbackPanel` for every role. Each role's own template has
+its own line colour, so `createCardback`'s default is role-aware: `#f6eada`
+for a hero (`hero_cardback_border.png`), `#ebe8d5` for villain/minion
+(`adventures_minion_cardback_nologo.png`) — picking one colour for both would
+read wrong the moment an author opened whichever role it wasn't sampled from.
+
+**A hero's back prints no role line, so `CardbackPanel`'s "Role line" field
+is gated to `character.role !== 'hero'`.** `HeroCardbackFace` has never read
+`CardbackDesign.label` — only `CardbackFace` draws the two-line label/name
+lockup — so the field was already inert there before this pass; hiding it is
+what finally makes that visible rather than offering a control with nothing
+to do.
+
+Schema v35 is `CardbackDesign.frame` alone: it defaults to each role's own
+sampled line colour, so an older document opens looking exactly as it always
+did, and the bump exists only because an older build opening a v35 document
+would otherwise silently drop a chosen frame colour back to that default.
+
 ### The ribbon's foot
 
 The strip between a name ribbon's point and the divider, filled so the ribbon's

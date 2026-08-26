@@ -285,7 +285,8 @@ function cardback(value: unknown, role: string) {
     artwork: artwork(raw['artwork']),
     replacement: artwork(raw['replacement']),
     useReplacement: bool(raw['useReplacement'], false),
-    label: str(raw['label'], defaults.label)
+    label: str(raw['label'], defaults.label),
+    frame: fill(raw['frame'], defaults.frame)
   };
 }
 

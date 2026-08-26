@@ -1506,19 +1506,40 @@ export const EVENT = {
 // -- Cardback -----------------------------------------------------------
 
 /**
- * `adventures_minion_cardback_nologo.png` is drawn at trim size, and is
- * transparent everywhere except its line art — so it overlays artwork rather
- * than masking it, and the whole thing can be swapped for a replacement image.
+ * `adventures_minion_cardback_nologo.png` is drawn at trim size, transparent
+ * everywhere except its line art — a single-colour border and the rule
+ * above the name, with the publisher's own lockup and line of type in the
+ * lower right both dropped rather than stood in for, so nothing has to be
+ * cleared from it later. `adventures_minion_cardback_original.png` is the
+ * file it came from, and `adventures_minion_cardback.png` the intermediate
+ * that kept an empty plate. It is drawn as a themed mask over full-bleed
+ * artwork (`CardbackFace`) the same way `HERO_CARDBACK`'s own line is,
+ * rather than boxing the art inside the border the way this used to. The
+ * whole composition can still be swapped for a replacement image.
  */
 export const CARDBACK_BLEED = { width: 373, height: 520 } as const;
 
 export const CARDBACK = {
-  /** The window the template's border encloses. */
-  window: { x: 26, y: 20, width: 330, height: 478 },
-  radius: 10,
   /** Role line above the name, bottom right. */
-  label: { right: 354, capTop: 456, size: inName(13) },
-  name: { right: 354, capTop: 474, size: inName(28) }
+  label: { right: 345, capTop: 456, size: inName(13) },
+  name: { right: 345, capTop: 474, size: inName(28) }
+} as const;
+
+/**
+ * A hero's own back, at the action card's bleed canvas — see
+ * `HeroCardbackFace`. `hero_cardback_border.png` carries only a thin rounded
+ * line, not a ring or a lockup like the villain/minion template, so this
+ * back's own art is never boxed in behind it: `frame` is only where that
+ * line itself sits, measured off the art's alpha, for the mask that
+ * recolours it and for placing the name relative to it. It is coincidence,
+ * not derivation, that these numbers equal the action card's own `INTERIOR`
+ * — this file does not read that constant.
+ */
+export const HERO_CARDBACK = {
+  frame: { x: 143, y: 143, width: 1346, height: 1937 },
+  radius: 46,
+  /** Bottom right, inset 60px from the frame's right edge, 120px from its foot. */
+  name: { right: 1450, capTop: 2020, size: inName(72) }
 } as const;
 
 // -- Rules card ---------------------------------------------------------

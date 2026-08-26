@@ -69,26 +69,6 @@ export const TEMPLATE_ASSETS = {
   eventLogo: `${TEMPLATES}/event_logo.png`,
   eventLogoInk: `${TEMPLATES}/event_logo_ink.png`,
   /**
-   * Deck back: transparent line art laid over the author's composition.
-   *
-   * Frame and rule only — the publisher's lockup and the line of type in the
-   * lower right are both gone, rather than being stood in for. What is left is
-   * the part of the printed back that is the *card's* rather than the
-   * publisher's, so nothing has to be cleared from it later.
-   * `adventures_minion_cardback_original.png` is the file it came from, and
-   * `adventures_minion_cardback.png` the intermediate that kept an empty plate.
-   */
-  minionCardback: `${TEMPLATES}/adventures_minion_cardback_nologo.png`,
-  /**
-   * A hero's deck back: a cream ring at the card's own `INTERIOR` bounds, and
-   * nothing else — the supplied template carries no lockup or rule to stand in
-   * for. Generated with Python/PIL rather than extracted from the template,
-   * because a drawn rounded-rectangle at `INTERIOR`'s own measured bounds is
-   * more precise than tracing the template's anti-aliased edge would be.
-   * Regenerate rather than hand-editing if the border position ever moves.
-   */
-  heroCardback: `${TEMPLATES}/hero_cardback_border.png`,
-  /**
    * A hero's character card, in three pieces per layout.
    *
    * `tools/hero-card-assets.py` splits each supplied frame into its **border**

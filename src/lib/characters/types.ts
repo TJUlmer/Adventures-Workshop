@@ -62,13 +62,21 @@ export interface CharacterAbility {
 export interface CardbackDesign {
   background: Fill;
   ink: string;
-  /** Art shown inside the template's border. */
+  /** Fills the whole card, edge to edge — the border is a line drawn over it. */
   artwork: Artwork;
   /** A finished image that replaces the whole card back. */
   replacement: Artwork;
   useReplacement: boolean;
-  /** Line above the name. Defaults from the role. */
+  /** Line above the name. Only villain/minion print it — see `CardbackPanel`. */
   label: string;
+  /**
+   * The printed border's own colour. Both `CardbackFace` (villain/minion)
+   * and `HeroCardbackFace` draw their own template's line art as a themed
+   * mask over this — the same "art as an alpha mask over a fill" technique
+   * every other recolourable template in this app uses — rather than as a
+   * flat overlay.
+   */
+  frame: Fill;
 }
 
 /**

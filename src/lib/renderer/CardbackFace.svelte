@@ -1,27 +1,21 @@
 <script lang="ts">
   /**
-   * The back of a character's deck.
+   * The back of a villain's or minion's deck.
    *
-   * The template is transparent except its line art, so it sits *over* the
-   * artwork rather than masking it. Turning on `useReplacement` swaps the whole
-   * composition for a finished image — template, name and all — for authors who
-   * would rather supply a back than build one.
+   * `adventures_minion_cardback_nologo.png` is single-colour line art — a
+   * border and the rule above the name — so it is drawn as a themed mask
+   * over full-bleed artwork, the same technique `HeroCardbackFace` uses for
+   * its own line, rather than the flat overlay boxing art inside a window
+   * this used to be. Turning on `useReplacement` swaps the whole composition
+   * for a finished image — template, name and all — for authors who would
+   * rather supply a back than build one.
    */
   import { fillCss } from '$lib/cards/style';
   import type { Character } from '$lib/characters/types';
   import { characterLabel } from '$lib/characters/factory';
   import { hasArtwork } from '$lib/core/artwork';
-  import { TEMPLATE_ASSETS } from './assets';
   import CardArt from './CardArt.svelte';
-  import {
-    CARDBACK,
-    CARDBACK_BLEED as FRAME,
-    capTopToBoxTop,
-    NAME_METRICS,
-    px,
-    pu,
-    py
-  } from './geometry';
+  import { CARDBACK, CARDBACK_BLEED as FRAME, capTopToBoxTop, NAME_METRICS, px, pu, py } from './geometry';
 
   interface Props {
     character: Character;
@@ -38,21 +32,12 @@
     <CardArt artwork={back.replacement} background={fillCss(back.background)} />
   </div>
 {:else}
-  <div class="bed" style:background={fillCss(back.background)}></div>
-
-  <div
-    class="window"
-    style:left={px(CARDBACK.window.x, FRAME)}
-    style:top={py(CARDBACK.window.y, FRAME)}
-    style:width={px(CARDBACK.window.width, FRAME)}
-    style:height={py(CARDBACK.window.height, FRAME)}
-    style:border-radius={pu(CARDBACK.radius, FRAME)}
-  >
+  <div class="full" style:background={fillCss(back.background)}>
     <CardArt artwork={back.artwork} background="transparent" />
   </div>
 
-  <!-- Line art over the top: logo, border and the name rules. -->
-  <img class="template" src={TEMPLATE_ASSETS.minionCardback} alt="" />
+  <!-- The template's own line, recoloured — see the file note above. -->
+  <div class="mask frame" style:background={fillCss(back.frame)}></div>
 
   <div
     class="label"
@@ -76,23 +61,24 @@
 {/if}
 
 <style>
-  .full,
-  .bed {
+  .full {
     position: absolute;
     inset: 0;
   }
 
-  .window {
-    position: absolute;
-    overflow: hidden;
-  }
-
-  .template {
+  .mask {
     position: absolute;
     inset: 0;
-    width: 100%;
-    height: 100%;
     pointer-events: none;
+    mask-size: 100% 100%;
+    -webkit-mask-size: 100% 100%;
+    mask-repeat: no-repeat;
+    -webkit-mask-repeat: no-repeat;
+  }
+
+  .frame {
+    mask-image: url('/assets/templates/adventures_minion_cardback_nologo.png');
+    -webkit-mask-image: url('/assets/templates/adventures_minion_cardback_nologo.png');
   }
 
   /* The same two roles as the action card's ribbon, so the same face. */

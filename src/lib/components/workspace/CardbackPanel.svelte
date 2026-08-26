@@ -91,6 +91,13 @@
         workshop.editCardback(character.id, (design) => (design.background = background))}
     />
 
+    <FillEditor
+      label="Frame"
+      value={back.frame}
+      onchange={(frame: Fill) =>
+        workshop.editCardback(character.id, (design) => (design.frame = frame))}
+    />
+
     <label class="stack">
       <span class="field-label">Text</span>
       <ColorInput
@@ -101,21 +108,27 @@
       />
     </label>
 
-    <label class="stack">
-      <span class="field-label">Role line</span>
-      <TextInput
-        value={back.label}
-        placeholder="MINION"
-        oninput={(event) =>
-          workshop.editCardback(
-            character.id,
-            (design) => (design.label = event.currentTarget.value)
-          )}
-      />
-    </label>
+    {#if character.role !== 'hero'}
+      <!-- A hero's back prints only the name — see `HeroCardbackFace`. -->
+      <label class="stack">
+        <span class="field-label">Role line</span>
+        <TextInput
+          value={back.label}
+          placeholder="MINION"
+          oninput={(event) =>
+            workshop.editCardback(
+              character.id,
+              (design) => (design.label = event.currentTarget.value)
+            )}
+        />
+      </label>
+    {/if}
   </EditorSection>
 
-  <EditorSection title="Inset artwork" hint="Sits inside the template's border.">
+  <EditorSection
+    title="Back artwork"
+    hint="Fills the whole card, edge to edge — the frame is a line drawn over it, not a window around it."
+  >
     {#snippet actions()}
       {#if hasInset}
         <Button
