@@ -21,6 +21,7 @@
    * fix. The toggle is the honest way to say that; folding characters into the
    * set grid would mean a tile that is sometimes a box and sometimes a person.
    */
+  import AccountMenu from '$lib/components/cloud/AccountMenu.svelte';
   import { cloudEnabled } from '$lib/cloud/config';
   import { listPublicCharacters, listPublicSets } from '$lib/cloud/sets';
   import type {
@@ -33,7 +34,7 @@
   import type { CharacterRole } from '$lib/characters/types';
   import { CARD_FORMATS, trimBox } from '$lib/renderer/geometry';
   import { navigation } from '$lib/state/navigation.svelte';
-  import { Button, Icon, SegmentedControl, Select } from '$lib/ui';
+  import { Button, Icon, SegmentedControl, Select, ThemeToggle } from '$lib/ui';
 
   const PAGE = 36;
 
@@ -329,10 +330,14 @@
         with.
       </p>
     </div>
-    <Button variant="ghost" onclick={() => navigation.openHome()}>
-      <Icon name="chevronRight" size={13} />
-      Home
-    </Button>
+    <div class="actions">
+      <ThemeToggle />
+      <AccountMenu />
+      <Button variant="ghost" onclick={() => navigation.openHome()}>
+        <Icon name="chevronRight" size={13} />
+        Home
+      </Button>
+    </div>
   </header>
 
   {#if !cloudEnabled()}
@@ -621,6 +626,12 @@
     justify-content: space-between;
     gap: var(--space-4);
     margin-bottom: var(--space-5);
+  }
+
+  .actions {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
   }
 
   .eyebrow {

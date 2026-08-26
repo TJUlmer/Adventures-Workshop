@@ -18,10 +18,12 @@
   import type { CharacterId, CharacterRole } from '$lib/characters/types';
   import AccountMenu from '$lib/components/cloud/AccountMenu.svelte';
   import { auth } from '$lib/cloud/auth.svelte';
+  import { renderCharacterCards } from '$lib/cloud/character-cards';
   import { openContributionCounts } from '$lib/cloud/contributions';
   import { cloudEnabled } from '$lib/cloud/config';
   import { fetchSetSummaryBySlug, listMyPublishedSets, listPublicSets } from '$lib/cloud/sets';
   import type { GallerySet } from '$lib/cloud/sets';
+  import { coverArtwork } from '$lib/cloud/thumbnail';
   import { asId } from '$lib/core/id';
   import { GUIDES } from '$lib/guides/content';
   import { CARD_FORMATS, trimBox } from '$lib/renderer/geometry';
@@ -30,7 +32,7 @@
   import { guides } from '$lib/state/guides.svelte';
   import { navigation } from '$lib/state/navigation.svelte';
   import { workshop } from '$lib/state/workshop.svelte';
-  import { saveSet } from '$lib/storage/library';
+  import { loadSet, saveSet } from '$lib/storage/library';
   import type { LibraryEntry } from '$lib/storage/library';
   import { readStorageEstimate } from '$lib/storage/indexeddb';
   import type { StorageEstimate } from '$lib/storage/indexeddb';
@@ -60,6 +62,65 @@
 
   const entries = $derived(workshop.library);
   const deletedEntries = $derived(workshop.deletedLibrary);
+
+  /**
+   * Each set's own cover picture, mirroring the gallery's tile — see
+   * `coverArtwork`. `LibraryEntry` carries no picture on purpose (see
+   * `storage/library.ts`), so this loads the full document once per set,
+   * off to the side, rather than putting one on the index. Keyed by id and
+   * built up as loads resolve; a set still loading, or with no picture at
+   * all, keeps showing `tint(entry.id)` underneath.
+   */
+  let covers = $state<Map<SetId, string>>(new Map());
+  const coversRequested = new Set<SetId>();
+
+  async function ensureCover(id: SetId): Promise<void> {
+    if (coversRequested.has(id)) return;
+    coversRequested.add(id);
+    const set = await loadSet(id);
+    const source = set ? coverArtwork(set)?.source : null;
+    if (source) covers = new Map(covers).set(id, source);
+  }
+
+  /** Every visible set gets its cover requested once, as the shelf renders. */
+  $effect(() => {
+    for (const entry of entries) void ensureCover(entry.id);
+  });
+
+  /**
+   * A hero's own printed character card, photographed the first time its
+   * tile is hovered or focused — same gate as `GalleryScreen`'s own `peek`,
+   * for the same reason: rendering every set's card stage the moment the
+   * shelf appears would cost far more than the rest of the page, for
+   * previews most of which nobody will ever hover. Stays cached afterwards,
+   * so a second hover is instant. A blob is read to a data URL rather than
+   * kept as an object URL, so nothing here has to revoke one on unmount —
+   * `renderCharacterCards`' own WebP is small enough (tens of KB) that the
+   * base64 overhead costs nothing worth avoiding it for.
+   */
+  let cardPeeks = $state<Map<SetId, string>>(new Map());
+  const peeksRequested = new Set<SetId>();
+
+  function blobToDataUrl(blob: Blob): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = () => reject(reader.error as Error);
+      reader.readAsDataURL(blob);
+    });
+  }
+
+  async function peekCard(id: SetId): Promise<void> {
+    if (peeksRequested.has(id)) return;
+    peeksRequested.add(id);
+    const set = await loadSet(id);
+    if (!set) return;
+    // First hero only, matching `coverArtwork`'s own "first hero" step — a
+    // glance at who this set is, not a card per hero it happens to have.
+    const rendered = await renderCharacterCards(set);
+    const first = rendered.values().next().value;
+    if (first) cardPeeks = new Map(cardPeeks).set(id, await blobToDataUrl(first));
+  }
 
   /**
    * The stat row: quick counts, not detail — the attention strip and the
@@ -593,8 +654,29 @@
 
 {#snippet setCard(entry: LibraryEntry)}
   <li class="card">
-    <button type="button" class="open" onclick={() => void workshop.openSet(entry.id)}>
-      <span class="thumb" style:background={tint(entry.id)} aria-hidden="true"></span>
+    <button
+      type="button"
+      class="open"
+      onclick={() => void workshop.openSet(entry.id)}
+      onpointerenter={() => void peekCard(entry.id)}
+      onfocusin={() => void peekCard(entry.id)}
+    >
+      <span class="thumb" style:background={tint(entry.id)} aria-hidden="true">
+        {#if covers.get(entry.id)}
+          <img src={covers.get(entry.id)} alt="" loading="lazy" />
+        {/if}
+
+        <!--
+          A hero's character card, cross-faded over the cover on hover — same
+          technique as the gallery's own character tiles (`GalleryScreen`),
+          and the same reason: two pictures of the same set at the same size,
+          so swapping them in place reads as turning it over rather than a
+          popup appearing somewhere else.
+        -->
+        {#if cardPeeks.get(entry.id)}
+          <img class="card-peek" src={cardPeeks.get(entry.id)} alt="" />
+        {/if}
+      </span>
 
       <span class="card-body">
         <span class="card-title-row">
@@ -1814,14 +1896,55 @@
     text-align: left;
   }
 
-  /* The set grid's own "picture" — `LibraryEntry` deliberately carries no
-     thumbnail (see `tint`'s own doc comment), so a generated colour swatch is
-     what stands in, same as a character with no portrait already gets. */
+  /*
+   * The set grid's own "picture". `LibraryEntry` deliberately carries no
+   * thumbnail (see `tint`'s own doc comment) — a generated colour swatch is
+   * the fallback, same as a character with no portrait already gets, shown
+   * underneath until `ensureCover` resolves a real one (or forever, for a
+   * set with no picture anywhere in it).
+   *
+   * Card-proportioned (63:88) rather than the small square icon this used to
+   * be, because a picture this small is not recognisable as one — and sized
+   * to actually show the hover-swapped character card (`.card-peek`)
+   * legibly rather than as a postage stamp.
+   */
   .thumb {
+    position: relative;
     flex: none;
-    width: 40px;
-    height: 40px;
+    width: 64px;
+    height: 89px;
     border-radius: var(--radius-sm);
+    overflow: hidden;
+  }
+
+  .thumb img {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  /*
+   * `contain`, not `cover` like the cover picture underneath it: a cover is
+   * decoration and may be cropped to fill the tile, but a character card is
+   * a *document* — cropping it would cut off the stat block that is the
+   * entire reason for showing it. Written as `.thumb img.card-peek`, not a
+   * bare `.card-peek` — `.thumb img` above is a class-and-element selector
+   * (specificity 0,1,1) that would otherwise outrank a lone class (0,1,0)
+   * regardless of source order, the same trap `GalleryScreen`'s own
+   * `.cover img.card-peek` documents.
+   */
+  .thumb img.card-peek {
+    object-fit: contain;
+    background: inherit;
+    opacity: 0;
+    transition: opacity var(--duration-normal, 200ms) var(--ease-out);
+  }
+
+  .open:hover .thumb img.card-peek,
+  .open:focus-visible .thumb img.card-peek {
+    opacity: 1;
   }
 
   /*

@@ -28,6 +28,7 @@
    */
   import { untrack } from 'svelte';
   import type { CharacterId } from '$lib/characters/types';
+  import AccountMenu from '$lib/components/cloud/AccountMenu.svelte';
   import ExportPanel from '$lib/components/export/ExportPanel.svelte';
   import AssetsOverview from '$lib/components/tools/AssetsOverview.svelte';
   import { listContributors } from '$lib/cloud/contributions';
@@ -48,7 +49,7 @@
   import { navigation } from '$lib/state/navigation.svelte';
   import { workshop } from '$lib/state/workshop.svelte';
   import { saveSet } from '$lib/storage/library';
-  import { Button, Icon, Select } from '$lib/ui';
+  import { Button, Icon, Select, ThemeToggle } from '$lib/ui';
 
   interface Props {
     slug: string;
@@ -281,10 +282,23 @@
         {/if}
       </div>
 
-      <Button variant="ghost" onclick={() => navigation.leaveShared()}>
-        <Icon name="chevronRight" size={13} />
-        Done
-      </Button>
+      <div class="actions">
+        <ThemeToggle />
+        <AccountMenu />
+        {#if cloudEnabled()}
+          <Button variant="ghost" onclick={() => navigation.leaveShared({ kind: 'gallery' })}>
+            <Icon name="layers" size={14} />
+            Gallery
+          </Button>
+        {/if}
+        <Button variant="ghost" onclick={() => navigation.leaveShared({ kind: 'home' })}>
+          Home
+        </Button>
+        <Button variant="ghost" onclick={() => navigation.leaveShared()}>
+          <Icon name="chevronRight" size={13} />
+          Done
+        </Button>
+      </div>
     </header>
 
     {#if !cloudEnabled()}
@@ -403,6 +417,13 @@
     padding: var(--space-5) var(--space-6);
     border-bottom: 1px solid var(--border-default);
     background: var(--surface-default);
+  }
+
+  .actions {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    flex: none;
   }
 
   .mark {

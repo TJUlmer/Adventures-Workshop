@@ -1135,6 +1135,35 @@ away building a bare `Set<string>`. `publishedSlugByLocalId` keeps both, as a
 `Map<SetId, string>` — the Published/Unpublished split below still just calls
 `.has()` on it, so nothing else about that effect changed.
 
+**A shelf tile now shows a real picture, cross-faded to a hero's character
+card on hover — the same effect `GalleryScreen`'s own character tiles use,
+reused rather than reinvented.** `LibraryEntry` still carries no thumbnail
+(the "no picture on the index" reasoning above is unchanged), so `HomeScreen`
+loads the full document once per set (`ensureCover`, gated by a plain
+`Set<SetId>` so a re-render never re-requests one already in flight) and
+reads `coverArtwork(set)` — already synchronous, no rendering, just picking
+through fields that are already there — the instant it resolves. The
+character-card half is the expensive one and stays lazy: `peekCard` only
+photographs a card stage (`renderCharacterCards`, the same publish-time
+function the gallery itself uses, genuinely local — nothing about it touches
+the network) the first time a tile is hovered or focused, gated the same way
+`GalleryScreen`'s own `peek` is and for the same stated reason: rendering
+every tile's card stage the moment the shelf appears would cost far more
+than the rest of the page for previews most of which nobody hovers. Read to
+a data URL rather than kept as an object URL — `renderCharacterCards`' own
+WebP is small enough that the base64 overhead is free, and it means nothing
+here has to track object URLs for revocation on unmount.
+
+`.thumb` grew from a 40px icon to a 63:88 card-proportioned tile for this —
+a picture that small reads as a coloured square, not a picture, and the
+character-card peek needs real size to be legible at all. The
+`.thumb img.card-peek` selector is written out in full, not shortened to a
+bare `.card-peek`, for the same specificity reason `GalleryScreen`'s own
+`.cover img.card-peek` documents: the element-plus-class rule above it
+(`.thumb img`) outranks a lone class regardless of source order, which
+silently won `object-fit: cover` over the `contain` this rule sets and
+cropped the stat block clean off.
+
 ### Guides
 
 A guide is a short, step-by-step walkthrough of one thing the app does, shown
@@ -1251,6 +1280,31 @@ filename and folder (`components/home/`) are unchanged for the same reason
 not what a nav label currently calls it.
 
 ### Sharing and the gallery
+
+**`GalleryScreen` and `SharedSetScreen` render outside `AppShell`** (see
+`App.svelte`'s routing, alongside `HomeScreen`), so `TitleBar` — which
+assumes a set is open (`workshop.adventure`, Save, Export) — was never an
+option for either. Each carries its own inline `<header class="head">`
+instead, and each used to offer only a single "back" button: "Home" on the
+gallery, "Done" on a shared set. Both now also carry `ThemeToggle`,
+`AccountMenu`, and (gated on `cloudEnabled()`) a link to the other of the
+two — the same standing set of controls `HomeScreen`'s own header already
+established as what a shell-less screen offers. `SharedSetScreen`'s own
+"Done" stays alongside the new Home/Gallery buttons rather than being
+replaced by them: it is the one control that remembers *where this set was
+opened from* (`navigation`'s `#returnTo`) rather than naming a fixed
+destination, and a button that already does something more specific than
+"go Home" is worth keeping next to the ones that do not.
+
+**Leaving a shared set through anything other than `navigation.leaveShared`
+strands the URL.** A shared set is the one screen in this app with a real
+path (`/shared/{slug}`, not a hash — see below), so the Home and Gallery
+buttons added to its header call `navigation.leaveShared({ kind: 'home' })`
+/ `leaveShared({ kind: 'gallery' })` rather than `navigation.openHome()` /
+`openGallery()` directly: only `leaveShared` clears the `/shared/{slug}`
+path first, and a bare `openHome()` would leave it in the address bar to
+reassert itself on the next reload — the same trap `leaveShared`'s own doc
+comment already warns about for "Done".
 
 A set with no villain and no minions is a **gap, not a blocker**
 (`sets/health.ts`). With heroes in, a box of them is a set in its own right,
