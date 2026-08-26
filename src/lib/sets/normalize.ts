@@ -392,9 +392,11 @@ function adventureMap(value: unknown): AdventureMap {
       const to = path['to'] as MapSpaceId;
       if (typeof from !== 'string' || typeof to !== 'string') return null;
       if (!known.has(from) || !known.has(to) || from === to) return null;
-      return typeof path['id'] === 'string'
-        ? { id: path['id'] as MapPathId, from, to }
-        : createMapPath(from, to);
+      return {
+        ...createMapPath(from, to),
+        ...(typeof path['id'] === 'string' ? { id: path['id'] as MapPathId } : {}),
+        curve: num(path['curve'], 0)
+      };
     })
     .filter((path): path is MapPath => path !== null);
 
@@ -415,6 +417,7 @@ function adventureMap(value: unknown): AdventureMap {
     artwork: artwork(raw['artwork']),
     background: fill(raw['background'], defaults.background),
     spaceDiameter: num(raw['spaceDiameter'], defaults.spaceDiameter),
+    spaceOpacity: Math.min(1, Math.max(0, num(raw['spaceOpacity'], defaults.spaceOpacity))),
     spaceStroke: str(raw['spaceStroke'], defaults.spaceStroke),
     pathColor: str(raw['pathColor'], defaults.pathColor),
     startInk: str(raw['startInk'], defaults.startInk),

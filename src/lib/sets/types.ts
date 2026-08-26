@@ -288,10 +288,22 @@ export type SetId = Id<'Set'>;
  *      a damaged document and, here, would silently round a traced piece
  *      off and drop the trace with it.
  *
+ * v37 — the adventure map gained two fields for authoring, not for the print:
+ *      `spaceOpacity` (board-wide, `0`..`1`, fading every space's own fill so
+ *      the artwork underneath can show through) and `MapPath.curve` (how far
+ *      a path bows off a straight line, as a fraction of the distance between
+ *      its two spaces). Both default to the values that draw exactly what an
+ *      older document always drew — `1` (fully opaque) and `0` (straight) —
+ *      so nothing already on a board moves or fades. The bump is here for the
+ *      same reason v35's frame colour needed one: an older build reading a
+ *      newer document would silently drop a non-default value of either back
+ *      to that default, which is a visible change to a board an author had
+ *      deliberately set up.
+ *
  * Older documents are *repaired*, not rejected — see `sets/normalize.ts`. Only
  * a version newer than this build understands is refused.
  */
-export const SET_SCHEMA_VERSION = 36;
+export const SET_SCHEMA_VERSION = 37;
 
 /**
  * What a set is for.

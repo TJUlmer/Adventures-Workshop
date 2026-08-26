@@ -224,6 +224,16 @@ export interface MapPath {
   readonly id: MapPathId;
   from: MapSpaceId;
   to: MapSpaceId;
+  /**
+   * How far the path bows away from a straight line, as a fraction of the
+   * distance between its two spaces — `0` is straight, positive bows one way
+   * (clockwise from `from` to `to`) and negative the other. A fraction of the
+   * distance rather than a fixed amount so two spaces close together and two
+   * far apart both get the same *shape* of arc from the same value, and a
+   * space dragged closer or further away does not silently flatten or
+   * exaggerate a curve nobody touched.
+   */
+  curve: number;
 }
 
 export type MapNoteId = Id<'MapNote'>;
@@ -294,6 +304,16 @@ export interface AdventureMap {
   background: Fill;
   /** Diameter as a fraction of the map's width — one size for every space. */
   spaceDiameter: number;
+  /**
+   * Opacity every space's own fill is drawn at, `0`..`1` — one control for
+   * the whole board rather than a slider per space. A space's colour is what
+   * marks its terrain, not a picture to fade in and out on its own; letting
+   * the artwork show through underneath is a board-wide look, the same way
+   * `spaceDiameter` is one size for every space rather than a per-space
+   * setting. Does not touch the outline, the label or a start marker, which
+   * all stay fully opaque so the board reads clearly at any setting.
+   */
+  spaceOpacity: number;
   spaceStroke: string;
   /**
    * Not part of `palette`/the "colours used" swatch, on purpose: that
@@ -340,7 +360,7 @@ export function createMapSpace(x: number, y: number, fill?: Fill): MapSpace {
 }
 
 export function createMapPath(from: MapSpaceId, to: MapSpaceId): MapPath {
-  return { id: createId<MapPathId>('path'), from, to };
+  return { id: createId<MapPathId>('path'), from, to, curve: 0 };
 }
 
 export function createAdventureMap(): AdventureMap {
@@ -352,6 +372,7 @@ export function createAdventureMap(): AdventureMap {
     artwork: createArtwork(),
     background: solid('#2c2a26'),
     spaceDiameter: DEFAULT_SPACE_DIAMETER,
+    spaceOpacity: 1,
     spaceStroke: '#101010',
     pathColor: '#101010',
     startInk: '#f5f2ec',
@@ -377,6 +398,16 @@ export function pathExists(map: AdventureMap, from: MapSpaceId, to: MapSpaceId):
   return map.paths.some(
     (path) =>
       (path.from === from && path.to === to) || (path.from === to && path.to === from)
+  );
+}
+
+/** The path between two spaces, from either end — undirected, like `pathExists`. */
+export function findPath(map: AdventureMap, from: MapSpaceId, to: MapSpaceId): MapPath | null {
+  return (
+    map.paths.find(
+      (path) =>
+        (path.from === from && path.to === to) || (path.from === to && path.to === from)
+    ) ?? null
   );
 }
 

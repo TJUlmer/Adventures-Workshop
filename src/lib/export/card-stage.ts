@@ -121,7 +121,21 @@ export async function photographMapBoard(
   host.style.cssText = `position:fixed;left:-99999px;top:0;width:${width}px;pointer-events:none`;
   document.body.append(host);
 
-  const view = mount(MapBoard, { target: host, props: { map } });
+  /*
+   * `renderWidth` passed explicitly rather than left for `MapBoard` to
+   * measure off its own mounted DOM — it already sizes `host` to this exact
+   * width above, so it already knows the answer. `MapBoard`'s own
+   * `ResizeObserver`-based measurement (for the on-screen editor, which has
+   * no such prop to hand it) needs an extra effect cycle to settle, and a
+   * single `await tick()` is not guaranteed to cover it — confirmed by
+   * capturing the actual markup this function fed to the rasteriser and
+   * finding the path glow's blur frozen at `0px`, despite the same
+   * measurement reading correctly moments later once something else (a
+   * `setTimeout`, an intercepted property access) happened to buy it a
+   * little more time. Passing the width in sidesteps the race instead of
+   * papering over it.
+   */
+  const view = mount(MapBoard, { target: host, props: { map, renderWidth: width } });
 
   try {
     await tick();

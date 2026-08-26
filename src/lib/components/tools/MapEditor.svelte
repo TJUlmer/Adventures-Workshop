@@ -2,11 +2,17 @@
   /**
    * The map editor.
    *
-   * Deliberately one surface with three verbs — place, link, move — rather than
-   * a palette of tools, because a map is small enough that a mode picker would
-   * be most of the interface. The mode is explicit all the same: a click on the
-   * board means something different in each, and a board that guessed would be
-   * infuriating exactly when someone is working quickly.
+   * "Place" used to be its own mode, exclusive of "Move" — placing a space
+   * meant switching away from moving one, and back again to place the next.
+   * The two never needed to be separate: a click on empty board can only ever
+   * mean "place", a click that lands on a space can only ever mean "select
+   * it", and a *held* click on a space can only ever mean "move it". None of
+   * those three overlap, so one mode reads all of them off a single pointer
+   * gesture instead of asking an author to keep switching between two modes
+   * that were only ever disambiguated by where the click landed anyway.
+   * "Link" and "Text" stay modes in their own right, because a click on a
+   * space genuinely is ambiguous between them and "select" — only the mode
+   * picker can say which one is meant.
    *
    * The board itself is `MapBoard`, read-only, with the affordances laid over
    * it. Same split as the threat track: what is exported must not be able to
@@ -21,6 +27,7 @@
     createMapNote,
     createMapPath,
     createMapSpace,
+    findPath,
     findSpace,
     mapHeight,
     mapHeightMm,
@@ -41,8 +48,10 @@
       from `aspect` on `custom`. See `mapPrintSize`. */
   const printSize = $derived(mapPrintSize(map));
 
-  type Mode = 'place' | 'link' | 'move' | 'text';
+  type Mode = 'place' | 'link' | 'text';
   let mode = $state<Mode>('place');
+  /** Construction aid, never exported — see the toggle beside the modes. */
+  let showNumbers = $state(false);
   /** The space the detail editor shows — always a member of `colorSelection` while it is non-empty. */
   let selected = $state<MapSpaceId | null>(null);
   /**
@@ -217,9 +226,12 @@
   }
 
   const MODES: { value: Mode; label: string; hint: string }[] = [
-    { value: 'place', label: 'Place', hint: 'Click the board to add a space' },
+    {
+      value: 'place',
+      label: 'Spaces',
+      hint: 'Click empty board to add a space, click a space to select it, drag a space to move it — hold shift to select more than one'
+    },
     { value: 'link', label: 'Link', hint: 'Click two spaces to connect them, or again to unlink' },
-    { value: 'move', label: 'Move', hint: 'Drag a space to reposition it' },
     { value: 'text', label: 'Text', hint: 'Click the board to place a label' }
   ];
 
@@ -331,9 +343,16 @@
     if (mode === 'place') {
       if (hit) {
         // Shift-click adds to (or drops from) the running colour selection
-        // instead of replacing it — Place is the one mode this makes sense
-        // in, since Move and Link both give a click a different meaning.
+        // instead of replacing it, and never arms a drag — moving one space
+        // out of a multi-selection would leave it unclear which one just
+        // moved. A plain click both selects *and* arms a drag: nothing below
+        // moves until `onPointerMove` actually sees motion, so a click that
+        // never moves is indistinguishable from a plain select.
         selectSpace(hit, event.shiftKey);
+        if (!event.shiftKey) {
+          dragging = hit;
+          (event.target as Element).setPointerCapture?.(event.pointerId);
+        }
         return;
       }
       const space = createMapSpace(point.x, point.y);
@@ -382,12 +401,6 @@
       }
       linkFrom = null;
       return;
-    }
-
-    if (hit) {
-      selectSpace(hit, false);
-      dragging = hit;
-      (event.target as Element).setPointerCapture?.(event.pointerId);
     }
   }
 
@@ -520,6 +533,24 @@
     });
   }
 
+  /** How far the path between two spaces currently bows, for the slider below. */
+  function pathCurve(from: MapSpaceId, to: MapSpaceId): number {
+    return findPath(map, from, to)?.curve ?? 0;
+  }
+
+  /**
+   * Set a path's curve from either end — the connections list shows the same
+   * path once per space it touches, and both have to write the one record.
+   */
+  function setPathCurve(from: MapSpaceId, to: MapSpaceId, curve: number): void {
+    workshop.editMap((m) => {
+      const path = m.paths.find(
+        (p) => (p.from === from && p.to === to) || (p.from === to && p.to === from)
+      );
+      if (path) path.curve = curve;
+    });
+  }
+
   /**
    * Claim a start position for the selected space.
    *
@@ -648,6 +679,25 @@
           <span class="mode-hint">{MODES.find((m) => m.value === mode)?.hint}</span>
 
           <!--
+            A construction aid, not a fourth mode: it changes nothing a click
+            does, only what the board shows while working — so a toggle
+            rather than another entry in `MODES`, which is only ever about
+            what a click means. Never touches the document and never
+            exported; see the overlay itself, drawn beside `MapBoard` rather
+            than inside it, for why.
+          -->
+          <button
+            type="button"
+            class="mode"
+            class:active={showNumbers}
+            title="Show each space's construction number — a label for finding it in this editor, not for the printed board"
+            onclick={() => (showNumbers = !showNumbers)}
+          >
+            <Icon name="eye" size={13} />
+            Numbers
+          </button>
+
+          <!--
             The one control worth reaching for as often as a mode — the
             board is nothing without its picture — sitting in what would
             otherwise be empty width on this row rather than pushing the
@@ -713,6 +763,30 @@
               highlight={Array.from(colorSelection)}
               linking={mode === 'link' ? linkFrom : null}
             />
+
+            {#if showNumbers}
+              <!--
+                Drawn here, over `MapBoard` rather than inside it — `MapBoard`
+                is also what the export photographs (see its own doc comment:
+                "what is exported must not be able to draw a handle"), and
+                these numbers are a construction aid an author reaches for
+                specifically to find "Space 29" while unlinking it, never
+                something that should show up on a printed board.
+                `pointer-events: none` so the overlay never steals the click
+                that is meant for the board underneath it.
+              -->
+              <div class="numbers" aria-hidden="true">
+                {#each map.spaces as space, index (space.id)}
+                  <span
+                    class="number"
+                    style:left="{(space.x * 100).toFixed(3)}%"
+                    style:top="{((space.y / mapHeight(map)) * 100).toFixed(3)}%"
+                  >
+                    {index + 1}
+                  </span>
+                {/each}
+              </div>
+            {/if}
           </div>
 
           <!--
@@ -769,6 +843,24 @@
                   {/if}
                 </p>
               {/if}
+
+              <!--
+                One slider for every space's fill, not a control per space —
+                a space's colour marks its terrain, and letting the artwork
+                show through it is a decision about the whole board's look,
+                the same way `spaceDiameter` is one size for every space
+                rather than something dialled in space by space.
+              -->
+              <Slider
+                label="Space opacity"
+                value={map.spaceOpacity}
+                min={0}
+                max={1}
+                step={0.01}
+                neutral={1}
+                format={(v) => `${Math.round(v * 100)}%`}
+                onchange={(v) => workshop.editMap((m) => (m.spaceOpacity = v))}
+              />
 
               <!--
                 A `<div>`, not the `<label>` it was: the hex box beside the
@@ -1064,17 +1156,35 @@
                 <div class="field">
                   <span class="field-label">Connections</span>
                   {#each neighbours(map, selectedSpace.id) as other (other)}
-                    <div class="link-row">
-                      <span class="link-name">{spaceName(other)}</span>
-                      <button
-                        type="button"
-                        class="unlink"
-                        title="Remove this path"
-                        aria-label="Remove path to {spaceName(other)}"
-                        onclick={() => unlink(selectedSpace.id, other)}
-                      >
-                        <Icon name="minus" size={12} />
-                      </button>
+                    <div class="connection">
+                      <div class="link-row">
+                        <span class="link-name">{spaceName(other)}</span>
+                        <button
+                          type="button"
+                          class="unlink"
+                          title="Remove this path"
+                          aria-label="Remove path to {spaceName(other)}"
+                          onclick={() => unlink(selectedSpace.id, other)}
+                        >
+                          <Icon name="minus" size={12} />
+                        </button>
+                      </div>
+                      <!--
+                        Per connection, not per space: the curve belongs to
+                        the path, and a hub space with several connections
+                        needs each one bowed its own way to read as separate
+                        routes rather than a fan of straight spokes.
+                      -->
+                      <Slider
+                        label="Curve to {spaceName(other)}"
+                        value={pathCurve(selectedSpace.id, other)}
+                        min={-1}
+                        max={1}
+                        step={0.05}
+                        neutral={0}
+                        format={(v) => (v === 0 ? 'Straight' : `${v > 0 ? '+' : ''}${Math.round(v * 100)}%`)}
+                        onchange={(v) => setPathCurve(selectedSpace.id, other, v)}
+                      />
                     </div>
                   {:else}
                     <p class="hint">Nothing connected yet.</p>
@@ -1433,6 +1543,24 @@
     padding: var(--space-1) 0;
   }
 
+  .connection {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    width: 100%;
+    padding-bottom: var(--space-2);
+    border-bottom: 1px solid var(--border-default);
+  }
+
+  .connection:last-child {
+    padding-bottom: 0;
+    border-bottom: none;
+  }
+
+  .connection .link-row {
+    padding: 0;
+  }
+
   .link-name {
     font-size: var(--text-xs);
     color: var(--text-primary);
@@ -1476,9 +1604,29 @@
   }
 
   .board {
+    position: relative;
     touch-action: none;
     cursor: crosshair;
     user-select: none;
+  }
+
+  .numbers {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+  }
+
+  .number {
+    position: absolute;
+    transform: translate(-50%, -50%);
+    padding: 1px 4px;
+    border-radius: var(--radius-full);
+    background: rgb(0 0 0 / 0.72);
+    color: #fff;
+    font-size: 10px;
+    font-weight: 700;
+    line-height: 1.4;
+    white-space: nowrap;
   }
 
   .stats {
