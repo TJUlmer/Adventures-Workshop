@@ -16,6 +16,7 @@ import type { ExportResult } from './types';
 
 export function formatForCard(card: Card): CardFormat {
   if (card.type === 'initiative') return CARD_FORMATS.initiative;
+  if (card.type === 'rules' && card.landscape) return CARD_FORMATS.rulesLandscape;
   if (card.type === 'rules') return CARD_FORMATS.rules;
   if (card.type === 'event') return CARD_FORMATS.event;
   return CARD_FORMATS.action;

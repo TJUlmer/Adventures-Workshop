@@ -88,12 +88,14 @@ interface Pairing {
 const SIZES = {
   poker: CARD_FORMATS.action.mm,
   initiative: CARD_FORMATS.initiative.mm,
-  event: CARD_FORMATS.event.mm
+  event: CARD_FORMATS.event.mm,
+  rulesLandscape: CARD_FORMATS.rulesLandscape.mm
 } as const;
 
 type SizeName = keyof typeof SIZES;
 
 function sizeFor(card: Card): SizeName {
+  if (card.type === 'rules' && card.landscape) return 'rulesLandscape';
   if (card.type === 'initiative') return 'initiative';
   if (card.type === 'event') return 'event';
   return 'poker';
@@ -308,7 +310,8 @@ function mirror<T>(cells: T[], columns: number): T[] {
 const SIZE_LABELS: Readonly<Record<SizeName, string>> = {
   poker: 'Cards',
   initiative: 'Initiative cards',
-  event: 'Event cards'
+  event: 'Event cards',
+  rulesLandscape: 'Rules cards (landscape)'
 };
 
 export function planPrintPages(set: AdventureSet, options: PrintPlanOptions): PrintPlan {

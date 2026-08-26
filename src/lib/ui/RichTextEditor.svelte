@@ -13,10 +13,13 @@
   import {
     clampTextSize,
     escapeHtml,
+    readTextColor,
     readTextSize,
     sanitizeRichText,
+    TEXT_COLOR_CLASS,
     TEXT_SIZE,
     TEXT_SIZE_CLASS,
+    textColorStyle,
     textSizeStyle
   } from '$lib/text/rich-text';
   import Icon from './Icon.svelte';
@@ -52,10 +55,74 @@
 
   const isEmpty = $derived(value.trim().length === 0);
 
+  /**
+   * A plain character count from the start of `root` to `(container, offset)`
+   * — `Range.toString()` already walks the DOM the same way a caret would, so
+   * this is simpler than hand-rolling the walk. Used to survive `commit()`'s
+   * own DOM rebuild below: node identity does not, since that rebuild throws
+   * every existing node away, but a character offset means the same thing
+   * before and after, because sanitising never changes the text itself.
+   */
+  function offsetWithin(root: Node, container: Node, offset: number): number {
+    const range = document.createRange();
+    range.selectNodeContents(root);
+    range.setEnd(container, offset);
+    return range.toString().length;
+  }
+
+  /** The inverse of `offsetWithin`: the text-node/offset pair `target` characters in. */
+  function pointAtOffset(root: Node, target: number): { node: Node; offset: number } {
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+    let remaining = target;
+    let last: Text | null = null;
+    for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+      const text = node as Text;
+      if (remaining <= text.data.length) return { node: text, offset: remaining };
+      remaining -= text.data.length;
+      last = text;
+    }
+    return last ? { node: last, offset: last.data.length } : { node: root, offset: 0 };
+  }
+
+  /**
+   * Rebuilding `editor.innerHTML` (below) throws away every node the current
+   * `Selection` points into, which collapses it — so a caret sitting in the
+   * text a toolbar action just touched silently jumps back to nowhere, and a
+   * "reset to normal" that leaves nothing to say (`applySize`/`applyColor`
+   * below, back at the field's own size or colour) unwraps its own marker
+   * span, which makes *that* rebuild fire on every such reset. Wrapping the
+   * rebuild in a capture/restore by character offset — rather than trying to
+   * keep the specific node alive — is what survives it regardless of what
+   * triggered it, including a browser-injected span (spellcheck, an
+   * extension) this sanitiser was always going to strip anyway.
+   */
   function commit(): void {
     if (!editor) return;
     const clean = sanitizeRichText(editor.innerHTML);
-    if (clean !== editor.innerHTML) editor.innerHTML = clean;
+    if (clean !== editor.innerHTML) {
+      const selection = window.getSelection();
+      const range =
+        selection && selection.rangeCount > 0 ? selection.getRangeAt(0) : null;
+      const preserved =
+        range && editor.contains(range.startContainer) && editor.contains(range.endContainer)
+          ? {
+              start: offsetWithin(editor, range.startContainer, range.startOffset),
+              end: offsetWithin(editor, range.endContainer, range.endOffset)
+            }
+          : null;
+
+      editor.innerHTML = clean;
+
+      if (preserved && selection) {
+        const start = pointAtOffset(editor, preserved.start);
+        const end = pointAtOffset(editor, preserved.end);
+        const kept = document.createRange();
+        kept.setStart(start.node, start.offset);
+        kept.setEnd(end.node, end.offset);
+        selection.removeAllRanges();
+        selection.addRange(kept);
+      }
+    }
     onchange(clean);
   }
 
@@ -81,6 +148,19 @@
     { command: 'insertOrderedList', icon: 'listOrdered', label: 'Numbered list' }
   ] as const;
 
+  /**
+   * `execCommand`'s own justify commands: they set `text-align` on whichever
+   * block ancestor the selection sits in (wrapping it in a `div` first if
+   * there is none yet), which is exactly the declaration `readTextAlign`
+   * allows through the sanitiser — no bespoke apply function needed here,
+   * unlike size and colour, which the sanitiser has no native command for.
+   */
+  const ALIGN_TOOLS = [
+    { command: 'justifyLeft', icon: 'alignLeft', label: 'Align left' },
+    { command: 'justifyCenter', icon: 'alignCenter', label: 'Align center' },
+    { command: 'justifyRight', icon: 'alignRight', label: 'Align right' }
+  ] as const;
+
   const BLOCKS = [
     { tag: 'h3', label: 'Header' },
     { tag: 'h4', label: 'Subheader' },
@@ -95,22 +175,47 @@
     commit();
   }
 
-  /** The size of whatever the caret is inside, for the toolbar to show. */
+  /** The size and colour of whatever the caret is inside, for the toolbar to show. */
   let size = $state<number>(TEXT_SIZE.normal);
+  let color = $state<string | null>(null);
 
-  function selectionSize(): number {
+  /** One walk up from the caret answers both, rather than one each. */
+  function syncSelectionFormatting(): void {
     const selection = window.getSelection();
-    if (!editor || !selection || selection.rangeCount === 0) return TEXT_SIZE.normal;
+    if (!editor || !selection || selection.rangeCount === 0) {
+      size = TEXT_SIZE.normal;
+      color = null;
+      return;
+    }
 
-    let node: Node | null = selection.getRangeAt(0).startContainer;
-    while (node && node !== editor) {
+    const range = selection.getRangeAt(0);
+    /*
+     * A text-node caret's `startContainer` already *is* the node to read from,
+     * but `applySize`/`applyColor` select the wrapping span with `selectNode`
+     * (not `selectNodeContents`) — see the comment there — which makes
+     * `startContainer` the span's *parent* with `startOffset` pointing at the
+     * span among its siblings. Starting the walk from `startContainer` in
+     * that case would step over the span entirely and read whatever it
+     * happens to sit inside instead, showing the toolbar's own last action as
+     * if it had not applied. Index in only when `startContainer` is an
+     * element and really does have a child there.
+     */
+    let node: Node | null =
+      range.startContainer.nodeType === Node.ELEMENT_NODE
+        ? (range.startContainer.childNodes[range.startOffset] ?? range.startContainer)
+        : range.startContainer;
+    let foundSize: number | null = null;
+    let foundColor: string | null = null;
+    while (node && node !== editor && (foundSize === null || foundColor === null)) {
       if (node.nodeType === Node.ELEMENT_NODE) {
-        const found = readTextSize((node as Element).getAttribute('style'));
-        if (found !== null) return found;
+        const style = (node as Element).getAttribute('style');
+        if (foundSize === null) foundSize = readTextSize(style);
+        if (foundColor === null) foundColor = readTextColor(style);
       }
       node = node.parentNode;
     }
-    return TEXT_SIZE.normal;
+    size = foundSize ?? TEXT_SIZE.normal;
+    color = foundColor;
   }
 
   /**
@@ -119,11 +224,71 @@
    */
   $effect(() => {
     if (!focused) return;
-    const sync = () => (size = selectionSize());
-    document.addEventListener('selectionchange', sync);
-    sync();
-    return () => document.removeEventListener('selectionchange', sync);
+    document.addEventListener('selectionchange', syncSelectionFormatting);
+    syncSelectionFormatting();
+    return () => document.removeEventListener('selectionchange', syncSelectionFormatting);
   });
+
+  function isMarkerSpan(el: Element): boolean {
+    return [...el.classList].some(
+      (name) => name === TEXT_SIZE_CLASS || name === TEXT_COLOR_CLASS || name.startsWith('size-')
+    );
+  }
+
+  /**
+   * The outermost marker-span ancestor whose content starts exactly at
+   * `(node, offset)`, climbing through as many nested ancestors — marker or
+   * not — as sit at that same boundary, so a marker span two levels up from
+   * a `<b>` the boundary also happens to start at is still found. `null` if
+   * there is no such ancestor at all, or if `(node, offset)` is not even at
+   * the start of `node` itself.
+   */
+  function outermostMarkerAtStart(node: Node, offset: number, root: Node): Element | null {
+    if (offset !== 0) return null;
+    let result: Element | null = null;
+    let current: Node = node;
+    for (;;) {
+      const parent: Node | null = current.parentNode;
+      if (!parent || parent === root || parent.firstChild !== current) return result;
+      if (parent instanceof Element && isMarkerSpan(parent)) result = parent;
+      current = parent;
+    }
+  }
+
+  /** The end-boundary counterpart of `outermostMarkerAtStart`. */
+  function outermostMarkerAtEnd(node: Node, offset: number, root: Node): Element | null {
+    const length = node.nodeType === Node.TEXT_NODE ? (node as Text).data.length : node.childNodes.length;
+    if (offset !== length) return null;
+    let result: Element | null = null;
+    let current: Node = node;
+    for (;;) {
+      const parent: Node | null = current.parentNode;
+      if (!parent || parent === root || parent.lastChild !== current) return result;
+      if (parent instanceof Element && isMarkerSpan(parent)) result = parent;
+      current = parent;
+    }
+  }
+
+  /**
+   * If `range` exactly spans one or more marker spans' full content — size,
+   * colour, or a legacy size class — widen it to select those spans
+   * themselves rather than just their text. Otherwise `extractContents()`
+   * below takes only the text and leaves an empty wrapper shell behind in
+   * the live DOM: neither the strip loop after it (which only inspects what
+   * actually got extracted) nor the sanitiser (which only unwraps a span
+   * that is itself empty, not one that still wraps other content) ever
+   * cleans that up, so a size change quietly drops the very colour it was
+   * layered over, and a second size change on the same run nests a new span
+   * inside the stale one instead of replacing it — which is also what left a
+   * reset to normal with the old size still in effect, on an outer span the
+   * new, now-unwrapped run had moved out from under.
+   */
+  function widenToMarkerAncestors(range: Range, root: Node): void {
+    const startMarker = outermostMarkerAtStart(range.startContainer, range.startOffset, root);
+    if (startMarker) range.setStartBefore(startMarker);
+    const endMarker = outermostMarkerAtEnd(range.endContainer, range.endOffset, root);
+    if (endMarker) range.setEndAfter(endMarker);
+  }
 
   /**
    * Size is applied as a wrapping span rather than through
@@ -135,10 +300,11 @@
   function applySize(percent: number): void {
     editor?.focus();
     const selection = window.getSelection();
-    if (!selection || selection.rangeCount === 0 || selection.isCollapsed) return;
+    if (!selection || selection.rangeCount === 0 || selection.isCollapsed || !editor) return;
 
     const next = clampTextSize(percent);
     const range = selection.getRangeAt(0);
+    widenToMarkerAncestors(range, editor);
     const fragment = range.extractContents();
 
     for (const element of fragment.querySelectorAll(`.${TEXT_SIZE_CLASS}, [class*="size-"]`)) {
@@ -157,16 +323,69 @@
     }
     range.insertNode(holder);
 
+    // Keep the *span* selected, not merely its contents — set before
+    // `commit()`, whose own offset-based preserve/restore is what carries
+    // this through the sanitiser unwrapping `holder` right back out again on
+    // a reset to normal (see `commit`). Selecting only the contents was tried
+    // first and is the wrong node: the size can still be nudged again
+    // without reselecting either way, but a range that starts and ends
+    // *inside* `holder` extracts only its text on the next call, leaving
+    // this now-empty wrapper behind in the live DOM rather than in the
+    // extracted fragment the strip loop above actually inspects — so a
+    // second size on the same run nested a new span inside the old one
+    // instead of replacing it, and a reset to normal left the stale
+    // `--size` on the untouched outer span.
+    const kept = document.createRange();
+    kept.selectNode(holder);
+    selection.removeAllRanges();
+    selection.addRange(kept);
+
     size = next;
     commit();
+  }
 
-    // Keep the run selected so the size can be nudged again without reselecting.
-    if (holder.isConnected) {
-      const kept = document.createRange();
-      kept.selectNodeContents(holder);
-      selection.removeAllRanges();
-      selection.addRange(kept);
+  /**
+   * Colour as a wrapping span, exactly as size is — see `applySize`. This is
+   * what keeps a coloured run independent of the field's own `theme.bodyInk`:
+   * that colour is the *default* for text nobody has touched, painted by the
+   * face reading `theme.bodyInk` where no such span wraps a run, so changing
+   * it in Design never repaints a run an author already coloured here.
+   *
+   * `hex === null` clears the override rather than setting one — the same
+   * "back to normal" shape `applySize(TEXT_SIZE.normal)` uses.
+   */
+  function applyColor(hex: string | null): void {
+    editor?.focus();
+    const selection = window.getSelection();
+    if (!selection || selection.rangeCount === 0 || selection.isCollapsed || !editor) return;
+
+    const range = selection.getRangeAt(0);
+    widenToMarkerAncestors(range, editor);
+    const fragment = range.extractContents();
+
+    for (const element of fragment.querySelectorAll(`.${TEXT_COLOR_CLASS}`)) {
+      element.removeAttribute('style');
+      element.classList.remove(TEXT_COLOR_CLASS);
+      if (element.classList.length === 0) element.removeAttribute('class');
     }
+
+    const holder = document.createElement('span');
+    holder.append(fragment);
+    if (hex !== null) {
+      holder.className = TEXT_COLOR_CLASS;
+      holder.setAttribute('style', textColorStyle(hex));
+    }
+    range.insertNode(holder);
+
+    // Select the span itself, not its contents — see the matching comment in
+    // `applySize` for why that distinction is load-bearing here.
+    const kept = document.createRange();
+    kept.selectNode(holder);
+    selection.removeAllRanges();
+    selection.addRange(kept);
+
+    color = hex;
+    commit();
   }
 
   function insertSymbol(name: CardSymbolName): void {
@@ -215,6 +434,21 @@
 
     <span class="divider"></span>
 
+    {#each ALIGN_TOOLS as tool (tool.command)}
+      <button
+        type="button"
+        class="tool"
+        title={tool.label}
+        aria-label={tool.label}
+        onmousedown={(event) => event.preventDefault()}
+        onclick={() => exec(tool.command)}
+      >
+        <Icon name={tool.icon} size={13} />
+      </button>
+    {/each}
+
+    <span class="divider"></span>
+
     {#each BLOCKS as block (block.tag)}
       <button
         type="button"
@@ -235,15 +469,18 @@
       thumbnail as it does at print size.
     -->
     <div class="size" title="Text size — applies to the selection">
-      <button
-        type="button"
-        class="tool"
-        aria-label="Smaller"
-        onmousedown={(event) => event.preventDefault()}
-        onclick={() => applySize(size - TEXT_SIZE.step)}
-      >
-        <Icon name="minus" size={13} />
-      </button>
+      <input
+        class="size-range"
+        type="range"
+        min={TEXT_SIZE.min}
+        max={TEXT_SIZE.max}
+        step={TEXT_SIZE.step}
+        value={size}
+        aria-label="Text size, per cent"
+        style:--fill="{(((size - TEXT_SIZE.min) / (TEXT_SIZE.max - TEXT_SIZE.min)) * 100).toFixed(2)}%"
+        onmousedown={(event) => event.stopPropagation()}
+        oninput={(event) => applySize(event.currentTarget.valueAsNumber)}
+      />
 
       <input
         class="size-value numeric"
@@ -260,16 +497,6 @@
 
       <button
         type="button"
-        class="tool"
-        aria-label="Larger"
-        onmousedown={(event) => event.preventDefault()}
-        onclick={() => applySize(size + TEXT_SIZE.step)}
-      >
-        <Icon name="plus" size={13} />
-      </button>
-
-      <button
-        type="button"
         class="tool text"
         title="Back to the card’s own size"
         onmousedown={(event) => event.preventDefault()}
@@ -277,6 +504,37 @@
       >
         Reset
       </button>
+    </div>
+
+    <span class="divider"></span>
+
+    <!--
+      Wraps the selection in its own colour, independent of `theme.bodyInk` —
+      see `applyColor`. The swatch shows the selection's own colour, or a
+      hollow ring when nothing here overrides the field's default.
+    -->
+    <div class="color-tool" title="Text colour — applies to the selection">
+      <label class="swatch" class:empty={color === null} style:--swatch={color ?? 'transparent'}>
+        <input
+          type="color"
+          value={color ?? '#000000'}
+          aria-label="Text colour"
+          onmousedown={(event) => event.stopPropagation()}
+          oninput={(event) => applyColor(event.currentTarget.value)}
+        />
+      </label>
+
+      {#if color !== null}
+        <button
+          type="button"
+          class="tool text"
+          title="Back to the card’s own colour"
+          onmousedown={(event) => event.preventDefault()}
+          onclick={() => applyColor(null)}
+        >
+          Reset
+        </button>
+      {/if}
     </div>
 
     <span class="divider"></span>
@@ -446,6 +704,90 @@
   .size-unit {
     font-size: var(--text-2xs);
     color: var(--text-muted);
+  }
+
+  /* Compact enough to sit inline in the toolbar row — see Slider.svelte for
+     the same track/thumb treatment at its own, larger scale. */
+  .size-range {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 64px;
+    height: 22px;
+    background: transparent;
+    cursor: pointer;
+  }
+
+  .size-range::-webkit-slider-runnable-track {
+    height: 3px;
+    border-radius: var(--radius-full);
+    background: linear-gradient(
+      90deg,
+      var(--accent) 0 var(--fill),
+      var(--grey-750) var(--fill) 100%
+    );
+  }
+
+  .size-range::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 11px;
+    height: 11px;
+    margin-top: -4px;
+    border-radius: 50%;
+    background: var(--grey-100);
+    box-shadow: 0 1px 3px rgb(0 0 0 / 0.5);
+  }
+
+  .size-range::-moz-range-track {
+    height: 3px;
+    border-radius: var(--radius-full);
+    background: var(--grey-750);
+  }
+
+  .size-range::-moz-range-progress {
+    height: 3px;
+    border-radius: var(--radius-full);
+    background: var(--accent);
+  }
+
+  .size-range::-moz-range-thumb {
+    width: 11px;
+    height: 11px;
+    border: none;
+    border-radius: 50%;
+    background: var(--grey-100);
+  }
+
+  .color-tool {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+  }
+
+  .swatch {
+    position: relative;
+    width: 18px;
+    height: 18px;
+    flex: none;
+    border-radius: var(--radius-xs);
+    background: var(--swatch);
+    box-shadow: inset 0 0 0 1px hsl(0 0% 100% / 0.18);
+    cursor: pointer;
+    overflow: hidden;
+  }
+
+  /* No override yet: a hollow ring rather than a colour, so an empty swatch
+     never reads as "black". */
+  .swatch.empty {
+    background: none;
+    box-shadow: inset 0 0 0 1.5px var(--text-muted);
+  }
+
+  .swatch input {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    cursor: pointer;
   }
 
   /*

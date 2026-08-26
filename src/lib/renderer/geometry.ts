@@ -34,6 +34,12 @@ export const CARD_FORMATS = {
   /** Standard poker. */
   action: { mm: { width: 63, height: 88 }, bleed: { width: 1632, height: 2222 }, label: '63 × 88 mm' },
   rules: { mm: { width: 63, height: 88 }, bleed: { width: 1632, height: 2218 }, label: '63 × 88 mm' },
+  /** A rules card turned on its side — see `RulesCard.landscape`. */
+  rulesLandscape: {
+    mm: { width: 88, height: 63 },
+    bleed: { width: 2218, height: 1632 },
+    label: '88 × 63 mm'
+  },
   /** Mini European. */
   initiative: {
     mm: { width: 44, height: 67 },
@@ -1539,6 +1545,56 @@ export const RULES = {
     capTop: 500,
     width: 1170,
     height: 1520,
+    size: inFace(68),
+    lineHeight: inFaceLeading(93 / 68)
+  }
+} as const;
+
+export const RULES_LANDSCAPE_BLEED = { width: 2218, height: 1632 } as const;
+
+/**
+ * A rules card turned on its side — see `RulesCard.landscape`. There is no
+ * template for this orientation, so unlike every other block in this file it
+ * is not measured off printed art: it started as `RULES`'s own margins,
+ * insets and header height (the last kept in absolute px so the type scale
+ * matches the portrait card) carried over onto the transposed canvas, rather
+ * than `RULES`'s layout rotated — a rotated header band would print
+ * sideways. `RulesCardFace` draws this frame in plain CSS rather than a
+ * masked image for the same reason: there is no art to stretch or rotate
+ * without visible distortion, and the portrait frame is simple enough
+ * (near-uniform margins, one radius, no baked-in ornament) that CSS
+ * reproduces it exactly.
+ *
+ * The margin itself (`interior.x`/`.y`) is 143, not the 66 it might look
+ * like it should be at a glance: 66 is the frame's width measured from the
+ * *trim* line, the way a printed border is actually sized, not from this
+ * canvas's own bleed edge — and this format's bleed inset (`BLEED_MM` at
+ * this canvas's own px/mm, `bleedMm * (bleed.width / (mm.width + 2 *
+ * bleedMm))`) comes to just under 77px, so 66 measured from the trim line is
+ * 143 in this file's own bleed-pixel coordinates. Everything else keyed off
+ * the margin — the heading/body insets, widths and `capTop`s — is
+ * recomputed from it by the same fixed offsets the original derivation used
+ * (an 89px text inset off the interior edge, a 97px gap below the header, a
+ * 58px margin above the interior's own foot), not simply shifted by the
+ * difference, so changing this again only means redoing that arithmetic
+ * once more, the same way.
+ */
+export const RULES_LANDSCAPE = {
+  interior: { x: 143, y: 143, width: 1932, height: 1346 },
+  radius: 46,
+  headerHeight: 262,
+  /**
+   * There being no template rule to measure, this is a chosen weight rather
+   * than a derived one — a hairline near the physical thickness the portrait
+   * card's own printed rule reads at, not a copy of any of its numbers.
+   */
+  dividerHeight: 10,
+  heading: { x: 232, capTop: 248, width: 1756, size: inFace(118) },
+  body: {
+    x: 232,
+    capTop: 502,
+    width: 1756,
+    height: 929,
     size: inFace(68),
     lineHeight: inFaceLeading(93 / 68)
   }

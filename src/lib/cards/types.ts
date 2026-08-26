@@ -237,11 +237,27 @@ export interface InitiativeCard extends CardCommon {
 }
 
 /** A rules or reference card. Body is sanitised rich text. */
+/** Where a rules card's heading sits across its own band. */
+export const HEADING_ALIGNMENTS = ['left', 'center', 'right'] as const;
+export type HeadingAlign = (typeof HEADING_ALIGNMENTS)[number];
+
 export interface RulesCard extends CardCommon {
   type: 'rules';
   heading: string;
+  /** Left, centred or right across the heading band. */
+  headingAlign: HeadingAlign;
   /** Sanitised HTML. See `lib/text/rich-text.ts`. */
   body: string;
+  /**
+   * Printed sideways — `CARD_FORMATS.rulesLandscape` instead of `.rules`, and
+   * `RulesCardFace` draws it from `RULES_LANDSCAPE` instead of `RULES`. A
+   * per-card flag rather than a second `CardType`: the heading and body are
+   * the same fields either way, so a set can hold both orientations in one
+   * deck, and toggling this back and forth is only ever a look, never a
+   * content change — see `RulesCardFace` for why the layout is redrawn
+   * rather than the portrait one rotated.
+   */
+  landscape: boolean;
 }
 
 /**

@@ -30,6 +30,9 @@
     underline: 'M7 4v6a5 5 0 0 0 10 0V4M5 20h14',
     list: 'M9 6h11M9 12h11M9 18h11M4.5 6h.01M4.5 12h.01M4.5 18h.01',
     listOrdered: 'M10 6h10M10 12h10M10 18h10M4 5h1v4M4 15h2v1.5H4V18h2M4 9h2',
+    alignLeft: 'M4 6h16M4 11h10M4 16h16M4 21h10',
+    alignCenter: 'M4 6h16M7 11h10M4 16h16M7 21h10',
+    alignRight: 'M4 6h16M10 11h10M4 16h16M10 21h10',
     crop: 'M6 2v14a2 2 0 0 0 2 2h14M2 6h14a2 2 0 0 1 2 2v14',
     palette:
       'M12 21a9 9 0 1 1 9-9c0 1.7-1.3 3-3 3h-1.5a2 2 0 0 0-1.4 3.4A2 2 0 0 1 12 21ZM7.5 11h.01M10 7.5h.01M15 8h.01',

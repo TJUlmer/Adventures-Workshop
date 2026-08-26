@@ -33,11 +33,22 @@ export function clampTextSize(percent: number): number {
 }
 
 /**
- * The one inline style anything may carry, rebuilt from a parsed number rather
- * than passed through — `style` is the obvious place to smuggle something in,
- * so nothing an author wrote ever reaches the document verbatim.
+ * Every declaration a `style` attribute may carry, each rebuilt from a parsed,
+ * validated value rather than passed through — `style` is the obvious place
+ * to smuggle something in, so nothing an author wrote ever reaches the
+ * document verbatim. Read independently of one another, so an element can
+ * carry any combination (a coloured run inside a resized one, say) without
+ * either declaration clobbering the other on the way through the sanitiser.
  */
-const SIZE_DECLARATION = /^\s*--size:\s*(\d+(?:\.\d{1,3})?)\s*;?\s*$/;
+function declarations(style: string | null | undefined): string[] {
+  if (!style) return [];
+  return style
+    .split(';')
+    .map((part) => part.trim())
+    .filter((part) => part.length > 0);
+}
+
+const SIZE_DECLARATION = /^--size:\s*(\d+(?:\.\d{1,3})?)$/;
 
 export function textSizeStyle(percent: number): string {
   return `--size: ${clampTextSize(percent) / 100}`;
@@ -45,10 +56,48 @@ export function textSizeStyle(percent: number): string {
 
 /** The size a `style` attribute sets, or `null` if it sets none we allow. */
 export function readTextSize(style: string | null | undefined): number | null {
-  const match = style ? SIZE_DECLARATION.exec(style) : null;
-  if (!match) return null;
-  const percent = Number(match[1]) * 100;
-  return percent >= TEXT_SIZE.min && percent <= TEXT_SIZE.max ? percent : null;
+  for (const declaration of declarations(style)) {
+    const match = SIZE_DECLARATION.exec(declaration);
+    if (!match) continue;
+    const percent = Number(match[1]) * 100;
+    if (percent >= TEXT_SIZE.min && percent <= TEXT_SIZE.max) return percent;
+  }
+  return null;
+}
+
+/** Marks an element as carrying an explicit colour, so a re-colour can find it. */
+export const TEXT_COLOR_CLASS = 'colored';
+
+const COLOR_DECLARATION = /^color:\s*(#[0-9a-fA-F]{6}|#[0-9a-fA-F]{3})$/;
+
+export function textColorStyle(hex: string): string {
+  return `color: ${hex}`;
+}
+
+/** The colour a `style` attribute sets, or `null` if it sets none we allow. */
+export function readTextColor(style: string | null | undefined): string | null {
+  for (const declaration of declarations(style)) {
+    const match = COLOR_DECLARATION.exec(declaration);
+    if (match) return match[1] ?? null;
+  }
+  return null;
+}
+
+export type TextAlign = 'left' | 'center' | 'right';
+
+const ALIGN_DECLARATION = /^text-align:\s*(left|center|right)$/;
+
+export function textAlignStyle(align: TextAlign): string {
+  return `text-align: ${align}`;
+}
+
+/** The alignment a `style` attribute sets, or `null` if it sets none we allow. */
+export function readTextAlign(style: string | null | undefined): TextAlign | null {
+  for (const declaration of declarations(style)) {
+    const match = ALIGN_DECLARATION.exec(declaration);
+    if (match) return match[1] as TextAlign;
+  }
+  return null;
 }
 
 /**
@@ -58,7 +107,12 @@ export function readTextSize(style: string | null | undefined): number | null {
 const LEGACY_SIZE_CLASSES = ['size-sm', 'size-lg', 'size-xl'];
 
 /** The only class values any element may carry. */
-const ALLOWED_CLASSES = new Set<string>([...LEGACY_SIZE_CLASSES, TEXT_SIZE_CLASS, 'symbol']);
+const ALLOWED_CLASSES = new Set<string>([
+  ...LEGACY_SIZE_CLASSES,
+  TEXT_SIZE_CLASS,
+  TEXT_COLOR_CLASS,
+  'symbol'
+]);
 
 /** Inline symbols may only point inside the bundled symbol folder. */
 const SYMBOL_SRC_PREFIX = '/assets/symbols/';
@@ -151,7 +205,10 @@ function scrub(node: Node): void {
     }
 
     const classes = element.getAttribute('class');
-    const size = readTextSize(element.getAttribute('style'));
+    const style = element.getAttribute('style');
+    const size = readTextSize(style);
+    const color = readTextColor(style);
+    const align = readTextAlign(style);
     for (const attribute of Array.from(element.attributes)) {
       element.removeAttribute(attribute.name);
     }
@@ -159,16 +216,27 @@ function scrub(node: Node): void {
       element.setAttribute('class', classes);
       scrubClasses(element);
     }
-    // Rebuilt from the parsed number, never copied across.
+
+    // Rebuilt from the parsed, validated values, never copied across.
+    const rebuilt: string[] = [];
     if (size !== null) {
-      element.setAttribute('style', textSizeStyle(size));
+      rebuilt.push(textSizeStyle(size));
       element.classList.add(TEXT_SIZE_CLASS);
     } else {
       element.classList.remove(TEXT_SIZE_CLASS);
-      if (element.classList.length === 0) element.removeAttribute('class');
     }
+    if (color !== null) {
+      rebuilt.push(textColorStyle(color));
+      element.classList.add(TEXT_COLOR_CLASS);
+    } else {
+      element.classList.remove(TEXT_COLOR_CLASS);
+    }
+    if (align !== null) rebuilt.push(textAlignStyle(align));
 
-    // A span that carries neither a size nor a class is pure noise: unwrap it.
+    if (rebuilt.length > 0) element.setAttribute('style', rebuilt.join('; '));
+    if (element.classList.length === 0) element.removeAttribute('class');
+
+    // A span that carries no class and no style at all is pure noise: unwrap it.
     if (
       element.tagName === 'SPAN' &&
       !element.hasAttribute('class') &&

@@ -728,6 +728,182 @@ splitting a mixed deck card-by-card — moving every card in it. Both controls
 write through the same `Deck.ownerId`, so a deck built one way is exactly as
 reassignable through the other.
 
+### Landscape rules cards
+
+`RulesCard.landscape` is a per-card boolean, not a second `CardType`: the
+heading and body fields are the same either way, so flipping it back and
+forth is only ever a look, never a content change, and one deck can hold a
+mix of portrait and landscape rules cards. There is no template art for this
+orientation — nothing was supplied, and none of the other turned-sideways
+templates in this codebase are a shortcut around that. `EventCardFace`
+proves the point: despite `CARD_FORMATS.event`'s `mm`/`bleed` being a literal
+transpose of `.initiative`'s, its `EVENT` geometry in `geometry.ts` was
+measured independently off its own template files, not derived from
+`INITIATIVE` by rotation — turning a header band 90° would print it
+sideways, which is never what "landscape" means for a card whose heading
+still reads left to right across the top.
+
+`RULES_LANDSCAPE` is therefore not measured off anything — it is `RULES`'s
+own margins, insets and header height (the last kept in absolute px, so the
+type scale matches the portrait card) carried over onto the transposed
+canvas, rather than `RULES`'s layout rotated. It says so in its own doc
+comment, the same honesty this file's "measured, not estimated" convention
+expects of every other geometry block, since this one really is provisional
+until it can be checked against a real template.
+
+`RulesCardFace` draws the landscape frame in plain CSS instead of a masked
+image, and that was a discovery rather than a compromise: the portrait
+frame's `.mask.frame` layer (`rules_border.png`) turned out to have nothing
+in it worth stretching. Its only job, given `.bed`'s `seamBed` clip-path
+already handles the anti-aliasing seam between the interior and the border,
+is painting the outer margin in `theme.frame` — and `.interior` already has
+a real CSS `border-radius` of its own, not one baked into the mask. So the
+landscape branch skips the mask, the `.bed` seam layer and the `rules_border`
+asset entirely: one full-bleed `theme.frame`-coloured div, painted behind an
+`.interior` with its own radius, reproduces the identical look with nothing
+to distort and no seam to fix in the first place, because there is only one
+element drawing the corner rather than two independently-rounded layers that
+have to agree.
+
+**A `CardFormat`-per-`CardType` assumption lives in four separate,
+hand-duplicated switches**, and a landscape rules card is a format that
+depends on more than `type` — so all four needed their own branch:
+`CardRenderer`'s inline `$derived.by`, `card-image.ts`'s `formatForCard`
+(which alone is enough for PNG export, since `card-pngs.ts` calls it fresh
+per card), `tabletop-simulator.ts`'s `formatFor`, and `print/sheet.ts`'s
+`sizeFor`. Nothing here unifies the four into one shared function — that
+would be a real refactor, out of scope for adding one orientation.
+
+The TTS exporter needed more than a branch, because its piles are grouped by
+`CardType` on the theory that "a TTS sheet has one cell size" — true, but a
+landscape rules card sharing a portrait one's pile would force a shared cell
+shape on cards that no longer share a format. `PileKey` is `CardType |
+'rules-landscape'`; `pileKeyFor` reads the flag, `formatFor`/`pileLabel` take
+a `PileKey` instead of a `CardType`, and `plansFor`'s grouping map carries the
+card's real `CardType` alongside its cards so `backFor` — which still needs
+the literal `'rules'` to fall through to the owning character's or the
+villain's deck back — reads the type it always did. `print/sheet.ts`'s
+`SIZES`/`sizeFor` gained a fourth `rulesLandscape` bucket the same way,
+grouping pages by printed size exactly as the three existing buckets do; the
+"rules cards print single-sided" warning needed no change, since it already
+walks `outline(set).rules` regardless of which way a card is turned.
+
+**A rules card's heading has its own alignment, and a landscape one draws its
+own divider.** `RulesCard.headingAlign` (`HeadingAlign` — `'left' | 'center' |
+'right'`, `sets/types.ts` v34) is a plain `text-align` on `.heading`, read
+only for `type: 'rules'` — an `EventCard` shares the same face component but
+has no such field, so `RulesCardFace`'s `headingAlign` derivation falls back
+to `'left'` for it, matching what every card printed before this. The
+landscape divider between the header band and the body is a second thing
+`RULES_LANDSCAPE` cannot borrow from a template: portrait's rule is baked
+into `rules_border.png`, so landscape draws its own — a plain `theme.divider`
+bar centred on the header/body boundary (`RULES_LANDSCAPE.dividerHeight`, a
+chosen weight rather than a measured one, same as the rest of that geometry
+block). It is not exposed as its own `StylePanel` surface: `divider` was
+never added to `PROSE_SURFACES` — doing so would offer a "Divider line"
+control on a portrait rules card and on an event card, neither of which has
+one to colour — so the landscape rule simply reads whatever `theme.divider`
+already resolves to from the existing cascade.
+
+**The rich text sanitiser allows more than one inline style now, and reads
+them independently rather than as alternatives.** It used to allow exactly
+one declaration (`--size`, rebuilt from a parsed number); colour
+(`readTextColor`/`textColorStyle`, `color: #rrggbb`) and paragraph alignment
+(`readTextAlign`/`textAlignStyle`, `text-align: left|center|right`) are two
+more, each its own regex matched against each `;`-separated declaration in
+turn rather than against the whole attribute — the change `declarations()`
+exists for, since a run that is both resized and coloured needs both to
+survive the same pass. Every declaration is still rebuilt from a parsed,
+validated value, never copied through: `style` stays the one attribute an
+author's own markup can never inject anything through. Size and colour each
+nest as their own wrapping `<span>` — `TEXT_SIZE_CLASS`/`TEXT_COLOR_CLASS`
+mark them so `RichTextEditor`'s `applySize`/`applyColor` can find and replace
+a previous one without disturbing the other, which is why the two are
+allowed to nest (`<span class="colored"><span class="sized">…`) rather than
+merging into one span's `style` — merging would mean parsing back out which
+declaration belonged to which apply function's "replace, don't layer" pass.
+Alignment carries no such wrapper: `execCommand('justifyLeft'/'Center'/
+'Right')` sets `text-align` on the nearest block ancestor itself (wrapping
+bare text in a new `<div>` first if there is none), which is already an
+allowed tag, so no bespoke `applyAlign` was needed the way size and colour
+both require one — `RichTextEditor`'s `ALIGN_TOOLS` are `exec()`-based
+buttons, exactly like Bold/Italic/Underline.
+
+**A coloured run is independent of `theme.bodyInk` by construction, not by
+extra code.** `theme.bodyInk` is still what an *uncoloured* run prints — the
+face's `.body` sets `color` once, and a `.colored` span's own inline `color`
+simply wins the cascade for whatever it wraps. So the failure mode the
+request named ("the Body Text colour picker would affect the unaltered
+text") never had a code path to begin with: `applyColor` never touches
+`theme`, and `theme.bodyInk` never touches a `.colored` span's own `style`.
+
+**The text-size control is a slider, not a stepper, and both were kept.**
+`RichTextEditor`'s old `−`/`+` buttons nudged `TEXT_SIZE.step` per click; a
+`.size-range` (a plain `<input type="range">`, styled to the same track/thumb
+as `Slider.svelte` but at toolbar scale rather than that component's own
+taller, labelled layout, which does not fit a 22px-high toolbar row) replaced
+them for drag-to-size, and the existing numeric input stayed for typing an
+exact percentage — the request was to replace the stepper specifically, not
+to give up precise entry.
+
+**Two compounding bugs in `applySize`/`applyColor`, found chasing a report
+that "Reset" did not reset the size and moved the caret to the top of the
+field.** Both survive selecting `.sized .sized` in a stored card's `body` and
+diffing before/after — no template art or timing involved, purely DOM.
+
+- **`commit()` can rebuild `editor.innerHTML` out from under a selection
+  that still points into the old tree.** It only does this when
+  `sanitizeRichText`'s output differs from what is already there — which is
+  exactly what happens on a reset to normal: `applySize`/`applyColor` wrap
+  the run in a bare, class-less, style-less `<span>` for "nothing to say",
+  and the sanitiser's own unwrap-empty-span rule (see *the rich text
+  sanitiser* below) strips it right back out. `editor.innerHTML = clean`
+  destroys every node the live `Selection` pointed into, collapsing it — so
+  the reselection at the end of the old `applySize` found its own `holder`
+  disconnected and silently skipped, and the browser left the caret at
+  whatever it defaults to on a fully-replaced contenteditable: position
+  zero. `commit()` now captures the selection as **character offsets**
+  (`offsetWithin`/`pointAtOffset`, via `Range.toString().length` and a
+  `TreeWalker`) before any reassignment, and restores it after, unwrapping
+  and all — offsets survive, node references never do. This lives in
+  `commit()` itself rather than in each apply function, so it also covers
+  ordinary typing if a browser-injected span (spellcheck, an extension) this
+  sanitiser was always going to strip fires mid-edit.
+- **Deeper, and the actual reason the size never changed at all: reselecting
+  only the *contents* of the just-applied span, not the span itself, means
+  the next size or colour change on that same run extracts just its text,
+  leaving the now-empty wrapper behind in the live DOM rather than in the
+  fragment the strip loop inspects.** A second size on an already-sized run
+  therefore nested a new span inside the stale one instead of replacing it —
+  invisible for two *different* sizes, since nested `--size` values don't
+  compound, only override — and a reset to normal left the stale non-default
+  size on the untouched outer span while the newly-bare inner one got
+  unwrapped, which is the actual "doesn't reset" bug: the size was still
+  there, just one level further out than either apply function ever looked.
+  Two fixes, not one, because they cover different selections: `applySize`/
+  `applyColor` now reselect with `Range.selectNode(holder)` rather than
+  `selectNodeContents`, which is what keeps *our own* chained reselections
+  correct; `widenToMarkerAncestors` additionally widens a *fresh* selection
+  — including a real drag-selected one, which is never our own reselection —
+  out through any `.sized`/`.colored` (or legacy `size-*`) ancestor whose
+  content the selection happens to exactly span, climbing through
+  intervening non-marker tags like `<b>` on the way, so the extracted
+  fragment always contains whichever wrapper the strip loop is about to
+  inspect rather than leaving it as an orphaned shell one level up. Without
+  this second fix specifically, a size change on already-coloured text would
+  have silently dropped the colour: the colour span would be left behind,
+  empty, while the text moved out from under it into a new size-only
+  wrapper.
+- `syncSelectionFormatting`'s own caret-walk had to learn the same lesson in
+  reverse: `Range.selectNode` puts `startContainer` on the *parent*, with
+  `startOffset` pointing at the span among its siblings, not at the span or
+  its text — walking up from `startContainer` as the size/colour walk always
+  had would step over the just-applied span entirely and read whatever it
+  sits inside, showing the toolbar as if the action just taken had not
+  applied. It now indexes into `startContainer.childNodes[startOffset]`
+  first when the container is an element, and only falls back to
+  `startContainer` itself for the ordinary text-caret case.
+
 ### Home
 
 `components/library/HomeScreen.svelte` (still under `library/` — see below) is
@@ -1859,8 +2035,9 @@ it does.
   export set two. The overview (`AssetsOverview`) draws this same component
   read-only rather than a sketch of it, so it shows what prints.
 - `src/lib/text/rich-text.ts` — allowlist sanitiser. Attributes are allowlisted
-  **by value**: the single permitted inline style is rebuilt from a parsed
-  number, never passed through.
+  **by value**: every permitted inline style (size, colour, alignment — see
+  *Landscape rules cards*) is rebuilt from a parsed, validated value, never
+  passed through.
 - `src/lib/text/tokens.ts` — inline `{{…}}` tokens, and **a custom symbol has
   two forms**. It is *stored* as `{{custom:symbol_<uuid>}}` and always will
   be: the id is what survives a rename, so renaming a symbol never has to
@@ -2011,6 +2188,24 @@ Traps that have cost real time here:
   starts being needed, which is the honest ceiling: a fixed-size printed
   panel cannot fit arbitrarily long text at any readable size, and no amount
   of box-widening or floor-lowering changes that for a true outlier.
+- **A `fitScale` floor is relative to whatever size it is handed, not to the
+  calibrated base — dividing by an author-facing multiplier is what keeps a
+  floor meaning the same absolute size at every setting of that multiplier.**
+  `0.5` on its own looked like a fix and was not one: `--fit-scale` multiplies
+  `quoteTextSize`, which is *already* `design.quoteScale` (the "Quote text
+  size" slider, 60–160%) times the calibrated base size. At the slider's own
+  160% ceiling, a bare `0.5` floor bottoms out at `1.6 × 0.5 = 0.8` of the
+  base — 80%, nowhere near small enough for a longer quote to shrink into the
+  same band a 100%-scale one fits in. An author who both lengthened a quote
+  and turned the slider up hit that effective floor without the panel ever
+  reaching the `0.5` the code promised, and reported it as the same clipping
+  bug a second time. `QUOTE_MIN_SCALE / design.quoteScale` is what
+  `fitScale`'s `min` is actually passed, so the floor stays an absolute
+  fraction of the base size regardless of what the slider is doing on top of
+  it. The general shape of the mistake: a "floor" or "ceiling" constant is
+  only absolute if nothing between it and the base value can independently
+  scale — check what a `%`/multiplier value is being computed *against*
+  before trusting a plain numeric bound on top of it.
 
 ## Writing code here
 

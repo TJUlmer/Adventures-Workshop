@@ -10,7 +10,13 @@
  * This runs on file import and on session restore alike, because both are
  * equally likely to be out of date.
  */
-import { CARD_OWNERS, COMBAT_SYMBOLS, createAbilityBlocks, createHeadingPlacement } from '$lib/cards/types';
+import {
+  CARD_OWNERS,
+  COMBAT_SYMBOLS,
+  createAbilityBlocks,
+  createHeadingPlacement,
+  HEADING_ALIGNMENTS
+} from '$lib/cards/types';
 import type { AdventureMap, MapNoteId, MapPath, MapPathId, MapSpace, MapSpaceId } from '$lib/map/types';
 import {
   createAdventureMap,
@@ -25,6 +31,7 @@ import type {
   CardOwner,
   CombatSymbol,
   EventCard,
+  HeadingAlign,
   HeadingPlacement,
   InitiativeBands,
   InitiativeCard,
@@ -165,6 +172,12 @@ function artwork(value: unknown): Artwork {
 /** `null` is a valid, meaningful value here — see `ActionCard.symbol`. */
 function combatSymbol(value: unknown): CombatSymbol | null {
   return (COMBAT_SYMBOLS as readonly unknown[]).includes(value) ? (value as CombatSymbol) : null;
+}
+
+function headingAlign(value: unknown): HeadingAlign {
+  return (HEADING_ALIGNMENTS as readonly unknown[]).includes(value)
+    ? (value as HeadingAlign)
+    : 'left';
 }
 
 /**
@@ -655,16 +668,25 @@ function normalizeCard(value: unknown): Card | null {
       } as InitiativeCard;
 
     case 'rules':
+      return {
+        ...common,
+        type: 'rules',
+        heading: str(raw['heading']),
+        headingAlign: headingAlign(raw['headingAlign']),
+        body: str(raw['body']),
+        landscape: bool(raw['landscape'], false)
+      } as RulesCard;
+
     case 'event':
       return {
         ...common,
-        type: renameLegacyKind(raw['type']),
+        type: 'event',
         heading: str(raw['heading']),
         body: str(raw['body']),
         backHeading: headingPlacement(raw['backHeading']),
         backReplacement: artwork(raw['backReplacement']),
         useBackReplacement: bool(raw['useBackReplacement'], false)
-      } as RulesCard | EventCard;
+      } as EventCard;
 
     default:
       return {

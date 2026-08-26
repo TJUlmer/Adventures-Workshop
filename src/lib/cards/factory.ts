@@ -71,6 +71,15 @@ export function createCard<TType extends CardType>(
       } as CardOfType<TType>;
 
     case 'rules':
+      return {
+        ...common,
+        type,
+        heading: '',
+        headingAlign: 'left',
+        body: '',
+        landscape: false
+      } as CardOfType<TType>;
+
     case 'event':
       return {
         ...common,

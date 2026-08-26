@@ -1,14 +1,24 @@
 <script lang="ts">
   /** Rules card content: a heading and rich body copy. */
-  import type { EventCard, RulesCard } from '$lib/cards/types';
-  import { createHeadingPlacement, isProseCard } from '$lib/cards/types';
+  import type { EventCard, HeadingAlign, RulesCard } from '$lib/cards/types';
+  import { createHeadingPlacement, HEADING_ALIGNMENTS, isProseCard } from '$lib/cards/types';
   import { characterLabel } from '$lib/characters/factory';
   import type { CharacterId } from '$lib/characters/types';
   import type { DeckId } from '$lib/decks/types';
   import { asId } from '$lib/core/id';
   import { deckOwner } from '$lib/sets/queries';
   import { workshop } from '$lib/state/workshop.svelte';
-  import { Button, NumberInput, RichTextEditor, Select, Slider, TextArea, TextInput } from '$lib/ui';
+  import {
+    Button,
+    NumberInput,
+    RichTextEditor,
+    SegmentedControl,
+    Select,
+    Slider,
+    Switch,
+    TextArea,
+    TextInput
+  } from '$lib/ui';
   import EditorSection from './EditorSection.svelte';
 
   interface Props {
@@ -100,11 +110,49 @@
     backHeading !== null &&
       (backHeading.offsetX !== 0 || backHeading.offsetY !== 0 || backHeading.rotation !== 0)
   );
+
+  const ALIGN_SEGMENTS = HEADING_ALIGNMENTS.map((value) => ({
+    value,
+    label: value[0]!.toUpperCase() + value.slice(1)
+  }));
+
+  function setHeadingAlign(align: HeadingAlign): void {
+    edit((target) => {
+      if (target.type === 'rules') target.headingAlign = align;
+    });
+  }
 </script>
 
 <EditorSection title="Heading">
   <TextInput bind:value={card.heading} placeholder="Section heading" prominent />
+
+  {#if card.type === 'rules'}
+    <SegmentedControl
+      label="Heading alignment"
+      value={card.headingAlign}
+      segments={ALIGN_SEGMENTS}
+      onchange={setHeadingAlign}
+    />
+  {/if}
 </EditorSection>
+
+{#if card.type === 'rules'}
+  <!--
+    Per-card, not a set-wide setting: an author can mix portrait and landscape
+    rules cards in one deck, and the heading/body fields are unaffected either
+    way — see `RulesCard.landscape`.
+  -->
+  <EditorSection title="Orientation">
+    <Switch
+      label="Landscape"
+      hint="Prints sideways, at the same heading and body — nothing here is lost by switching back."
+      checked={card.landscape}
+      onchange={(checked) => edit((target) => {
+        if (target.type === 'rules') target.landscape = checked;
+      })}
+    />
+  </EditorSection>
+{/if}
 
 {#if backHeading}
   <!--

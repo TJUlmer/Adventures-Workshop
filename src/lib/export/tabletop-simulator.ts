@@ -106,11 +106,29 @@ function expand(cards: readonly Card[], character: Character | null): TtsCardPla
   );
 }
 
-function formatFor(type: CardType): CardFormat {
-  if (type === 'initiative') return CARD_FORMATS.initiative;
-  if (type === 'rules') return CARD_FORMATS.rules;
-  if (type === 'event') return CARD_FORMATS.event;
+/**
+ * A pile's own `CardType` plus a landscape rules card's split — the latter is
+ * still a `'rules'` card everywhere that reads `card.type` (`backFor`, in
+ * particular), it just cannot share a sheet, or a name, with a portrait one.
+ */
+type PileKey = CardType | 'rules-landscape';
+
+function pileKeyFor(card: Card): PileKey {
+  if (card.type === 'rules' && card.landscape) return 'rules-landscape';
+  return card.type;
+}
+
+function formatFor(key: PileKey): CardFormat {
+  if (key === 'rules-landscape') return CARD_FORMATS.rulesLandscape;
+  if (key === 'initiative') return CARD_FORMATS.initiative;
+  if (key === 'rules') return CARD_FORMATS.rules;
+  if (key === 'event') return CARD_FORMATS.event;
   return CARD_FORMATS.action;
+}
+
+function pileLabel(key: PileKey): string {
+  if (key === 'rules-landscape') return 'Rules cards (landscape)';
+  return CARD_TYPE_META[key].plural;
 }
 
 /**
@@ -163,7 +181,7 @@ interface Bucket {
  * nothing else.
  */
 function plansFor(set: AdventureSet, bucket: Bucket, taken: Set<string>): TtsDeckPlan[] {
-  const byType = new Map<CardType, TtsCardPlan[]>();
+  const byKey = new Map<PileKey, { type: CardType; cards: TtsCardPlan[] }>();
 
   for (const entry of bucket.entries) {
     for (const planned of expand(entry.cards, bucket.character)) {
@@ -171,21 +189,22 @@ function plansFor(set: AdventureSet, bucket: Bucket, taken: Set<string>): TtsDec
          from real cards — a character card never reaches this function, it is
          its own pile. The guard is for the type, not for a case that happens. */
       if (!planned.card) continue;
-      const bucketed = byType.get(planned.card.type);
-      if (bucketed) bucketed.push(planned);
-      else byType.set(planned.card.type, [planned]);
+      const key = pileKeyFor(planned.card);
+      const bucketed = byKey.get(key);
+      if (bucketed) bucketed.cards.push(planned);
+      else byKey.set(key, { type: planned.card.type, cards: [planned] });
     }
   }
 
-  const split = byType.size > 1;
+  const split = byKey.size > 1;
 
-  return [...byType].map(([type, cards]) => {
-    const name = split ? `${bucket.label} — ${CARD_TYPE_META[type].plural}` : bucket.label;
+  return [...byKey].map(([key, { type, cards }]) => {
+    const name = split ? `${bucket.label} — ${pileLabel(key)}` : bucket.label;
     return {
       id: uniqueId(taken, name, bucket.fallbackId),
       nickname: name,
       description: bucket.character?.subtitle ?? '',
-      format: formatFor(type),
+      format: formatFor(key),
       cards,
       back: backFor(set, type, bucket.character)
     };

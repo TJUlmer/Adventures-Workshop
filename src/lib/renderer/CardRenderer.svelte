@@ -116,6 +116,7 @@
     // The same 63×88mm sheet as an action card — see `CHARACTER_CARD`.
     if (statCard) return CARD_FORMATS.action;
     if (card?.type === 'initiative') return CARD_FORMATS.initiative;
+    if (card?.type === 'rules' && card.landscape) return CARD_FORMATS.rulesLandscape;
     if (card?.type === 'rules') return CARD_FORMATS.rules;
     if (card?.type === 'event') return CARD_FORMATS.event;
     return CARD_FORMATS.action;

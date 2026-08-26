@@ -243,10 +243,30 @@ export type SetId = Id<'Set'>;
  *      Absent on an older document, repaired to `1` — the template's own
  *      size, which is exactly what every card authored before this printed.
  *
+ * v33 — a rules card gained `landscape`: printed sideways, at
+ *      `CARD_FORMATS.rulesLandscape` instead of `.rules`, with its own
+ *      geometry (`RULES_LANDSCAPE`) rather than the portrait layout rotated.
+ *      Defaults to `false`, so a v32 document opens exactly as it did — the
+ *      bump is here because a v33 document opened by a v32 build would
+ *      silently print every rules card portrait, heading and body intact but
+ *      the chosen orientation lost.
+ *
+ * v34 — a rules card gained `headingAlign` ('left' | 'center' | 'right'),
+ *      applied as the heading band's own text-align. Defaults to `'left'`,
+ *      which is what every card printed before this — plain, unset
+ *      `text-align` — so the bump is here only because an older build
+ *      opening a v34 document would silently drop a chosen centred or
+ *      right-aligned heading back to left. The body's own rich text gained
+ *      inline colour and per-paragraph alignment in the same change, but
+ *      neither needed a bump: both live inside `body`, already a free-form
+ *      sanitised HTML string an older build already tolerates — it simply
+ *      strips a style declaration it does not recognise, the same graceful
+ *      loss any older sanitiser already accepts for markup it predates.
+ *
  * Older documents are *repaired*, not rejected — see `sets/normalize.ts`. Only
  * a version newer than this build understands is refused.
  */
-export const SET_SCHEMA_VERSION = 32;
+export const SET_SCHEMA_VERSION = 34;
 
 /**
  * What a set is for.

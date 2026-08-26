@@ -17,7 +17,9 @@
     pu,
     py,
     RULES,
-    RULES_BLEED as FRAME,
+    RULES_BLEED,
+    RULES_LANDSCAPE,
+    RULES_LANDSCAPE_BLEED,
     seamBed
   } from './geometry';
 
@@ -30,7 +32,14 @@
 
   let { card, theme, customSymbols = [] }: Props = $props();
 
+  /* Only a rules card can be landscape — see `RulesCard.landscape`. */
+  const landscape = $derived(card.type === 'rules' && card.landscape);
+  const geom = $derived(landscape ? RULES_LANDSCAPE : RULES);
+  const FRAME = $derived(landscape ? RULES_LANDSCAPE_BLEED : RULES_BLEED);
+
   const heading = $derived(card.heading.trim() || (card.type === 'event' ? 'Event' : 'Rules'));
+  /** Only a rules card carries this — an event's heading is always left. */
+  const headingAlign = $derived(card.type === 'rules' ? card.headingAlign : 'left');
   const body = $derived(resolveCustomSymbolImages(sanitizeRichText(card.body), customSymbols));
   const empty = $derived(richTextIsEmpty(card.body));
 
@@ -43,24 +52,33 @@
   });
 </script>
 
-<!--
-  The interior bled out under the border, in the border's own fill: the two are
-  drawn to meet exactly, so at some zooms they round a fraction of a pixel apart
-  and the plate behind shows as a hairline. This is what it shows instead.
--->
-<div
-  class="bed"
-  style:clip-path={seamBed(RULES.interior, FRAME, RULES.radius)}
-  style:background={fillCss(theme.frame)}
-></div>
+{#if landscape}
+  <!--
+    No template art for this orientation — see `RULES_LANDSCAPE`. The interior
+    sits on top of a plain full-bleed fill in the same colour rather than a
+    masked border image, so there is no separate layer to seam against.
+  -->
+  <div class="landscape-frame" style:background={fillCss(theme.frame)}></div>
+{:else}
+  <!--
+    The interior bled out under the border, in the border's own fill: the two are
+    drawn to meet exactly, so at some zooms they round a fraction of a pixel apart
+    and the plate behind shows as a hairline. This is what it shows instead.
+  -->
+  <div
+    class="bed"
+    style:clip-path={seamBed(RULES.interior, RULES_BLEED, RULES.radius)}
+    style:background={fillCss(theme.frame)}
+  ></div>
+{/if}
 
 <div
   class="interior"
-  style:left={px(RULES.interior.x, FRAME)}
-  style:top={py(RULES.interior.y, FRAME)}
-  style:width={px(RULES.interior.width, FRAME)}
-  style:height={py(RULES.interior.height, FRAME)}
-  style:border-radius={pu(RULES.radius, FRAME)}
+  style:left={px(geom.interior.x, FRAME)}
+  style:top={py(geom.interior.y, FRAME)}
+  style:width={px(geom.interior.width, FRAME)}
+  style:height={py(geom.interior.height, FRAME)}
+  style:border-radius={pu(geom.radius, FRAME)}
   style:background={fillCss(theme.body)}
 >
   {#if theme.pattern.name}
@@ -99,18 +117,34 @@
   -->
   <div
     class="header"
-    style:height={py(RULES.headerHeight, RULES.interior)}
+    style:height={py(geom.headerHeight, geom.interior)}
     style:background={fillCss(theme.header)}
   ></div>
+
+  {#if landscape}
+    <!--
+      Portrait's rule is baked into `rules_border.png`; landscape has no such
+      art (see `RULES_LANDSCAPE`), so it is drawn here instead, centred on the
+      header/body boundary so it reads as the transition rather than a line
+      added to either side of it.
+    -->
+    <div
+      class="rule"
+      style:top={py(RULES_LANDSCAPE.headerHeight, geom.interior)}
+      style:height={py(RULES_LANDSCAPE.dividerHeight, geom.interior)}
+      style:background={theme.divider}
+    ></div>
+  {/if}
 </div>
 
 <div
   class="heading"
-  style:left={px(RULES.heading.x, FRAME)}
-  style:top={py(capTopToBoxTop(RULES.heading.capTop, RULES.heading.size), FRAME)}
-  style:width={px(RULES.heading.width, FRAME)}
-  style:font-size={pu(RULES.heading.size, FRAME)}
+  style:left={px(geom.heading.x, FRAME)}
+  style:top={py(capTopToBoxTop(geom.heading.capTop, geom.heading.size), FRAME)}
+  style:width={px(geom.heading.width, FRAME)}
+  style:font-size={pu(geom.heading.size, FRAME)}
   style:color={theme.headerInk}
+  style:text-align={headingAlign}
 >
   {heading}
 </div>
@@ -118,15 +152,15 @@
 <div
   bind:this={bodyBox}
   class="body"
-  style:left={px(RULES.body.x, FRAME)}
+  style:left={px(geom.body.x, FRAME)}
   style:top={py(
-    capTopToBoxTop(RULES.body.capTop, RULES.body.size, RULES.body.lineHeight),
+    capTopToBoxTop(geom.body.capTop, geom.body.size, geom.body.lineHeight),
     FRAME
   )}
-  style:width={px(RULES.body.width, FRAME)}
-  style:height={py(RULES.body.height, FRAME)}
-  style:--copy-size={pu(RULES.body.size, FRAME)}
-  style:line-height={RULES.body.lineHeight}
+  style:width={px(geom.body.width, FRAME)}
+  style:height={py(geom.body.height, FRAME)}
+  style:--copy-size={pu(geom.body.size, FRAME)}
+  style:line-height={geom.body.lineHeight}
   style:color={theme.bodyInk}
 >
   {#if empty}
@@ -137,10 +171,13 @@
   {/if}
 </div>
 
-<div class="mask frame" style:background={fillCss(theme.frame)}></div>
+{#if !landscape}
+  <div class="mask frame" style:background={fillCss(theme.frame)}></div>
+{/if}
 
 <style>
-  .bed {
+  .bed,
+  .landscape-frame {
     position: absolute;
     inset: 0;
     pointer-events: none;
@@ -156,6 +193,13 @@
     top: 0;
     left: 0;
     width: 100%;
+  }
+
+  .rule {
+    position: absolute;
+    left: 0;
+    width: 100%;
+    transform: translateY(-50%);
   }
 
   /* Sized from the file's own proportions — see ActionCardFace. */
