@@ -645,6 +645,8 @@
 
   .export-label {
     font-size: var(--text-sm);
+    font-weight: var(--weight-semibold);
+    color: var(--text-accent);
   }
 
   .export-hint {
