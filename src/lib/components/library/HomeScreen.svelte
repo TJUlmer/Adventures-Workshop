@@ -38,6 +38,7 @@
   import type { StorageEstimate } from '$lib/storage/indexeddb';
   import { Button, Icon, SegmentedControl, Select, ThemeToggle } from '$lib/ui';
   import NewSetDialog from './NewSetDialog.svelte';
+  import { initials, tint } from '$lib/core/swatch';
 
   let fileInput = $state<HTMLInputElement | null>(null);
   let message = $state<string | null>(null);
@@ -557,28 +558,12 @@
     return `var(--role-${value}, var(--text-muted))`;
   }
 
-  function initials(name: string): string {
-    const words = name.trim().split(/\s+/).filter(Boolean);
-    if (words.length === 0) return '?';
-    return words
-      .slice(0, 2)
-      .map((word) => word[0]?.toUpperCase() ?? '')
-      .join('');
-  }
-
   /** A stable colour per character or set, for a tile with no picture — same
       formula the gallery's own tiles use, so something reads the same shade
       whether found here or there. Doubles as the set-grid thumbnail swatch:
       `LibraryEntry` deliberately carries no picture of its own (see
       `storage/library.ts` — the index is kept light on purpose), so a
       generated tint is the set grid's only affordable "picture" today. */
-  function tint(seed: string): string {
-    let hash = 0;
-    for (let index = 0; index < seed.length; index += 1) {
-      hash = (hash * 31 + seed.charCodeAt(index)) | 0;
-    }
-    return `hsl(${Math.abs(hash) % 360} 30% 26%)`;
-  }
 
   /** The picture for a gallery-slot tile — same fallback `GalleryScreen`'s
       own `setImage` uses. */
@@ -2222,7 +2207,6 @@
     letter-spacing: var(--tracking-wide);
     color: rgb(255 255 255 / 0.75);
   }
-
 
   .guides-list {
     display: flex;

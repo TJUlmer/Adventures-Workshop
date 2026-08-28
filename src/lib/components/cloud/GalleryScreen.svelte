@@ -35,6 +35,7 @@
   import { CARD_FORMATS, trimBox } from '$lib/renderer/geometry';
   import { navigation } from '$lib/state/navigation.svelte';
   import { Button, Icon, SegmentedControl, Select, ThemeToggle } from '$lib/ui';
+  import { initials, tint } from '$lib/core/swatch';
 
   const PAGE = 36;
 
@@ -280,23 +281,6 @@
   }
 
   /** A stable colour per tile, for one with no picture. */
-  function tint(seed: string): string {
-    let hash = 0;
-    for (let index = 0; index < seed.length; index += 1) {
-      hash = (hash * 31 + seed.charCodeAt(index)) | 0;
-    }
-    return `hsl(${Math.abs(hash) % 360} 30% 26%)`;
-  }
-
-  function initials(name: string): string {
-    const words = name.trim().split(/\s+/).filter(Boolean);
-    if (words.length === 0) return '?';
-    return words
-      .slice(0, 2)
-      .map((word) => word[0]?.toUpperCase() ?? '')
-      .join('');
-  }
-
   const empty = $derived(mode === 'sets' ? sets.length === 0 : characters.length === 0);
 
   /**

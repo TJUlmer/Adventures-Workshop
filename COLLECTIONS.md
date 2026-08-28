@@ -514,7 +514,7 @@ That is the trap `leaveShared`'s own doc comment already records.
 `readSharedSlug` does. `vercel.json` gains a second rewrite. `App.svelte` routes
 it outside `AppShell`, beside `GalleryScreen` and `SharedSetScreen`.
 
-### 4. `CollectionScreen`, read-only
+### 4. `CollectionScreen`, read-only — **done**
 
 Banner, blurb, and the tile grid — the gallery's own tile, so per-creator
 attribution comes free from the `author:profiles(…)` embed. Its header carries

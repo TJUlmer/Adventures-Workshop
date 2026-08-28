@@ -23,6 +23,7 @@
   import { CARD_FORMATS, trimBox } from '$lib/renderer/geometry';
   import { navigation } from '$lib/state/navigation.svelte';
   import { Button, Icon } from '$lib/ui';
+  import { initials, tint } from '$lib/core/swatch';
 
   interface Props {
     id: string;
@@ -74,22 +75,7 @@
 
   // Same hash as `GalleryScreen.svelte`'s own `tint`/`initials` — a set or a
   // person reads the same colour wherever it is shown.
-  function tint(seed: string): string {
-    let hash = 0;
-    for (let index = 0; index < seed.length; index += 1) {
-      hash = (hash * 31 + seed.charCodeAt(index)) | 0;
-    }
-    return `hsl(${Math.abs(hash) % 360} 30% 26%)`;
-  }
 
-  function initials(name: string): string {
-    const words = name.trim().split(/\s+/).filter(Boolean);
-    if (words.length === 0) return '?';
-    return words
-      .slice(0, 2)
-      .map((word) => word[0]?.toUpperCase() ?? '')
-      .join('');
-  }
 </script>
 
 {#snippet tile(row: GallerySet | ContributedSet, badge: string | null)}
