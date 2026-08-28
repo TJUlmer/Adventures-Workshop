@@ -501,7 +501,7 @@ visitor with an overnight session would see an empty collection while a
 stranger saw it fine. A collection link is exactly the kind that gets opened
 weeks after it was pasted.
 
-### 3. Navigation, and the second real path
+### 3. Navigation, and the second real path — **done**
 
 `View` gains `{ kind: 'collection'; slug: string }`;
 `openCollection`/`leaveCollection` mirror `openShared`/`leaveShared`, including
