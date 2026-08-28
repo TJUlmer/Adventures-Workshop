@@ -23,11 +23,20 @@
     collectionUrl,
     fetchCollectionBySlug,
     fetchCollectionTiles,
+    inviteDeck,
+    listMemberships,
+    removeMember,
+    resolveSubmission,
+    respondToInvitation,
+    submitDeck,
     updateCollection,
     uploadCollectionBanner
   } from '$lib/cloud/collections';
+  import { fetchSetSummaryBySlug, listMyPublishedSets } from '$lib/cloud/sets';
+  import type { PublishedSet } from '$lib/cloud/sets';
   import type {
     Collection,
+    CollectionMembership,
     CollectionTile,
     CollectionVisibility
   } from '$lib/cloud/collections';
@@ -208,6 +217,160 @@
     }
   }
 
+  // -- Membership ---------------------------------------------------------
+
+  /**
+   * What accepting actually promises, said in one sentence on the button that
+   * does it.
+   *
+   * A member deck is reachable through the collection's link even while the
+   * deck itself is unlisted — that is what `collection_members_by_slug` is
+   * for, and it is only defensible because the deck's own author agreed to
+   * it. Somebody should never discover that after the fact, so the words live
+   * next to the click rather than in a help page.
+   */
+  const CONSENT =
+    'Accepting makes your deck reachable to anyone holding this collection\u2019s link, ' +
+    'even while the deck itself is unlisted.';
+
+  let memberships = $state<CollectionMembership[]>([]);
+  let myPublished = $state<PublishedSet[]>([]);
+  let inviteLink = $state('');
+  let busy = $state<string | null>(null);
+
+  /** Rows this visitor is a party to, split by which side has to move. */
+  const submissions = $derived(memberships.filter((row) => row.status === 'submitted'));
+  const myInvitations = $derived(
+    memberships.filter(
+      (row) => row.status === 'invited' && row.set?.owner_id === auth.user?.id
+    )
+  );
+  const invitedOut = $derived(
+    memberships.filter(
+      (row) => row.status === 'invited' && row.set?.owner_id !== auth.user?.id
+    )
+  );
+
+  /**
+   * Published decks of mine I could offer.
+   *
+   * A `removed` or `declined` row is not a bar — leaving and rejoining, or
+   * being turned down and offering again after more work, are both ordinary.
+   * Only a row that is currently live or awaiting somebody's decision takes a
+   * deck out of this list.
+   */
+  const offerable = $derived(
+    myPublished.filter((row) => {
+      const existing = memberships.find((m) => m.set_id === row.id);
+      return !existing || existing.status === 'removed' || existing.status === 'declined';
+    })
+  );
+
+  /**
+   * Accepted rows this visitor may end.
+   *
+   * Both parties can, and the governance table says so: a deck's author
+   * leaves, an organiser unlinks. Neither is destructive — `removeMember`
+   * writes a status, and the set's own row, slug, shelf entry and gallery
+   * listing are untouched by either.
+   */
+  const removable = $derived(
+    memberships.filter(
+      (row) =>
+        row.status === 'accepted' &&
+        (organiser || row.set?.owner_id === auth.user?.id)
+    )
+  );
+
+  async function loadMembership(): Promise<void> {
+    if (!collection || !auth.signedIn) {
+      memberships = [];
+      myPublished = [];
+      return;
+    }
+    const [rows, mine] = await Promise.all([
+      listMemberships(collection.id).catch(() => []),
+      listMyPublishedSets().catch(() => [])
+    ]);
+    memberships = rows;
+    myPublished = mine;
+  }
+
+  $effect(() => {
+    void collection?.id;
+    void auth.signedIn;
+    void loadMembership();
+  });
+
+  /** Re-read both the private rows and the public tiles after any decision. */
+  async function refreshAfterDecision(): Promise<void> {
+    if (!collection) return;
+    const [rows, freshTiles] = await Promise.all([
+      listMemberships(collection.id).catch(() => []),
+      fetchCollectionTiles(collection.slug).catch(() => tiles)
+    ]);
+    memberships = rows;
+    tiles = freshTiles;
+  }
+
+  async function run(key: string, work: () => Promise<void>): Promise<void> {
+    if (busy) return;
+    busy = key;
+    notice = null;
+    try {
+      await work();
+      await refreshAfterDecision();
+    } catch (error) {
+      notice = error instanceof Error ? error.message : 'That did not go through.';
+    } finally {
+      busy = null;
+    }
+  }
+
+  /**
+   * Invite a deck by its share link.
+   *
+   * Resolved through `set_summary_by_slug`, not `fetchSetBySlug` — the summary
+   * carries the id and a name, where fetching the set itself would pull a
+   * multi-megabyte document across to read one uuid off it.
+   */
+  /**
+   * Put one of my own decks forward.
+   *
+   * Which verb depends on which hat I am wearing, and the difference is the
+   * policies', not a preference: `members_submit` requires the collection to
+   * be open for submissions, while `members_invite` lets an organiser invite
+   * **any** deck, their own included. So an organiser adding their own deck
+   * goes in as an invitation they then accept — two acts by one person, but
+   * honest ones, and it keeps the consent sentence in front of them rather
+   * than skipping the moment because they happen to run the project.
+   *
+   * The first version offered this to organisers of a closed collection and
+   * called `submitDeck`, which RLS refused outright: the panel was showing a
+   * button the database was never going to honour.
+   */
+  async function addOwnDeck(setId: string): Promise<void> {
+    await run(`offer-${setId}`, async () => {
+      if (organiser) await inviteDeck(collection!.id, setId);
+      else await submitDeck(collection!.id, setId);
+    });
+  }
+
+  async function invite(): Promise<void> {
+    const typed = inviteLink.trim();
+    if (!typed || !collection) return;
+    await run('invite', async () => {
+      /* Accepts a whole share link or a bare slug, because both are what
+         somebody actually has to hand — `readSharedSlug` only reads the
+         address bar, so the pattern is applied to the typed text here. */
+      const slug = /([A-Za-z0-9_-]+)\/?$/.exec(typed)?.[1] ?? typed;
+      const summary = await fetchSetSummaryBySlug(slug);
+      if (!summary) throw new Error('No published set at that link.');
+      await inviteDeck(collection!.id, summary.id);
+      inviteLink = '';
+    });
+  }
+
   const VISIBILITIES: { value: CollectionVisibility; label: string; hint: string }[] = [
     { value: 'private', label: 'Private', hint: 'Only organisers. The link stops working.' },
     { value: 'unlisted', label: 'Unlisted', hint: 'Anyone with the link. Not in the gallery.' },
@@ -358,6 +521,178 @@
       {/if}
 
       {#if notice}<p class="notice">{notice}</p>{/if}
+
+      {#if myInvitations.length > 0}
+        <!--
+          The deck owner's own decision, and the one place the consent
+          sentence has to appear — see `CONSENT`.
+        -->
+        <section class="panel invitations">
+          <h2>Invitations for you</h2>
+          <p class="consent">{CONSENT}</p>
+          <ul class="rows">
+            {#each myInvitations as row (row.set_id)}
+              <li>
+                <span class="row-name">{row.set?.name || 'Untitled'}</span>
+                <span class="row-actions">
+                  <button
+                    type="button"
+                    class="btn primary"
+                    disabled={busy !== null}
+                    onclick={() =>
+                      run(`accept-${row.set_id}`, () =>
+                        respondToInvitation(collection!.id, row.set_id, 'accepted')
+                      )}
+                  >
+                    Accept
+                  </button>
+                  <button
+                    type="button"
+                    class="btn"
+                    disabled={busy !== null}
+                    onclick={() =>
+                      run(`decline-${row.set_id}`, () =>
+                        respondToInvitation(collection!.id, row.set_id, 'declined')
+                      )}
+                  >
+                    Decline
+                  </button>
+                </span>
+              </li>
+            {/each}
+          </ul>
+        </section>
+      {/if}
+
+      {#if organiser && submissions.length > 0}
+        <section class="panel">
+          <h2>Decks offered to this collection</h2>
+          <ul class="rows">
+            {#each submissions as row (row.set_id)}
+              <li>
+                <span class="row-name">
+                  {row.set?.name || 'Untitled'}
+                  <span class="row-by">{row.set?.author?.display_name || 'Anonymous'}</span>
+                </span>
+                <span class="row-actions">
+                  <button
+                    type="button"
+                    class="btn primary"
+                    disabled={busy !== null}
+                    onclick={() =>
+                      run(`take-${row.set_id}`, () =>
+                        resolveSubmission(collection!.id, row.set_id, 'accepted')
+                      )}
+                  >
+                    Add to collection
+                  </button>
+                  <button
+                    type="button"
+                    class="btn"
+                    disabled={busy !== null}
+                    onclick={() =>
+                      run(`pass-${row.set_id}`, () =>
+                        resolveSubmission(collection!.id, row.set_id, 'declined')
+                      )}
+                  >
+                    Decline
+                  </button>
+                </span>
+              </li>
+            {/each}
+          </ul>
+        </section>
+      {/if}
+
+      {#if organiser}
+        <section class="panel">
+          <h2>Invite a deck</h2>
+          <p class="hint">
+            Paste the share link of a published deck. Its author decides whether to join.
+          </p>
+          <div class="invite-row">
+            <input
+              type="text"
+              bind:value={inviteLink}
+              placeholder="https://…/shared/… or the code at its end"
+            />
+            <button
+              type="button"
+              class="btn primary"
+              disabled={busy !== null || inviteLink.trim().length === 0}
+              onclick={invite}
+            >
+              {busy === 'invite' ? 'Inviting…' : 'Invite'}
+            </button>
+          </div>
+          {#if invitedOut.length > 0}
+            <p class="hint">
+              Waiting on {invitedOut.length}
+              {invitedOut.length === 1 ? 'author' : 'authors'}:
+              {invitedOut.map((row) => row.set?.name || 'Untitled').join(', ')}
+            </p>
+          {/if}
+        </section>
+      {/if}
+
+      {#if removable.length > 0}
+        <section class="panel">
+          <h2>In this collection</h2>
+          <p class="hint">
+            Removing a deck only unlinks it. Its own page, link and listing are untouched.
+          </p>
+          <ul class="rows">
+            {#each removable as row (row.set_id)}
+              <li>
+                <span class="row-name">
+                  {row.set?.name || 'Untitled'}
+                  {#if row.set?.owner_id !== auth.user?.id}
+                    <span class="row-by">{row.set?.author?.display_name || 'Anonymous'}</span>
+                  {/if}
+                </span>
+                <button
+                  type="button"
+                  class="btn"
+                  disabled={busy !== null}
+                  onclick={() =>
+                    run(`remove-${row.set_id}`, () => removeMember(collection!.id, row.set_id))}
+                >
+                  {row.set?.owner_id === auth.user?.id ? 'Leave' : 'Remove'}
+                </button>
+              </li>
+            {/each}
+          </ul>
+        </section>
+      {/if}
+
+      {#if auth.signedIn && offerable.length > 0 && (collection.open_submissions || organiser)}
+        <section class="panel">
+          <h2>Add your own deck</h2>
+          {#if organiser}
+            <p class="hint">
+              Your deck joins as an invitation you then accept, so the same terms apply to
+              you as to everyone else.
+            </p>
+          {:else}
+            <p class="consent">{CONSENT}</p>
+          {/if}
+          <ul class="rows">
+            {#each offerable as row (row.id)}
+              <li>
+                <span class="row-name">{row.name || 'Untitled'}</span>
+                <button
+                  type="button"
+                  class="btn"
+                  disabled={busy !== null}
+                  onclick={() => addOwnDeck(row.id)}
+                >
+                  {organiser ? 'Add this deck' : 'Offer this deck'}
+                </button>
+              </li>
+            {/each}
+          </ul>
+        </section>
+      {/if}
 
       <p class="count">
         {tiles.length}
@@ -679,6 +1014,87 @@
   .hint {
     color: var(--text-muted);
     font-size: var(--text-sm);
+  }
+
+  .panel {
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-md);
+    background: var(--surface-base);
+    padding: var(--space-4);
+    margin-bottom: var(--space-4);
+  }
+  .panel h2 {
+    margin: 0 0 var(--space-2);
+    font-size: var(--text-base);
+    color: var(--text-primary);
+  }
+  .panel.invitations {
+    border-color: var(--border-accent);
+    background: var(--accent-soft);
+  }
+
+  /* The promise being made, so it is read before the button beneath it. */
+  .consent {
+    margin: 0 0 var(--space-3);
+    color: var(--text-secondary);
+    font-size: var(--text-sm);
+    max-width: 60ch;
+  }
+
+  .rows {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+  }
+  .rows li {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+  }
+  .row-name {
+    color: var(--text-primary);
+    display: flex;
+    align-items: baseline;
+    gap: var(--space-2);
+    min-width: 0;
+  }
+  .row-by {
+    color: var(--text-tertiary);
+    font-size: var(--text-sm);
+  }
+  .row-actions {
+    display: flex;
+    gap: var(--space-2);
+  }
+
+  .invite-row {
+    display: flex;
+    gap: var(--space-2);
+    margin-bottom: var(--space-2);
+  }
+  .invite-row input {
+    flex: 1 1 auto;
+    min-width: 0;
+    font: inherit;
+    color: var(--text-primary);
+    background: var(--surface-inset);
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-sm);
+    padding: var(--space-2) var(--space-3);
+  }
+  .invite-row input:focus-visible {
+    outline: none;
+    box-shadow: var(--focus-ring);
+  }
+
+  .btn:disabled {
+    opacity: 0.55;
+    cursor: default;
   }
 
   .grid {

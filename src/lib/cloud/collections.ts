@@ -20,7 +20,7 @@
  */
 import { decodeDataUrl } from './assets';
 import { auth } from './auth.svelte';
-import { request } from './http';
+import { CloudError, request } from './http';
 import { assetPrefix, uploadAsset } from './sets';
 import { hashHex } from '$lib/core/hash';
 import { readArtworkFile } from '$lib/core/image-import';
@@ -294,6 +294,54 @@ export async function listMyCollections(): Promise<Collection[]> {
 // -- Membership ----------------------------------------------------------
 
 /**
+ * Open a membership, whether or not one was opened before.
+ *
+ * `(collection_id, set_id)` is the primary key, and a decision leaves the row
+ * behind rather than deleting it — `removed` and `declined` are recorded so a
+ * declined offer is not re-presented the instant it is turned down. A plain
+ * insert therefore collides the second time anybody is involved, so **a deck
+ * that left could never rejoin and a declined invitation could never be
+ * re-sent**, which is the ordinary way a project changes its mind.
+ *
+ * Insert first, then PATCH the existing row on a 409 — rather than
+ * PostgREST's `resolution=merge-duplicates`, which was tried and refused with
+ * "permission denied for table collection_members". An upsert compiles to
+ * `on conflict do update set` across *every* column it was given, so it
+ * demands UPDATE on `collection_id` and `set_id`; those are the key, they are
+ * deliberately outside the update grant, and widening the grant to buy one
+ * round trip would be trading the guarantee for the convenience.
+ *
+ * Which statuses each side may write is still RLS's decision either way — the
+ * two update policies pin each party to its own — so this only ever changes
+ * whether a row can be re-opened, never by whom.
+ */
+async function join(
+  collectionId: string,
+  setId: string,
+  status: MembershipStatus,
+  extra: Record<string, unknown> = {}
+): Promise<void> {
+  try {
+    await request('/rest/v1/collection_members', {
+      method: 'POST',
+      body: { collection_id: collectionId, set_id: setId, status, ...extra },
+      headers: { Prefer: 'return=minimal' }
+    });
+  } catch (error) {
+    if (!(error instanceof CloudError) || error.status !== 409) throw error;
+    /* Status only. `extra` carries `invited_by`, which is insert-only by
+       grant — sending it here is refused outright ("permission denied for
+       table collection_members"), and it should not be rewritten anyway:
+       it records who opened the membership, not who last reopened it. */
+    await request(`/rest/v1/collection_members?${memberFilter(collectionId, setId)}`, {
+      method: 'PATCH',
+      body: { status },
+      headers: { Prefer: 'return=minimal' }
+    });
+  }
+}
+
+/**
  * An organiser asks a deck to join. The deck's owner decides.
  *
  * `status` is pinned to `invited` by `members_invite`'s own `with check`, so
@@ -303,26 +351,13 @@ export async function listMyCollections(): Promise<Collection[]> {
  */
 export async function inviteDeck(collectionId: string, setId: string): Promise<void> {
   await auth.ensureFresh();
-  await request('/rest/v1/collection_members', {
-    method: 'POST',
-    body: {
-      collection_id: collectionId,
-      set_id: setId,
-      status: 'invited',
-      invited_by: auth.user?.id ?? null
-    },
-    headers: { Prefer: 'return=minimal' }
-  });
+  await join(collectionId, setId, 'invited', { invited_by: auth.user?.id ?? null });
 }
 
 /** An author offers their own deck. An organiser decides. */
 export async function submitDeck(collectionId: string, setId: string): Promise<void> {
   await auth.ensureFresh();
-  await request('/rest/v1/collection_members', {
-    method: 'POST',
-    body: { collection_id: collectionId, set_id: setId, status: 'submitted' },
-    headers: { Prefer: 'return=minimal' }
-  });
+  await join(collectionId, setId, 'submitted');
 }
 
 /**

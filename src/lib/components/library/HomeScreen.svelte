@@ -39,7 +39,8 @@
   import { Button, Icon, SegmentedControl, Select, ThemeToggle } from '$lib/ui';
   import NewSetDialog from './NewSetDialog.svelte';
   import { initials, tint } from '$lib/core/swatch';
-  import { createCollection } from '$lib/cloud/collections';
+  import { createCollection, listPendingMemberships } from '$lib/cloud/collections';
+  import type { CollectionMembership } from '$lib/cloud/collections';
 
   let fileInput = $state<HTMLInputElement | null>(null);
   let message = $state<string | null>(null);
@@ -63,6 +64,44 @@
   }
 
   let makingCollection = $state(false);
+
+  /**
+   * Collection decisions waiting on this person, in either direction.
+   *
+   * The attention strip already answers "is anything waiting on me?" for
+   * contributions, and an invitation is the same question — so it belongs
+   * here rather than on a screen somebody has to think to visit. Silent on
+   * failure, like every other cloud read on this page: Home has to draw.
+   */
+  let pendingMemberships = $state<CollectionMembership[]>([]);
+
+  $effect(() => {
+    void auth.signedIn;
+    if (!cloudEnabled() || !auth.signedIn) {
+      pendingMemberships = [];
+      return;
+    }
+    void listPendingMemberships()
+      .then((rows) => (pendingMemberships = rows))
+      .catch(() => (pendingMemberships = []));
+  });
+
+  /*
+   * Grouped by collection, because the decision is per collection even when
+   * several of your decks are involved, and a strip listing the same project
+   * three times reads as three problems.
+   */
+  const pendingByCollection = $derived.by(() => {
+    const grouped = new Map<string, { slug: string; name: string; count: number }>();
+    for (const row of pendingMemberships) {
+      const slug = row.collection?.slug;
+      if (!slug) continue;
+      const found = grouped.get(slug);
+      if (found) found.count += 1;
+      else grouped.set(slug, { slug, name: row.collection?.name || 'a collection', count: 1 });
+    }
+    return [...grouped.values()];
+  });
 
   /**
    * Start a collection and go straight to it.
@@ -1107,8 +1146,32 @@
     </div>
   {/if}
 
-  {#if waitingSets.length > 0 || behindSets.length > 0}
+  {#if waitingSets.length > 0 || behindSets.length > 0 || pendingByCollection.length > 0}
     <div class="attention">
+      {#if pendingByCollection.length > 0}
+        {@const total = pendingMemberships.length}
+        <div class="attention-card waiting">
+          <Icon name="users" size={15} />
+          <div class="attention-body">
+            <span class="attention-title">
+              {total} collection {total === 1 ? 'decision' : 'decisions'} waiting
+            </span>
+            <span class="attention-detail">
+              {#each pendingByCollection as row, index (row.slug)}
+                {#if index > 0}<span aria-hidden="true"> · </span>{/if}
+                <button
+                  type="button"
+                  class="attention-link"
+                  onclick={() => navigation.openCollection(row.slug)}
+                >
+                  {row.name} ({row.count})
+                </button>
+              {/each}
+            </span>
+          </div>
+        </div>
+      {/if}
+
       {#if waitingSets.length > 0}
         {@const total = waitingSets.reduce((sum, row) => sum + row.count, 0)}
         <div class="attention-card waiting">

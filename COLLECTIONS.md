@@ -529,7 +529,7 @@ exists to confuse the picture.
 "New collection" from Home; then name, subtitle, blurb, banner and the
 visibility control on the collection page itself, for organisers only.
 
-### 6. Membership, both directions
+### 6. Membership, both directions — **done**
 
 "Add my deck" for a signed-in author with published sets; "Invite a deck" for an
 organiser, by share link. Both land as a pending row the *other* side decides.
