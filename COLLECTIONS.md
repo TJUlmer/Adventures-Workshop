@@ -388,10 +388,12 @@ boundary* above.
 
 ## Open decisions
 
-- **Does going public require every member's `ready`?** It fits the consent
-  theme, and stops one excited organiser debuting someone's half-finished
-  deck. It also adds a way to be blocked by an absent member. Leaning: require
-  it, with an organiser override that names who is not ready.
+- ~~**Does going public require every member's `ready`?**~~ **Decided: yes,
+  with an override.** The gate fits the consent theme and stops one eager
+  organiser debuting someone's half-finished deck, but an absent member must
+  not be able to freeze a project indefinitely — so the control names who is
+  not ready and lets an organiser go anyway, rather than sitting disabled with
+  nothing to be done about it.
 - **Should members be pushed to publish publicly at launch?** Staying unlisted
   and reachable only through the box is a legitimate creative choice ("these
   decks exist only as part of this project"). Per-member, not forced either
@@ -402,19 +404,28 @@ boundary* above.
   answer and probably the right one.
 - **Ordering** — manual `position`, or by acceptance date? Manual, presumably,
   but it is one more thing organisers must agree on.
-- **Is there a lighter first outing?** A bare `sets.collection_tag` — anyone
-  types `winter-extravaganza`, the gallery filters on it — is an afternoon and
-  needs no trust model at all. It buys no curation, no ordering, no banner, and
-  the "one link" is a gallery filter rather than a page. Worth naming so the
-  trade is deliberate.
+- ~~**Is there a lighter first outing?**~~ **Decided: no — build phase 1
+  proper.** A bare `sets.collection_tag` plus a gallery filter is an
+  afternoon's work, but it buys no curation, no ordering, no banner and no
+  consent, and its "one link" is a filter rather than a page. What is being
+  asked for is a *project's home*, which a filter cannot be.
+
+- ~~**Which database does the branch develop against?**~~ **Decided:
+  production.** `DEPLOYMENT.md` warns that preview builds share the production
+  database, and says to decide this before the branch rather than during. It is
+  safe here for one specific reason: `0012` is purely additive — two new
+  tables, no `alter` on `sets`, and nothing in the shipped app reads them — so
+  the migration cannot affect live data by existing. Re-read that reasoning
+  before any later migration; it does not generalise.
 
 ---
 
 ## Rough size
 
 **Phase 1** is comparable to the fork-and-lineage work: two tables, RLS
-mirroring two existing patterns, two `security definer` functions, one screen,
-one middleware match, and an "add to collection" control on the publish side.
+mirroring two existing patterns, three `security definer` functions, one
+screen, one middleware match, and an "add to collection" control on the
+publish side.
 
 The notable part is what it does *not* touch: **no document change, no
 `SET_SCHEMA_VERSION` bump, no `sets/normalize.ts` branch, no change to `sets`.**
@@ -422,4 +433,118 @@ It is a curation layer over rows that already exist, so the risk to anyone's
 local library is zero.
 
 **Phase 2**, the combined export, is a new multi-set bundle path that reuses
-every renderer unchanged and still touches no schema.
+every renderer unchanged and still touches no schema. Not in the first
+milestone — see the build order.
+
+---
+
+## Build order — phase 1
+
+Eight steps, ordered so each leaves something that can be looked at rather than
+a half-wired layer. Nothing here bumps `SET_SCHEMA_VERSION` or touches
+`sets/normalize.ts`; if a step starts wanting to, stop and re-read *the one
+rule* above, because a collection has begun turning into a set.
+
+All of it on its own branch — and, since this runs alongside ordinary work on
+`main`, in its own worktree, so switching between the two never means stashing:
+
+    git worktree add ../Adventures_Workshop-collections -b collections
+
+### 1. `supabase/migrations/0012_collections.sql`
+
+Both tables, their RLS, and three `security definer` functions:
+`collection_by_slug`, `collection_members_by_slug`, and
+`is_collection_organiser`. The third is not a convenience — it is what breaks
+the RLS recursion described above, and writing the policies without it is the
+one way this step fails outright.
+
+The two membership `update` policies mirror `0004_contributions.sql`'s
+`contributions_withdraw`/`contributions_resolve` exactly: permissive, ORed,
+each pinning in its own `with check` the statuses its own side may produce.
+
+**Verify by attacking it, not by reading it.** Anonymously: `select` on
+`collections` returns public rows only; `select` on `collection_members`
+directly returns nothing; `collection_by_slug` returns the row for an unlisted
+slug and nothing for a private one. Signed in as a non-member: writing
+`accepted` onto somebody else's membership row is refused. This is the only
+step here where a mistake is a security bug rather than a visual one.
+
+### 2. `src/lib/cloud/collections.ts`
+
+The client module, shaped like `cloud/contributions.ts`: types, then one
+function per verb — `createCollection`, `updateCollection`,
+`fetchCollectionBySlug`, `listMyCollections`, `listCollectionMembers`,
+`inviteDeck`, `submitDeck`, `respondToInvitation`, `setMemberReady`,
+`reorderMember`, `removeMember`, `promoteToOrganiser`,
+`setCollectionVisibility`.
+
+**Every public read passes `anonymous: true`.** The rule from `cloud/sets.ts`
+applies unchanged and for the same reason: RLS answers identically either way,
+but a *stale* token makes PostgREST refuse the request outright, so a signed-in
+visitor with an overnight session would see an empty collection while a
+stranger saw it fine. A collection link is exactly the kind that gets opened
+weeks after it was pasted.
+
+### 3. Navigation, and the second real path
+
+`View` gains `{ kind: 'collection'; slug: string }`;
+`openCollection`/`leaveCollection` mirror `openShared`/`leaveShared`, including
+the `#returnTo` bookkeeping and the URL clearing — a collection is the second
+real path in this app, so leaving it through a bare `openHome()` strands
+`/collection/{slug}` in the address bar to reassert itself on the next reload.
+That is the trap `leaveShared`'s own doc comment already records.
+
+`readCollectionSlug()` reads the path form *and* a hash fallback, as
+`readSharedSlug` does. `vercel.json` gains a second rewrite. `App.svelte` routes
+it outside `AppShell`, beside `GalleryScreen` and `SharedSetScreen`.
+
+### 4. `CollectionScreen`, read-only
+
+Banner, blurb, and the tile grid — the gallery's own tile, so per-creator
+attribution comes free from the `author:profiles(…)` embed. Its header carries
+the standing shell-less set: Home, Gallery, `ThemeToggle`, `AccountMenu`.
+
+Read-only first, seeded with a collection and two members inserted by hand in
+SQL. That is what makes steps 1–3 verifiable end to end before any authoring UI
+exists to confuse the picture.
+
+### 5. Creating and editing a collection
+
+"New collection" from Home; then name, subtitle, blurb, banner and the
+visibility control on the collection page itself, for organisers only.
+
+### 6. Membership, both directions
+
+"Add my deck" for a signed-in author with published sets; "Invite a deck" for an
+organiser, by share link. Both land as a pending row the *other* side decides.
+
+The accept control carries the consent sentence verbatim — see *the consent
+boundary* — and it belongs on the button, not behind a help link.
+
+Pending decisions surface on Home's attention strip, which already answers
+"contributions waiting on a decision" and is the right place for "an invitation
+waiting on you".
+
+### 7. Readiness, and the publish gate
+
+The per-member `ready` flag, the "4 of 6 ready" line, and the gate on going
+public: it names who is not ready and offers to publish anyway, so an absent
+member cannot freeze the project.
+
+### 8. The reverse link, and the unfurl
+
+*Part of Winter Extravaganza* on each member's own `/shared/{slug}`, which is
+what makes the thing read as a project rather than a list of links.
+
+Then `middleware.ts`: `/collection/:slug*` on the matcher, and a
+`collection_by_slug` call beside the existing `set_by_slug` one. Last,
+deliberately — it is the one step `vite dev` cannot test, having no Edge Runtime
+to run it in, so verifying it means a real deploy plus either a spoofed bot
+User-Agent or a paste into Discord. Discord caches unfurls per URL aggressively,
+so budget a throwaway slug for the second attempt.
+
+### Not in this milestone
+
+The combined box export (phase 2), pinned revisions, and any merged document.
+Each deck exports individually through its own shared page meanwhile — which is
+exactly what the production phase of the worked timeline already assumes.
