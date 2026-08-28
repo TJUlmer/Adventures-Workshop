@@ -485,7 +485,7 @@ slug and nothing for a private one. Signed in as a non-member: writing
 `accepted` onto somebody else's membership row is refused. This is the only
 step here where a mistake is a security bug rather than a visual one.
 
-### 2. `src/lib/cloud/collections.ts`
+### 2. `src/lib/cloud/collections.ts` — **done**
 
 The client module, shaped like `cloud/contributions.ts`: types, then one
 function per verb — `createCollection`, `updateCollection`,
