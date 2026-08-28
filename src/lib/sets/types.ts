@@ -300,10 +300,76 @@ export type SetId = Id<'Set'>;
  *      to that default, which is a visible change to a board an author had
  *      deliberately set up.
  *
+ * v38 — the adventure map gained `zoneStyles`: a pattern (built-in or a
+ *      custom uploaded tile), keyed by colour rather than by space, so every
+ *      wedge painted that colour anywhere on the board — a whole terrain
+ *      "zone" in the printed-board sense, not a single space's own `zones`
+ *      list — picks it up together. Defaults to `[]`, so an older document
+ *      opens with every space exactly as plain-coloured as it already was.
+ *      The bump is here for the same reason as v35/v37 above: an older build
+ *      reading a newer document would silently drop every zone's pattern.
+ *
+ * v39 — a map path gained `modifier`, initially `none | oneway`. The one-way
+ *      tag prints an attack +1 and gives the otherwise-undirected `from`/`to`
+ *      pair a direction while it is active. Defaults to `none`, so every path
+ *      in an older document remains the ordinary two-way connection it was.
+ *      An older build would silently discard an active tag, so it must refuse
+ *      a v39 document rather than changing the rules printed on its board.
+ *
+ * v40 — v39's single `MapPath.modifier: none | oneway` became two independent
+ *      booleans, `oneWay` and `modifier`, producing the four printed states:
+ *      ordinary black, black + attack modifier, orange arrow, and orange
+ *      arrow + attack modifier. The old `'oneway'` value meant the black tag
+ *      and therefore repairs to `oneWay: false, modifier: true`, preserving
+ *      every v39 board exactly rather than reinterpreting it as an orange
+ *      arrow. `AdventureMap.oneWayColor` stores the measured orange instead
+ *      of hardcoding printable colour in the renderer. Older paths default
+ *      both toggles off; an older build would lose either active rule.
+ *
+ * v41 — a path gained `secretPassage` and `secretPassageFade`: paired portal
+ *      medallions centred on the two space edges, with their connecting route
+ *      fading transparent towards the middle. Secret passage is mutually
+ *      exclusive with the orange arrow and combat modifier in the editor.
+ *      `AdventureMap.secretPassageColor` stores the measured grey-lilac now
+ *      so later hue controls need no renderer shape change. Older paths
+ *      default off at the reference fade length; an older build would redraw
+ *      an active portal as an ordinary black connection, changing its rules.
+ *
+ * v42 — secret passages moved off `MapPath` and onto individual spaces as an
+ *      optional `{ angle, curve, fade }` marker. Printed portals communicate
+ *      their link through matching medallions, not through a line drawn
+ *      between them, so each endpoint must be independently placeable and
+ *      aimable. Normalisation splits a v41 secret path into one marker on each
+ *      endpoint and removes that forced path; older spaces default to no
+ *      marker. An older build would discard every marker and cannot read v42.
+ *
+ * v43 — each `MapSecretPassage` gained its own exact `color` and optional
+ *      Symbols-tab `symbolId`. Colour moved off the map-wide field because
+ *      independently placed endpoints also need independently reproducible
+ *      tints; the measured grey-lilac remains the factory/reset default.
+ *      Normalisation carries v42's map-wide tint into every old marker and
+ *      defaults the symbol to the native padlock. An older build would silently
+ *      discard both customisations and cannot read v43.
+ *
+ * v44 — each `MapPath` gained `largeFighter`, which draws the official
+ *      large-fighter restriction pin on that connection. Older paths default
+ *      to false. An older build would silently discard the marker and cannot
+ *      read v44.
+ *
+ * v45 — the adventure map gained ordered `environment` pieces: embedded PNG
+ *      scene elements positioned above its spaces. Older maps default to an
+ *      empty list. An older build would silently discard every placed piece,
+ *      so it must refuse a v45 document.
+ *
+ * v46 — the map's default `pathColor` changed from `#101010` to `#1b1b18`,
+ *      matching the fixed black pixels in the refined one-way arrow artwork.
+ *      Normalisation updates only that exact former default; any other stored
+ *      path colour remains an intentional author value.
+ *
  * Older documents are *repaired*, not rejected — see `sets/normalize.ts`. Only
  * a version newer than this build understands is refused.
  */
-export const SET_SCHEMA_VERSION = 37;
+export const SET_SCHEMA_VERSION = 46;
 
 /**
  * What a set is for.

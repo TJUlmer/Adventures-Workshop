@@ -17,12 +17,28 @@ import {
   createHeadingPlacement,
   HEADING_ALIGNMENTS
 } from '$lib/cards/types';
-import type { AdventureMap, MapNoteId, MapPath, MapPathId, MapSpace, MapSpaceId } from '$lib/map/types';
+import type {
+  AdventureMap,
+  MapEnvironmentPiece,
+  MapEnvironmentPieceId,
+  MapNoteId,
+  MapPath,
+  MapPathId,
+  MapSecretPassage,
+  MapSpace,
+  MapSpaceId,
+  MapZoneStyle
+} from '$lib/map/types';
 import {
   createAdventureMap,
+  createMapEnvironmentPiece,
   createMapNote,
   createMapPath,
+  createMapSecretPassage,
   createMapSpace,
+  createMapZoneStyle,
+  DEFAULT_SECRET_PASSAGE_COLOR,
+  DEFAULT_SECRET_PASSAGE_FADE,
   MAP_SIZES_ALL
 } from '$lib/map/types';
 import type {
@@ -65,6 +81,7 @@ import type { TokenOutline } from '$lib/models/silhouette';
 import { MAX_OUTLINE_DETAIL, MIN_OUTLINE_DETAIL } from '$lib/models/silhouette';
 import { INITIATIVE_BAND_DEFAULTS } from '$lib/renderer/geometry';
 import type { CustomSymbol } from '$lib/symbols/types';
+import type { CustomSymbolId } from '$lib/symbols/types';
 import { createCustomSymbol } from '$lib/symbols/types';
 import type { ThreatNote, ThreatSlot, ThreatTrack } from '$lib/threat/types';
 import {
@@ -349,9 +366,28 @@ function initiativeBands(value: unknown): InitiativeBands {
  * is not there would draw a line to nowhere, and it is cheaper to drop it here
  * than to guard every consumer.
  */
-function adventureMap(value: unknown): AdventureMap {
+function adventureMap(value: unknown, repairFormerPathBlack = false): AdventureMap {
   const raw = asRecord(value);
   const defaults = createAdventureMap();
+  const legacySecretPassageColor = str(
+    raw['secretPassageColor'],
+    DEFAULT_SECRET_PASSAGE_COLOR
+  );
+
+  const secretPassage = (value: unknown): MapSecretPassage | null => {
+    if (!value || typeof value !== 'object') return null;
+    const source = asRecord(value);
+    const base = createMapSecretPassage();
+    return {
+      angle: Math.min(180, Math.max(-180, num(source['angle'], base.angle))),
+      curve: Math.min(1, Math.max(-1, num(source['curve'], base.curve))),
+      fade: Math.min(2, Math.max(0.05, num(source['fade'], base.fade))),
+      color: str(source['color'], legacySecretPassageColor),
+      symbolId: typeof source['symbolId'] === 'string'
+        ? (source['symbolId'] as CustomSymbolId)
+        : null
+    };
+  };
 
   const spaces: MapSpace[] = (Array.isArray(raw['spaces']) ? raw['spaces'] : []).map((entry) => {
     const space = asRecord(entry);
@@ -380,6 +416,7 @@ function adventureMap(value: unknown): AdventureMap {
         ? (space['startSide'] as MapSpace['startSide'])
         : 'top',
       rotation: num(space['rotation'], 0),
+      secretPassage: secretPassage(space['secretPassage']),
       notes: str(space['notes'])
     };
   });
@@ -392,10 +429,60 @@ function adventureMap(value: unknown): AdventureMap {
       const to = path['to'] as MapSpaceId;
       if (typeof from !== 'string' || typeof to !== 'string') return null;
       if (!known.has(from) || !known.has(to) || from === to) return null;
+      const legacySecretPassage = bool(path['secretPassage'], false);
+      const modifier =
+        typeof path['modifier'] === 'boolean'
+          ? path['modifier']
+          : path['modifier'] === 'oneway';
+
+      /* v41 briefly stored one secret passage as a connection path. Preserve
+         those documents by splitting that record into one independent portal
+         on each space, then drop the forced line between them. New v42 files
+         never enter this branch, which also keeps normalisation idempotent. */
+      if (legacySecretPassage) {
+        const fromSpace = spaces.find((space) => space.id === from);
+        const toSpace = spaces.find((space) => space.id === to);
+        if (fromSpace && toSpace) {
+          const dx = toSpace.x - fromSpace.x;
+          const dy = toSpace.y - fromSpace.y;
+          const length = Math.hypot(dx, dy);
+          const curve = Math.min(1, Math.max(-1, num(path['curve'], 0)));
+          const fade = Math.min(
+            2,
+            Math.max(0.05, num(path['secretPassageFade'], DEFAULT_SECRET_PASSAGE_FADE))
+          );
+          if (length > 0) {
+            const controlX = (fromSpace.x + toSpace.x) / 2 + (-dy / length) * curve * length;
+            const controlY = (fromSpace.y + toSpace.y) / 2 + (dx / length) * curve * length;
+            fromSpace.secretPassage ??= {
+              angle: (Math.atan2(controlY - fromSpace.y, controlX - fromSpace.x) * 180) / Math.PI,
+              curve,
+              fade,
+              color: legacySecretPassageColor,
+              symbolId: null
+            };
+            toSpace.secretPassage ??= {
+              angle: (Math.atan2(controlY - toSpace.y, controlX - toSpace.x) * 180) / Math.PI,
+              curve: -curve,
+              fade,
+              color: legacySecretPassageColor,
+              symbolId: null
+            };
+          }
+        }
+        return null;
+      }
+
       return {
         ...createMapPath(from, to),
         ...(typeof path['id'] === 'string' ? { id: path['id'] as MapPathId } : {}),
-        curve: num(path['curve'], 0)
+        curve: num(path['curve'], 0),
+        oneWay: bool(path['oneWay'], false),
+        /* v39's `modifier: 'oneway'` was the black pointed attack +1 tag,
+           despite that old value's misleading name. Preserve its appearance
+           as modifier-on / orange-one-way-off when repairing that shape. */
+        modifier,
+        largeFighter: bool(path['largeFighter'], false)
       };
     })
     .filter((path): path is MapPath => path !== null);
@@ -419,7 +506,11 @@ function adventureMap(value: unknown): AdventureMap {
     spaceDiameter: num(raw['spaceDiameter'], defaults.spaceDiameter),
     spaceOpacity: Math.min(1, Math.max(0, num(raw['spaceOpacity'], defaults.spaceOpacity))),
     spaceStroke: str(raw['spaceStroke'], defaults.spaceStroke),
-    pathColor: str(raw['pathColor'], defaults.pathColor),
+    pathColor:
+      repairFormerPathBlack && str(raw['pathColor'], '#101010').toLowerCase() === '#101010'
+        ? defaults.pathColor
+        : str(raw['pathColor'], defaults.pathColor),
+    oneWayColor: str(raw['oneWayColor'], defaults.oneWayColor),
     startInk: str(raw['startInk'], defaults.startInk),
     palette: (Array.isArray(raw['palette']) ? raw['palette'] : []).filter(
       (color): color is string => typeof color === 'string'
@@ -439,7 +530,48 @@ function adventureMap(value: unknown): AdventureMap {
         rotation: num(note['rotation'], 0),
         color: str(note['color'], base.color)
       };
-    })
+    }),
+    environment: (Array.isArray(raw['environment']) ? raw['environment'] : [])
+      .map((entry): MapEnvironmentPiece | null => {
+        const piece = asRecord(entry);
+        if (typeof piece['source'] !== 'string' || piece['source'] === '') return null;
+        const base = createMapEnvironmentPiece(
+          piece['source'],
+          str(piece['label'], 'Environment piece'),
+          num(piece['aspect'], 1)
+        );
+        return {
+          ...base,
+          ...(typeof piece['id'] === 'string'
+            ? { id: piece['id'] as MapEnvironmentPieceId }
+            : {}),
+          x: num(piece['x'], base.x),
+          y: num(piece['y'], base.y),
+          width: Math.min(2, Math.max(0.01, num(piece['width'], base.width))),
+          aspect: num(piece['aspect'], base.aspect) > 0
+            ? num(piece['aspect'], base.aspect)
+            : base.aspect,
+          rotation: num(piece['rotation'], 0),
+          opacity: Math.min(1, Math.max(0, num(piece['opacity'], 1)))
+        };
+      })
+      .filter((piece): piece is MapEnvironmentPiece => piece !== null),
+    zoneStyles: (Array.isArray(raw['zoneStyles']) ? raw['zoneStyles'] : [])
+      .map((entry): MapZoneStyle | null => {
+        const zone = asRecord(entry);
+        if (typeof zone['color'] !== 'string' || zone['color'] === '') return null;
+        const base = createMapZoneStyle(zone['color']);
+        return {
+          ...base,
+          patternName: typeof zone['patternName'] === 'string' ? zone['patternName'] : null,
+          patternColor: str(zone['patternColor'], base.patternColor),
+          customSource: typeof zone['customSource'] === 'string' ? zone['customSource'] : null,
+          customLabel: str(zone['customLabel']),
+          opacity: Math.min(1, Math.max(0, num(zone['opacity'], base.opacity))),
+          scale: num(zone['scale'], base.scale)
+        };
+      })
+      .filter((zone): zone is MapZoneStyle => zone !== null)
   };
 }
 
@@ -863,7 +995,7 @@ export function normalizeSet(value: AdventureSet): AdventureSet {
     decks,
     cards,
     threat: threatTrack(raw['threat']),
-    map: adventureMap(raw['map']),
+    map: adventureMap(raw['map'], num(raw['schemaVersion'], 0) < 46),
     figures: (Array.isArray(raw['figures']) ? raw['figures'] : []).map(figure),
     customSymbols: (Array.isArray(raw['customSymbols']) ? raw['customSymbols'] : []).map(
       customSymbol

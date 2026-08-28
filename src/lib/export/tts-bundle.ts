@@ -696,7 +696,10 @@ export async function exportTabletopSimulator(
   if (set.map.enabled) {
     /* Same ceiling as the threat strip: the printed board is 5846px across and
        TTS refuses a texture over 4096, so it is photographed narrower. */
-    const board = await photographMapBoard(set.map, { width: MAX_SHEET_PIXELS });
+    const board = await photographMapBoard(set.map, {
+      width: MAX_SHEET_PIXELS,
+      customSymbols: set.customSymbols
+    });
     done += 1;
     options.onProgress?.(done, total, 'Map');
 

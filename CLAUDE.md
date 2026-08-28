@@ -776,6 +776,110 @@ space split three ways is three arcs meeting at a point. Both are one line of
 geometry in SVG and a pile of clip-paths in DOM. The artwork stays outside the
 SVG as an ordinary element so `CardArt` can go on owning crop and grade.
 
+Paths are quadratic beziers even when `MapPath.curve` is zero, so straight and
+bowed routes share one trim/render path. `curve` is the bow as a fraction of
+the distance between the two spaces; that keeps the shape stable when a space
+is moved. The faint printed-board glow is a second copy of the same geometry,
+locally rescaled out of the board's tiny `0..1` viewBox and blurred with CSS —
+SVG `<filter>` references and a blurred element left at that fractional scale
+both disappear in the DOM-photograph export pipeline. The full failure history
+is deliberately kept above `PATH_GLOW_WIDTH_RATIO` in `MapBoard.svelte`.
+
+`MapPath.oneWay`, `MapPath.modifier` and `MapPath.largeFighter` are independent
+booleans. The first two produce
+four printed states: ordinary black, black + attack modifier, orange arrow,
+and orange arrow + attack modifier. The arrow's variable-length route is two
+native SVG strokes (black outline, `AdventureMap.oneWayColor` core), while its
+destination assembly is the tight 48×48 `path_arrowhead.png`. It is fetched and
+converted to a data URL before photography rather than left as an external image
+reference, turns to the bezier's arrival tangent, and places its first opaque row
+on the destination rim. The generated shaft uses a flat origin and overlaps
+beneath the PNG's cropped base by half its outline width, so the join cannot
+expose independently-antialiased generated shapes. All refined pieces share a
+10px orange shaft; their render scale derives from the generated orange-core
+width, keeping the join aligned if path thickness changes. The trim remains a
+real bezier subcurve trim; moving only the endpoint while retaining the original
+control point changes the bow. Generated head/modifier geometry remains only as
+a first-fetch/missing-asset fallback.
+The black modifier is the pointed tag from Marmoreal; on an orange route it
+uses the blank `path_arrow_modifier.png` body plus
+`path_arrow_modifier_text.png`, centred by real arc length between the origin
+rim and arrowhead shoulder. The body mirrors when direction reverses but the
+separate text insert does not, keeping `+1` readable. Its position is shifted
+three source pixels towards the tail because the blank body's orange-area
+centroid is 2.7 pixels tailward of its canvas centre; applying that shift with
+the direction sign keeps both orientations visually centred. The black tag sits at the
+whole connection midpoint, follows its tangent, and mirrors its native
+icon/value layout when needed.
+The document's default path black is `#1b1b18`, matching the fixed outline
+pixels in all three refined PNG pieces. v46 normalisation changes only the exact
+former `#101010` default on an older map; any other stored path colour remains
+untouched.
+`largeFighter` places the exact supplied 48×48 restriction pin on the bezier;
+when a combat modifier is also present, the pin moves along the real curve so
+the two marks remain readable. Its public SVG is fetched and inlined before
+photography rather than left as an external reference inside the exported SVG.
+
+`from` → `to` is meaningful while either option is active. The first toggle
+enabled from one endpoint deliberately makes that endpoint `from`; enabling
+the second preserves the direction already printed. If establishing direction
+reverses an existing pair, the editor negates `curve` at the same time: the bow
+is signed relative to `from` → `to`, so endpoint swap plus sign swap preserves
+the route's visible geometry. v39's misleading `modifier: 'oneway'` meant the
+black pointed tag and normalises to `oneWay: false, modifier: true`, never to
+an orange arrow.
+
+Secret passages are not `MapPath`s. Each `MapSpace` optionally owns one
+`MapSecretPassage` marker: its angle locates a medallion centre on that space's
+rim, its curve bends an outward tail left/right, and its fade controls how soon
+the tail becomes transparent. Values above the former 100% maximum extend the
+tail itself, reaching twice that old maximum at 200% while still ending fully
+transparent. Its `color` is per marker — shown as an exact hex
+value and resettable to `DEFAULT_SECRET_PASSAGE_COLOR` — so authors can either
+match two endpoints precisely or deliberately distinguish them. `symbolId`
+points into the set's existing `customSymbols` registry; `MapBoard` receives
+that registry in the editor, overview and off-screen export and falls back to
+the native padlock whenever the id/source is absent. Matching medallions
+communicate the gameplay connection even when their spaces sit across the map or their stairs point in
+unrelated directions, so making the two endpoints share one bezier would remove
+exactly the placement freedom the official treatment uses. The portal group is
+drawn after the spaces so its medallion covers the rim beneath it. Sampling each
+tail as short native SVG pieces makes opacity follow the curve without an image-
+context gradient reference. Only ordinary black paths receive the faint glow: orange arrows and
+secret passages deliberately do not. Normalisation converts the short-lived
+v41 path-owned form into two independent space markers and drops the forced
+line; v42's map-wide tint is copied into each marker when v43 loads it.
+
+The editor grid keeps the map at the top-left directly below the mode controls.
+Environment and Placed text form one flush stack beside it; the context-sensitive
+Selected space/Selected environment inspector occupies the far-right column
+with a 600px maximum height and only scrolls internally when its contents exceed
+that cap. Space and environment selections are mutually exclusive, so selecting
+a scene piece on the board or in its list immediately replaces the space controls
+with the piece's position/size/order controls beside the still-visible map.
+Zones and Board each take half of the map column immediately below it, with no
+gap. The map and those panels share one flex column rather than separate grid rows:
+a tall Selected space or Environment stack
+therefore cannot enlarge the map's row and open an empty band above Zones. Zone
+opacity/tile-size/colour controls remain before the pattern gallery. That
+ordering is deliberate: settings that need live visual judgement remain
+reachable while the board stays in view.
+
+`AdventureMap.environment` is an ordered, back-to-front list of embedded scene
+pieces painted after every space and before secret-passage markers and placed
+text. Each `MapEnvironmentPiece` stores the source's measured aspect alongside
+its width-based centre/size, rotation and opacity, so a render never decodes a
+large data URL just to calculate layout. The editor accepts one or many PNGs,
+can replace a layer without losing its geometry, and exposes explicit backward/
+forward controls because array order is the exported z-order. v45 defaults an
+older map to an empty list. A visible piece is also directly draggable on the
+board; the editor preserves the grab offset and persists the gesture as one
+edit on release. Layer rows can likewise be dragged before or after one another,
+with the buttons retained as the keyboard-accessible equivalent. The layer list
+has its own capped scroll viewport in the side stack; controls live in the shared
+right inspector,
+so adding many PNGs cannot push them down the page at all.
+
 The numbers come from a printed Adventures map (Martian Invader, McMinnville OR),
 Hough-detected and then profiled radially — 42 spaces, radius standard deviation
 1.6px on a 124px diameter, so the printed spaces really are one size:
@@ -842,6 +946,21 @@ A space's `zones` is a *list* of fills, not one fill: the printed board draws a
 space bordering two areas as a circle cut into wedges, and two, three and
 four-way splits all appear. One entry short-circuits to a plain circle, because
 a 360° arc is degenerate and renders as nothing at all.
+
+`spaceOpacity` fades only those wedge fills, never their outlines, labels or
+start markers. The editor's Numbers toggle is a construction overlay outside
+`MapBoard`, so it cannot leak into an export. Its absolutely positioned labels
+resolve against the `.board` grid item; removing that positioning context makes
+them float relative to a page ancestor instead of over their spaces. A
+colour-wide `MapZoneStyle` is a
+different meaning of “zone”: it matches every wedge anywhere on the board by
+colour and tiles a built-in or uploaded pattern over them. Built-in SVG pattern
+markup is fetched, recoloured directly and drawn through a native SVG
+`<pattern>`; CSS masking on SVG resolves to luminance here and makes the black
+source shapes disappear. `photographMapBoard` pre-warms those async sources
+before mounting the off-screen board, because one `tick()` is not enough to
+wait for an effect-triggered fetch. The renderer comments above
+`zonePatternDefs` carry the exact repro and export rationale.
 
 ### Assigning a rules or event card to one character
 

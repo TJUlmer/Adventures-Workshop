@@ -18,6 +18,7 @@
    * it. Same split as the threat track: what is exported must not be able to
    * draw a handle.
    */
+  import { tick } from 'svelte';
   import MapBoard from '$lib/renderer/MapBoard.svelte';
   import { solid } from '$lib/cards/style';
   import { createArtwork, hasArtwork } from '$lib/core/artwork';
@@ -25,8 +26,13 @@
   import { photographMapBoard, saveExport, slugify } from '$lib/export';
   import {
     createMapNote,
+    createMapEnvironmentPiece,
     createMapPath,
+    createMapSecretPassage,
     createMapSpace,
+    createMapZoneStyle,
+    DEFAULT_SECRET_PASSAGE_COLOR,
+    DEFAULT_SECRET_PASSAGE_FADE,
     findPath,
     findSpace,
     mapHeight,
@@ -36,9 +42,22 @@
     MAP_WIDTH_MM,
     neighbours,
     orphanSpaces,
-    pathExists
+    pathExists,
+    spaceZoneColors,
+    zoneStyleFor
   } from '$lib/map/types';
-  import type { MapNote, MapSize, MapSpaceId, MapStartSide } from '$lib/map/types';
+  import type {
+    MapEnvironmentPiece,
+    MapEnvironmentPieceId,
+    MapNote,
+    MapSecretPassage,
+    MapSize,
+    MapSpaceId,
+    MapStartSide,
+    MapZoneStyle
+  } from '$lib/map/types';
+  import { PATTERN_NAMES, patternAspect, patternUrl } from '$lib/renderer/assets';
+  import { customSymbolLabel } from '$lib/symbols/types';
   import { workshop } from '$lib/state/workshop.svelte';
   import { Button, EmptyState, HexInput, Icon, Slider, Switch, TextInput } from '$lib/ui';
 
@@ -62,8 +81,17 @@
    * ever has to make sense for the single space `selected` names.
    */
   let colorSelection = $state<Set<MapSpaceId>>(new Set());
+  /** Which colour zone the "Zones" column's pattern editor is open on —
+      independent of `selected`/`colorSelection`, which name a *space*. A
+      zone is a colour, not a space, so it needs its own selection. */
+  let selectedZoneColor = $state<string | null>(null);
   let linkFrom = $state<MapSpaceId | null>(null);
   let dragging = $state<MapSpaceId | null>(null);
+  let draggingEnvironment = $state<{
+    id: MapEnvironmentPieceId;
+    offsetX: number;
+    offsetY: number;
+  } | null>(null);
   let board = $state<HTMLDivElement | null>(null);
   let artInput = $state<HTMLInputElement | null>(null);
   let artError = $state<string | null>(null);
@@ -222,7 +250,16 @@
       for (const note of m.notes) {
         if (note.color.toLowerCase() === key) note.color = to;
       }
+      /* A zone's pattern is keyed by colour (see `MapZoneStyle`'s own doc
+         comment) — repainting every wedge that had it without also renaming
+         this would leave the pattern behind under a colour nothing on the
+         board uses any more, orphaned rather than following the zone an
+         author clearly still means. */
+      for (const zone of m.zoneStyles) {
+        if (zone.color.toLowerCase() === key) zone.color = to;
+      }
     });
+    if (selectedZoneColor && selectedZoneColor.toLowerCase() === key) selectedZoneColor = to;
   }
 
   const MODES: { value: Mode; label: string; hint: string }[] = [
@@ -237,6 +274,24 @@
 
   const orphans = $derived(orphanSpaces(map));
   const selectedSpace = $derived(findSpace(map, selected));
+  const selectedPortalSymbol = $derived(
+    selectedSpace?.secretPassage?.symbolId
+      ? set.customSymbols.find((symbol) => symbol.id === selectedSpace?.secretPassage?.symbolId) ?? null
+      : null
+  );
+  const secretPassageColors = $derived.by(() => {
+    const colours: string[] = [];
+    const seen = new Set<string>();
+    for (const space of map.spaces) {
+      const colour = space.secretPassage?.color;
+      if (!colour) continue;
+      const key = colour.toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      colours.push(colour);
+    }
+    return colours;
+  });
 
   /**
    * Select one space, or fold it into the running colour-selection.
@@ -250,6 +305,7 @@
    * or empties it out once none remain.
    */
   function selectSpace(id: MapSpaceId, additive: boolean): void {
+    selectedEnvironment = null;
     if (!additive) {
       selected = id;
       colorSelection = new Set([id]);
@@ -305,6 +361,86 @@
     });
   }
 
+  /** Every colour zone on the board, with how many wedges belong to it —
+      "Zones" column stats. Recomputed from the spaces themselves, same as
+      `usedColors`, rather than trusting `map.zoneStyles` to list them: a
+      colour is a zone whether or not it has a pattern yet. */
+  const zones = $derived(spaceZoneColors(map));
+  const selectedZone = $derived(selectedZoneColor ? zoneStyleFor(map, selectedZoneColor) : null);
+
+  /**
+   * Write one field of the selected zone's pattern, creating its
+   * `zoneStyles` entry on first use — `zoneStyles` is sparse (see its own
+   * doc comment), so most zones have nothing here until an author actually
+   * picks a pattern for one.
+   */
+  function patchZone(color: string, patch: Partial<MapZoneStyle>): void {
+    workshop.editMap((m) => {
+      const existing = m.zoneStyles.find((z) => z.color.toLowerCase() === color.toLowerCase());
+      if (existing) {
+        Object.assign(existing, patch);
+      } else {
+        m.zoneStyles.push({ ...createMapZoneStyle(color), ...patch });
+      }
+    });
+  }
+
+  /** Choosing a built-in pattern always clears a custom one, and the other
+      way round — "Pattern" and "Custom pattern" are one choice, not two
+      that could both be on at once with only the last one drawn. */
+  function setZonePatternName(color: string, name: string | null): void {
+    patchZone(color, { patternName: name, customSource: null, customLabel: '' });
+  }
+
+  /**
+   * Back to "no pattern" — removes the `zoneStyles` entry outright rather
+   * than leaving one behind with both `patternName` and `customSource`
+   * `null`, keeping the sparse-by-default discipline the rest of this
+   * document already follows.
+   */
+  function clearZonePattern(color: string): void {
+    workshop.editMap((m) => {
+      m.zoneStyles = m.zoneStyles.filter((z) => z.color.toLowerCase() !== color.toLowerCase());
+    });
+  }
+
+  let zonePatternInput = $state<HTMLInputElement | null>(null);
+  let zonePatternError = $state<string | null>(null);
+  let environmentInput = $state<HTMLInputElement | null>(null);
+  let environmentError = $state<string | null>(null);
+  let selectedEnvironment = $state<MapEnvironmentPieceId | null>(null);
+  let replacingEnvironment = $state<MapEnvironmentPieceId | null>(null);
+  let reorderingEnvironment = $state<MapEnvironmentPieceId | null>(null);
+  let environmentDrop = $state<{
+    id: MapEnvironmentPieceId;
+    position: 'before' | 'after';
+  } | null>(null);
+  const selectedEnvironmentPiece = $derived(
+    map.environment.find((piece) => piece.id === selectedEnvironment) ?? null
+  );
+
+  /** Space and scene-piece controls share one inspector. Keeping the two
+      selections exclusive prevents a stale space editor sitting behind the
+      environment editor and makes the heading always describe what is active. */
+  function selectEnvironment(id: MapEnvironmentPieceId | null): void {
+    selectedEnvironment = id;
+    if (id) clearSelection();
+  }
+
+  async function pickZonePattern(event: Event & { currentTarget: HTMLInputElement }): Promise<void> {
+    const file = event.currentTarget.files?.[0];
+    event.currentTarget.value = '';
+    if (!file || !selectedZoneColor) return;
+
+    zonePatternError = null;
+    try {
+      const source = await readArtworkFile(file);
+      patchZone(selectedZoneColor, { patternName: null, customSource: source, customLabel: file.name });
+    } catch (cause) {
+      zonePatternError = cause instanceof Error ? cause.message : 'Could not read that file.';
+    }
+  }
+
   /**
    * Pointer position in the model's own units.
    *
@@ -341,6 +477,26 @@
     const hit = spaceAt(point);
 
     if (mode === 'place') {
+      const target = event.target instanceof Element ? event.target : null;
+      const environmentId = target
+        ?.closest('[data-environment-piece]')
+        ?.getAttribute('data-environment-piece') as MapEnvironmentPieceId | null;
+      const environmentPiece = environmentId
+        ? map.environment.find((piece) => piece.id === environmentId)
+        : null;
+      if (environmentPiece) {
+        /* Keep the grabbed pixel beneath the pointer. Snapping the image's
+           centre to the cursor makes a large scene piece jump on first move. */
+        selectEnvironment(environmentPiece.id);
+        draggingEnvironment = {
+          id: environmentPiece.id,
+          offsetX: point.x - environmentPiece.x,
+          offsetY: point.y - environmentPiece.y
+        };
+        (event.currentTarget as Element).setPointerCapture?.(event.pointerId);
+        return;
+      }
+
       if (hit) {
         // Shift-click adds to (or drops from) the running colour selection
         // instead of replacing it, and never arms a drag — moving one space
@@ -405,6 +561,18 @@
   }
 
   function onPointerMove(event: PointerEvent): void {
+    if (draggingEnvironment !== null) {
+      const point = toModel(event);
+      const piece = map.environment.find((entry) => entry.id === draggingEnvironment?.id);
+      if (!point || !piece) return;
+      piece.x = Math.min(1, Math.max(0, point.x - draggingEnvironment.offsetX));
+      piece.y = Math.min(
+        mapHeight(map),
+        Math.max(0, point.y - draggingEnvironment.offsetY)
+      );
+      return;
+    }
+
     if (dragging === null) return;
     const point = toModel(event);
     const space = findSpace(map, dragging);
@@ -416,6 +584,11 @@
   }
 
   function onPointerUp(): void {
+    if (draggingEnvironment !== null) {
+      draggingEnvironment = null;
+      // Like a space drag, one pointer gesture is one persisted edit.
+      workshop.editMap(() => {});
+    }
     if (dragging !== null) {
       dragging = null;
       // Marked dirty once on release, not on every move: a drag is one edit.
@@ -451,7 +624,7 @@
       // The faces have to be loaded before anything is measured, or every
       // space label is placed against a fallback.
       await document.fonts.ready;
-      const blob = await photographMapBoard(map);
+      const blob = await photographMapBoard(map, { customSymbols: set.customSymbols });
       if (!blob) throw new Error('The map did not render.');
       saveExport({
         filename: `${slugify(set.name, 'adventure-set')}-map.png`,
@@ -548,6 +721,217 @@
         (p) => (p.from === from && p.to === to) || (p.from === to && p.to === from)
       );
       if (path) path.curve = curve;
+    });
+  }
+
+  async function openEnvironmentPicker(replace: MapEnvironmentPieceId | null = null): Promise<void> {
+    replacingEnvironment = replace;
+    /* `multiple` depends on this state. Let Svelte update the real input before
+       opening it, or Replace inherits Add's multi-file chooser for one frame. */
+    await tick();
+    environmentInput?.click();
+  }
+
+  /** PNGs stay embedded in the document and keep their measured aspect so the
+      renderer never has to decode them merely to lay the board out. */
+  async function pickEnvironmentPieces(
+    event: Event & { currentTarget: HTMLInputElement }
+  ): Promise<void> {
+    const files = Array.from(event.currentTarget.files ?? []);
+    event.currentTarget.value = '';
+    if (files.length === 0) return;
+
+    environmentError = null;
+    try {
+      const chosen = replacingEnvironment ? files.slice(0, 1) : files;
+      if (chosen.some((file) => file.type !== 'image/png' && !file.name.toLowerCase().endsWith('.png'))) {
+        throw new Error('Environment pieces must be PNG images.');
+      }
+      const imported = await Promise.all(
+        chosen.map(async (file) => {
+          const source = await readArtworkFile(file);
+          return { source, label: file.name, aspect: (await imageAspect(source)) ?? 1 };
+        })
+      );
+
+      if (replacingEnvironment) {
+        const id = replacingEnvironment;
+        workshop.editMap((m) => {
+          const piece = m.environment.find((entry) => entry.id === id);
+          const replacement = imported[0];
+          if (!piece || !replacement) return;
+          piece.source = replacement.source;
+          piece.label = replacement.label;
+          piece.aspect = replacement.aspect;
+        });
+        selectEnvironment(id);
+      } else {
+        let last: MapEnvironmentPieceId | null = null;
+        workshop.editMap((m) => {
+          for (const item of imported) {
+            const piece = createMapEnvironmentPiece(
+              item.source,
+              item.label,
+              item.aspect,
+              0.5,
+              mapHeight(m) / 2
+            );
+            m.environment.push(piece);
+            last = piece.id;
+          }
+        });
+        selectEnvironment(last);
+      }
+    } catch (cause) {
+      environmentError = cause instanceof Error ? cause.message : 'Could not read those PNGs.';
+    } finally {
+      replacingEnvironment = null;
+    }
+  }
+
+  function patchEnvironment(patch: Partial<MapEnvironmentPiece>): void {
+    if (!selectedEnvironment) return;
+    workshop.editMap((m) => {
+      const piece = m.environment.find((entry) => entry.id === selectedEnvironment);
+      if (piece) Object.assign(piece, patch);
+    });
+  }
+
+  function moveEnvironment(delta: -1 | 1): void {
+    if (!selectedEnvironment) return;
+    workshop.editMap((m) => {
+      const index = m.environment.findIndex((piece) => piece.id === selectedEnvironment);
+      const target = index + delta;
+      if (index < 0 || target < 0 || target >= m.environment.length) return;
+      const [piece] = m.environment.splice(index, 1);
+      if (piece) m.environment.splice(target, 0, piece);
+    });
+  }
+
+  function reorderEnvironment(
+    sourceId: MapEnvironmentPieceId,
+    targetId: MapEnvironmentPieceId,
+    position: 'before' | 'after'
+  ): void {
+    if (sourceId === targetId) return;
+    workshop.editMap((m) => {
+      const sourceIndex = m.environment.findIndex((piece) => piece.id === sourceId);
+      if (sourceIndex < 0) return;
+      const [piece] = m.environment.splice(sourceIndex, 1);
+      if (!piece) return;
+      const targetIndex = m.environment.findIndex((entry) => entry.id === targetId);
+      if (targetIndex < 0) {
+        m.environment.splice(sourceIndex, 0, piece);
+        return;
+      }
+      m.environment.splice(targetIndex + (position === 'after' ? 1 : 0), 0, piece);
+    });
+  }
+
+  function finishEnvironmentReorder(): void {
+    reorderingEnvironment = null;
+    environmentDrop = null;
+  }
+
+  function startEnvironmentPointerReorder(
+    event: PointerEvent,
+    id: MapEnvironmentPieceId
+  ): void {
+    if (event.button !== 0) return;
+    event.preventDefault();
+    event.stopPropagation();
+    reorderingEnvironment = id;
+    environmentDrop = null;
+    (event.currentTarget as Element).setPointerCapture?.(event.pointerId);
+  }
+
+  function targetEnvironmentPointerReorder(event: PointerEvent): void {
+    if (!reorderingEnvironment) return;
+    event.preventDefault();
+    const target = document
+      .elementFromPoint(event.clientX, event.clientY)
+      ?.closest('[data-environment-row]');
+    const id = target?.getAttribute('data-environment-row') as MapEnvironmentPieceId | null;
+    if (!target || !id || id === reorderingEnvironment) {
+      environmentDrop = null;
+      return;
+    }
+    const box = target.getBoundingClientRect();
+    environmentDrop = {
+      id,
+      position: event.clientY < box.top + box.height / 2 ? 'before' : 'after'
+    };
+  }
+
+  function finishEnvironmentPointerReorder(): void {
+    if (reorderingEnvironment && environmentDrop) {
+      reorderEnvironment(reorderingEnvironment, environmentDrop.id, environmentDrop.position);
+    }
+    finishEnvironmentReorder();
+  }
+
+  function removeEnvironment(): void {
+    if (!selectedEnvironment) return;
+    const id = selectedEnvironment;
+    workshop.editMap((m) => {
+      m.environment = m.environment.filter((piece) => piece.id !== id);
+    });
+    selectedEnvironment = null;
+  }
+
+  /** Direction copy for the two directional toggles, stated from whichever endpoint is open. */
+  function pathDirection(from: MapSpaceId, to: MapSpaceId): string {
+    const path = findPath(map, from, to);
+    if (!path || (!path.oneWay && !path.modifier) || path.from === from) {
+      return `to ${spaceName(to)}`;
+    }
+    return `from ${spaceName(to)}`;
+  }
+
+  /**
+   * Toggle a printed connection option. The first directional option enabled
+   * from a plain path establishes selected-space → neighbour as its direction.
+   * Once either is active, enabling the other preserves that established
+   * direction. Large fighter is symmetric and never changes endpoint order.
+   */
+  function setPathOption(
+    from: MapSpaceId,
+    to: MapSpaceId,
+    option: 'oneWay' | 'modifier' | 'largeFighter',
+    enabled: boolean
+  ): void {
+    workshop.editMap((m) => {
+      const path = m.paths.find(
+        (p) => (p.from === from && p.to === to) || (p.from === to && p.to === from)
+      );
+      if (!path) return;
+      if (option !== 'largeFighter' && enabled && !path.oneWay && !path.modifier) {
+        /* `curve` is signed clockwise from `from` to `to`. Swapping only the
+           endpoints would therefore bow an existing route to the opposite
+           side at the exact moment an author makes it directional; negating
+           the sign preserves the geometry while giving both options the same
+           selected-space → neighbour direction. */
+        if (path.from !== from) {
+          path.from = from;
+          path.to = to;
+          path.curve = -path.curve;
+        }
+      }
+      path[option] = enabled;
+    });
+  }
+
+  function setSecretPassage(enabled: boolean): void {
+    if (!selectedSpace) return;
+    workshop.editMap(() => {
+      selectedSpace.secretPassage = enabled ? createMapSecretPassage() : null;
+    });
+  }
+
+  function patchSecretPassage(patch: Partial<MapSecretPassage>): void {
+    if (!selectedSpace?.secretPassage) return;
+    workshop.editMap(() => {
+      if (selectedSpace.secretPassage) Object.assign(selectedSpace.secretPassage, patch);
     });
   }
 
@@ -736,6 +1120,282 @@
 
         {#if artError}<p class="error" role="alert">{artError}</p>{/if}
 
+        {#snippet environmentInspector(piece: MapEnvironmentPiece, index: number)}
+          <p class="stats">
+            Layer {index + 1} of {map.environment.length} · at
+            {(piece.x * 100).toFixed(1)}%, {((piece.y / mapHeight(map)) * 100).toFixed(1)}%
+          </p>
+          <div class="environment-controls">
+            <div class="field">
+              <span class="field-label">Layer name</span>
+              <TextInput
+                value={piece.label}
+                aria-label="Environment layer name"
+                oninput={(event) => patchEnvironment({ label: event.currentTarget.value })}
+              />
+            </div>
+            <div class="environment-sliders">
+              <Slider
+                label="Horizontal position"
+                value={piece.x}
+                min={0}
+                max={1}
+                step={0.005}
+                neutral={0.5}
+                format={(value) => `${Math.round(value * 100)}%`}
+                onchange={(x) => patchEnvironment({ x })}
+              />
+              <Slider
+                label="Vertical position"
+                value={piece.y / mapHeight(map)}
+                min={0}
+                max={1}
+                step={0.005}
+                neutral={0.5}
+                format={(value) => `${Math.round(value * 100)}%`}
+                onchange={(value) => patchEnvironment({ y: value * mapHeight(map) })}
+              />
+              <Slider
+                label="Size"
+                value={piece.width}
+                min={0.02}
+                max={1}
+                step={0.01}
+                neutral={0.18}
+                format={(value) => `${Math.round(value * 100)}%`}
+                onchange={(width) => patchEnvironment({ width })}
+              />
+              <Slider
+                label="Rotation"
+                value={piece.rotation}
+                min={-180}
+                max={180}
+                step={1}
+                neutral={0}
+                format={(value) => `${Math.round(value)}°`}
+                onchange={(rotation) => patchEnvironment({ rotation })}
+              />
+              <Slider
+                label="Opacity"
+                value={piece.opacity}
+                min={0}
+                max={1}
+                step={0.01}
+                neutral={1}
+                format={(value) => `${Math.round(value * 100)}%`}
+                onchange={(opacity) => patchEnvironment({ opacity })}
+              />
+            </div>
+            <div class="environment-order">
+              <Button size="sm" disabled={index <= 0} onclick={() => moveEnvironment(-1)}>
+                Send backward
+              </Button>
+              <Button
+                size="sm"
+                disabled={index >= map.environment.length - 1}
+                onclick={() => moveEnvironment(1)}
+              >
+                Bring forward
+              </Button>
+            </div>
+            <div class="environment-actions">
+              <Button size="sm" onclick={() => openEnvironmentPicker(piece.id)}>
+                <Icon name="upload" size={13} />
+                Replace
+              </Button>
+              <Button size="sm" variant="danger" onclick={removeEnvironment}>
+                <Icon name="trash" size={13} />
+                Remove
+              </Button>
+            </div>
+          </div>
+        {/snippet}
+
+        {#snippet boardPanel()}
+          <div class="block board-block">
+            <h2 class="panel-title">Board</h2>
+
+            <div class="zones">
+              <span class="field-label">Size</span>
+              {#each SIZES as entry (entry.value)}
+                <button
+                  type="button"
+                  class="mode"
+                  class:active={map.size === entry.value}
+                  title={entry.value === 'custom'
+                    ? 'Takes the board artwork’s own shape, so it is never stretched or letterboxed'
+                    : `${MAP_SIZES[entry.value].width} × ${MAP_SIZES[entry.value].height} px exported`}
+                  onclick={() => void setSize(entry.value)}
+                >
+                  {entry.label}
+                </button>
+              {/each}
+            </div>
+
+            <p class="hint">
+              {MAP_WIDTH_MM} × {mapHeightMm(map).toFixed(0)} mm printed — the threat
+              track's own width, because on the table they are one board — at
+              {printSize.width} × {printSize.height} px exported.
+            </p>
+
+            {#if map.size === 'custom'}
+              <!--
+                Said plainly, because "Custom" on its own does not explain
+                itself: it is not a size to dial in, it is "follow the
+                picture". The no-artwork case has to be named too, or the
+                button looks like it did nothing.
+              -->
+              <p class="hint">
+                {#if map.artwork.source}
+                  Shaped by the board artwork, at {map.aspect.toFixed(3)} : 1 — so it is
+                  never stretched or letterboxed. Choosing a different picture reshapes
+                  the board to match it.
+                {:else}
+                  Attach board artwork below and the board will take its shape. Until
+                  then it keeps the shape it already had, {map.aspect.toFixed(3)} : 1 —
+                  every space's position is stored against it.
+                {/if}
+              </p>
+            {/if}
+
+            <!--
+              One slider for every space's fill, not a control per space —
+              a space's colour marks its terrain, and letting the artwork
+              show through it is a decision about the whole board's look,
+              the same way `spaceDiameter` is one size for every space
+              rather than something dialled in space by space.
+            -->
+            <Slider
+              label="Space opacity"
+              value={map.spaceOpacity}
+              min={0}
+              max={1}
+              step={0.01}
+              neutral={1}
+              format={(v) => `${Math.round(v * 100)}%`}
+              onchange={(v) => workshop.editMap((m) => (m.spaceOpacity = v))}
+            />
+
+            <!--
+              A `<div>`, not the `<label>` it was: the hex box beside the
+              swatch is a second labelable element, and a `<label>` may hold
+              only one — with two, a click resolves against the label rather
+              than the box it landed on. The swatch takes its own
+              `aria-label` in exchange.
+            -->
+            <div class="field">
+              <span class="field-label">Behind the artwork</span>
+              <div class="color-row">
+                <input
+                  type="color"
+                  value={map.background.color}
+                  aria-label="Behind the artwork"
+                  oninput={(event) => {
+                    const value = event.currentTarget.value;
+                    workshop.editMap((m) => (m.background = solid(value)));
+                  }}
+                />
+                <HexInput
+                  value={map.background.color}
+                  label="Behind the artwork, hex"
+                  onchange={(color) => workshop.editMap((m) => (m.background = solid(color)))}
+                />
+              </div>
+            </div>
+
+            {#if usedColors.length > 0}
+              <div class="field">
+                <span class="field-label">Colours used — repick one to change it everywhere</span>
+                <div class="swatches">
+                  <!--
+                    Keyed by `index`, not by `color` — this swatch's own
+                    `value` is what changes on every drag frame inside the
+                    native picker, and keying by the value itself made
+                    each frame a *different* array entry, so Svelte tore
+                    down and rebuilt this exact input mid-drag, which
+                    closes the picker the instant it opens. Keyed by
+                    position instead, the same DOM node — and the same
+                    still-open picker — survives its own value changing
+                    under it, the same way every other colour input on
+                    this page already survives `map`'s own live updates.
+                  -->
+                  {#each usedColors as color, index (index)}
+                    <input
+                      type="color"
+                      value={color}
+                      aria-label="Recolour {color}"
+                      oninput={(event) => recolor(color, event.currentTarget.value)}
+                    />
+                  {/each}
+                </div>
+              </div>
+            {/if}
+          </div>
+        {/snippet}
+
+        {#snippet environmentPanel()}
+          <div class="block environment-col">
+            <div class="environment-head">
+              <h2 class="panel-title">Environment</h2>
+              <Button size="sm" onclick={() => openEnvironmentPicker()}>
+                <Icon name="plus" size={13} />
+                Add PNG
+              </Button>
+            </div>
+            <p class="hint">Transparent scenery painted above every space. Drag layers to reorder.</p>
+
+            <input
+              bind:this={environmentInput}
+              class="hidden-file"
+              type="file"
+              accept="image/png,.png"
+              multiple={replacingEnvironment === null}
+              onchange={pickEnvironmentPieces}
+            />
+
+            {#if map.environment.length === 0}
+              <p class="hint">Add trees, objects, or other transparent PNG pieces.</p>
+            {:else}
+              <ul class="environment-items">
+                {#each map.environment as piece, index (piece.id)}
+                  <li
+                    data-environment-row={piece.id}
+                    class:reordering={reorderingEnvironment === piece.id}
+                    class:drop-before={environmentDrop?.id === piece.id && environmentDrop.position === 'before'}
+                    class:drop-after={environmentDrop?.id === piece.id && environmentDrop.position === 'after'}
+                  >
+                    <button
+                      type="button"
+                      class="environment-row"
+                      class:active={selectedEnvironment === piece.id}
+                      aria-pressed={selectedEnvironment === piece.id}
+                      onclick={() =>
+                        selectEnvironment(selectedEnvironment === piece.id ? null : piece.id)}
+                    >
+                      <span class="environment-thumb"><img src={piece.source} alt="" /></span>
+                      <span class="environment-copy">
+                        <span class="environment-name">{piece.label}</span>
+                        <span class="environment-layer">Layer {index + 1}</span>
+                      </span>
+                      <span
+                        class="environment-grip"
+                        aria-hidden="true"
+                        title="Drag to reorder layers"
+                        onpointerdown={(event) => startEnvironmentPointerReorder(event, piece.id)}
+                        onpointermove={targetEnvironmentPointerReorder}
+                        onpointerup={finishEnvironmentPointerReorder}
+                        onpointercancel={finishEnvironmentReorder}
+                      >⋮⋮</span>
+                    </button>
+                  </li>
+                {/each}
+              </ul>
+            {/if}
+
+            {#if environmentError}<p class="error" role="alert">{environmentError}</p>{/if}
+          </div>
+        {/snippet}
+
         <!--
           Board on the left, controls on the right, so a colour can be changed
           while the space it belongs to is still in view. Below the map they
@@ -743,6 +1403,7 @@
           the tallest thing on the page by a long way.
         -->
         <div class="layout">
+          <div class="map-col">
           <!--
             `touch-action: none` on the board rather than `preventDefault`: a
             drag on a touch screen is a scroll until the browser is told
@@ -750,6 +1411,7 @@
           -->
           <div
             class="board"
+            class:dragging-environment={draggingEnvironment !== null}
             bind:this={board}
             role="application"
             aria-label="Adventure map"
@@ -760,6 +1422,7 @@
           >
             <MapBoard
               {map}
+              customSymbols={set.customSymbols}
               highlight={Array.from(colorSelection)}
               linking={mode === 'link' ? linkFrom : null}
             />
@@ -788,137 +1451,17 @@
               </div>
             {/if}
           </div>
+          {@render belowMap()}
+          </div>
 
-          <!--
-            Two columns rather than one long stack: "Selected space" used to
-            sit below "Board" and "Placed text" both, which on a map with a
-            few placed labels pushed its own colour picker half a screen
-            below the fold — exactly the moment it is needed most, right
-            after clicking a space.
-          -->
+          <!-- Source order stays interaction-first: map, visual layers,
+               selected-item controls, then board-wide settings. CSS keeps
+               Environment beside the map and Board beside Zones beneath it. -->
           <aside class="side">
             <div class="side-col">
-            <div class="block">
-              <h2 class="panel-title">Board</h2>
+            {@render environmentPanel()}
 
-              <div class="zones">
-                <span class="field-label">Size</span>
-                {#each SIZES as entry (entry.value)}
-                  <button
-                    type="button"
-                    class="mode"
-                    class:active={map.size === entry.value}
-                    title={entry.value === 'custom'
-                      ? 'Takes the board artwork’s own shape, so it is never stretched or letterboxed'
-                      : `${MAP_SIZES[entry.value].width} × ${MAP_SIZES[entry.value].height} px exported`}
-                    onclick={() => void setSize(entry.value)}
-                  >
-                    {entry.label}
-                  </button>
-                {/each}
-              </div>
-
-              <p class="hint">
-                {MAP_WIDTH_MM} × {mapHeightMm(map).toFixed(0)} mm printed — the threat
-                track's own width, because on the table they are one board — at
-                {printSize.width} × {printSize.height} px exported.
-              </p>
-
-              {#if map.size === 'custom'}
-                <!--
-                  Said plainly, because "Custom" on its own does not explain
-                  itself: it is not a size to dial in, it is "follow the
-                  picture". The no-artwork case has to be named too, or the
-                  button looks like it did nothing.
-                -->
-                <p class="hint">
-                  {#if map.artwork.source}
-                    Shaped by the board artwork, at {map.aspect.toFixed(3)} : 1 — so it is
-                    never stretched or letterboxed. Choosing a different picture reshapes
-                    the board to match it.
-                  {:else}
-                    Attach board artwork below and the board will take its shape. Until
-                    then it keeps the shape it already had, {map.aspect.toFixed(3)} : 1 —
-                    every space's position is stored against it.
-                  {/if}
-                </p>
-              {/if}
-
-              <!--
-                One slider for every space's fill, not a control per space —
-                a space's colour marks its terrain, and letting the artwork
-                show through it is a decision about the whole board's look,
-                the same way `spaceDiameter` is one size for every space
-                rather than something dialled in space by space.
-              -->
-              <Slider
-                label="Space opacity"
-                value={map.spaceOpacity}
-                min={0}
-                max={1}
-                step={0.01}
-                neutral={1}
-                format={(v) => `${Math.round(v * 100)}%`}
-                onchange={(v) => workshop.editMap((m) => (m.spaceOpacity = v))}
-              />
-
-              <!--
-                A `<div>`, not the `<label>` it was: the hex box beside the
-                swatch is a second labelable element, and a `<label>` may hold
-                only one — with two, a click resolves against the label rather
-                than the box it landed on. The swatch takes its own
-                `aria-label` in exchange.
-              -->
-              <div class="field">
-                <span class="field-label">Behind the artwork</span>
-                <div class="color-row">
-                  <input
-                    type="color"
-                    value={map.background.color}
-                    aria-label="Behind the artwork"
-                    oninput={(event) => {
-                      const value = event.currentTarget.value;
-                      workshop.editMap((m) => (m.background = solid(value)));
-                    }}
-                  />
-                  <HexInput
-                    value={map.background.color}
-                    label="Behind the artwork, hex"
-                    onchange={(color) => workshop.editMap((m) => (m.background = solid(color)))}
-                  />
-                </div>
-              </div>
-
-              {#if usedColors.length > 0}
-                <div class="field">
-                  <span class="field-label">Colours used — repick one to change it everywhere</span>
-                  <div class="swatches">
-                    <!--
-                      Keyed by `index`, not by `color` — this swatch's own
-                      `value` is what changes on every drag frame inside the
-                      native picker, and keying by the value itself made
-                      each frame a *different* array entry, so Svelte tore
-                      down and rebuilt this exact input mid-drag, which
-                      closes the picker the instant it opens. Keyed by
-                      position instead, the same DOM node — and the same
-                      still-open picker — survives its own value changing
-                      under it, the same way every other colour input on
-                      this page already survives `map`'s own live updates.
-                    -->
-                    {#each usedColors as color, index (index)}
-                      <input
-                        type="color"
-                        value={color}
-                        aria-label="Recolour {color}"
-                        oninput={(event) => recolor(color, event.currentTarget.value)}
-                      />
-                    {/each}
-                  </div>
-                </div>
-              {/if}
-            </div>
-
-            <div class="block">
+            <div class="block placed-block">
               <h2 class="panel-title">Placed text</h2>
 
               {#if map.notes.length === 0}
@@ -994,14 +1537,22 @@
             </div>
 
             <div class="block selected-block">
-              <h2 class="panel-title">Selected space</h2>
+              <h2 class="panel-title">
+                {selectedEnvironmentPiece ? 'Selected environment' : 'Selected space'}
+              </h2>
+              <div class="selected-scroll">
 
-              {#if colorSelection.size === 0}
+              {#if selectedEnvironmentPiece}
+                {@const environmentIndex = map.environment.findIndex(
+                  (entry) => entry.id === selectedEnvironmentPiece.id
+                )}
+                {@render environmentInspector(selectedEnvironmentPiece, environmentIndex)}
+              {:else if colorSelection.size === 0}
                 <!-- The block keeps its place when nothing is selected, so the
                      board does not jump sideways every time one is. -->
                 <p class="hint">
-                  Click a space on the board to edit it. Shift-click to select more
-                  than one.
+                  Click a space or environment layer to edit it. Shift-click to
+                  select more than one space.
                 </p>
               {:else}
                 {#if colorSelection.size > 1}
@@ -1153,9 +1704,141 @@
                   </div>
                 {/if}
 
-                <div class="field">
-                  <span class="field-label">Connections</span>
+                <section class="selected-section portal-controls">
+                  <h3 class="selected-section-title">Secret passage</h3>
+                  <Switch
+                    checked={selectedSpace.secretPassage !== null}
+                    label="Enabled"
+                    hint="Independent marker — add the matching portal to its other space"
+                    onchange={setSecretPassage}
+                  />
+                  {#if selectedSpace.secretPassage}
+                    <div class="portal-customisation">
+                      <div class="field">
+                        <span class="field-label">Passage colour</span>
+                        <div class="color-row portal-color-row">
+                          <input
+                            type="color"
+                            value={selectedSpace.secretPassage.color}
+                            aria-label="Secret passage colour"
+                            oninput={(event) =>
+                              patchSecretPassage({ color: event.currentTarget.value })}
+                          />
+                          <HexInput
+                            value={selectedSpace.secretPassage.color}
+                            label="Secret passage colour, hex"
+                            onchange={(color) => patchSecretPassage({ color })}
+                          />
+                          <button
+                            type="button"
+                            class="mode portal-default"
+                            class:active={selectedSpace.secretPassage.color.toLowerCase() ===
+                              DEFAULT_SECRET_PASSAGE_COLOR}
+                            title="Restore the measured secret-passage colour"
+                            onclick={() =>
+                              patchSecretPassage({ color: DEFAULT_SECRET_PASSAGE_COLOR })}
+                          >Default</button>
+                        </div>
+                        {#if secretPassageColors.length > 0}
+                          <div class="passage-colours">
+                            <span class="field-label">Passage colours in use</span>
+                            <div class="swatches">
+                              {#each secretPassageColors as color (color.toLowerCase())}
+                                <button
+                                  type="button"
+                                  class="swatch-apply passage-colour"
+                                  class:active={selectedSpace.secretPassage.color.toLowerCase() ===
+                                    color.toLowerCase()}
+                                  style:background={color}
+                                  title="Use secret passage colour {color}"
+                                  aria-label="Use secret passage colour {color}"
+                                  onclick={() => patchSecretPassage({ color })}
+                                ></button>
+                              {/each}
+                            </div>
+                          </div>
+                        {/if}
+                      </div>
+
+                      <div class="field">
+                        <span class="field-label">
+                          Symbol · {selectedPortalSymbol
+                            ? customSymbolLabel(selectedPortalSymbol)
+                            : selectedSpace.secretPassage.symbolId
+                              ? 'Missing symbol'
+                              : 'Default padlock'}
+                        </span>
+                        <div class="portal-symbols">
+                          <button
+                            type="button"
+                            class="portal-symbol"
+                            class:active={selectedSpace.secretPassage.symbolId === null}
+                            onclick={() => patchSecretPassage({ symbolId: null })}
+                          >Default padlock</button>
+                          {#each set.customSymbols.filter((symbol) => symbol.source) as symbol (symbol.id)}
+                            <button
+                              type="button"
+                              class="portal-symbol"
+                              class:active={selectedSpace.secretPassage.symbolId === symbol.id}
+                              title="Use {customSymbolLabel(symbol)}"
+                              onclick={() => patchSecretPassage({ symbolId: symbol.id })}
+                            >
+                              <img src={symbol.source ?? ''} alt="" />
+                              <span>{customSymbolLabel(symbol)}</span>
+                            </button>
+                          {/each}
+                        </div>
+                        {#if set.customSymbols.every((symbol) => !symbol.source)}
+                          <p class="hint">Upload more choices in the Symbols tab.</p>
+                        {/if}
+                      </div>
+                    </div>
+
+                    <div class="portal-sliders">
+                      <Slider
+                        label="Position around space"
+                        value={selectedSpace.secretPassage.angle}
+                        min={-180}
+                        max={180}
+                        step={1}
+                        neutral={-90}
+                        format={(v) => `${Math.round(v)}°`}
+                        onchange={(angle) => patchSecretPassage({ angle })}
+                      />
+                      <Slider
+                        label="Tail curve"
+                        value={selectedSpace.secretPassage.curve}
+                        min={-1}
+                        max={1}
+                        step={0.05}
+                        neutral={0}
+                        format={(v) =>
+                          v === 0
+                            ? 'Straight'
+                            : `${v < 0 ? 'Left' : 'Right'} ${Math.round(Math.abs(v) * 100)}%`}
+                        onchange={(curve) => patchSecretPassage({ curve })}
+                      />
+                      <div class="fade-slider">
+                        <Slider
+                          label="Fade length"
+                          value={selectedSpace.secretPassage.fade}
+                          min={0.05}
+                          max={2}
+                          step={0.05}
+                          neutral={DEFAULT_SECRET_PASSAGE_FADE}
+                          format={(v) =>
+                            `${v > 1 ? 'Extended' : v < 0.34 ? 'Fast' : v > 0.67 ? 'Slow' : 'Medium'} · ${Math.round(v * 100)}%`}
+                          onchange={(fade) => patchSecretPassage({ fade })}
+                        />
+                      </div>
+                    </div>
+                  {/if}
+                </section>
+
+                <section class="selected-section connections-field">
+                  <h3 class="selected-section-title">Connections</h3>
                   {#each neighbours(map, selectedSpace.id) as other (other)}
+                    {@const path = findPath(map, selectedSpace.id, other)}
                     <div class="connection">
                       <div class="link-row">
                         <span class="link-name">{spaceName(other)}</span>
@@ -1185,12 +1868,35 @@
                         format={(v) => (v === 0 ? 'Straight' : `${v > 0 ? '+' : ''}${Math.round(v * 100)}%`)}
                         onchange={(v) => setPathCurve(selectedSpace.id, other, v)}
                       />
+                      <Switch
+                        checked={path?.oneWay ?? false}
+                        label="One way"
+                        hint="Orange arrow {pathDirection(selectedSpace.id, other)}"
+                        onchange={(enabled) =>
+                          setPathOption(selectedSpace.id, other, 'oneWay', enabled)}
+                      />
+                      <Switch
+                        checked={path?.modifier ?? false}
+                        label="Modifier"
+                        hint="{path?.oneWay ? 'Orange' : 'Black'} attack +1 {pathDirection(selectedSpace.id, other)}"
+                        onchange={(enabled) =>
+                          setPathOption(selectedSpace.id, other, 'modifier', enabled)}
+                      />
+                      <Switch
+                        checked={path?.largeFighter ?? false}
+                        label="Large fighter"
+                        hint="Show the restriction pin"
+                        onchange={(enabled) =>
+                          setPathOption(selectedSpace.id, other, 'largeFighter', enabled)}
+                      />
                     </div>
                   {:else}
                     <p class="hint">Nothing connected yet.</p>
                   {/each}
-                </div>
+                </section>
 
+                <section class="selected-section space-details">
+                  <h3 class="selected-section-title">Space details</h3>
                 <div class="zones">
                   <span class="field-label">Split into</span>
                   {#each [1, 2, 3, 4] as count (count)}
@@ -1280,6 +1986,7 @@
                   <Icon name="trash" size={13} />
                   Delete space
                 </Button>
+                </section>
               {/if}
 
               {#if colorSelection.size > 1}
@@ -1287,8 +1994,165 @@
                   Clear selection
                 </Button>
               {/if}
+              </div>
             </div>
+
           </aside>
+
+          {#snippet belowMap()}
+            <div class="below-map">
+              <!-- Geometry and colour-wide zone settings belong together as
+                   board-wide controls, directly below the thing they change. -->
+              <div class="block zone-col">
+              <h2 class="panel-title">Zones</h2>
+
+              {#if zones.length === 0}
+                <p class="hint">Colour a space to create its first zone.</p>
+              {:else}
+                <ul class="zone-items">
+                  {#each zones as entry (entry.color)}
+                    {@const active = selectedZoneColor?.toLowerCase() === entry.color.toLowerCase()}
+                    {@const patterned = zoneStyleFor(map, entry.color) !== null}
+                    <li>
+                      <button
+                        type="button"
+                        class="zone-row"
+                        class:active
+                        onclick={() => (selectedZoneColor = active ? null : entry.color)}
+                      >
+                        <span class="zone-swatch" style:background={entry.color}></span>
+                        <span class="zone-info">
+                          <span class="zone-color">{entry.color}</span>
+                          <span class="zone-count">
+                            {entry.count} {entry.count === 1 ? 'space' : 'spaces'}
+                          </span>
+                        </span>
+                        {#if patterned}
+                          <Icon name="layers" size={12} />
+                        {/if}
+                      </button>
+                    </li>
+                  {/each}
+                </ul>
+              {/if}
+
+              {#if selectedZoneColor}
+                {@const color = selectedZoneColor}
+                {@const zone = selectedZone}
+                {#if zone?.patternName || zone?.customSource}
+                  <div class="pattern-controls">
+                    <Slider
+                      label="Opacity"
+                      value={zone.opacity}
+                      min={0}
+                      max={1}
+                      step={0.01}
+                      neutral={0.12}
+                      format={(v) => `${Math.round(v * 100)}%`}
+                      onchange={(opacity) => patchZone(color, { opacity })}
+                    />
+                    <Slider
+                      label="Tile size"
+                      value={zone.scale}
+                      min={0.25}
+                      max={5}
+                      step={0.05}
+                      neutral={1}
+                      format={(v) => `${v.toFixed(2)}×`}
+                      onchange={(scale) => patchZone(color, { scale })}
+                    />
+                    {#if zone.patternName}
+                      <!-- `<div>`, not `<label>` — see "Behind the artwork" in the Board panel. -->
+                      <div class="field">
+                        <span class="field-label">Pattern colour</span>
+                        <div class="color-row">
+                          <input
+                            type="color"
+                            value={zone.patternColor}
+                            aria-label="Pattern colour"
+                            oninput={(event) => patchZone(color, { patternColor: event.currentTarget.value })}
+                          />
+                          <HexInput
+                            value={zone.patternColor}
+                            label="Pattern colour, hex"
+                            onchange={(patternColor) => patchZone(color, { patternColor })}
+                          />
+                        </div>
+                      </div>
+                    {/if}
+                  </div>
+                {/if}
+
+                <div class="field">
+                  <span class="field-label">Pattern</span>
+                  <div class="patterns">
+                    <button
+                      type="button"
+                      class="swatch none"
+                      class:selected={!zone?.patternName && !zone?.customSource}
+                      title="No pattern"
+                      onclick={() => clearZonePattern(color)}
+                    >
+                      <span class="slash"></span>
+                    </button>
+
+                    {#each PATTERN_NAMES as name (name)}
+                      <button
+                        type="button"
+                        class="swatch"
+                        class:selected={zone?.patternName === name}
+                        title={name.replace(/-/g, ' ')}
+                        onclick={() => setZonePatternName(color, name)}
+                      >
+                        <span
+                          class="tile"
+                          style:--tile="url('{patternUrl(name)}')"
+                          style:--tile-aspect={patternAspect(name)}
+                        ></span>
+                      </button>
+                    {/each}
+                  </div>
+                </div>
+
+                <input
+                  bind:this={zonePatternInput}
+                  class="hidden-file"
+                  type="file"
+                  accept="image/*"
+                  onchange={pickZonePattern}
+                />
+                <div class="field">
+                  <span class="field-label">Or upload your own</span>
+                  <div class="custom-pattern-slot">
+                    <button
+                      type="button"
+                      class="custom-pattern-thumb"
+                      class:empty={!zone?.customSource}
+                      title={zone?.customSource ? 'Replace image' : 'Choose an image'}
+                      onclick={() => zonePatternInput?.click()}
+                    >
+                      {#if zone?.customSource}
+                        <img src={zone.customSource} alt="" />
+                      {:else}
+                        <Icon name="image" size={16} />
+                      {/if}
+                    </button>
+                    <span class="filename">{zone?.customLabel || 'No image'}</span>
+                    <Button size="sm" onclick={() => zonePatternInput?.click()}>
+                      <Icon name="upload" size={13} />
+                      {zone?.customSource ? 'Replace' : 'Choose'}
+                    </Button>
+                  </div>
+                </div>
+
+                {#if zonePatternError}<p class="error" role="alert">{zonePatternError}</p>{/if}
+
+              {/if}
+              </div>
+
+              {@render boardPanel()}
+            </div>
+          {/snippet}
         </div>
 
         <p class="stats">
@@ -1330,20 +2194,14 @@
     font-size: var(--text-lg);
   }
 
-  /*
-   * 1380px, not the 1100px this used to be — the side panel became two
-   * 260px columns rather than one (see `.side` below), which are 280px
-   * wider together than the cap ever accounted for. Left at 1100px, the
-   * board itself was the one thing that shrank to make room: its own
-   * effective ceiling dropped from about 824px to about 544px, and the map
-   * this whole page exists to show read as tiny. Raised by exactly the
-   * width the second column added, the board gets its old ceiling back.
-   */
+  /* Wide enough for the map plus Board and Selected space at desktop sizes;
+     the responsive grid below folds Board under the map before the map itself
+     becomes too narrow to edit accurately. */
   .panels {
     display: flex;
     flex-direction: column;
     gap: var(--space-5);
-    max-width: 1380px;
+    max-width: 1712px;
   }
 
   .panel {
@@ -1429,58 +2287,95 @@
     white-space: nowrap;
   }
 
-  /*
-   * `minmax(0, 1fr)` for the board column, not `1fr`. A grid track's default
-   * minimum is `auto`, which is the content's intrinsic size — so the board
-   * would refuse to shrink below its natural width and push the side panel off
-   * the page instead of sharing the room with it.
-   *
-   * The side track is two 260px columns' worth (plus the gap between them),
-   * not one — see `.side` below.
-   */
+  /* The map remains the visual anchor. Board and Zones share the row directly
+     beneath it, while visual scene layers stay beside the live preview. */
   .layout {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) 540px;
-    gap: var(--space-4);
+    grid-template-columns: minmax(0, 1fr) 360px 440px;
+    column-gap: var(--space-4);
+    row-gap: var(--space-4);
     align-items: start;
   }
 
-  /* Under about a laptop's width the columns stop being columns at all. */
+  .map-col {
+    grid-column: 1;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+  }
+
+  .board {
+    /* The construction-number overlay is absolute and must resolve against
+       the map, not whichever page ancestor happens to be positioned. */
+    position: relative;
+  }
+
+  .selected-block {
+    grid-column: 3;
+    max-height: 600px;
+    overflow: hidden;
+  }
+
+  .below-map {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    width: 100%;
+  }
+
+  .zone-col {
+    border-radius: 0 0 0 var(--radius-sm);
+  }
+
+  .below-map .board-block {
+    border-left: 0;
+    border-radius: 0 0 var(--radius-sm) 0;
+  }
+
+  .side-col {
+    grid-column: 2;
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    align-self: start;
+  }
+
+  /* Preserve a useful map width before falling back from three columns. */
+  @media (max-width: 1250px) {
+    .layout {
+      grid-template-columns: minmax(0, 1fr) 420px;
+    }
+
+    .map-col { grid-column: 1; grid-row: 1; }
+    .side-col { grid-column: 1; grid-row: 2; }
+    .selected-block { grid-column: 2; grid-row: 1 / span 2; }
+  }
+
+  /* Under about a tablet's width the columns stop being columns at all. */
   @media (max-width: 900px) {
     .layout {
       grid-template-columns: minmax(0, 1fr);
     }
 
-    .side {
-      flex-direction: column;
+    .map-col,
+    .selected-block,
+    .side-col {
+      grid-column: 1;
     }
+
+    .map-col { grid-row: 1; }
+    .side-col { grid-row: 2; }
+    .selected-block { grid-row: 3; margin-top: 0; }
   }
 
-  /*
-   * Two columns, not one long stack — "Board" and "Placed text" share the
-   * left one (`.side-col`), "Selected space" is the right one on its own,
-   * so its own colour swatches sit beside the map rather than below
-   * whatever "Placed text" happens to be holding that day.
-   */
+  /* Keep the semantic wrapper transparent; `.side-col` is the actual grid
+     item so Environment and Placed text can form one flush vertical stack. */
   .side {
-    display: flex;
-    align-items: flex-start;
-    gap: var(--space-4);
-    /* Follows the board down a long page rather than scrolling away from it. */
-    position: sticky;
-    top: var(--space-4);
+    display: contents;
   }
 
-  .side-col,
-  .selected-block {
-    width: 260px;
-    flex: none;
-  }
-
-  .side-col {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-4);
+  .selected-block,
+  .below-map {
+    width: auto;
   }
 
   .block {
@@ -1492,6 +2387,141 @@
     border: 1px solid var(--border-default);
     border-radius: var(--radius-sm);
     background: var(--surface-inset);
+  }
+
+  .block.selected-block {
+    align-items: stretch;
+  }
+
+  .block.board-block {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: start;
+  }
+
+  .side-col .environment-col {
+    border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+  }
+
+  .side-col .placed-block {
+    border-top: 0;
+    border-radius: 0 0 var(--radius-sm) var(--radius-sm);
+  }
+
+  .board-block > .panel-title,
+  .board-block > .zones,
+  .board-block > .hint {
+    grid-column: 1 / -1;
+  }
+
+  .selected-scroll {
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 auto;
+    gap: var(--space-3);
+    min-height: 0;
+    width: 100%;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-gutter: stable;
+    padding-right: var(--space-1);
+  }
+
+  .selected-section {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    width: 100%;
+    padding: var(--space-3);
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-sm);
+    background: var(--surface-raised);
+  }
+
+  .selected-section-title {
+    margin: 0;
+    color: var(--text-secondary);
+    font-size: var(--text-xs);
+    font-weight: 600;
+  }
+
+  .portal-sliders {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--space-3);
+    width: 100%;
+  }
+
+  .fade-slider {
+    grid-column: 1 / -1;
+  }
+
+  .portal-customisation {
+    display: grid;
+    grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+    gap: var(--space-3);
+    width: 100%;
+  }
+
+  .portal-color-row {
+    display: grid;
+    grid-template-columns: auto minmax(9ch, 1fr) auto;
+  }
+
+  .portal-color-row .portal-default {
+    min-width: 0;
+    padding: var(--space-1) var(--space-2);
+    font-size: var(--text-2xs, var(--text-xs));
+    white-space: nowrap;
+  }
+
+  .passage-colours {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+  }
+
+  .passage-colour.active {
+    outline: 2px solid var(--accent);
+    outline-offset: 1px;
+  }
+
+  .portal-symbols {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+  }
+
+  .portal-symbol {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    min-height: 32px;
+    max-width: 100%;
+    padding: var(--space-1) var(--space-2);
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-sm);
+    background: var(--surface-inset);
+    color: var(--text-muted);
+    font-size: var(--text-2xs, var(--text-xs));
+    cursor: pointer;
+  }
+
+  .portal-symbol.active {
+    border-color: var(--accent);
+    color: var(--text-primary);
+  }
+
+  .portal-symbol img {
+    width: 24px;
+    height: 24px;
+    object-fit: contain;
+  }
+
+  .portal-symbol span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .field {
@@ -1561,6 +2591,16 @@
     padding: 0;
   }
 
+  .selected-block .connection {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--space-2) var(--space-3);
+  }
+
+  .selected-block .connection .link-row {
+    grid-column: 1 / -1;
+  }
+
   .link-name {
     font-size: var(--text-xs);
     color: var(--text-primary);
@@ -1599,15 +2639,344 @@
     color: var(--danger);
   }
 
+  .zone-items {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: var(--space-1);
+    width: 100%;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .zone-items li {
+    flex: 1 1 150px;
+    min-width: 0;
+  }
+
+  .zone-row {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    width: 100%;
+    padding: var(--space-2);
+    border: 1px solid transparent;
+    border-radius: var(--radius-sm);
+    background: none;
+    color: var(--text-primary);
+    text-align: left;
+    cursor: pointer;
+  }
+
+  .zone-row:hover {
+    background: var(--surface-hover);
+  }
+
+  .zone-row.active {
+    border-color: var(--accent);
+    background: var(--surface-selected);
+  }
+
+  .zone-swatch {
+    flex: none;
+    width: 22px;
+    height: 22px;
+    border-radius: var(--radius-full);
+    border: 1px solid var(--border-default);
+  }
+
+  .zone-info {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+  }
+
+  .zone-color {
+    font-size: var(--text-xs);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .zone-count {
+    font-size: var(--text-2xs, var(--text-xs));
+    color: var(--text-muted);
+  }
+
+  .environment-head,
+  .environment-order,
+  .environment-actions {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    width: 100%;
+  }
+
+  .environment-head {
+    justify-content: space-between;
+  }
+
+  .environment-items {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    width: 100%;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    max-height: 240px;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-gutter: stable;
+  }
+
+  .environment-items li {
+    position: relative;
+  }
+
+  .environment-items li.reordering {
+    opacity: 0.45;
+  }
+
+  .environment-items li.drop-before::before,
+  .environment-items li.drop-after::after {
+    position: absolute;
+    z-index: 1;
+    right: 0;
+    left: 0;
+    height: 2px;
+    border-radius: var(--radius-full);
+    background: var(--accent);
+    content: '';
+    pointer-events: none;
+  }
+
+  .environment-items li.drop-before::before {
+    top: -2px;
+  }
+
+  .environment-items li.drop-after::after {
+    bottom: -2px;
+  }
+
+  .environment-row {
+    display: grid;
+    grid-template-columns: 36px minmax(0, 1fr) auto;
+    align-items: center;
+    gap: var(--space-2);
+    width: 100%;
+    padding: var(--space-2);
+    border: 1px solid transparent;
+    border-radius: var(--radius-sm);
+    color: var(--text-primary);
+    text-align: left;
+  }
+
+  .environment-row:hover {
+    background: var(--surface-hover);
+  }
+
+  .environment-row.active {
+    border-color: var(--accent);
+    background: var(--surface-selected);
+  }
+
+  .environment-thumb {
+    display: grid;
+    place-items: center;
+    width: 36px;
+    height: 36px;
+    overflow: hidden;
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-xs);
+    background: var(--surface-overlay);
+  }
+
+  .environment-thumb img {
+    display: block;
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
+  }
+
+  .environment-name {
+    display: block;
+    overflow: hidden;
+    font-size: var(--text-xs);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .environment-copy {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+  }
+
+  .environment-layer {
+    color: var(--text-muted);
+    font-size: var(--text-2xs, var(--text-xs));
+  }
+
+  .environment-grip {
+    display: grid;
+    place-items: center;
+    width: 24px;
+    height: 36px;
+    color: var(--text-muted);
+    font-size: var(--text-sm);
+    letter-spacing: -0.18em;
+    cursor: grab;
+    touch-action: none;
+  }
+
+  .environment-items li.reordering .environment-grip {
+    cursor: grabbing;
+  }
+
+  .environment-controls {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    width: 100%;
+    padding-top: var(--space-3);
+    border-top: 1px solid var(--border-subtle);
+  }
+
+  .environment-sliders {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--space-3);
+    width: 100%;
+  }
+
+  .environment-order,
+  .environment-actions {
+    flex-wrap: wrap;
+  }
+
+  .pattern-controls {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: var(--space-3);
+    width: 100%;
+  }
+
+  /*
+   * Ported from `components/workspace/StylePanel.svelte`'s own pattern
+   * picker — same swatch grid, same recolour-by-substitution idea (see
+   * `MapBoard.svelte`'s own doc comment on why this app's map version
+   * recolours by string substitution rather than the CSS mask the card
+   * editor's swatch preview below still safely uses, since this one only
+   * ever paints a UI preview, never anything rasterised for export).
+   */
+  .patterns {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(44px, 1fr));
+    gap: var(--space-2);
+    width: 100%;
+  }
+
+  .swatch {
+    position: relative;
+    aspect-ratio: 1;
+    border-radius: var(--radius-sm);
+    background: var(--surface-inset);
+    border: 1px solid var(--border-subtle);
+    overflow: hidden;
+    cursor: pointer;
+  }
+
+  .swatch:hover {
+    border-color: var(--border-strong);
+  }
+
+  .swatch.selected {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 2px var(--accent-soft);
+  }
+
+  .tile {
+    position: absolute;
+    inset: 0;
+    background: var(--grey-300);
+    mask-image: var(--tile);
+    -webkit-mask-image: var(--tile);
+    mask-size: 22px calc(22px * var(--tile-aspect));
+    -webkit-mask-size: 22px calc(22px * var(--tile-aspect));
+    mask-repeat: repeat;
+    -webkit-mask-repeat: repeat;
+  }
+
+  .none .slash {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+      135deg,
+      transparent calc(50% - 1px),
+      var(--grey-600) calc(50% - 1px) calc(50% + 1px),
+      transparent calc(50% + 1px)
+    );
+  }
+
+  .custom-pattern-slot {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: center;
+    gap: var(--space-3);
+    width: 100%;
+  }
+
+  .custom-pattern-thumb {
+    display: grid;
+    place-items: center;
+    width: 40px;
+    height: 40px;
+    border-radius: var(--radius-sm);
+    overflow: hidden;
+    background: var(--surface-inset);
+    border: 1px solid var(--border-default);
+    color: var(--text-muted);
+    cursor: pointer;
+  }
+
+  .custom-pattern-thumb.empty {
+    border-style: dashed;
+  }
+
+  .custom-pattern-thumb img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  .filename {
+    font-size: var(--text-xs);
+    color: var(--text-secondary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    min-width: 0;
+  }
+
   .hidden-file {
     display: none;
   }
 
   .board {
-    position: relative;
     touch-action: none;
     cursor: crosshair;
     user-select: none;
+  }
+
+  .board :global(.environment-piece) {
+    cursor: grab;
+  }
+
+  .board.dragging-environment,
+  .board.dragging-environment :global(.environment-piece) {
+    cursor: grabbing;
   }
 
   .numbers {

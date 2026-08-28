@@ -33,6 +33,7 @@
  */
 import type { Fill } from '$lib/cards/style';
 import { solid } from '$lib/cards/style';
+import type { CustomSymbolId } from '$lib/symbols/types';
 import type { Artwork } from '$lib/core/artwork';
 import { createArtwork } from '$lib/core/artwork';
 import type { Id } from '$lib/core/id';
@@ -43,6 +44,7 @@ import { THREAT_TRACK } from '$lib/renderer/geometry';
 
 export type MapSpaceId = Id<'MapSpace'>;
 export type MapPathId = Id<'MapPath'>;
+export type MapEnvironmentPieceId = Id<'MapEnvironmentPiece'>;
 
 /** Which side of the rim a start marker sits on. */
 export type MapStartSide = 'top' | 'right' | 'bottom' | 'left';
@@ -162,6 +164,41 @@ export const DEFAULT_SPACE_STROKE = 0.029;
  */
 export const DEFAULT_PATH_WIDTH = 0.055;
 
+/** Portion of a secret-passage tail occupied by its visible fade. */
+export const DEFAULT_SECRET_PASSAGE_FADE = 0.45;
+/** Median of the grey-lilac stroke in the supplied secret-passage crop. */
+export const DEFAULT_SECRET_PASSAGE_COLOR = '#c6ccee';
+
+/**
+ * One visual endpoint of a secret passage, owned by a space rather than a
+ * connection. Official boards use matching medallions to communicate the
+ * gameplay link even when the spaces are nowhere near each other, so forcing
+ * the two marks to share path geometry removes exactly the placement freedom
+ * the printed treatment relies on.
+ */
+export interface MapSecretPassage {
+  /** Degrees clockwise from three o'clock; locates the medallion on the rim. */
+  angle: number;
+  /** -1..1. Bends the fading tail left or right after it leaves the space. */
+  curve: number;
+  /** 0..1 of the available tail length; smaller disappears sooner. */
+  fade: number;
+  /** Per-marker tint, visible as an exact hex value in the editor. */
+  color: string;
+  /** Uploaded Symbols-tab glyph, or `null` for the native padlock. */
+  symbolId: CustomSymbolId | null;
+}
+
+export function createMapSecretPassage(): MapSecretPassage {
+  return {
+    angle: -90,
+    curve: 0,
+    fade: DEFAULT_SECRET_PASSAGE_FADE,
+    color: DEFAULT_SECRET_PASSAGE_COLOR,
+    symbolId: null
+  };
+}
+
 /**
  * A space on the map.
  *
@@ -209,16 +246,91 @@ export interface MapSpace {
    * single plain fill, since a circle has no seam to turn.
    */
   rotation: number;
+  /** Independent visual portal endpoint, or `null` for an ordinary space. */
+  secretPassage: MapSecretPassage | null;
   /** Author's note. Never printed. */
   notes: string;
 }
 
 /**
+ * A pattern laid over every wedge painted a given colour, board-wide.
+ *
+ * **"Zone" here means something different from `MapSpace.zones`.** A
+ * space's own `zones` is that one space's wedges — up to four fills meeting
+ * at its centre. This is the opposite grouping: every wedge *anywhere on
+ * the board*, on any space, that happens to share one colour — "all the
+ * green spaces" — because that is what the printed board's own terrain
+ * regions actually are, and what an author reaches for when they say
+ * "recolour the water zone." A split space's individual wedges therefore
+ * belong to whichever colour zone each one's own fill matches, same as an
+ * unsplit space's single wedge does — nothing here needs to know which
+ * spaces are split; it only ever matches by colour.
+ *
+ * Keyed by `color` rather than holding a list of space/wedge references,
+ * for the same reason `usedColors`' own "repick one to change it
+ * everywhere" swatch in `MapEditor.svelte` already works this way: the
+ * zone *is* the colour, not a set of members that could drift out of sync
+ * with it. Sparse — a colour with no entry here has no pattern, same as
+ * every other "absent means default" surface in this app. `recolor()`
+ * carries a zone's entry over to the new colour when an author repicks it
+ * from the "Colours used" swatch, or the pattern would silently orphan
+ * itself under a colour nothing on the board uses any more.
+ */
+export interface MapZoneStyle {
+  /** Matched case-insensitively against a wedge's own `Fill.color`. */
+  color: string;
+  /** Built-in pattern file stem (`renderer/assets.ts`'s `PATTERN_NAMES`), or
+      `null` for no pattern *or* for a custom one — see `customSource`. */
+  patternName: string | null;
+  /** Tint applied to `patternName`'s shape. Ignored once `customSource` is
+      set — an author's own picture keeps its own colours, the same
+      convention `cards/style.ts`'s `CustomPatternStyle` already follows. */
+  patternColor: string;
+  /**
+   * An author-uploaded tile, as a data URL, or `null` while `patternName`
+   * (or nothing) is active. Unlike a card's own `CustomPatternStyle`, this
+   * *tiles* rather than sitting once — a zone is scattered across however
+   * many wedges share its colour, not one card's one body panel, so "one
+   * picture, centred" has nothing sensible to centre against. Tiling is
+   * also why this needs no position/rotation fields the card version has:
+   * a repeating tile has no single placement to speak of.
+   */
+  customSource: string | null;
+  /** Original file name, so a missing `customSource` stays identifiable. */
+  customLabel: string;
+  /** 0..1. Shared by whichever of `patternName`/`customSource` is active. */
+  opacity: number;
+  /** Tile size multiplier. 1 = the pattern's/picture's own natural size. */
+  scale: number;
+}
+
+/** A zone with no pattern — the state a colour starts in before an author
+    gives it one. */
+export function createMapZoneStyle(color: string): MapZoneStyle {
+  return {
+    color,
+    patternName: null,
+    patternColor: '#ffffff',
+    customSource: null,
+    customLabel: '',
+    opacity: 0.12,
+    scale: 1
+  };
+}
+
+/**
  * A route between two spaces.
  *
- * Undirected: the printed board draws one line and a figure moves along it
- * either way. Stored as an unordered pair, so the editor has to guard against
- * adding the same link twice — see `pathExists`.
+ * Ordinary paths are undirected: the printed board draws one line and a figure
+ * moves along it either way. Stored as one pair, so the editor has to guard
+ * against adding the same link twice — see `pathExists`.
+ *
+ * `from` → `to` becomes meaningful while either printed option below is on:
+ * it is where the orange arrow points, and where either form of attack +1
+ * applies. Keeping that direction on the existing endpoints rather than
+ * duplicating it inside each option means reversing both together is one
+ * endpoint swap, while a plain path still carries no direction authors have
+ * to reason about.
  */
 export interface MapPath {
   readonly id: MapPathId;
@@ -232,8 +344,14 @@ export interface MapPath {
    * far apart both get the same *shape* of arc from the same value, and a
    * space dragged closer or further away does not silently flatten or
    * exaggerate a curve nobody touched.
-   */
+  */
   curve: number;
+  /** Replace the ordinary black route with the printed orange arrow route. */
+  oneWay: boolean;
+  /** Add attack +1: black pointed tag normally, orange lozenge on `oneWay`. */
+  modifier: boolean;
+  /** Mark this connection with the printed large-fighter restriction pin. */
+  largeFighter: boolean;
 }
 
 export type MapNoteId = Id<'MapNote'>;
@@ -270,6 +388,49 @@ export function createMapNote(text = ''): MapNote {
     size: 2.2,
     rotation: 0,
     color: '#f5f2ec'
+  };
+}
+
+/**
+ * A transparent scene element painted above every space. Array order is its
+ * z-order: the first piece is furthest back and the last is furthest forward.
+ * Keeping the original aspect avoids decoding a potentially large data URL on
+ * every render merely to decide its height.
+ */
+export interface MapEnvironmentPiece {
+  readonly id: MapEnvironmentPieceId;
+  /** Embedded data URL. Environment pieces travel with the set document. */
+  source: string;
+  /** Original file name, also editable as the layer's human-readable name. */
+  label: string;
+  /** Centre, in the map's width-based coordinate system. */
+  x: number;
+  y: number;
+  /** Displayed width as a fraction of the map width. */
+  width: number;
+  /** Natural source width ÷ height. Always positive. */
+  aspect: number;
+  rotation: number;
+  opacity: number;
+}
+
+export function createMapEnvironmentPiece(
+  source: string,
+  label: string,
+  aspect = 1,
+  x = 0.5,
+  y = 0.3
+): MapEnvironmentPiece {
+  return {
+    id: createId<MapEnvironmentPieceId>('mapenv'),
+    source,
+    label,
+    x,
+    y,
+    width: 0.18,
+    aspect: aspect > 0 ? aspect : 1,
+    rotation: 0,
+    opacity: 1
   };
 }
 
@@ -327,6 +488,8 @@ export interface AdventureMap {
    * separate choice.
    */
   pathColor: string;
+  /** Fill of the printed one-way arrow path; its outline remains `pathColor`. */
+  oneWayColor: string;
   /** Colour of the numeral printed on a start marker's diamond. */
   startInk: string;
   /**
@@ -342,6 +505,12 @@ export interface AdventureMap {
   paths: MapPath[];
   /** Free copy, placed by hand anywhere on the board. */
   notes: MapNote[];
+  /** Transparent scene layers painted above spaces, back-to-front. */
+  environment: MapEnvironmentPiece[];
+  /** One entry per colour an author has given a pattern to — see
+      `MapZoneStyle`'s own doc comment for why this is keyed by colour
+      rather than holding a list of member spaces. */
+  zoneStyles: MapZoneStyle[];
 }
 
 export function createMapSpace(x: number, y: number, fill?: Fill): MapSpace {
@@ -355,12 +524,21 @@ export function createMapSpace(x: number, y: number, fill?: Fill): MapSpace {
     start: null,
     startSide: 'top',
     rotation: 0,
+    secretPassage: null,
     notes: ''
   };
 }
 
 export function createMapPath(from: MapSpaceId, to: MapSpaceId): MapPath {
-  return { id: createId<MapPathId>('path'), from, to, curve: 0 };
+  return {
+    id: createId<MapPathId>('path'),
+    from,
+    to,
+    curve: 0,
+    oneWay: false,
+    modifier: false,
+    largeFighter: false
+  };
 }
 
 export function createAdventureMap(): AdventureMap {
@@ -374,12 +552,17 @@ export function createAdventureMap(): AdventureMap {
     spaceDiameter: DEFAULT_SPACE_DIAMETER,
     spaceOpacity: 1,
     spaceStroke: '#101010',
-    pathColor: '#101010',
+    /* Matches the fixed black pixels in the refined one-way PNG pieces. */
+    pathColor: '#1b1b18',
+    /* Median/mode of the orange pixels in all three Marmoreal arrow crops. */
+    oneWayColor: '#fa5c13',
     startInk: '#f5f2ec',
     palette: [],
     spaces: [],
     paths: [],
-    notes: []
+    notes: [],
+    environment: [],
+    zoneStyles: []
   };
 }
 
@@ -435,4 +618,46 @@ export function orphanSpaces(map: AdventureMap): MapSpace[] {
     linked.add(path.to);
   }
   return map.spaces.filter((space) => !linked.has(space.id));
+}
+
+/**
+ * A colour zone's own style, or `null` if that colour has never had a
+ * pattern set. Case-insensitive, matching `MapEditor.svelte`'s `recolor()`
+ * — a colour picked once and one typed by hand can differ only in letter
+ * case and still be the same colour to look at.
+ */
+export function zoneStyleFor(map: AdventureMap, color: string): MapZoneStyle | null {
+  const key = color.toLowerCase();
+  return map.zoneStyles.find((zone) => zone.color.toLowerCase() === key) ?? null;
+}
+
+/**
+ * Every distinct wedge colour on the board — "zone" in the sense
+ * `MapZoneStyle` means it, not `MapSpace.zones` — with how many wedges
+ * (across every space, split or not) use each one.
+ *
+ * First-seen order, same convention `MapEditor.svelte`'s own `usedColors`
+ * follows, so a zone's position in the list does not reshuffle as an author
+ * works. Deliberately independent of `zoneStyles`: a colour with no pattern
+ * yet is still a zone an author can select and give one to, and a
+ * `zoneStyles` entry whose colour nothing on the board uses any more
+ * (an author repainted every space that had it) is deliberately *not*
+ * listed here — a stale pattern nobody can see stays out of the way rather
+ * than cluttering a list of zones that still exist, the same restraint
+ * `AdventureMap.palette` explicitly does *not* take with plain colours.
+ */
+export function spaceZoneColors(map: AdventureMap): { color: string; count: number }[] {
+  const order: string[] = [];
+  const counts = new Map<string, number>();
+  for (const space of map.spaces) {
+    for (const zone of space.zones) {
+      const key = zone.color.toLowerCase();
+      if (!counts.has(key)) {
+        order.push(zone.color);
+        counts.set(key, 0);
+      }
+      counts.set(key, (counts.get(key) ?? 0) + 1);
+    }
+  }
+  return order.map((color) => ({ color, count: counts.get(color.toLowerCase()) ?? 0 }));
 }

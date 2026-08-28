@@ -20,8 +20,25 @@
    */
   import { fillCss } from '$lib/cards/style';
   import CardArt from './CardArt.svelte';
-  import type { AdventureMap, MapSpace, MapSpaceId, MapStartSide } from '$lib/map/types';
+  import type {
+    AdventureMap,
+    MapSpace,
+    MapSpaceId,
+    MapStartSide
+  } from '$lib/map/types';
   import { findSpace, mapHeight } from '$lib/map/types';
+  import type { CustomSymbol } from '$lib/symbols/types';
+  import type { PatternSource } from './assets';
+  import {
+    getCachedPatternSource,
+    getCachedRasterSource,
+    getCachedSvgSource,
+    loadPatternSource,
+    loadRasterSource,
+    loadSvgSource,
+    MAP_ASSETS,
+    patternAspect
+  } from './assets';
 
   /** Where each side points, in degrees clockwise from twelve o'clock's opposite (SVG's 0° is three o'clock). */
   const START_ANGLE: Record<MapStartSide, number> = {
@@ -38,7 +55,7 @@
    * read as a corner mark rather than a second disc sitting on the rim, which
    * is what the previous 0.30 (42% of the diameter) drew.
    */
-  const START_MARKER_HALF = 0.20;
+  const START_MARKER_HALF = 0.15;
 
   /**
    * The printed board's paths carry a faint, *feathered* outer glow —
@@ -111,8 +128,151 @@
       Soft Light blend does the rest; a coloured glow would tint the board. */
   const PATH_GLOW_COLOR = '#ffffff';
 
+  /**
+   * The black attack +1 tag in `assets/resources/map-reference` measures
+   * approximately 0.4 space-diameters wide by 0.2 high against the supplied
+   * Marmoreal source. Ratios to `spaceDiameter`, rather than pixels, keep the
+   * mark at the same table-readable scale when an author changes space size.
+   * The crop itself is reference only and never shipped: this native geometry
+   * stays sharp and follows a curved path's midpoint and tangent at any export
+   * resolution.
+   */
+  const BLACK_MODIFIER_WIDTH_RATIO = 0.42;
+  const BLACK_MODIFIER_HEIGHT_RATIO = 0.2;
+  const BLACK_MODIFIER_STROKE_RATIO = 0.009;
+
+  /**
+   * Measured against the same roughly 243px Marmoreal spaces as the black
+   * modifier: the arrow's outlined shaft is about 9% of a space diameter,
+   * its orange core 4.5%, and its head about 18% wide. The generated extension
+   * uses `map.oneWayColor`; the clean destination assembly retains the supplied
+   * source pixels so its antialiasing and uninterrupted outline stay exact.
+   */
+  /** Manual thickness controls: outer is the complete black-edged shaft;
+      inner is the orange core painted over it. Keep inner below outer. */
+  const ONE_WAY_OUTER_WIDTH_RATIO = 0.09;
+  const ONE_WAY_INNER_WIDTH_RATIO = 0.045;
+  const ONE_WAY_HEAD_WIDTH_RATIO = 0.18;
+  const ONE_WAY_HEAD_LENGTH_RATIO = 0.22;
+  /** All three supplied pieces share a 10px orange shaft. Scaling from the
+      generated core width makes their joins agree even if path thickness is
+      tuned later. */
+  const ONE_WAY_ASSET_SHAFT_ORANGE_WIDTH = 10;
+  const ONE_WAY_ARROWHEAD_SPRITE = {
+    width: 48,
+    height: 48,
+    pointY: 0
+  } as const;
+  const ONE_WAY_MODIFIER_SPRITE = {
+    width: 48,
+    height: 67
+  } as const;
+  const ONE_WAY_MODIFIER_TEXT_SPRITE = {
+    width: 31,
+    height: 48
+  } as const;
+  /** The blank body's orange area is centred 2.7 source pixels tailward of
+      its canvas centre. Three pixels aligns the insert visually, and applying
+      the sign before rotation keeps that correction tailward in either direction. */
+  const ONE_WAY_MODIFIER_TEXT_OFFSET = 3;
+  const CURVE_LENGTH_SAMPLES = 64;
+
+  /** The orange combat lozenge is narrower than the black pointed tag because
+      the arrow path itself already carries the direction cue. */
+  const ORANGE_MODIFIER_WIDTH_RATIO = 0.23;
+  const ORANGE_MODIFIER_HEIGHT_RATIO = 0.16;
+  const ORANGE_MODIFIER_STROKE_RATIO = 0.01;
+
+  /** The supplied exact pin is 48px square and measures just under half a
+      printed space diameter in the official map crop. */
+  const LARGE_FIGHTER_SIZE_RATIO = 0.46;
+
+  /**
+   * The official Naglfar and cropped Marmoreal references put a portal
+   * medallion at roughly one quarter of a space's diameter, centred exactly
+   * on the space edge. Each space owns its own outward tail because matching
+   * endpoints can sit anywhere on the board and need not point at each other.
+   * The tail is sampled rather than painted through an SVG gradient reference:
+   * opacity then follows its own curve and introduces no unproven image-context
+   * URL in the export pipeline.
+   */
+  const SECRET_PASSAGE_RADIUS_RATIO = 0.13;
+  const SECRET_PASSAGE_STROKE_RATIO = 0.058;
+  const SECRET_PASSAGE_TAIL_LENGTH_RATIO = 0.9;
+  const SECRET_PASSAGE_SAMPLES = 24;
+
+  /**
+   * A zone's pattern (`MapZoneStyle`) is drawn as a second shape, the same
+   * geometry as the wedge it decorates, filled with an SVG `<pattern>` and
+   * laid over the plain colour underneath — same layering `.paths-glow`
+   * already uses over `.paths`, just for a fill instead of a stroke.
+   *
+   * **Recoloured by string substitution on the pattern's own source, not by
+   * masking.** The obvious technique — draw the pattern shape once, mask a
+   * coloured rect through it with CSS `mask-image` — was tried first and
+   * does not survive being applied to *SVG* content: `getComputedStyle`
+   * resolves an unstyled SVG element's `mask-type` to `luminance`, and a
+   * pattern file drawn as "a solid black shape on a transparent background"
+   * is *invisible* under luminance masking — black has zero luminance and
+   * transparent has zero alpha, so every pixel evaluates to fully masked,
+   * regardless of `mask-mode: alpha` set to try to override it. Confirmed
+   * against the real export pipeline, not just on screen. Fetching the
+   * pattern's own markup once and replacing its `fill="#…"` with whatever
+   * colour the zone wants sidesteps masking (and the whole luminance
+   * question) entirely — the recoloured shape *is* the colour, the same way
+   * `recolor()` in `MapEditor.svelte` rewrites a colour by editing the
+   * document rather than layering a tint over it.
+   *
+   * SVG's native `<pattern>` element — unlike its `<filter>` element, see
+   * `PATH_GLOW_WIDTH_RATIO`'s own doc comment above — does survive this
+   * app's `<img>`-context export pipeline; confirmed with a minimal repro
+   * before building any of this on top of it.
+   *
+   * The fetch-and-parse step (`renderer/assets.ts`'s `loadPatternSource`) is
+   * async and shared/cached module-wide, same as every asset load here —
+   * but reading its result to actually draw a `<pattern>` def is *not* done
+   * by awaiting a promise in an effect. `photographMapBoard` renders through
+   * a single `await tick()` after mounting this component, which is not
+   * long enough to guarantee a network fetch has resolved — confirmed the
+   * same way `renderWidth` was: a real export photographed with the zone's
+   * pattern silently missing, despite the exact same map rendering it
+   * correctly on screen a moment later once the fetch had caught up.
+   * `photographMapBoard` now pre-warms every pattern name a map's zones use
+   * *before* mounting `MapBoard` at all, so `getCachedPatternSource` below
+   * already has a synchronous answer on this component's very first render
+   * whenever the caller can arrange that — the same "hand over what you
+   * already know, don't make the component wait to find out" fix as
+   * `renderWidth`. The on-screen editor cannot pre-warm anything (it does
+   * not know in advance which pattern an author is about to pick), so
+   * `patternLoadTick` below exists purely to give it a reactive nudge once a
+   * fetch it *did* have to wait for finishes.
+   */
+  let patternLoadTick = $state(0);
+  let largeFighterLoadTick = $state(0);
+  let oneWayArrowLoadTick = $state(0);
+
+  /** Every `fill="#…"` in the source recoloured to one colour — the pattern
+      files are single-colour shapes on transparency, drawn to take exactly
+      this kind of substitution (see `cards/style.ts`'s `PatternStyle`). */
+  function recolorPattern(source: PatternSource, color: string): string {
+    return source.inner.replace(/fill="#[0-9a-fA-F]{3,8}"/g, `fill="${color}"`);
+  }
+
+  /** A stable, attribute-safe id for one zone's `<pattern>` def. */
+  function zonePatternId(uid: string, color: string): string {
+    return `zone-pattern-${uid}-${color.replace(/[^0-9a-zA-Z]/g, '')}`;
+  }
+
+  /** A fraction of the board's own width — the pattern tile's "natural"
+      size before a zone's own `scale` multiplies it, chosen to read at a
+      similar scale to a card's own pattern tiles rather than measured off
+      anything (the map has no printed pattern to measure against). */
+  const ZONE_PATTERN_BASE_TILE = 0.05;
+
   interface Props {
     map: AdventureMap;
+    /** Set-wide uploaded glyphs available to per-space portal markers. */
+    customSymbols?: CustomSymbol[];
     /** Drawn under the spaces, so the editor can highlight without redrawing. */
     highlight?: MapSpaceId[];
     /** Being linked from, in the editor. Drawn as a pending endpoint. */
@@ -131,7 +291,55 @@
     renderWidth?: number;
   }
 
-  let { map, highlight = [], linking = null, renderWidth }: Props = $props();
+  let { map, customSymbols = [], highlight = [], linking = null, renderWidth }: Props = $props();
+
+  /* Unique per mounted instance, so this component's own `<pattern>` defs
+     never collide with another `MapBoard`'s — the editor, a hover preview
+     and an off-screen export copy can all be mounted at once. Same reason
+     the glow's own `<filter>` needed one before that became a `<g
+     transform>` instead; patterns still need real `<defs>` ids. */
+  const uid = $props.id();
+
+  /** Starts (or joins) a fetch for every pattern name a zone currently asks
+      for that isn't cached yet, and nudges `patternLoadTick` once each one
+      settles — the reactive dependency that makes `zonePatternDefs` below
+      re-read `getCachedPatternSource` once a fetch this instance actually
+      had to wait for finishes. A caller that pre-warmed the cache (see
+      `patternLoadTick`'s own doc comment) never needs this to fire at all:
+      `loadPatternSource` resolves such a name synchronously-fast, but still
+      only ever calls back on a microtask, so the very first render always
+      reads `getCachedPatternSource` directly rather than waiting on this. */
+  $effect(() => {
+    for (const zone of map.zoneStyles) {
+      const name = zone.patternName;
+      if (!name || getCachedPatternSource(name) !== undefined) continue;
+      void loadPatternSource(name).then(() => {
+        patternLoadTick += 1;
+      });
+    }
+  });
+
+  $effect(() => {
+    if (!map.paths.some((path) => path.largeFighter)) return;
+    if (getCachedSvgSource(MAP_ASSETS.largeFighterPin) !== undefined) return;
+    void loadSvgSource(MAP_ASSETS.largeFighterPin).then(() => {
+      largeFighterLoadTick += 1;
+    });
+  });
+
+  $effect(() => {
+    if (!map.paths.some((path) => path.oneWay)) return;
+    const urls: string[] = [MAP_ASSETS.oneWayArrowhead];
+    if (map.paths.some((path) => path.oneWay && path.modifier)) {
+      urls.push(MAP_ASSETS.oneWayArrowModifier, MAP_ASSETS.oneWayArrowModifierText);
+    }
+    for (const url of urls) {
+      if (getCachedRasterSource(url) !== undefined) continue;
+      void loadRasterSource(url).then(() => {
+        oneWayArrowLoadTick += 1;
+      });
+    }
+  });
 
   /*
    * `.board`'s own rendered width, in real pixels — what turns the glow
@@ -169,8 +377,97 @@
   const pathWidth = $derived(map.spaceDiameter * 0.055);
   const pathGlowWidth = $derived(pathWidth * PATH_GLOW_WIDTH_RATIO);
   const pathGlowBlurPx = $derived(pathWidth * PATH_GLOW_BLUR_RATIO * boardWidth);
+  const blackModifierWidth = $derived(map.spaceDiameter * BLACK_MODIFIER_WIDTH_RATIO);
+  const blackModifierHeight = $derived(map.spaceDiameter * BLACK_MODIFIER_HEIGHT_RATIO);
+  const blackModifierStroke = $derived(map.spaceDiameter * BLACK_MODIFIER_STROKE_RATIO);
+  const oneWayOuterWidth = $derived(map.spaceDiameter * ONE_WAY_OUTER_WIDTH_RATIO);
+  const oneWayInnerWidth = $derived(map.spaceDiameter * ONE_WAY_INNER_WIDTH_RATIO);
+  const oneWayAssetScale = $derived(oneWayInnerWidth / ONE_WAY_ASSET_SHAFT_ORANGE_WIDTH);
+  const oneWayHeadWidth = $derived(map.spaceDiameter * ONE_WAY_HEAD_WIDTH_RATIO);
+  const oneWayHeadLength = $derived(map.spaceDiameter * ONE_WAY_HEAD_LENGTH_RATIO);
+  /* Match the shaft's black border rather than giving the triangle its own,
+     visibly thinner outline. This is the per-side difference between the two
+     concentric shaft strokes. */
+  const oneWayHeadInset = $derived((oneWayOuterWidth - oneWayInnerWidth) / 2);
+  const orangeModifierWidth = $derived(map.spaceDiameter * ORANGE_MODIFIER_WIDTH_RATIO);
+  const orangeModifierHeight = $derived(map.spaceDiameter * ORANGE_MODIFIER_HEIGHT_RATIO);
+  const orangeModifierStroke = $derived(map.spaceDiameter * ORANGE_MODIFIER_STROKE_RATIO);
+  const largeFighterSize = $derived(map.spaceDiameter * LARGE_FIGHTER_SIZE_RATIO);
+  const secretPassageRadius = $derived(map.spaceDiameter * SECRET_PASSAGE_RADIUS_RATIO);
+  const secretPassageStroke = $derived(map.spaceDiameter * SECRET_PASSAGE_STROKE_RATIO);
+  const secretPassageTailLength = $derived(
+    map.spaceDiameter * SECRET_PASSAGE_TAIL_LENGTH_RATIO
+  );
 
   const highlighted = $derived(new Set(highlight));
+  const largeFighterSource = $derived.by(() => {
+    void largeFighterLoadTick;
+    return getCachedSvgSource(MAP_ASSETS.largeFighterPin) ?? null;
+  });
+  const oneWayArrowSources = $derived.by(() => {
+    void oneWayArrowLoadTick;
+    return {
+      arrowhead: getCachedRasterSource(MAP_ASSETS.oneWayArrowhead) ?? null,
+      modifier: getCachedRasterSource(MAP_ASSETS.oneWayArrowModifier) ?? null,
+      modifierText: getCachedRasterSource(MAP_ASSETS.oneWayArrowModifierText) ?? null
+    };
+  });
+
+  interface ZonePatternDef {
+    id: string;
+    opacity: number;
+    viewBox: string;
+    tileWidth: number;
+    tileHeight: number;
+    /** Raw SVG markup for the tile's contents — see `loadPatternSource`'s own
+        doc comment for why this is a string substitution rather than a mask. */
+    content: string;
+  }
+
+  /**
+   * One `<pattern>` def per zone that currently has something to draw —
+   * skipped entirely for a zone with neither `patternName` nor
+   * `customSource` set (the ordinary, patternless case), and for a
+   * `patternName` whose source hasn't resolved in `getCachedPatternSource`
+   * yet — the wedge just shows its plain colour alone until it does, never
+   * a broken reference. Keyed by lower-cased colour, matching every other
+   * colour lookup in this file, so a wedge's own fill finds its zone's
+   * pattern (if it has one) with one `Map.get`.
+   */
+  const zonePatternDefs = $derived.by(() => {
+    // A reactive dependency, not a value this needs — see its own doc
+    // comment for why `getCachedPatternSource` below, a plain module-level
+    // read, needs something to make this block re-run once a pattern this
+    // instance had to wait for finally resolves.
+    void patternLoadTick;
+
+    const defs = new Map<string, ZonePatternDef>();
+    for (const zone of map.zoneStyles) {
+      const tile = ZONE_PATTERN_BASE_TILE * zone.scale;
+      if (zone.customSource) {
+        defs.set(zone.color.toLowerCase(), {
+          id: zonePatternId(uid, zone.color),
+          opacity: zone.opacity,
+          viewBox: '0 0 1 1',
+          tileWidth: tile,
+          tileHeight: tile,
+          content: `<image href="${zone.customSource}" width="1" height="1" preserveAspectRatio="xMidYMid slice" />`
+        });
+      } else if (zone.patternName) {
+        const source = getCachedPatternSource(zone.patternName);
+        if (!source) continue;
+        defs.set(zone.color.toLowerCase(), {
+          id: zonePatternId(uid, zone.color),
+          opacity: zone.opacity,
+          viewBox: source.viewBox,
+          tileWidth: tile,
+          tileHeight: tile * patternAspect(zone.patternName),
+          content: recolorPattern(source, zone.patternColor)
+        });
+      }
+    }
+    return defs;
+  });
 
   /**
    * Paths as SVG `d` strings — a quadratic bezier always, even a straight one,
@@ -200,6 +497,90 @@
     cy: number;
     x2: number;
     y2: number;
+    oneWay: boolean;
+    modifier: boolean;
+    largeFighter: boolean;
+    modifierX: number;
+    modifierY: number;
+    /** Kept within -90°..90° so the printed value never turns upside down. */
+    modifierAngle: number;
+    /** Which local end points towards `to`; -1 mirrors the tag, not its text. */
+    modifierDirection: 1 | -1;
+    largeFighterX: number;
+    largeFighterY: number;
+    /** The orange shaft is a properly trimmed subcurve. Both ends are flat:
+        the first meets its space rim and the second meets the arrowhead base. */
+    oneWayShaftX1: number;
+    oneWayShaftY1: number;
+    oneWayShaftCx: number;
+    oneWayShaftCy: number;
+    oneWayShaftX: number;
+    oneWayShaftY: number;
+    /** Raw arrival tangent: the arrowhead turns freely and carries no text. */
+    endAngle: number;
+  }
+
+  interface CurvePoint {
+    x: number;
+    y: number;
+  }
+
+  interface CurveArcTable {
+    distances: number[];
+    total: number;
+  }
+
+  function quadraticPoint(
+    start: CurvePoint,
+    control: CurvePoint,
+    end: CurvePoint,
+    t: number
+  ): CurvePoint {
+    const inverse = 1 - t;
+    return {
+      x: inverse * inverse * start.x + 2 * inverse * t * control.x + t * t * end.x,
+      y: inverse * inverse * start.y + 2 * inverse * t * control.y + t * t * end.y
+    };
+  }
+
+  function quadraticTangent(
+    start: CurvePoint,
+    control: CurvePoint,
+    end: CurvePoint,
+    t: number
+  ): CurvePoint {
+    return {
+      x: (1 - t) * (control.x - start.x) + t * (end.x - control.x),
+      y: (1 - t) * (control.y - start.y) + t * (end.y - control.y)
+    };
+  }
+
+  /** A small fixed table makes placements follow distance along a bowed route,
+      rather than treating its bezier parameter as though it were a ruler. */
+  function curveArcTable(start: CurvePoint, control: CurvePoint, end: CurvePoint): CurveArcTable {
+    const distances = [0];
+    let previous = start;
+    let total = 0;
+    for (let index = 1; index <= CURVE_LENGTH_SAMPLES; index += 1) {
+      const point = quadraticPoint(start, control, end, index / CURVE_LENGTH_SAMPLES);
+      total += Math.hypot(point.x - previous.x, point.y - previous.y);
+      distances.push(total);
+      previous = point;
+    }
+    return { distances, total };
+  }
+
+  function curveTAtDistance(table: CurveArcTable, distance: number): number {
+    const target = Math.min(table.total, Math.max(0, distance));
+    for (let index = 1; index < table.distances.length; index += 1) {
+      const current = table.distances[index];
+      const previous = table.distances[index - 1];
+      if (current === undefined || previous === undefined || current < target) continue;
+      const span = current - previous;
+      const fraction = span > 0 ? (target - previous) / span : 0;
+      return (index - 1 + fraction) / CURVE_LENGTH_SAMPLES;
+    }
+    return 1;
   }
 
   const segments = $derived.by(() => {
@@ -236,7 +617,92 @@
 
       const start = trim(a.x, a.y);
       const end = trim(b.x, b.y);
-      out.push({ id: path.id, x1: start.x, y1: start.y, cx: controlX, cy: controlY, x2: end.x, y2: end.y });
+      const control = { x: controlX, y: controlY };
+      const arcTable = curveArcTable(start, control, end);
+
+      const arrowheadLength = oneWayArrowSources.arrowhead
+        ? (ONE_WAY_ARROWHEAD_SPRITE.height - ONE_WAY_ARROWHEAD_SPRITE.pointY) *
+          oneWayAssetScale
+        : oneWayHeadLength;
+
+      /* The modifier centre is halfway through the visible shaft, measured by
+         real curve length from its origin rim to the arrowhead shoulder. */
+      const headBaseDistance = Math.max(0, arcTable.total - arrowheadLength);
+      const modifierT = path.oneWay
+        ? curveTAtDistance(arcTable, headBaseDistance / 2)
+        : 0.5;
+      const modifierPoint = quadraticPoint(start, control, end, modifierT);
+      const modifierTangent = quadraticTangent(start, control, end, modifierT);
+      /* When both decorations are active, keep their centres apart along the
+         real curve instead of stacking one unreadably over the other. */
+      const largeFighterT = path.modifier ? 0.68 : 0.5;
+      const largeFighterInverse = 1 - largeFighterT;
+      const largeFighterX =
+        largeFighterInverse * largeFighterInverse * start.x +
+        2 * largeFighterInverse * largeFighterT * controlX +
+        largeFighterT * largeFighterT * end.x;
+      const largeFighterY =
+        largeFighterInverse * largeFighterInverse * start.y +
+        2 * largeFighterInverse * largeFighterT * controlY +
+        largeFighterT * largeFighterT * end.y;
+      const tangentX = modifierTangent.x;
+      const tangentY = modifierTangent.y;
+      const endAngle = (Math.atan2(end.y - controlY, end.x - controlX) * 180) / Math.PI;
+      /* Butt caps end on their centreline, so the subcurve begins at the first
+         rim. At the far end it overlaps half its outline beneath the reference
+           sprite's own shaft; the raster assembly hides that join while De
+           Casteljau preserves the route's actual bow up to it. */
+      const shaftStartT = 0;
+      const shaftEndT = Math.max(
+        shaftStartT,
+        curveTAtDistance(
+          arcTable,
+          Math.max(0, arcTable.total - arrowheadLength + oneWayOuterWidth / 2)
+        )
+      );
+      const shaftStart = quadraticPoint(start, control, end, shaftStartT);
+      const shaftEnd = quadraticPoint(start, control, end, shaftEndT);
+      const shaftStartTangent = quadraticTangent(start, control, end, shaftStartT);
+      const shaftSpan = shaftEndT - shaftStartT;
+      const shaftControl = {
+        x: shaftStart.x + shaftSpan * shaftStartTangent.x,
+        y: shaftStart.y + shaftSpan * shaftStartTangent.y
+      };
+      let modifierAngle = (Math.atan2(tangentY, tangentX) * 180) / Math.PI;
+      let modifierDirection: 1 | -1 = 1;
+      if (modifierAngle > 90) {
+        modifierAngle -= 180;
+        modifierDirection = -1;
+      } else if (modifierAngle < -90) {
+        modifierAngle += 180;
+        modifierDirection = -1;
+      }
+
+      out.push({
+        id: path.id,
+        x1: start.x,
+        y1: start.y,
+        cx: controlX,
+        cy: controlY,
+        x2: end.x,
+        y2: end.y,
+        oneWay: path.oneWay,
+        modifier: path.modifier,
+        largeFighter: path.largeFighter,
+        modifierX: modifierPoint.x,
+        modifierY: modifierPoint.y,
+        modifierAngle,
+        modifierDirection,
+        largeFighterX,
+        largeFighterY,
+        oneWayShaftX1: shaftStart.x,
+        oneWayShaftY1: shaftStart.y,
+        oneWayShaftCx: shaftControl.x,
+        oneWayShaftCy: shaftControl.y,
+        oneWayShaftX: shaftEnd.x,
+        oneWayShaftY: shaftEnd.y,
+        endAngle
+      });
     }
     return out;
   });
@@ -252,6 +718,201 @@
       `M ${segment.x1 * scale} ${segment.y1 * scale} ` +
       `Q ${segment.cx * scale} ${segment.cy * scale} ${segment.x2 * scale} ${segment.y2 * scale}`
     );
+  }
+
+  /** One-way shaft only: its endpoint sits beneath the arrowhead's back edge. */
+  function oneWayShaftPath(segment: Segment): string {
+    return (
+      `M ${segment.oneWayShaftX1} ${segment.oneWayShaftY1} ` +
+      `Q ${segment.oneWayShaftCx} ${segment.oneWayShaftCy} ` +
+      `${segment.oneWayShaftX} ${segment.oneWayShaftY}`
+    );
+  }
+
+  /** Rounded at the tail and pointed in the direction the +1 applies. */
+  function blackModifierTagPath(direction: 1 | -1, width: number, height: number): string {
+    const halfWidth = width / 2;
+    const halfHeight = height / 2;
+    const tip = height * 0.42;
+    const corner = height * 0.14;
+    const x = (value: number): number => value * direction;
+    return (
+      `M ${x(-halfWidth + corner)} ${-halfHeight} ` +
+      `L ${x(halfWidth - tip)} ${-halfHeight} ` +
+      `L ${x(halfWidth)} 0 ` +
+      `L ${x(halfWidth - tip)} ${halfHeight} ` +
+      `L ${x(-halfWidth + corner)} ${halfHeight} ` +
+      `Q ${x(-halfWidth)} ${halfHeight} ${x(-halfWidth)} ${halfHeight - corner} ` +
+      `L ${x(-halfWidth)} ${-halfHeight + corner} ` +
+      `Q ${x(-halfWidth)} ${-halfHeight} ${x(-halfWidth + corner)} ${-halfHeight} Z`
+    );
+  }
+
+  /** The printed attack burst, authored as geometry so no raster reference ships. */
+  function attackBurstPoints(cx: number, outer: number, inner: number): string {
+    const points: string[] = [];
+    for (let index = 0; index < 24; index += 1) {
+      const angle = (index * Math.PI) / 12;
+      const radius = index % 2 === 0 ? outer : inner;
+      points.push(`${cx + Math.cos(angle) * radius},${Math.sin(angle) * radius}`);
+    }
+    return points.join(' ');
+  }
+
+  /** A small chevron inside the pointed end, matching the reference's direction cue. */
+  function modifierChevronPath(direction: 1 | -1, width: number, height: number): string {
+    const x = direction * width * 0.29;
+    const dx = width * 0.045;
+    const dy = height * 0.23;
+    return (
+      `M ${x - direction * dx} ${-dy} ` +
+      `L ${x + direction * dx} 0 ` +
+      `L ${x - direction * dx} ${dy}`
+    );
+  }
+
+  /**
+   * The outer copy supplies the black perimeter and the inner copy supplies
+   * orange up to the head's open back. Both share the same base x-coordinate:
+   * retreating the orange base draws a black bar across the shaft/head join,
+   * while the official arrow is one continuous orange shape outlined only on
+   * its outside silhouette.
+   */
+  function oneWayArrowHeadPath(length: number, width: number, inset: number): string {
+    const outerHalf = width / 2;
+    if (inset <= 0 || outerHalf <= 0 || length <= 0) {
+      return `M 0 0 L ${-length} ${-outerHalf} L ${-length} ${outerHalf} Z`;
+    }
+
+    /* Inset all three triangle edges by the same physical amount. Merely
+       subtracting `inset` from its x/y coordinates leaves almost no black at
+       the point and does not read as the same outline as the shaft. */
+    const slopeLength = Math.hypot(length, outerHalf);
+    const tip = -Math.min(length, (inset * slopeLength) / outerHalf);
+    const base = -length;
+    const half = Math.max(0, outerHalf - (inset * slopeLength) / length);
+    return `M ${tip} 0 L ${base} ${-half} L ${base} ${half} Z`;
+  }
+
+  /**
+   * Only the arrowhead's two exposed rear shoulders are outlined. Closing the
+   * line across the shaft would recreate the tiny black crossbar at the join;
+   * omitting the shoulders entirely makes the head look pasted over the shaft.
+   */
+  function oneWayArrowHeadShoulders(length: number, width: number, shaftWidth: number): string {
+    const halfHead = width / 2;
+    const halfShaft = shaftWidth / 2;
+    return (
+      `M ${-length} ${-halfHead} L ${-length} ${-halfShaft} ` +
+      `M ${-length} ${halfShaft} L ${-length} ${halfHead}`
+    );
+  }
+
+  /** Symmetric, chamfered body from the orange modifier reference crops. */
+  function orangeModifierTagPath(width: number, height: number): string {
+    const halfWidth = width / 2;
+    const halfHeight = height / 2;
+    const chamfer = height * 0.16;
+    return (
+      `M ${-halfWidth + chamfer} ${-halfHeight} ` +
+      `L ${halfWidth - chamfer} ${-halfHeight} ` +
+      `L ${halfWidth} ${-halfHeight + chamfer} ` +
+      `L ${halfWidth} ${halfHeight - chamfer} ` +
+      `L ${halfWidth - chamfer} ${halfHeight} ` +
+      `L ${-halfWidth + chamfer} ${halfHeight} ` +
+      `L ${-halfWidth} ${halfHeight - chamfer} ` +
+      `L ${-halfWidth} ${-halfHeight + chamfer} Z`
+    );
+  }
+
+  interface SecretPassagePortal {
+    id: MapSpaceId;
+    x: number;
+    y: number;
+    cx: number;
+    cy: number;
+    tailX: number;
+    tailY: number;
+    fade: number;
+    color: string;
+    symbolSource: string | null;
+  }
+
+  /**
+   * One independently aimed portal per marked space. The medallion centre is
+   * exactly one radius from the space centre; its tail continues outwards from
+   * that point and bows perpendicular to the chosen angle, so neither endpoint
+   * has to know where its visual partner sits.
+   */
+  const secretPassages = $derived.by(() => {
+    const portals: SecretPassagePortal[] = [];
+    for (const space of map.spaces) {
+      const passage = space.secretPassage;
+      if (!passage) continue;
+      const angle = (passage.angle * Math.PI) / 180;
+      const directionX = Math.cos(angle);
+      const directionY = Math.sin(angle);
+      const x = space.x + directionX * radius;
+      const y = space.y + directionY * radius;
+      /* Values through the former maximum retain their exact geometry and
+         fade. Above 1 the tail itself grows, so 200% really is twice the old
+         maximum length and still reaches transparency at its endpoint. */
+      const tailScale = Math.max(1, passage.fade);
+      const tailLength = secretPassageTailLength * tailScale;
+      const tailX = x + directionX * tailLength;
+      const tailY = y + directionY * tailLength;
+      const sideways = passage.curve * tailLength * 0.55;
+      portals.push({
+        id: space.id,
+        x,
+        y,
+        cx: (x + tailX) / 2 - directionY * sideways,
+        cy: (y + tailY) / 2 + directionX * sideways,
+        tailX,
+        tailY,
+        fade: Math.min(1, passage.fade),
+        color: passage.color,
+        symbolSource:
+          customSymbols.find((symbol) => symbol.id === passage.symbolId)?.source ?? null
+      });
+    }
+    return portals;
+  });
+
+  function pointOnSecretPassage(
+    portal: SecretPassagePortal,
+    t: number
+  ): { x: number; y: number } {
+    const inverse = 1 - t;
+    return {
+      x: inverse * inverse * portal.x + 2 * inverse * t * portal.cx + t * t * portal.tailX,
+      y: inverse * inverse * portal.y + 2 * inverse * t * portal.cy + t * t * portal.tailY
+    };
+  }
+
+  interface SecretPassagePiece {
+    d: string;
+    opacity: number;
+  }
+
+  /**
+   * One outward fade expressed as short curve-following strokes. Dividing its
+   * progress by the author's fade length makes a smaller value disappear
+   * sooner; fully-transparent pieces are omitted rather than drawn.
+   */
+  function secretPassagePieces(portal: SecretPassagePortal): SecretPassagePiece[] {
+    const pieces: SecretPassagePiece[] = [];
+    for (let index = 0; index < SECRET_PASSAGE_SAMPLES; index += 1) {
+      const t1 = index / SECRET_PASSAGE_SAMPLES;
+      const t2 = (index + 1) / SECRET_PASSAGE_SAMPLES;
+      const middle = (t1 + t2) / 2;
+      const opacity = Math.max(0, 1 - middle / portal.fade);
+      if (opacity <= 0) continue;
+      const from = pointOnSecretPassage(portal, t1);
+      const to = pointOnSecretPassage(portal, t2);
+      pieces.push({ d: `M ${from.x} ${from.y} L ${to.x} ${to.y}`, opacity });
+    }
+    return pieces;
   }
 
   /**
@@ -299,6 +960,22 @@
     xmlns="http://www.w3.org/2000/svg"
     aria-label={map.name || 'Adventure map'}
   >
+    {#if zonePatternDefs.size > 0}
+      <defs>
+        {#each [...zonePatternDefs.values()] as def (def.id)}
+          <pattern
+            id={def.id}
+            patternUnits="userSpaceOnUse"
+            width={def.tileWidth}
+            height={def.tileHeight}
+            viewBox={def.viewBox}
+          >
+            {@html def.content}
+          </pattern>
+        {/each}
+      </defs>
+    {/if}
+
     {#if boardWidth > 0}
       <!--
         `transform="scale(1 / boardWidth)"` is what makes this group's own
@@ -317,12 +994,16 @@
           class="paths-glow"
           fill="none"
           stroke={PATH_GLOW_COLOR}
-          stroke-width={pathGlowWidth * boardWidth}
           stroke-linecap="round"
           style:filter="blur({pathGlowBlurPx}px)"
         >
           {#each segments as segment (segment.id)}
-            <path d={segmentPath(segment, boardWidth)} />
+            {#if !segment.oneWay}
+              <path
+                d={segmentPath(segment, boardWidth)}
+                stroke-width={pathGlowWidth * boardWidth}
+              />
+            {/if}
           {/each}
         </g>
       </g>
@@ -331,14 +1012,233 @@
     <g
       class="paths"
       fill="none"
-      stroke={map.pathColor}
-      stroke-width={pathWidth}
       stroke-linecap="round"
     >
       {#each segments as segment (segment.id)}
-        <path d={segmentPath(segment, 1)} />
+        {#if segment.oneWay}
+          <path
+            class="one-way-outline"
+            d={oneWayShaftPath(segment)}
+            stroke={map.pathColor}
+            stroke-width={oneWayOuterWidth}
+            stroke-linecap="butt"
+          />
+          <path
+            class="one-way-fill"
+            d={oneWayShaftPath(segment)}
+            stroke={map.oneWayColor}
+            stroke-width={oneWayInnerWidth}
+            stroke-linecap="butt"
+          />
+        {:else}
+          <path
+            class="ordinary-path"
+            d={segmentPath(segment, 1)}
+            stroke={map.pathColor}
+            stroke-width={pathWidth}
+          />
+        {/if}
       {/each}
     </g>
+
+    <!--
+      Explicit geometry rather than `marker-end="url(#…)"`: an SVG marker
+      reference would introduce another image-context reference whose export
+      behaviour has not been proven (filters already fail there; see above).
+      The endpoint tangent is known, so a plain transformed path is both safer
+      and exactly aligned to a curved route.
+    -->
+    <g class="one-way-heads">
+      {#each segments as segment (segment.id)}
+        {#if segment.oneWay}
+          <g transform="translate({segment.x2} {segment.y2}) rotate({segment.endAngle})">
+            {#if oneWayArrowSources.arrowhead}
+              <!-- The tight source points upward. Its first opaque row lands
+                   on the destination rim and its cropped shaft continues back
+                   over the generated route, hiding their antialiased join. -->
+              <image
+                class="one-way-reference-tip"
+                href={oneWayArrowSources.arrowhead}
+                x="0"
+                y="0"
+                width={ONE_WAY_ARROWHEAD_SPRITE.width}
+                height={ONE_WAY_ARROWHEAD_SPRITE.height}
+                preserveAspectRatio="none"
+                transform="scale({oneWayAssetScale}) rotate(90) translate({-ONE_WAY_ARROWHEAD_SPRITE.width / 2} {-ONE_WAY_ARROWHEAD_SPRITE.pointY})"
+              />
+            {:else}
+              <!-- Static assets resolve immediately in production; this keeps
+                   the editor legible during the first local fetch or if that
+                   file is ever missing. -->
+              <path
+                class="one-way-head-outline"
+                d={oneWayArrowHeadPath(oneWayHeadLength, oneWayHeadWidth, 0)}
+                fill={map.pathColor}
+              />
+              <path
+                class="one-way-head-fill"
+                d={oneWayArrowHeadPath(oneWayHeadLength, oneWayHeadWidth, oneWayHeadInset)}
+                fill={map.oneWayColor}
+              />
+              <rect
+                class="one-way-head-join"
+                x={-oneWayHeadLength - oneWayHeadInset}
+                y={-oneWayInnerWidth / 2}
+                width={oneWayHeadInset * 2}
+                height={oneWayInnerWidth}
+                fill={map.oneWayColor}
+              />
+              <path
+                class="one-way-head-shoulders"
+                d={oneWayArrowHeadShoulders(oneWayHeadLength, oneWayHeadWidth, oneWayOuterWidth)}
+                fill="none"
+                stroke={map.pathColor}
+                stroke-width={oneWayHeadInset * 2}
+                stroke-linecap="butt"
+              />
+            {/if}
+          </g>
+        {/if}
+      {/each}
+    </g>
+
+    <!--
+      Above the line it modifies, below the endpoint spaces. A curve can be
+      any length or bow: each tag uses a distance measured along its actual
+      bezier and the tangent at that point, calculated alongside the path.
+    -->
+    <g class="path-modifiers">
+      {#each segments as segment (segment.id)}
+        {#if segment.modifier}
+          {@const direction = segment.modifierDirection}
+          <g
+            class="path-modifier"
+            transform="translate({segment.modifierX} {segment.modifierY}) rotate({segment.modifierAngle})"
+          >
+            {#if segment.oneWay}
+              {#if oneWayArrowSources.modifier && oneWayArrowSources.modifierText}
+                <!-- The body mirrors with path direction; the text does not.
+                     Keeping the outer group within ±90° and always giving the
+                     insert its supplied 90° turn keeps +1 readable when the
+                     arrow reverses. -->
+                <image
+                  class="one-way-modifier-segment"
+                  href={oneWayArrowSources.modifier}
+                  x="0"
+                  y="0"
+                  width={ONE_WAY_MODIFIER_SPRITE.width}
+                  height={ONE_WAY_MODIFIER_SPRITE.height}
+                  preserveAspectRatio="none"
+                  transform="scale({oneWayAssetScale}) scale({direction} 1) rotate(90) translate({-ONE_WAY_MODIFIER_SPRITE.width / 2} {-ONE_WAY_MODIFIER_SPRITE.height / 2})"
+                />
+                <image
+                  class="one-way-modifier-text"
+                  href={oneWayArrowSources.modifierText}
+                  x="0"
+                  y="0"
+                  width={ONE_WAY_MODIFIER_TEXT_SPRITE.width}
+                  height={ONE_WAY_MODIFIER_TEXT_SPRITE.height}
+                  preserveAspectRatio="none"
+                  transform="scale({oneWayAssetScale}) rotate(90) translate({-ONE_WAY_MODIFIER_TEXT_SPRITE.width / 2} {-ONE_WAY_MODIFIER_TEXT_SPRITE.height / 2 + direction * ONE_WAY_MODIFIER_TEXT_OFFSET})"
+                />
+              {:else}
+                <path
+                  class="orange-modifier-body"
+                  d={orangeModifierTagPath(orangeModifierWidth, orangeModifierHeight)}
+                  fill={map.oneWayColor}
+                  stroke={map.pathColor}
+                  stroke-width={orangeModifierStroke}
+                  stroke-linejoin="round"
+                />
+                <line
+                  x1="0"
+                  y1={-orangeModifierHeight * 0.3}
+                  x2="0"
+                  y2={orangeModifierHeight * 0.3}
+                  stroke={map.pathColor}
+                  stroke-width={orangeModifierStroke * 0.75}
+                  stroke-linecap="round"
+                />
+                <text
+                  class="path-modifier-value"
+                  x={-direction * orangeModifierWidth * 0.23}
+                  y="0"
+                  font-size={orangeModifierHeight * 0.52}
+                  text-anchor="middle"
+                  dominant-baseline="central"
+                  style:fill={map.pathColor}
+                >+1</text>
+                <polygon
+                  points={attackBurstPoints(
+                    direction * orangeModifierWidth * 0.23,
+                    orangeModifierHeight * 0.27,
+                    orangeModifierHeight * 0.13
+                  )}
+                  fill={map.pathColor}
+                />
+              {/if}
+            {:else}
+              <path
+                class="black-modifier-body"
+                d={blackModifierTagPath(direction, blackModifierWidth, blackModifierHeight)}
+                fill={map.pathColor}
+                stroke={map.startInk}
+                stroke-width={blackModifierStroke}
+                stroke-linejoin="round"
+              />
+              <polygon
+                points={attackBurstPoints(
+                  -direction * blackModifierWidth * 0.22,
+                  blackModifierHeight * 0.27,
+                  blackModifierHeight * 0.13
+                )}
+                fill={map.startInk}
+              />
+              <text
+                class="path-modifier-value"
+                x={direction * blackModifierWidth * 0.035}
+                y="0"
+                font-size={blackModifierHeight * 0.58}
+                text-anchor="middle"
+                dominant-baseline="central"
+                style:fill={map.startInk}
+              >+1</text>
+              <path
+                d={modifierChevronPath(direction, blackModifierWidth, blackModifierHeight)}
+                fill="none"
+                stroke={map.startInk}
+                stroke-width={blackModifierStroke * 1.25}
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              />
+            {/if}
+          </g>
+        {/if}
+      {/each}
+    </g>
+
+    {#if largeFighterSource}
+      <!-- Kept upright like the printed pin rather than following the path's
+           tangent. The exact supplied paths are inlined so export has no
+           external SVG reference to resolve. -->
+      <g class="large-fighter-markers">
+        {#each segments as segment (segment.id)}
+          {#if segment.largeFighter}
+            <svg
+              class="large-fighter-marker"
+              x={segment.largeFighterX - largeFighterSize / 2}
+              y={segment.largeFighterY - largeFighterSize / 2}
+              width={largeFighterSize}
+              height={largeFighterSize}
+              viewBox={largeFighterSource.viewBox}
+              overflow="visible"
+            >
+              {@html largeFighterSource.inner}
+            </svg>
+          {/if}
+        {/each}
+      </g>
+    {/if}
 
     {#each map.spaces as space (space.id)}
       <g class="space" class:lit={highlighted.has(space.id)}>
@@ -350,15 +1250,20 @@
         -->
         <g opacity={map.spaceOpacity}>
           {#if space.zones.length <= 1}
-            <circle
-              cx={space.x}
-              cy={space.y}
-              r={radius}
-              fill={fillCss(space.zones[0] ?? { kind: 'solid', color: '#cfd3d6', color2: '#cfd3d6', angle: 180 })}
-            />
+            {@const fill = space.zones[0] ?? { kind: 'solid', color: '#cfd3d6', color2: '#cfd3d6', angle: 180 }}
+            {@const pattern = zonePatternDefs.get(fill.color.toLowerCase())}
+            <circle cx={space.x} cy={space.y} r={radius} fill={fillCss(fill)} />
+            {#if pattern}
+              <circle cx={space.x} cy={space.y} r={radius} fill="url(#{pattern.id})" opacity={pattern.opacity} />
+            {/if}
           {:else}
             {#each space.zones as zone, index (index)}
-              <path d={wedge(space, index, space.zones.length)} fill={fillCss(zone)} />
+              {@const d = wedge(space, index, space.zones.length)}
+              {@const pattern = zonePatternDefs.get(zone.color.toLowerCase())}
+              <path {d} fill={fillCss(zone)} />
+              {#if pattern}
+                <path {d} fill="url(#{pattern.id})" opacity={pattern.opacity} />
+              {/if}
             {/each}
           {/if}
         </g>
@@ -444,6 +1349,99 @@
         {/if}
       </g>
     {/each}
+
+    <!-- Back-to-front array order is the author-controlled z-order. These are
+         deliberately after every space and before rule markers/text. -->
+    <g class="environment-pieces">
+      {#each map.environment as piece (piece.id)}
+        {@const pieceHeight = piece.width / piece.aspect}
+        <image
+          class="environment-piece"
+          data-environment-piece={piece.id}
+          href={piece.source}
+          x={piece.x - piece.width / 2}
+          y={piece.y - pieceHeight / 2}
+          width={piece.width}
+          height={pieceHeight}
+          opacity={piece.opacity}
+          preserveAspectRatio="xMidYMid meet"
+          transform="rotate({piece.rotation} {piece.x} {piece.y})"
+        />
+      {/each}
+    </g>
+
+    <!--
+      Deliberately after `.space`: the official medallion straddles and covers
+      the space outline at its own centrepoint. Each tail is independent, so a
+      matching portal elsewhere can face or curve in an unrelated direction.
+    -->
+    <g class="secret-passages">
+      {#each secretPassages as portal (portal.id)}
+        <g
+          class="secret-passage-fade"
+          fill="none"
+          stroke={portal.color}
+          stroke-width={secretPassageStroke}
+          stroke-linecap="butt"
+        >
+          {#each secretPassagePieces(portal) as piece, index (`${portal.id}-${index}`)}
+            <path class="secret-passage-piece" d={piece.d} opacity={piece.opacity} />
+          {/each}
+        </g>
+
+        <g
+          class="secret-passage-medallion"
+          transform="translate({portal.x} {portal.y})"
+        >
+          <circle r={secretPassageRadius} fill={map.startInk} />
+          <circle
+            r={secretPassageRadius * 0.78}
+            fill={portal.color}
+            stroke={map.pathColor}
+            stroke-width={secretPassageRadius * 0.12}
+          />
+          {#if portal.symbolSource}
+            <image
+              class="secret-passage-custom-symbol"
+              href={portal.symbolSource}
+              x={-secretPassageRadius * 0.5}
+              y={-secretPassageRadius * 0.5}
+              width={secretPassageRadius}
+              height={secretPassageRadius}
+              preserveAspectRatio="xMidYMid meet"
+            />
+          {:else}
+            <path
+              class="secret-passage-lock-shackle"
+              d={`M ${-secretPassageRadius * 0.23} ${-secretPassageRadius * 0.06} ` +
+                `C ${-secretPassageRadius * 0.23} ${-secretPassageRadius * 0.48}, ` +
+                `${secretPassageRadius * 0.23} ${-secretPassageRadius * 0.48}, ` +
+                `${secretPassageRadius * 0.23} ${-secretPassageRadius * 0.06}`}
+              fill="none"
+              stroke={map.pathColor}
+              stroke-width={secretPassageRadius * 0.16}
+              stroke-linecap="round"
+            />
+            <rect
+              class="secret-passage-lock-body"
+              x={-secretPassageRadius * 0.32}
+              y={-secretPassageRadius * 0.08}
+              width={secretPassageRadius * 0.64}
+              height={secretPassageRadius * 0.52}
+              rx={secretPassageRadius * 0.08}
+              fill={map.pathColor}
+            />
+            <circle
+              class="secret-passage-lock-keyhole"
+              cy={secretPassageRadius * 0.13}
+              r={secretPassageRadius * 0.07}
+              fill={portal.color}
+            />
+          {/if}
+        </g>
+      {/each}
+    </g>
+
     {#each map.notes as note (note.id)}
       <!--
         `rotate` about the note's own anchor rather than the board's origin, so
@@ -508,6 +1506,11 @@
    * rule can't be trusted to win against `.space text` below.
    */
   .start-number {
+    font-family: var(--card-font-name, sans-serif);
+    font-weight: 700;
+  }
+
+  .path-modifier-value {
     font-family: var(--card-font-name, sans-serif);
     font-weight: 700;
   }

@@ -17,6 +17,12 @@ import { characterLabel } from '$lib/characters/factory';
 import type { Character, HeroCharacterCard } from '$lib/characters/types';
 import type { AdventureMap } from '$lib/map/types';
 import { mapPrintWidth } from '$lib/map/types';
+import {
+  loadPatternSource,
+  loadRasterSource,
+  loadSvgSource,
+  MAP_ASSETS
+} from '$lib/renderer/assets';
 import CardRenderer from '$lib/renderer/CardRenderer.svelte';
 import type { CustomSymbol } from '$lib/symbols/types';
 import MapBoard from '$lib/renderer/MapBoard.svelte';
@@ -112,9 +118,43 @@ export async function withCardStage<T>(run: (photograph: Photograph) => Promise<
  */
 export async function photographMapBoard(
   map: AdventureMap,
-  options: { width?: number } = {}
+  options: { width?: number; customSymbols?: CustomSymbol[] } = {}
 ): Promise<Blob | null> {
   if (!map.enabled) return null;
+
+  /*
+   * Every zone pattern this map's spaces could actually show, fetched
+   * *before* `MapBoard` ever mounts — the same reasoning as `renderWidth`
+   * just below, and caught the same way: a real export photographed with a
+   * zone's pattern missing, because `MapBoard`'s own fetch (kicked off from
+   * an `$effect`, necessarily after mount) had not resolved by the time
+   * `rasterise()` cloned the DOM a single `await tick()` later, despite the
+   * identical map showing the pattern correctly on screen moments after.
+   * `loadPatternSource` is a shared, cached fetch, so a name already warm —
+   * every previous export, and the live editor once an author has opened
+   * it — resolves this `Promise.all` on the spot.
+   */
+  await Promise.all(
+    map.zoneStyles
+      .map((zone) => zone.patternName)
+      .filter((name): name is string => name !== null)
+      .map((name) => loadPatternSource(name))
+  );
+  if (map.paths.some((path) => path.largeFighter)) {
+    await loadSvgSource(MAP_ASSETS.largeFighterPin);
+  }
+  if (map.paths.some((path) => path.oneWay)) {
+    const oneWayAssets = new Set<string>();
+    for (const path of map.paths) {
+      if (!path.oneWay) continue;
+      oneWayAssets.add(MAP_ASSETS.oneWayArrowhead);
+      if (path.modifier) {
+        oneWayAssets.add(MAP_ASSETS.oneWayArrowModifier);
+        oneWayAssets.add(MAP_ASSETS.oneWayArrowModifierText);
+      }
+    }
+    await Promise.all([...oneWayAssets].map((url) => loadRasterSource(url)));
+  }
 
   const width = mapPrintWidth(map);
   const host = document.createElement('div');
@@ -135,7 +175,10 @@ export async function photographMapBoard(
    * little more time. Passing the width in sidesteps the race instead of
    * papering over it.
    */
-  const view = mount(MapBoard, { target: host, props: { map, renderWidth: width } });
+  const view = mount(MapBoard, {
+    target: host,
+    props: { map, customSymbols: options.customSymbols ?? [], renderWidth: width }
+  });
 
   try {
     await tick();

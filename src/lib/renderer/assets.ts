@@ -10,6 +10,13 @@ const TEMPLATES = '/assets/templates';
 const SYMBOLS = '/assets/symbols';
 export const PATTERNS_DIR = '/assets/patterns';
 
+export const MAP_ASSETS = {
+  largeFighterPin: '/assets/map/t-rex-pin.svg',
+  oneWayArrowhead: '/assets/map/path-arrowhead.png',
+  oneWayArrowModifier: '/assets/map/path-arrow-modifier.png',
+  oneWayArrowModifierText: '/assets/map/path-arrow-modifier-text.png'
+} as const;
+
 export const TEMPLATE_ASSETS = {
   /** Outer frame: opaque border, transparent card interior. */
   outerBorder: `${TEMPLATES}/outer_border.png`,
@@ -337,4 +344,163 @@ const PATTERN_ASPECTS: Readonly<Record<string, number>> = {
 /** Tile height as a multiple of its width. 1 for a square tile. */
 export function patternAspect(name: string | null): number {
   return (name && PATTERN_ASPECTS[name]) || 1;
+}
+
+// -- Pattern source, for recolouring rather than masking -------------------
+
+/**
+ * A pattern file's own drawing, ready to be recoloured — used by
+ * `MapBoard.svelte`'s zone patterns, which paint by string-substituting a
+ * colour into the pattern's own markup rather than masking a coloured shape
+ * through it. See that file's doc comment above `PATH_GLOW_WIDTH_RATIO`/its
+ * zone-pattern section for why: CSS `mask-image` on *SVG* content resolves
+ * to luminance masking by default in this browser, which renders a
+ * black-shape-on-transparent pattern file as invisible outright.
+ */
+export interface PatternSource {
+  viewBox: string;
+  /** Every child of the source `<svg>`, `<title>`/`<desc>` stripped — neither
+      prints, and `<title>` would otherwise show as a tooltip on every tile
+      once pasted in hundreds of times over. */
+  inner: string;
+}
+
+/** A parsed SVG whose own vector contents can be placed inside another SVG. */
+export type SvgSource = PatternSource;
+
+const resolvedSvgSources = new Map<string, SvgSource | null>();
+const svgSourceRequests = new Map<string, Promise<SvgSource | null>>();
+
+/** Synchronous read for an SVG source a caller may already have pre-warmed. */
+export function getCachedSvgSource(url: string): SvgSource | null | undefined {
+  return resolvedSvgSources.get(url);
+}
+
+/**
+ * Fetch and parse a static SVG once. Keeping its real paths inline in the
+ * board avoids an external `<image>` reference inside the photographed SVG,
+ * the same export constraint that led zone patterns to use their source.
+ */
+export function loadSvgSource(url: string): Promise<SvgSource | null> {
+  const cached = resolvedSvgSources.get(url);
+  if (cached !== undefined) return Promise.resolve(cached);
+
+  let request = svgSourceRequests.get(url);
+  if (!request) {
+    request = fetch(url)
+      .then((response) => (response.ok ? response.text() : null))
+      .then((text) => {
+        if (!text) return null;
+        const match = text.match(/<svg[^>]*viewBox="([^"]+)"[^>]*>([\s\S]*)<\/svg>/);
+        const source = match?.[1] && match[2]
+          ? {
+              viewBox: match[1],
+              inner: match[2].replace(/<(?:title|desc)>[\s\S]*?<\/(?:title|desc)>/g, '')
+            }
+          : null;
+        resolvedSvgSources.set(url, source);
+        return source;
+      })
+      .catch(() => {
+        resolvedSvgSources.set(url, null);
+        return null;
+      });
+    svgSourceRequests.set(url, request);
+  }
+  return request;
+}
+
+const resolvedRasterSources = new Map<string, string | null>();
+const rasterSourceRequests = new Map<string, Promise<string | null>>();
+
+/** Synchronous read for a raster source a caller may already have pre-warmed. */
+export function getCachedRasterSource(url: string): string | null | undefined {
+  return resolvedRasterSources.get(url);
+}
+
+/**
+ * Fetch a static raster once and turn it into a data URL before it enters the
+ * board SVG. An external `<image href="/assets/…">` can disappear when the
+ * board is itself photographed through an SVG image; a data URL is already
+ * self-contained and follows the same proven path as uploaded environment art.
+ */
+export function loadRasterSource(url: string): Promise<string | null> {
+  const cached = resolvedRasterSources.get(url);
+  if (cached !== undefined) return Promise.resolve(cached);
+
+  let request = rasterSourceRequests.get(url);
+  if (!request) {
+    request = fetch(url)
+      .then((response) => (response.ok ? response.blob() : null))
+      .then((blob) => {
+        if (!blob) return null;
+        return new Promise<string | null>((resolve) => {
+          const reader = new FileReader();
+          reader.addEventListener('load', () => {
+            resolve(typeof reader.result === 'string' ? reader.result : null);
+          });
+          reader.addEventListener('error', () => resolve(null));
+          reader.readAsDataURL(blob);
+        });
+      })
+      .catch(() => null)
+      .then((result) => {
+        resolvedRasterSources.set(url, result);
+        return result;
+      });
+    rasterSourceRequests.set(url, request);
+  }
+  return request;
+}
+
+/**
+ * Resolved sources, keyed by pattern name — filled in as `loadPatternSource`
+ * settles, and readable synchronously via `getCachedPatternSource` from then
+ * on. Two maps rather than one: this one is the *synchronous* answer
+ * (`undefined` for "never asked"), which is what lets a caller that already
+ * knows it has warmed the cache (`photographMapBoard`, see its own doc
+ * comment) read a pattern's source on a component's very first render — no
+ * `$effect`, no waiting for a promise to settle, both of which cost at least
+ * one tick a synchronous export cannot always afford to wait through.
+ */
+const resolvedPatternSources = new Map<string, PatternSource | null>();
+const patternSourceRequests = new Map<string, Promise<PatternSource | null>>();
+
+/** The synchronous read. `undefined` means nothing has asked for this name
+    yet — call `loadPatternSource` to start (or join) the fetch. */
+export function getCachedPatternSource(name: string): PatternSource | null | undefined {
+  return resolvedPatternSources.get(name);
+}
+
+/**
+ * Fetch and parse one pattern file, once per name — later callers join the
+ * same in-flight request rather than re-fetching. Resolves `null` (never
+ * throws) for a name that does not exist or a file that does not parse, so
+ * a caller only ever has to handle "no pattern drawn", never an error path.
+ */
+export function loadPatternSource(name: string): Promise<PatternSource | null> {
+  const cached = resolvedPatternSources.get(name);
+  if (cached !== undefined) return Promise.resolve(cached);
+
+  let request = patternSourceRequests.get(name);
+  if (!request) {
+    request = fetch(patternUrl(name))
+      .then((response) => (response.ok ? response.text() : null))
+      .then((text) => {
+        if (!text) return null;
+        const match = text.match(/<svg[^>]*viewBox="([^"]+)"[^>]*>([\s\S]*)<\/svg>/);
+        if (!match) return null;
+        const [, viewBox, body] = match;
+        if (viewBox === undefined || body === undefined) return null;
+        const inner = body.replace(/<title>[\s\S]*?<\/title>/, '').replace(/<desc>[\s\S]*?<\/desc>/, '');
+        return { viewBox, inner };
+      })
+      .catch(() => null)
+      .then((result) => {
+        resolvedPatternSources.set(name, result);
+        return result;
+      });
+    patternSourceRequests.set(name, request);
+  }
+  return request;
 }
