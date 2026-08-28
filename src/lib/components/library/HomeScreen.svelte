@@ -37,6 +37,7 @@
   import { readStorageEstimate } from '$lib/storage/indexeddb';
   import type { StorageEstimate } from '$lib/storage/indexeddb';
   import { Button, Icon, SegmentedControl, Select, ThemeToggle } from '$lib/ui';
+  import NewCollectionDialog from './NewCollectionDialog.svelte';
   import NewSetDialog from './NewSetDialog.svelte';
   import { initials, tint } from '$lib/core/swatch';
   import { createCollection, listPendingMemberships } from '$lib/cloud/collections';
@@ -64,6 +65,7 @@
   }
 
   let makingCollection = $state(false);
+  let choosingCollection = $state(false);
 
   /**
    * Collection decisions waiting on this person, in either direction.
@@ -106,19 +108,19 @@
   /**
    * Start a collection and go straight to it.
    *
-   * No dialog, unlike `NewSetDialog`: a set has to choose a *kind* before it
-   * exists, because that decides which sections the workshop shows, while a
-   * collection has nothing to decide up front — every field is editable on
-   * the page it lands on, so asking first would be a form for its own sake.
    *
    * Unlisted by default, which is where a project lives for the whole of its
    * production phase; going public is a deliberate, later act.
+   *
+   * The explaining is `NewCollectionDialog`'s job — see its own note on why a
+   * bare button was the wrong shape for a noun nobody has met before.
    */
-  async function newCollection(): Promise<void> {
+  async function newCollection(name: string): Promise<void> {
     if (makingCollection) return;
     makingCollection = true;
     try {
-      const created = await createCollection({ name: 'Untitled collection' });
+      const created = await createCollection({ name });
+      choosingCollection = false;
       navigation.openCollection(created.slug);
     } catch (error) {
       message = error instanceof Error ? error.message : 'Could not create the collection.';
@@ -975,9 +977,9 @@
           only place that link is listed is its organiser's own account.
         -->
         {#if auth.signedIn}
-          <Button variant="ghost" onclick={newCollection} disabled={makingCollection}>
+          <Button variant="ghost" onclick={() => (choosingCollection = true)}>
             <Icon name="users" size={14} />
-            {makingCollection ? 'Creating…' : 'New collection'}
+            New collection
           </Button>
         {/if}
       {/if}
@@ -1408,6 +1410,13 @@
     Unmatched Labs is a fan-made tool, not affiliated with Restoration Games.
   </p>
 </div>
+
+<NewCollectionDialog
+  open={choosingCollection}
+  busy={makingCollection}
+  oncreate={(name) => void newCollection(name)}
+  oncancel={() => (choosingCollection = false)}
+/>
 
 <NewSetDialog
   open={choosingKind}
