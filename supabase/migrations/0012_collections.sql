@@ -75,8 +75,20 @@ create table if not exists public.collections (
    */
   hidden boolean not null default false,
 
-  -- Whether a creator may offer their own deck without being invited first.
-  open_submissions boolean not null default false,
+  /*
+   * Whether a creator may offer their own deck without being invited first.
+   *
+   * **Open by default**, which read as the reckless choice and is not: being
+   * open does not let anybody *in*, it only lets them ask. Every submission
+   * still lands as `submitted` and still needs an organiser to accept it, and
+   * the collection is only reachable by an unguessable link to begin with —
+   * so this is a spam control, and the consent boundary is acceptance.
+   *
+   * Closed-by-default was tried and produced exactly one outcome: a visitor
+   * with a published deck opened the link, found nothing they could do, and
+   * had no way to know why.
+   */
+  open_submissions boolean not null default true,
 
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()

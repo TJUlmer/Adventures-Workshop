@@ -269,6 +269,41 @@
   );
 
   /**
+   * Whether this visitor already has a deck here, in any state that means
+   * "you are dealt with" — accepted, or awaiting somebody's decision.
+   */
+  const iHaveADeckHere = $derived(
+    memberships.some(
+      (row) =>
+        row.set?.owner_id === auth.user?.id &&
+        (row.status === 'accepted' || row.status === 'invited' || row.status === 'submitted')
+    )
+  );
+
+  /**
+   * Where a visitor stands on joining, as one value.
+   *
+   * **This exists because the page used to say nothing at all.** The offer
+   * panel was gated on being signed in *and* having an offerable deck *and*
+   * the collection being open — and when any of those failed it simply did
+   * not render, so somebody who had just published a deck specifically to
+   * join saw a page with no way in and no explanation. Silence is the worst
+   * answer to "what do I do here", and it was the answer in three of the four
+   * cases.
+   *
+   * One derived rather than conditions scattered through the markup, so every
+   * case has to be given an answer and a new one cannot quietly fall through
+   * to nothing.
+   */
+  const joining = $derived.by(() => {
+    if (organiser || iHaveADeckHere) return 'settled';
+    if (!auth.signedIn) return 'signed-out';
+    if (myPublished.length === 0) return 'nothing-published';
+    if (offerable.length === 0) return 'settled';
+    return collection?.open_submissions ? 'can-offer' : 'invite-only';
+  });
+
+  /**
    * Accepted rows this visitor may end.
    *
    * Both parties can, and the governance table says so: a deck's author
@@ -581,8 +616,19 @@
                 checked={collection.open_submissions}
                 onchange={(event) => setOpenSubmissions(event.currentTarget.checked)}
               />
-              <span>Let creators offer their own decks without an invitation</span>
+              <span>Let anyone with this link offer their own deck</span>
             </label>
+            <!--
+              Says what it does to *other people's* view, because that is the
+              thing an organiser cannot see from here and the reason this was
+              confusing: turning it off makes the page silent for visitors
+              unless they are told why.
+            -->
+            <span class="hint">
+              {collection.open_submissions
+                ? 'You still decide what is added — an offer is only a request.'
+                : 'Visitors are told the collection is invitation-only and asked to send you a link.'}
+            </span>
           </div>
 
           <div class="admin-row">
@@ -742,17 +788,59 @@
         </section>
       {/if}
 
-      {#if auth.signedIn && offerable.length > 0 && (collection.open_submissions || organiser)}
-        <section class="panel">
+      <!--
+        Always answers "can I join, and how?" — see the `joining` derived for
+        why every branch here has to exist rather than the panel simply not
+        rendering.
+      -->
+      {#if joining !== 'settled'}
+        <section class="panel joining">
           <h2>Add your own deck</h2>
-          {#if organiser}
+
+          {#if joining === 'signed-out'}
             <p class="hint">
-              Your deck joins as an invitation you then accept, so the same terms apply to
-              you as to everyone else.
+              Sign in to offer one of your published decks to this collection. Your deck stays
+              yours — a collection only points at it.
+            </p>
+          {:else if joining === 'nothing-published'}
+            <p class="hint">
+              A collection gathers decks that are already published, so publish one first:
+              open it, then <strong>Export → Publish</strong>. Come back here afterwards and
+              it will be offerable.
+            </p>
+          {:else if joining === 'invite-only'}
+            <p class="hint">
+              This collection is invitation-only. Send an organiser the share link of the deck
+              you would like to add, and they can invite it.
             </p>
           {:else}
             <p class="consent">{CONSENT}</p>
+            <ul class="rows">
+              {#each offerable as row (row.id)}
+                <li>
+                  <span class="row-name">{row.name || 'Untitled'}</span>
+                  <button
+                    type="button"
+                    class="btn primary"
+                    disabled={busy !== null}
+                    onclick={() => addOwnDeck(row.id)}
+                  >
+                    Offer this deck
+                  </button>
+                </li>
+              {/each}
+            </ul>
           {/if}
+        </section>
+      {/if}
+
+      {#if organiser && offerable.length > 0}
+        <section class="panel">
+          <h2>Add one of your own decks</h2>
+          <p class="hint">
+            Yours joins as an invitation you then accept, so the same terms apply to you as to
+            everyone else.
+          </p>
           <ul class="rows">
             {#each offerable as row (row.id)}
               <li>
@@ -763,7 +851,7 @@
                   disabled={busy !== null}
                   onclick={() => addOwnDeck(row.id)}
                 >
-                  {organiser ? 'Add this deck' : 'Offer this deck'}
+                  Add this deck
                 </button>
               </li>
             {/each}
@@ -1143,6 +1231,9 @@
     margin: 0 0 var(--space-2);
     font-size: var(--text-base);
     color: var(--text-primary);
+  }
+  .panel.joining {
+    border-color: var(--border-accent);
   }
   .panel.invitations {
     border-color: var(--border-accent);
