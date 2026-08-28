@@ -138,9 +138,20 @@ The requirement is "no master owner". That cannot reach zero — someone's
 collection nobody owns is a takedown hole. But the role can be made nearly
 ceremonial, which is what was actually wanted.
 
-**Roles, not an owner.** `collection_members.role` of `organiser | member`,
-with as many organisers as the group likes. `created_by` is audit only and
-carries no privilege beyond being the first organiser.
+**Roles, not an owner** — and they attach to **people, not decks**, which is a
+correction this document's first draft got wrong. It put `role` on the
+membership row; that cannot work, because a membership row is keyed by
+`set_id`, so whoever creates a collection has no row at all until they add a
+deck of their own, and would have no way to invite anybody into the thing they
+just made. It also ties a curation right to a deck when the two are plainly
+separate: an organiser may run a project without contributing to it.
+
+So `collection_organisers` is its own table, keyed by person, and
+`collection_members` is only ever "which decks are in".
+`collections.created_by` is audit only and carries no privilege — a trigger
+seeds the creator as the first organiser, because doing that as a second
+client-side insert is one failed request away from a collection nobody can
+administer, and only an organiser may create one.
 
 Then the permissions are split so that an organiser cannot damage anyone:
 
@@ -307,13 +318,18 @@ collections
   open_submissions boolean not null default false
   created_at, updated_at
 
+collection_organisers
+  collection_id uuid not null references collections (id) on delete cascade
+  user_id       uuid not null references profiles (id) on delete cascade
+  primary key (collection_id, user_id)
+
 collection_members
   collection_id uuid not null references collections (id) on delete cascade
   set_id        uuid not null references sets (id) on delete cascade
-  role          text check (role in ('organiser','member'))
   status        text check (status in ('invited','submitted','accepted','declined','removed'))
   ready         boolean not null default false
-  position      integer not null default 0
+  sort_order    integer not null default 0   -- not `position`: a reserved
+                                             -- column keyword in RETURNS TABLE
   primary key (collection_id, set_id)
 ```
 
@@ -450,7 +466,7 @@ All of it on its own branch — and, since this runs alongside ordinary work on
 
     git worktree add ../Adventures_Workshop-collections -b collections
 
-### 1. `supabase/migrations/0012_collections.sql`
+### 1. `supabase/migrations/0012_collections.sql` — **done**
 
 Both tables, their RLS, and three `security definer` functions:
 `collection_by_slug`, `collection_members_by_slug`, and
