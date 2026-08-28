@@ -37,6 +37,31 @@ export function fillCss(fill: Fill): string {
   return `linear-gradient(${fill.angle}deg, ${fill.color}, ${fill.color2})`;
 }
 
+/**
+ * Whether two fills would *print* the same.
+ *
+ * Compares what renders, not the stored record: a solid fill still carries a
+ * `color2` and an `angle` that nothing reads (see `fillCss`), so switching a
+ * control to gradient and back leaves those two holding whatever the gradient
+ * used, and a field-by-field comparison would call that a change when the
+ * card looks identical.
+ *
+ * Case-insensitive on the hex, because a native colour input always writes
+ * lower case while the values sampled off the printed templates are written
+ * however the person who measured them typed it.
+ *
+ * `FillEditor`'s `overridden` is the reason this exists: a "reset to the
+ * default" control has to be able to say whether there is anything to reset,
+ * and every non-cascade caller was answering that question its own way (or,
+ * mostly, not offering the control at all).
+ */
+export function sameFill(a: Fill, b: Fill): boolean {
+  const sameColor = (x: string, y: string) => x.toLowerCase() === y.toLowerCase();
+  if (a.kind !== b.kind) return false;
+  if (a.kind === 'solid') return sameColor(a.color, b.color);
+  return sameColor(a.color, b.color) && sameColor(a.color2, b.color2) && a.angle === b.angle;
+}
+
 // -- Body pattern -------------------------------------------------------
 
 /**

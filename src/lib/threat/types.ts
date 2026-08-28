@@ -159,6 +159,9 @@ export interface ThreatTrack {
   spaceStroke: string;
 }
 
+/** The stock track colour — the printed board's own red. */
+export const THREAT_ACCENT = '#e01b24';
+
 /** The stock outline colour, mirroring `--grey-950`. */
 export const THREAT_SPACE_STROKE = '#0b0c11';
 
@@ -231,7 +234,7 @@ export function createThreatTrack(): ThreatTrack {
     replacement: createArtwork(),
     useReplacement: false,
     rules: '',
-    accent: '#e01b24',
+    accent: THREAT_ACCENT,
     spaceStroke: THREAT_SPACE_STROKE
   };
 }

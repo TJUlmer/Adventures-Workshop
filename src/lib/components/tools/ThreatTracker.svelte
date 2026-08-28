@@ -18,6 +18,7 @@
   import {
     canAddThreatStep,
     clampNotePosition,
+    THREAT_ACCENT,
     THREAT_NOTE_COLOR,
     THREAT_NUMBER_COLOR,
     THREAT_SPACE_STROKE,
@@ -418,9 +419,10 @@
         <label class="stack">
           <span class="field-label">Track colour</span>
           <ColorInput
-            value={track.accent}
-            inherited={track.accent}
-            onchange={(accent) => workshop.editThreat((t) => (t.accent = accent ?? '#e01b24'))}
+            value={track.accent === THREAT_ACCENT ? undefined : track.accent}
+            inherited={THREAT_ACCENT}
+            origin="the printed board"
+            onchange={(accent) => workshop.editThreat((t) => (t.accent = accent ?? THREAT_ACCENT))}
           />
         </label>
 
@@ -432,8 +434,9 @@
         <label class="stack">
           <span class="field-label">Space stroke</span>
           <ColorInput
-            value={track.spaceStroke}
-            inherited={track.spaceStroke}
+            value={track.spaceStroke === THREAT_SPACE_STROKE ? undefined : track.spaceStroke}
+            inherited={THREAT_SPACE_STROKE}
+            origin="the printed board"
             onchange={(stroke) =>
               workshop.editThreat((t) => (t.spaceStroke = stroke ?? THREAT_SPACE_STROKE))}
           />
@@ -591,8 +594,9 @@
                 board-wide default can fix it.
               -->
               <ColorInput
-                value={note.color}
-                inherited={note.color}
+                value={note.color === THREAT_NOTE_COLOR ? undefined : note.color}
+                inherited={THREAT_NOTE_COLOR}
+                origin="the stock ink"
                 onchange={(color) =>
                   workshop.editThreat(() => (note.color = color ?? THREAT_NOTE_COLOR))}
               />

@@ -17,7 +17,8 @@
     FIGURE_KIND_LABELS,
     FIGURE_KINDS,
     figureLabel,
-    generatedTokenSpec
+    generatedTokenSpec,
+    TOKEN_RIM_COLOR
   } from '$lib/figures/types';
   import { HEALTH_DIAL_SPEC } from '$lib/figures/health-dial';
   import type { SkinTemplate } from '$lib/figures/skin-templates';
@@ -982,12 +983,15 @@
                           {hasArtwork(figure.reference) ? 'Rim' : 'Colour'}
                         </span>
                         <ColorInput
-                          value={figure.token.rimColor}
-                          inherited={figure.token.rimColor}
+                          value={figure.token.rimColor === TOKEN_RIM_COLOR
+                            ? undefined
+                            : figure.token.rimColor}
+                          inherited={TOKEN_RIM_COLOR}
+                          origin="the stock rim"
                           onchange={(color) =>
                             workshop.editFigure(
                               figure.id,
-                              (f) => (f.token.rimColor = color ?? '#1a1a1a')
+                              (f) => (f.token.rimColor = color ?? TOKEN_RIM_COLOR)
                             )}
                         />
                       </label>

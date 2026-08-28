@@ -8,6 +8,8 @@
    * forth costs nothing.
    */
   import type { Fill } from '$lib/cards/style';
+  import { sameFill } from '$lib/cards/style';
+  import { createCardback } from '$lib/characters/factory';
   import type { Character } from '$lib/characters/types';
   import { hasArtwork } from '$lib/core/artwork';
   import { readArtworkFile } from '$lib/core/image-import';
@@ -21,6 +23,24 @@
   }
 
   let { character }: Props = $props();
+
+  /*
+   * A deck back's colours are stored outright, not inherited, so a reset goes
+   * back to the printed template's own — and `createCardback` is *role-aware*
+   * (`frame` is `#f6eada` for a hero, `#ebe8d5` for a villain or minion), so
+   * the default has to be taken for this character's own role rather than
+   * from a shared constant. Picking one for both would put the wrong colour
+   * back for whichever role it was not sampled from.
+   */
+  const RESET_TITLE = 'Back to the template’s own colour';
+  const defaults = $derived(createCardback(character.role));
+
+  const isDefault = (key: 'background' | 'frame') => sameFill(back[key], defaults[key]);
+  const reset = (key: 'background' | 'frame') => () =>
+    workshop.editCardback(
+      character.id,
+      (design) => (design[key] = { ...createCardback(character.role)[key] })
+    );
 
   let insetInput = $state<HTMLInputElement | null>(null);
   let error = $state<string | null>(null);
@@ -87,24 +107,33 @@
     <FillEditor
       label="Background"
       value={back.background}
+      origin="the template"
+      overridden={!isDefault('background')}
+      resetTitle={RESET_TITLE}
       onchange={(background: Fill) =>
         workshop.editCardback(character.id, (design) => (design.background = background))}
+      onreset={reset('background')}
     />
 
     <FillEditor
       label="Frame"
       value={back.frame}
+      origin="the template"
+      overridden={!isDefault('frame')}
+      resetTitle={RESET_TITLE}
       onchange={(frame: Fill) =>
         workshop.editCardback(character.id, (design) => (design.frame = frame))}
+      onreset={reset('frame')}
     />
 
     <label class="stack">
       <span class="field-label">Text</span>
       <ColorInput
-        value={back.ink}
-        inherited={back.ink}
+        value={back.ink === defaults.ink ? undefined : back.ink}
+        inherited={defaults.ink}
+        origin="the template"
         onchange={(ink) =>
-          workshop.editCardback(character.id, (design) => (design.ink = ink ?? '#6f6a55'))}
+          workshop.editCardback(character.id, (design) => (design.ink = ink ?? defaults.ink))}
       />
     </label>
 

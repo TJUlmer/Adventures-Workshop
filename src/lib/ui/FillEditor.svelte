@@ -17,11 +17,32 @@
     /** True when this layer sets the value rather than inheriting it. */
     overridden?: boolean;
     onchange: (fill: Fill) => void;
-    /** Omitted when the layer cannot inherit (the stock theme). */
+    /** Omitted when there is nothing to go back to (the stock theme). */
     onreset?: () => void;
+    /**
+     * What the reset button says it does.
+     *
+     * Two different things wear this control. In the style cascade a reset
+     * drops this layer's override so the value comes from the layer above
+     * again — "Inherit again", the default. Everywhere else (the character
+     * card, a deck back, an initiative band) the value is stored outright and
+     * inherits from nothing; a reset puts the printed template's own colour
+     * back. Saying "Inherit again" there would name a mechanism that card
+     * explicitly does not use — see `CharacterCardDesign`, which sits outside
+     * the cascade on purpose.
+     */
+    resetTitle?: string;
   }
 
-  let { label, value, origin, overridden = false, onchange, onreset }: Props = $props();
+  let {
+    label,
+    value,
+    origin,
+    overridden = false,
+    onchange,
+    onreset,
+    resetTitle = 'Inherit again'
+  }: Props = $props();
 
   const isGradient = $derived(value.kind === 'gradient');
 
@@ -46,7 +67,7 @@
       </button>
 
       {#if overridden && onreset}
-        <button type="button" class="reset" title="Inherit again" onclick={onreset}>
+        <button type="button" class="reset" title={resetTitle} aria-label="{label}: {resetTitle}" onclick={onreset}>
           <Icon name="minus" size={12} />
         </button>
       {:else if origin}

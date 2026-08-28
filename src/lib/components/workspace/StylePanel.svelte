@@ -199,10 +199,26 @@
     <div class="grid">
       <label class="ink">
         <span class="ink-label">Pattern colour</span>
+        <!--
+          `pattern` is one style key holding the name, the colour and the
+          opacity together, so the cascade overrides all three or none — there
+          is no "just the colour" to inherit again, and a reset here has to
+          clear the whole key. That is what the minus does, which is the same
+          thing it means on every other control in this panel; it is only the
+          *granularity* that is the pattern's rather than the colour's.
+
+          It reads as inherited (no minus, "from {origin}") whenever this layer
+          has no pattern of its own, rather than always showing a reset the way
+          `value === inherited` used to.
+        -->
         <ColorInput
-          value={resolved.pattern.color}
+          value={layer.pattern === undefined ? undefined : resolved.pattern.color}
           inherited={resolved.pattern.color}
-          onchange={(color) => patchPattern({ color: color ?? '#ffffff' })}
+          origin={originFor('pattern')}
+          onchange={(color) =>
+            color === undefined
+              ? workshop.setStyle(target, 'pattern', undefined)
+              : patchPattern({ color })}
         />
       </label>
       <Slider

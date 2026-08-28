@@ -1,10 +1,12 @@
 <script lang="ts">
   import { deckSize } from '$lib/cards/factory';
   import type { CardTheme, Fill } from '$lib/cards/style';
+  import { sameFill } from '$lib/cards/style';
   import { ACTION_SURFACES, resolveCardTheme } from '$lib/cards/theme';
   import {
     characterLabel,
     createCharacterAbility,
+    createCharacterCard,
     createHeroCharacterCard,
     primaryCardName,
     suggestedGroupName
@@ -549,11 +551,25 @@
               <Field label="Attribution">
                 <TextInput bind:value={character.quote.attribution} placeholder="Who said it" />
               </Field>
+              <!--
+                The quote panel is part of the character card, which sits
+                outside the style cascade — so this resets to the template's
+                own colour rather than inheriting. See `CharacterCardPanel`,
+                where the rest of this sheet's colours carry the same pair.
+              -->
               <FillEditor
                 label="Quote colour"
                 value={character.characterCard.quoteInk}
+                origin="the template"
+                overridden={!sameFill(character.characterCard.quoteInk, createCharacterCard().quoteInk)}
+                resetTitle="Back to the template’s own colour"
                 onchange={(quoteInk: Fill) =>
                   workshop.editCharacterCard(character.id, (card) => (card.quoteInk = quoteInk))}
+                onreset={() =>
+                  workshop.editCharacterCard(
+                    character.id,
+                    (card) => (card.quoteInk = { ...createCharacterCard().quoteInk })
+                  )}
               />
               <Slider
                 label="Quote text size"
@@ -646,8 +662,17 @@
           <FillEditor
             label="Quote colour"
             value={extra.characterCard.quoteInk}
+            origin="the template"
+            overridden={!sameFill(extra.characterCard.quoteInk, createCharacterCard().quoteInk)}
+            resetTitle="Back to the template’s own colour"
             onchange={(quoteInk: Fill) =>
               workshop.editCharacterCard(character.id, (card) => (card.quoteInk = quoteInk), extra.id)}
+            onreset={() =>
+              workshop.editCharacterCard(
+                character.id,
+                (card) => (card.quoteInk = { ...createCharacterCard().quoteInk }),
+                extra.id
+              )}
           />
           <Slider
             label="Quote text size"

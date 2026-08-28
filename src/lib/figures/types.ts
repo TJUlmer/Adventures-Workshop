@@ -105,6 +105,10 @@ export interface TokenBuild {
   outlineDetail: number;
 }
 
+
+/** The stock rim colour a generated token's edge is painted. */
+export const TOKEN_RIM_COLOR = '#1a1a1a';
+
 export function createTokenBuild(enabled = false): TokenBuild {
   return {
     enabled,
@@ -113,7 +117,7 @@ export function createTokenBuild(enabled = false): TokenBuild {
     diameterMm: 30,
     lengthMm: 30,
     thicknessMm: 2,
-    rimColor: '#1a1a1a',
+    rimColor: TOKEN_RIM_COLOR,
     twoSided: false,
     outline: null,
     outlineDetail: DEFAULT_OUTLINE_DETAIL
