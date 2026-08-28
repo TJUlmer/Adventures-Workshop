@@ -32,6 +32,7 @@
   import ExportPanel from '$lib/components/export/ExportPanel.svelte';
   import AssetsOverview from '$lib/components/tools/AssetsOverview.svelte';
   import { listContributors } from '$lib/cloud/contributions';
+  import { collectionsForSet } from '$lib/cloud/collections';
   import type { Contributor } from '$lib/cloud/contributions';
   import {
     fetchAuthorName,
@@ -111,6 +112,14 @@
    * `listContributors`.
    */
   let contributors = $state<Contributor[]>([]);
+  /**
+   * Collections this set is an accepted member of.
+   *
+   * Accepted and reachable only — `collections_for_set` filters both, so a
+   * pending invitation and a private project can never be disclosed here by a
+   * page that anybody with a link can open.
+   */
+  let partOf = $state<{ slug: string; name: string }[]>([]);
 
   /** The forked copy, once one has been taken. Names the set for the message. */
   let forked = $state<string | null>(null);
@@ -157,6 +166,11 @@
         // button, and nothing on the page should wait on a display name.
         void fetchAuthorName(found.owner_id).then((name) => (authorName = name));
         void listContributors(found.id).then((people) => (contributors = people));
+        /* Fired off like the credit above, and for the same reason: a
+           navigation aid must never hold up the set somebody came to see.
+           `collectionsForSet` swallows its own failure, so this cannot throw
+           into the load. */
+        void collectionsForSet(found.id).then((rows) => (partOf = rows));
         /* Only a slice has a box to go back to, and like the credit above this
            is fired off rather than awaited — a navigation aid must not hold up
            the set it sits over. */
@@ -264,6 +278,27 @@
             "what" stays between the owner and whoever proposed it — this only
             exists because their work is already sitting in the set below.
           -->
+          <!--
+            Where this deck is played as part of something bigger. Placed with
+            the credits rather than in the header because it is the same kind
+            of fact: whose work surrounds this one, not what the set is.
+          -->
+          {#if partOf.length > 0}
+            <p class="stats credit">
+              Part of
+              {#each partOf as entry, index (entry.slug)}
+                {#if index > 0}{index === partOf.length - 1 ? ' and ' : ', '}{/if}
+                <button
+                  type="button"
+                  class="author-link inline"
+                  onclick={() => navigation.openCollection(entry.slug)}
+                >
+                  {entry.name || 'a collection'}
+                </button>
+              {/each}
+            </p>
+          {/if}
+
           {#if contributors.length > 0}
             <p class="stats credit">
               With contributions from

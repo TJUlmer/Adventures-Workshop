@@ -547,7 +547,7 @@ The per-member `ready` flag, the "4 of 6 ready" line, and the gate on going
 public: it names who is not ready and offers to publish anyway, so an absent
 member cannot freeze the project.
 
-### 8. The reverse link, and the unfurl
+### 8. The reverse link, and the unfurl — **done** (unfurl needs a deploy to confirm)
 
 *Part of Winter Extravaganza* on each member's own `/shared/{slug}`, which is
 what makes the thing read as a project rather than a list of links.
