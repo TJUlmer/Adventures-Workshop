@@ -18,8 +18,12 @@
  * signed in once and forgot, so anything reading a collection by its slug is
  * on the same footing.
  */
+import { decodeDataUrl } from './assets';
 import { auth } from './auth.svelte';
 import { request } from './http';
+import { assetPrefix, uploadAsset } from './sets';
+import { hashHex } from '$lib/core/hash';
+import { readArtworkFile } from '$lib/core/image-import';
 
 export type CollectionVisibility = 'private' | 'unlisted' | 'public';
 
@@ -213,15 +217,22 @@ export interface CollectionFields {
  * organiser may insert into `collection_organisers`, that state is
  * unrecoverable without a service role.
  *
- * `created_by` is not sent: it is outside the insert grant and comes from the
- * token's own default, so it cannot be claimed on somebody else's behalf.
- * Neither is `slug`, which the database mints unguessably.
+ * `created_by` *is* sent, and that is deliberate rather than lax: the policy
+ * checks it against `auth.uid()`, so naming anybody else is refused outright.
+ * Withholding it instead — the shape `set_contributions` uses — meant the
+ * check saw NULL and refused every insert. `slug` is still never sent; the
+ * database mints it unguessably.
  */
 export async function createCollection(fields: CollectionFields = {}): Promise<Collection> {
   await auth.ensureFresh();
   const rows = await request<Collection[]>(`/rest/v1/collections?select=${COLLECTION_COLUMNS}`, {
     method: 'POST',
     body: {
+      /* Sent, not defaulted. `collections_insert` checks it against
+         `auth.uid()`, so a client can only ever name itself — the check is
+         the enforcement, and a withheld column simply arrived NULL when that
+         check ran. Same arrangement `publishSet` uses for `sets.owner_id`. */
+      created_by: auth.user?.id ?? null,
       name: fields.name?.trim() || 'Untitled collection',
       subtitle: fields.subtitle?.trim() ?? '',
       blurb: fields.blurb?.trim() ?? '',
@@ -477,6 +488,62 @@ export async function removeOrganiser(collectionId: string, userId: string): Pro
       `&user_id=eq.${encodeURIComponent(userId)}`,
     { method: 'DELETE' }
   );
+}
+
+/**
+ * Am I one of this collection's organisers?
+ *
+ * Asked as a filtered read of one row rather than by listing them all,
+ * because the answer gates a whole edit surface and every visitor's page load
+ * would otherwise pay for the full list. Signed out, the answer is no without
+ * a request at all — `organisers_read` would return nothing anyway, and a
+ * public page should not fire an authenticated call to be told so.
+ */
+export async function amOrganiser(collectionId: string): Promise<boolean> {
+  if (!auth.signedIn) return false;
+  await auth.ensureFresh();
+  const me = auth.user;
+  if (!me) return false;
+  const rows = await request<{ user_id: string }[]>(
+    `/rest/v1/collection_organisers?select=user_id` +
+      `&collection_id=eq.${encodeURIComponent(collectionId)}` +
+      `&user_id=eq.${encodeURIComponent(me.id)}&limit=1`
+  );
+  return rows.length > 0;
+}
+
+/**
+ * Put a banner picture in Storage and answer with its URL.
+ *
+ * Through `readArtworkFile` first, exactly as every "choose an image" control
+ * in the app does: a banner an author points at a 12MP phone photo would
+ * otherwise be uploaded at 12MP and downloaded again by everyone who opens
+ * the link, to be drawn about 200px tall.
+ *
+ * Reuses the set-assets bucket and `uploadAsset`'s own `<uid>/<id>/<hash>`
+ * path. The storage policy only ever checks the *first* segment against
+ * `auth.uid()`, so a collection id in the second is as valid as a set id —
+ * and the content-hash name means re-uploading the same picture writes the
+ * same object rather than accumulating copies.
+ */
+export async function uploadCollectionBanner(
+  collectionId: string,
+  file: File
+): Promise<string> {
+  await auth.ensureFresh();
+  const me = auth.user;
+  if (!me) throw new Error('Sign in to change the banner.');
+
+  const dataUrl = await readArtworkFile(file);
+  const { contentType, bytes } = decodeDataUrl(dataUrl);
+  const hash = await hashHex(bytes);
+  return uploadAsset({ dataUrl, contentType, bytes, hash }, me.id, collectionId);
+}
+
+/** Whether a URL is one of ours, so a banner can be cleared without guessing. */
+export function isOwnAsset(url: string): boolean {
+  const prefix = assetPrefix();
+  return prefix.length > 0 && url.startsWith(prefix);
 }
 
 // -- The link ------------------------------------------------------------

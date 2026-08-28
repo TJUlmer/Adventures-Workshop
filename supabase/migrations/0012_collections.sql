@@ -33,6 +33,24 @@ create table if not exists public.collections (
    * is the same lesson `sets.forked_from` already carries, and `sets.owner_id`
    * cascading from `profiles` has destroyed a published set once.
    */
+  /*
+   * **Sent by the client and checked**, not withheld and defaulted.
+   *
+   * The withhold-and-default shape borrowed from
+   * `set_contributions.contributor_id` does not survive being paired with a
+   * `with check` that reads the same column — the check saw NULL. The pattern
+   * that works here is `sets.owner_id`, which has eight live rows behind it:
+   * `publishSet` sends it and `sets_owner_all` checks it.
+   *
+   * Granting the column costs nothing, because **the check is the
+   * enforcement**: `collections_insert` refuses any value but the caller's
+   * own, so a client may name only itself either way.
+   *
+   * `on delete set null`, never cascade. An organiser closing their account
+   * must not delete a project several other people's work is listed in — the
+   * same lesson `sets.forked_from` carries, and `sets.owner_id` cascading from
+   * `profiles` has destroyed a published set once.
+   */
   created_by uuid references public.profiles (id) on delete set null,
 
   -- The share token, same unguessable shape `sets.slug` uses, and reachable
@@ -288,6 +306,31 @@ create policy collections_public_read on public.collections
   for select
   using (visibility = 'public' and not hidden);
 
+/*
+ * A creator may always read their own collection.
+ *
+ * **Any policy set that allows an insert must also allow reading the inserted
+ * row.** PostgREST asks for `return=representation` so it can hand back the
+ * new row's slug, which makes the statement an `insert ... returning` — and
+ * RETURNING is a *read*, needing a SELECT policy as well as a passing WITH
+ * CHECK. None applied to a brand-new collection: not public, no members, and
+ * its creator not yet an organiser as far as the returning clause could see.
+ *
+ * Postgres reports that as "new row violates row-level security policy",
+ * which is indistinguishable from a genuine WITH CHECK failure — so the
+ * insert side was rebuilt three times (default, then a BEFORE INSERT trigger,
+ * then a client-sent value) before the read side was suspected at all. The
+ * same insert with `return=minimal` succeeding with 201 is what finally
+ * separated the two halves.
+ *
+ * It earns its place independently of that: reading your own collection
+ * should not depend on the organiser trigger having run.
+ */
+drop policy if exists collections_creator_read on public.collections;
+create policy collections_creator_read on public.collections
+  for select to authenticated
+  using (created_by = auth.uid());
+
 drop policy if exists collections_organiser_read on public.collections;
 create policy collections_organiser_read on public.collections
   for select to authenticated
@@ -462,10 +505,11 @@ create policy members_delete on public.collection_members
 
 revoke all on public.collections from anon, authenticated;
 grant select on public.collections to anon, authenticated;
--- `created_by` is absent so it can only come from its own default, and
--- `slug`/`hidden` are absent so neither a share token nor a moderator's
--- decision can be chosen by the client.
-grant insert (name, subtitle, blurb, banner_url, visibility, open_submissions)
+-- `created_by` *is* insertable, and is safe because `collections_insert`
+-- checks it against `auth.uid()` — see the column's own note. `slug` and
+-- `hidden` stay absent, so neither a share token nor a moderator's decision
+-- can be chosen by the client, and neither is checked by any policy.
+grant insert (created_by, name, subtitle, blurb, banner_url, visibility, open_submissions)
   on public.collections to authenticated;
 grant update (name, subtitle, blurb, banner_url, visibility, open_submissions)
   on public.collections to authenticated;

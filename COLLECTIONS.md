@@ -524,7 +524,7 @@ Read-only first, seeded with a collection and two members inserted by hand in
 SQL. That is what makes steps 1–3 verifiable end to end before any authoring UI
 exists to confuse the picture.
 
-### 5. Creating and editing a collection
+### 5. Creating and editing a collection — **done**
 
 "New collection" from Home; then name, subtitle, blurb, banner and the
 visibility control on the collection page itself, for organisers only.

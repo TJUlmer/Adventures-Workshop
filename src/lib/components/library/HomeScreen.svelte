@@ -39,6 +39,7 @@
   import { Button, Icon, SegmentedControl, Select, ThemeToggle } from '$lib/ui';
   import NewSetDialog from './NewSetDialog.svelte';
   import { initials, tint } from '$lib/core/swatch';
+  import { createCollection } from '$lib/cloud/collections';
 
   let fileInput = $state<HTMLInputElement | null>(null);
   let message = $state<string | null>(null);
@@ -59,6 +60,32 @@
   function startSet(kind: SetKind): void {
     choosingKind = false;
     void workshop.createSet(undefined, kind);
+  }
+
+  let makingCollection = $state(false);
+
+  /**
+   * Start a collection and go straight to it.
+   *
+   * No dialog, unlike `NewSetDialog`: a set has to choose a *kind* before it
+   * exists, because that decides which sections the workshop shows, while a
+   * collection has nothing to decide up front — every field is editable on
+   * the page it lands on, so asking first would be a form for its own sake.
+   *
+   * Unlisted by default, which is where a project lives for the whole of its
+   * production phase; going public is a deliberate, later act.
+   */
+  async function newCollection(): Promise<void> {
+    if (makingCollection) return;
+    makingCollection = true;
+    try {
+      const created = await createCollection({ name: 'Untitled collection' });
+      navigation.openCollection(created.slug);
+    } catch (error) {
+      message = error instanceof Error ? error.message : 'Could not create the collection.';
+    } finally {
+      makingCollection = false;
+    }
   }
 
   const entries = $derived(workshop.library);
@@ -902,6 +929,18 @@
           <Icon name="layers" size={14} />
           Browse gallery
         </Button>
+        <!--
+          Signed-in only, and not because of a policy — an anonymous visitor
+          could create one — but because a collection nobody can find again is
+          worse than no collection. It is reached solely by its link, and the
+          only place that link is listed is its organiser's own account.
+        -->
+        {#if auth.signedIn}
+          <Button variant="ghost" onclick={newCollection} disabled={makingCollection}>
+            <Icon name="users" size={14} />
+            {makingCollection ? 'Creating…' : 'New collection'}
+          </Button>
+        {/if}
       {/if}
       <Button variant="ghost" onclick={() => fileInput?.click()}>
         <Icon name="upload" size={14} />
