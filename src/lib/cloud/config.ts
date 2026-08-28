@@ -28,6 +28,9 @@ export interface CloudConfig {
  */
 export const ASSET_BUCKET = 'set-assets';
 
+/** Generated sheets, maps and models referenced by multiplayer TTS saves. */
+export const TTS_ASSET_BUCKET = 'tts-assets';
+
 function trimmed(value: unknown): string | null {
   return typeof value === 'string' && value.trim().length > 0 ? value.trim() : null;
 }

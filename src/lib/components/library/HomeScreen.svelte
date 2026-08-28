@@ -1162,7 +1162,7 @@
         <p class="welcome-lede">
           Build heroes, villains, and their decks — styled, playtested, and exported for print or
           Tabletop Simulator. Everything saves to this browser as you go, and nothing leaves your
-          machine until you choose to publish it.
+          machine until you choose to publish or host an export online.
         </p>
         <div class="welcome-ctas">
           <Button variant="primary" onclick={() => (choosingKind = true)}>
