@@ -14,7 +14,9 @@ export const MAP_ASSETS = {
   largeFighterPin: '/assets/map/t-rex-pin.svg',
   oneWayArrowhead: '/assets/map/path-arrowhead.png',
   oneWayArrowModifier: '/assets/map/path-arrow-modifier.png',
-  oneWayArrowModifierText: '/assets/map/path-arrow-modifier-text.png'
+  oneWayArrowModifierText: '/assets/map/path-arrow-modifier-text.png',
+  secretPassageKeyhole: '/assets/map/path-passage-keyhole.png',
+  secretPassageRing: '/assets/map/path-passage-ring.png'
 } as const;
 
 export const TEMPLATE_ASSETS = {
@@ -449,6 +451,139 @@ export function loadRasterSource(url: string): Promise<string | null> {
         return result;
       });
     rasterSourceRequests.set(url, request);
+  }
+  return request;
+}
+
+const resolvedRecolouredRasterSources = new Map<string, string | null>();
+const recolouredRasterSourceRequests = new Map<string, Promise<string | null>>();
+
+interface RgbColour {
+  r: number;
+  g: number;
+  b: number;
+}
+
+function parseHexColour(value: string): RgbColour | null {
+  const match = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(value.trim());
+  const hex = match?.[1];
+  if (!hex) return null;
+  const expanded =
+    hex.length === 3
+      ? `${hex.charAt(0)}${hex.charAt(0)}${hex.charAt(1)}${hex.charAt(1)}${hex.charAt(2)}${hex.charAt(2)}`
+      : hex;
+  return {
+    r: Number.parseInt(expanded.slice(0, 2), 16),
+    g: Number.parseInt(expanded.slice(2, 4), 16),
+    b: Number.parseInt(expanded.slice(4, 6), 16)
+  };
+}
+
+type RasterRecolourMode = 'tones' | 'dark-only';
+
+function recolouredRasterKey(
+  url: string,
+  light: string,
+  dark: string,
+  mode: RasterRecolourMode
+): string {
+  return `${url}\u0000${light.toLowerCase()}\u0000${dark.toLowerCase()}\u0000${mode}`;
+}
+
+/** Synchronous read for a recoloured raster a caller may already have pre-warmed. */
+export function getCachedRecolouredRasterSource(
+  url: string,
+  light: string,
+  dark: string = light,
+  mode: RasterRecolourMode = 'tones'
+): string | null | undefined {
+  return resolvedRecolouredRasterSources.get(recolouredRasterKey(url, light, dark, mode));
+}
+
+/**
+ * Recolour a greyscale alpha asset without turning it into a CSS/SVG mask.
+ * Masks on nested SVG content do not survive the map photograph pipeline (see
+ * `MapBoard.svelte`'s zone-pattern notes), while a canvas-produced data URL is
+ * self-contained. Source white becomes `light`, source black becomes `dark`,
+ * and intermediate antialiasing shades interpolate between them. `dark-only`
+ * instead turns source luminance into alpha for an upright ink layer — used to
+ * separate the keyhole from the ring/tail that rotates beneath it.
+ */
+export function loadRecolouredRasterSource(
+  url: string,
+  light: string,
+  dark: string = light,
+  mode: RasterRecolourMode = 'tones'
+): Promise<string | null> {
+  const key = recolouredRasterKey(url, light, dark, mode);
+  const cached = resolvedRecolouredRasterSources.get(key);
+  if (cached !== undefined) return Promise.resolve(cached);
+
+  let request = recolouredRasterSourceRequests.get(key);
+  if (!request) {
+    const lightRgb = parseHexColour(light);
+    const darkRgb = parseHexColour(dark);
+    request = loadRasterSource(url)
+      .then(
+        (source) =>
+          new Promise<string | null>((resolve) => {
+            if (!source || !lightRgb || !darkRgb || typeof document === 'undefined') {
+              resolve(null);
+              return;
+            }
+            const image = new Image();
+            image.addEventListener('load', () => {
+              try {
+                const canvas = document.createElement('canvas');
+                canvas.width = image.naturalWidth;
+                canvas.height = image.naturalHeight;
+                const context = canvas.getContext('2d');
+                if (!context || canvas.width === 0 || canvas.height === 0) {
+                  resolve(null);
+                  return;
+                }
+                context.drawImage(image, 0, 0);
+                const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
+                const pixels = imageData.data;
+                for (let offset = 0; offset < pixels.length; offset += 4) {
+                  const sourceAlpha = pixels[offset + 3] ?? 0;
+                  if (sourceAlpha === 0) continue;
+                  const tone =
+                    ((pixels[offset] ?? 0) +
+                      (pixels[offset + 1] ?? 0) +
+                      (pixels[offset + 2] ?? 0)) /
+                    (3 * 255);
+                  if (mode === 'dark-only') {
+                    pixels[offset] = darkRgb.r;
+                    pixels[offset + 1] = darkRgb.g;
+                    pixels[offset + 2] = darkRgb.b;
+                    pixels[offset + 3] = Math.round(sourceAlpha * (1 - tone));
+                  } else {
+                    pixels[offset] = Math.round(darkRgb.r + (lightRgb.r - darkRgb.r) * tone);
+                    pixels[offset + 1] = Math.round(
+                      darkRgb.g + (lightRgb.g - darkRgb.g) * tone
+                    );
+                    pixels[offset + 2] = Math.round(
+                      darkRgb.b + (lightRgb.b - darkRgb.b) * tone
+                    );
+                  }
+                }
+                context.putImageData(imageData, 0, 0);
+                resolve(canvas.toDataURL('image/png'));
+              } catch {
+                resolve(null);
+              }
+            });
+            image.addEventListener('error', () => resolve(null));
+            image.src = source;
+          })
+      )
+      .catch(() => null)
+      .then((result) => {
+        resolvedRecolouredRasterSources.set(key, result);
+        return result;
+      });
+    recolouredRasterSourceRequests.set(key, request);
   }
   return request;
 }

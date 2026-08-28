@@ -5,9 +5,9 @@ Isolated pieces taken from an official *Unmatched: Marmoreal* map photo
 decorations in the adventure map (`src/lib/map/`). The newer `*_clean.png`
 files replaced the earlier crude crops; the later `path_arrowhead.png`,
 `path_arrow_modifier.png`, and `path_arrow_modifier_text.png` refine those
-again and are now the implementation authority. These three pieces are copied
-byte-for-byte to `public/assets/map/` and used directly. The black tags and
-secret passage remain measurement references for native, configurable geometry.
+again and are now the implementation authority. These pieces and the two
+secret-passage PNGs are copied byte-for-byte to `public/assets/map/` and used
+directly. The black tags remain measurement references for native, configurable geometry.
 The two-way modifier is still a not-yet-built decoration.
 
 `source_marmoreal_map_detail.jpg` is the original supplied photo, kept for
@@ -29,7 +29,8 @@ remains only as session history.
 | `path_arrow_modifier.png` | Blank directional orange modifier body placed halfway, by arc length, between the origin rim and arrowhead shoulder. The body mirrors when the path reverses. |
 | `path_arrow_modifier_text.png` | Separate `+1`/attack insert. It is overlaid without the body's direction mirror so the text remains readable left-to-right. |
 | `path_arrow_oneway_clean.png`, `path_arrow_oneway_modifier_a_clean.png`, `path_arrow_oneway_modifier_b_clean.png` | Superseded full-arrow clean assemblies retained as reference history; no live renderer reference remains. |
-| `path_secret_passage_magnifier.png` | Magnified authority for the grey/white secret-passage style. The implemented marker remains native so authors can rotate it, curve/fade its tail, set an exact colour, and use the padlock or a Symbols-tab upload. |
+| `path_secret_passage_magnifier.png` | Exact keyhole source. Its dark pixels are extracted and recoloured to the path colour as an upright layer, independent of the rotating ring/tail beneath it. |
+| `path_secret_passage_ring.png` | Exact transparent ring and tail join used for both the default keyhole and a Symbols-tab upload. Its measured circle centre is (37.5, 31.5) with a 32px radius, while the two visible point clusters form a 29.51° axis inside the PNG. The renderer removes that fixed artwork offset so the points stay on the space's radial axis regardless of Tail curve while the upright symbol remains unchanged. Its visible pixels and the disc behind its measured inner edge take the passage colour. |
 | `path_modifier_oneway_clean.png` | Clean black pointed tag reference (💥+1). It remains native geometry in `MapBoard.svelte` because the isolated official pixels retain their photographed diagonal. |
 | `path_modifier_twoway_clean.png` | Clean symmetric reference (◄+1💥+1►), for the not-yet-built modifier that applies travelling either direction. |
 | `combat_icons_grid.png` | The four combat-type tiles as one 2×2 block, in source layout: attack (red), scheme (tan/lightning), defense (blue), versatile (purple). |

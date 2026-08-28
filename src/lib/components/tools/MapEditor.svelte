@@ -1708,7 +1708,7 @@
                   <h3 class="selected-section-title">Secret passage</h3>
                   <Switch
                     checked={selectedSpace.secretPassage !== null}
-                    label="Enabled"
+                    label={selectedSpace.secretPassage ? 'Enabled' : 'Disabled'}
                     hint="Independent marker — add the matching portal to its other space"
                     onchange={setSecretPassage}
                   />
@@ -1766,7 +1766,7 @@
                             ? customSymbolLabel(selectedPortalSymbol)
                             : selectedSpace.secretPassage.symbolId
                               ? 'Missing symbol'
-                              : 'Default padlock'}
+                              : 'Default keyhole'}
                         </span>
                         <div class="portal-symbols">
                           <button
@@ -1774,7 +1774,7 @@
                             class="portal-symbol"
                             class:active={selectedSpace.secretPassage.symbolId === null}
                             onclick={() => patchSecretPassage({ symbolId: null })}
-                          >Default padlock</button>
+                          >Default keyhole</button>
                           {#each set.customSymbols.filter((symbol) => symbol.source) as symbol (symbol.id)}
                             <button
                               type="button"

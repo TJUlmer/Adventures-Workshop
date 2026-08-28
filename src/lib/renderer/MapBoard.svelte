@@ -32,9 +32,11 @@
   import {
     getCachedPatternSource,
     getCachedRasterSource,
+    getCachedRecolouredRasterSource,
     getCachedSvgSource,
     loadPatternSource,
     loadRasterSource,
+    loadRecolouredRasterSource,
     loadSvgSource,
     MAP_ASSETS,
     patternAspect
@@ -200,6 +202,21 @@
   const SECRET_PASSAGE_STROKE_RATIO = 0.058;
   const SECRET_PASSAGE_TAIL_LENGTH_RATIO = 0.9;
   const SECRET_PASSAGE_SAMPLES = 24;
+  /** Measured from the supplied ring's outer contour rather than inferred from
+      its canvas: the circle is centred at (37.5, 31.5) with a 32px radius, and
+      the asymmetric remaining width is the tail join. Centre and radius must
+      stay separate or correcting registration also changes the rendered size. */
+  const SECRET_PASSAGE_SPRITE = {
+    width: 75,
+    height: 64,
+    centreX: 37.5,
+    centreY: 31.5,
+    radius: 32,
+    /** Alpha-weighted centres of the two protruding point clusters form this
+        axis in the source PNG; compensating it aligns the visible points,
+        rather than the rectangular canvas, to the owning space. */
+    pointAxisDegrees: 29.51
+  } as const;
 
   /**
    * A zone's pattern (`MapZoneStyle`) is drawn as a second shape, the same
@@ -250,6 +267,7 @@
   let patternLoadTick = $state(0);
   let largeFighterLoadTick = $state(0);
   let oneWayArrowLoadTick = $state(0);
+  let secretPassageLoadTick = $state(0);
 
   /** Every `fill="#…"` in the source recoloured to one colour — the pattern
       files are single-colour shapes on transparency, drawn to take exactly
@@ -341,6 +359,46 @@
     }
   });
 
+  $effect(() => {
+    for (const space of map.spaces) {
+      const passage = space.secretPassage;
+      if (!passage) continue;
+      const hasCustomSymbol = customSymbols.some((symbol) => symbol.id === passage.symbolId);
+      const requests: Array<Promise<string | null>> = [];
+      if (
+        getCachedRecolouredRasterSource(
+          MAP_ASSETS.secretPassageRing,
+          passage.color
+        ) === undefined
+      ) {
+        requests.push(loadRecolouredRasterSource(MAP_ASSETS.secretPassageRing, passage.color));
+      }
+      if (
+        !hasCustomSymbol &&
+        getCachedRecolouredRasterSource(
+          MAP_ASSETS.secretPassageKeyhole,
+          map.pathColor,
+          map.pathColor,
+          'dark-only'
+        ) === undefined
+      ) {
+        requests.push(
+          loadRecolouredRasterSource(
+            MAP_ASSETS.secretPassageKeyhole,
+            map.pathColor,
+            map.pathColor,
+            'dark-only'
+          )
+        );
+      }
+      for (const request of requests) {
+        void request.then(() => {
+          secretPassageLoadTick += 1;
+        });
+      }
+    }
+  });
+
   /*
    * `.board`'s own rendered width, in real pixels — what turns the glow
    * blur's ratio (a fraction of the board, like every other measurement
@@ -395,6 +453,9 @@
   const largeFighterSize = $derived(map.spaceDiameter * LARGE_FIGHTER_SIZE_RATIO);
   const secretPassageRadius = $derived(map.spaceDiameter * SECRET_PASSAGE_RADIUS_RATIO);
   const secretPassageStroke = $derived(map.spaceDiameter * SECRET_PASSAGE_STROKE_RATIO);
+  const secretPassageAssetScale = $derived(
+    secretPassageRadius / SECRET_PASSAGE_SPRITE.radius
+  );
   const secretPassageTailLength = $derived(
     map.spaceDiameter * SECRET_PASSAGE_TAIL_LENGTH_RATIO
   );
@@ -827,6 +888,7 @@
 
   interface SecretPassagePortal {
     id: MapSpaceId;
+    ringAngle: number;
     x: number;
     y: number;
     cx: number;
@@ -835,6 +897,8 @@
     tailY: number;
     fade: number;
     color: string;
+    ringSource: string | null;
+    keyholeSource: string | null;
     symbolSource: string | null;
   }
 
@@ -845,6 +909,7 @@
    * has to know where its visual partner sits.
    */
   const secretPassages = $derived.by(() => {
+    void secretPassageLoadTick;
     const portals: SecretPassagePortal[] = [];
     for (const space of map.spaces) {
       const passage = space.secretPassage;
@@ -862,18 +927,36 @@
       const tailX = x + directionX * tailLength;
       const tailY = y + directionY * tailLength;
       const sideways = passage.curve * tailLength * 0.55;
+      const controlX = (x + tailX) / 2 - directionY * sideways;
+      const controlY = (y + tailY) / 2 + directionX * sideways;
+      /* The ring describes which space owns the passage, so its pointed axis
+         remains radial to that space. Tail curve bends only the fading route
+         beyond it and must not rotate the medallion artwork. */
+      const ringAngle = passage.angle - SECRET_PASSAGE_SPRITE.pointAxisDegrees;
+      const symbolSource =
+        customSymbols.find((symbol) => symbol.id === passage.symbolId)?.source ?? null;
       portals.push({
         id: space.id,
+        ringAngle,
         x,
         y,
-        cx: (x + tailX) / 2 - directionY * sideways,
-        cy: (y + tailY) / 2 + directionX * sideways,
+        cx: controlX,
+        cy: controlY,
         tailX,
         tailY,
         fade: Math.min(1, passage.fade),
         color: passage.color,
-        symbolSource:
-          customSymbols.find((symbol) => symbol.id === passage.symbolId)?.source ?? null
+        ringSource:
+          getCachedRecolouredRasterSource(MAP_ASSETS.secretPassageRing, passage.color) ?? null,
+        keyholeSource: symbolSource
+          ? null
+          : (getCachedRecolouredRasterSource(
+              MAP_ASSETS.secretPassageKeyhole,
+              map.pathColor,
+              map.pathColor,
+              'dark-only'
+            ) ?? null),
+        symbolSource
       });
     }
     return portals;
@@ -1393,13 +1476,36 @@
           class="secret-passage-medallion"
           transform="translate({portal.x} {portal.y})"
         >
-          <circle r={secretPassageRadius} fill={map.startInk} />
           <circle
+            class="secret-passage-medallion-fill"
+            cx={secretPassageRadius * 0.03}
+            cy={secretPassageRadius * 0.00}
             r={secretPassageRadius * 0.78}
             fill={portal.color}
-            stroke={map.pathColor}
-            stroke-width={secretPassageRadius * 0.12}
           />
+          {#if portal.ringSource}
+            <image
+              class="secret-passage-medallion-art"
+              href={portal.ringSource}
+              x={-SECRET_PASSAGE_SPRITE.centreX * secretPassageAssetScale}
+              y={-SECRET_PASSAGE_SPRITE.centreY * secretPassageAssetScale}
+              width={SECRET_PASSAGE_SPRITE.width * secretPassageAssetScale}
+              height={SECRET_PASSAGE_SPRITE.height * secretPassageAssetScale}
+              preserveAspectRatio="xMidYMid meet"
+              transform="rotate({portal.ringAngle})"
+            />
+          {/if}
+          {#if portal.keyholeSource}
+            <image
+              class="secret-passage-keyhole-symbol"
+              href={portal.keyholeSource}
+              x={-SECRET_PASSAGE_SPRITE.centreX * secretPassageAssetScale}
+              y={-SECRET_PASSAGE_SPRITE.centreY * secretPassageAssetScale}
+              width={SECRET_PASSAGE_SPRITE.width * secretPassageAssetScale}
+              height={SECRET_PASSAGE_SPRITE.height * secretPassageAssetScale}
+              preserveAspectRatio="xMidYMid meet"
+            />
+          {/if}
           {#if portal.symbolSource}
             <image
               class="secret-passage-custom-symbol"
@@ -1409,33 +1515,6 @@
               width={secretPassageRadius}
               height={secretPassageRadius}
               preserveAspectRatio="xMidYMid meet"
-            />
-          {:else}
-            <path
-              class="secret-passage-lock-shackle"
-              d={`M ${-secretPassageRadius * 0.23} ${-secretPassageRadius * 0.06} ` +
-                `C ${-secretPassageRadius * 0.23} ${-secretPassageRadius * 0.48}, ` +
-                `${secretPassageRadius * 0.23} ${-secretPassageRadius * 0.48}, ` +
-                `${secretPassageRadius * 0.23} ${-secretPassageRadius * 0.06}`}
-              fill="none"
-              stroke={map.pathColor}
-              stroke-width={secretPassageRadius * 0.16}
-              stroke-linecap="round"
-            />
-            <rect
-              class="secret-passage-lock-body"
-              x={-secretPassageRadius * 0.32}
-              y={-secretPassageRadius * 0.08}
-              width={secretPassageRadius * 0.64}
-              height={secretPassageRadius * 0.52}
-              rx={secretPassageRadius * 0.08}
-              fill={map.pathColor}
-            />
-            <circle
-              class="secret-passage-lock-keyhole"
-              cy={secretPassageRadius * 0.13}
-              r={secretPassageRadius * 0.07}
-              fill={portal.color}
             />
           {/if}
         </g>

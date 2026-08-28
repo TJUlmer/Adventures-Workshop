@@ -20,6 +20,7 @@ import { mapPrintWidth } from '$lib/map/types';
 import {
   loadPatternSource,
   loadRasterSource,
+  loadRecolouredRasterSource,
   loadSvgSource,
   MAP_ASSETS
 } from '$lib/renderer/assets';
@@ -155,6 +156,28 @@ export async function photographMapBoard(
     }
     await Promise.all([...oneWayAssets].map((url) => loadRasterSource(url)));
   }
+  const symbols = options.customSymbols ?? [];
+  await Promise.all(
+    map.spaces.flatMap((space) => {
+      const passage = space.secretPassage;
+      if (!passage) return [];
+      const hasCustomSymbol = symbols.some((symbol) => symbol.id === passage.symbolId);
+      const requests = [
+        loadRecolouredRasterSource(MAP_ASSETS.secretPassageRing, passage.color)
+      ];
+      if (!hasCustomSymbol) {
+        requests.push(
+          loadRecolouredRasterSource(
+            MAP_ASSETS.secretPassageKeyhole,
+            map.pathColor,
+            map.pathColor,
+            'dark-only'
+          )
+        );
+      }
+      return requests;
+    })
+  );
 
   const width = mapPrintWidth(map);
   const host = document.createElement('div');

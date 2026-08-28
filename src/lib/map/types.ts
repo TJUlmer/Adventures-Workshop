@@ -185,7 +185,7 @@ export interface MapSecretPassage {
   fade: number;
   /** Per-marker tint, visible as an exact hex value in the editor. */
   color: string;
-  /** Uploaded Symbols-tab glyph, or `null` for the native padlock. */
+  /** Uploaded Symbols-tab glyph, or `null` for the supplied keyhole mark. */
   symbolId: CustomSymbolId | null;
 }
 

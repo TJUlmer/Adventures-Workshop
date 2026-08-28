@@ -348,7 +348,7 @@ export type SetId = Id<'Set'>;
  *      independently placed endpoints also need independently reproducible
  *      tints; the measured grey-lilac remains the factory/reset default.
  *      Normalisation carries v42's map-wide tint into every old marker and
- *      defaults the symbol to the native padlock. An older build would silently
+ *      defaults the symbol to the supplied keyhole mark. An older build would silently
  *      discard both customisations and cannot read v43.
  *
  * v44 — each `MapPath` gained `largeFighter`, which draws the official

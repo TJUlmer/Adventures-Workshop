@@ -838,8 +838,22 @@ transparent. Its `color` is per marker — shown as an exact hex
 value and resettable to `DEFAULT_SECRET_PASSAGE_COLOR` — so authors can either
 match two endpoints precisely or deliberately distinguish them. `symbolId`
 points into the set's existing `customSymbols` registry; `MapBoard` receives
-that registry in the editor, overview and off-screen export and falls back to
-the native padlock whenever the id/source is absent. Matching medallions
+that registry in the editor, overview and off-screen export. Every marker uses
+the supplied transparent-ring PNG, registered to its measured circle centre of
+(37.5, 31.5) and 32px radius rather than the canvas midpoint. Its visible point
+clusters form a measured 29.51° axis within the PNG, so `MapBoard` removes that
+fixed artwork offset when rotating the ring. The points then stay on the space's
+radial axis, leaving one aimed at the space centre and the other exactly
+opposite; Tail curve bends only the fading route and does not rotate the ring.
+With no resolved custom symbol, the dark pixels
+of the supplied keyhole PNG are extracted into a second data URL and drawn
+upright; an upload occupies that same non-rotating layer. The greyscale assets
+are recoloured through a canvas into self-contained data URLs before entering
+the board SVG because an SVG/CSS mask would fail in the map photograph pipeline.
+A native disc at the ring's measured 0.78-radius inner boundary sits
+behind either PNG, so the colour picker fills the medallion as well as the ring
+and tail. Off-screen export pre-warms the exact colour variants before mounting
+`MapBoard`, just as it does the one-way raster pieces. Matching medallions
 communicate the gameplay connection even when their spaces sit across the map or their stairs point in
 unrelated directions, so making the two endpoints share one bezier would remove
 exactly the placement freedom the official treatment uses. The portal group is
