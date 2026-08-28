@@ -21,6 +21,7 @@
   import {
     amOrganiser,
     collectionUrl,
+    readinessOf,
     fetchCollectionBySlug,
     fetchCollectionTiles,
     inviteDeck,
@@ -28,6 +29,7 @@
     removeMember,
     resolveSubmission,
     respondToInvitation,
+    setMemberReady,
     submitDeck,
     updateCollection,
     uploadCollectionBanner
@@ -371,6 +373,51 @@
     });
   }
 
+  // -- Readiness, and the gate on going public ----------------------------
+
+  /**
+   * Read off the *tiles*, not the membership rows.
+   *
+   * Tiles are the accepted members, which is exactly the set the question is
+   * about — a pending invitation is not a deck that is late, it is a deck
+   * that has not joined. Membership rows would also be empty for a signed-out
+   * visitor, so the count would silently read zero rather than being absent.
+   */
+  const readiness = $derived(readinessOf(tiles));
+
+  /**
+   * Accepted memberships whose deck is mine, so I can say it is finished.
+   *
+   * Only the deck's own author may — enforced by a trigger, not a policy,
+   * because a `with check` sees only the new row and cannot notice that an
+   * organiser's otherwise-legitimate update also flipped somebody's `ready`.
+   * The UI simply agrees with that rather than being what enforces it.
+   */
+  const myAccepted = $derived(
+    memberships.filter(
+      (row) => row.status === 'accepted' && row.set?.owner_id === auth.user?.id
+    )
+  );
+
+  /**
+   * Set when Public was asked for while somebody is still not ready.
+   *
+   * A confirmation rather than a refusal: the gate exists so one eager
+   * organiser cannot debut a half-finished deck over its author's head, but
+   * an absent member must not be able to freeze a project for ever either —
+   * so it names who, and lets an organiser go anyway having read the names.
+   */
+  let publishGate = $state<string[] | null>(null);
+
+  async function askToPublish(): Promise<void> {
+    if (!collection) return;
+    if (readiness.waitingOn.length > 0) {
+      publishGate = readiness.waitingOn;
+      return;
+    }
+    await setVisibility('public');
+  }
+
   const VISIBILITIES: { value: CollectionVisibility; label: string; hint: string }[] = [
     { value: 'private', label: 'Private', hint: 'Only organisers. The link stops working.' },
     { value: 'unlisted', label: 'Unlisted', hint: 'Anyone with the link. Not in the gallery.' },
@@ -485,7 +532,8 @@
                   class="choice"
                   class:on={collection.visibility === option.value}
                   title={option.hint}
-                  onclick={() => setVisibility(option.value)}
+                  onclick={() =>
+                    option.value === 'public' ? askToPublish() : setVisibility(option.value)}
                 >
                   {option.label}
                 </button>
@@ -495,6 +543,35 @@
               {VISIBILITIES.find((entry) => entry.value === collection?.visibility)?.hint}
             </span>
           </div>
+
+          {#if publishGate}
+            <div class="gate">
+              <p class="gate-title">
+                {publishGate.length}
+                {publishGate.length === 1 ? 'deck is' : 'decks are'} not marked ready
+              </p>
+              <p class="gate-names">{publishGate.join(', ')}</p>
+              <p class="hint">
+                Their authors have not said they are finished. You can publish anyway.
+              </p>
+              <div class="row-actions">
+                <button
+                  type="button"
+                  class="btn primary"
+                  disabled={busy !== null}
+                  onclick={() => {
+                    publishGate = null;
+                    void setVisibility('public');
+                  }}
+                >
+                  Publish anyway
+                </button>
+                <button type="button" class="btn" onclick={() => (publishGate = null)}>
+                  Wait for them
+                </button>
+              </div>
+            </div>
+          {/if}
 
           <div class="admin-row">
             <span class="field-label">Submissions</span>
@@ -697,7 +774,46 @@
       <p class="count">
         {tiles.length}
         {tiles.length === 1 ? 'deck' : 'decks'}
+        <!--
+          Only while a collection is still being built. Once it is public the
+          line has done its job, and a permanent "6 of 6 ready" is noise on a
+          page whose visitors are readers rather than contributors.
+        -->
+        {#if collection.visibility !== 'public' && tiles.length > 0}
+          <span class="ready-line" class:all={readiness.waitingOn.length === 0}>
+            · {readiness.ready} of {readiness.total} ready
+          </span>
+        {/if}
       </p>
+
+      {#if myAccepted.length > 0}
+        <section class="panel">
+          <h2>Your deck{myAccepted.length === 1 ? '' : 's'} here</h2>
+          <p class="hint">
+            Marking a deck ready tells the organisers it is finished. Only you can, and you
+            can change your mind while the collection is still unpublished.
+          </p>
+          <ul class="rows">
+            {#each myAccepted as row (row.set_id)}
+              <li>
+                <span class="row-name">{row.set?.name || 'Untitled'}</span>
+                <label class="toggle">
+                  <input
+                    type="checkbox"
+                    checked={row.ready}
+                    disabled={busy !== null}
+                    onchange={(event) =>
+                      run(`ready-${row.set_id}`, () =>
+                        setMemberReady(collection!.id, row.set_id, event.currentTarget.checked)
+                      )}
+                  />
+                  <span>Ready</span>
+                </label>
+              </li>
+            {/each}
+          </ul>
+        </section>
+      {/if}
 
       {#if tiles.length === 0}
         <!--
@@ -1095,6 +1211,35 @@
   .btn:disabled {
     opacity: 0.55;
     cursor: default;
+  }
+
+  .ready-line {
+    color: var(--warning);
+  }
+  .ready-line.all {
+    color: var(--success);
+  }
+
+  .gate {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    padding: var(--space-3);
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-sm);
+    background: var(--surface-inset);
+  }
+  .gate-title {
+    margin: 0;
+    color: var(--text-primary);
+    font-weight: 600;
+  }
+  .gate-names {
+    margin: 0;
+    color: var(--text-secondary);
+  }
+  .gate .hint {
+    margin: 0;
   }
 
   .grid {

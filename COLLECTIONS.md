@@ -541,7 +541,7 @@ Pending decisions surface on Home's attention strip, which already answers
 "contributions waiting on a decision" and is the right place for "an invitation
 waiting on you".
 
-### 7. Readiness, and the publish gate
+### 7. Readiness, and the publish gate — **done**
 
 The per-member `ready` flag, the "4 of 6 ready" line, and the gate on going
 public: it names who is not ready and offers to publish anyway, so an absent
