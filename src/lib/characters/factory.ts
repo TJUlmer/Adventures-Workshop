@@ -56,9 +56,13 @@ export function createHeroCharacterCard(): HeroCharacterCard {
  * behind the hero and the sidekick, and the gold ability panel between them.
  */
 export function createCharacterCard(): CharacterCardDesign {
-  const band = (colour: string): CharacterBandStyle => ({
+  /* `labelInk` is the template's own printed pairing, sampled rather than
+     chosen: white tabs and captions on the two navy bands, black on the gold
+     ability panel between them. */
+  const band = (colour: string, labelColour: string): CharacterBandStyle => ({
     fill: solid(colour),
-    artwork: createArtwork()
+    artwork: createArtwork(),
+    labelInk: solid(labelColour)
   });
   return {
     border: solid('#f3e3da'),
@@ -69,9 +73,9 @@ export function createCharacterCard(): CharacterCardDesign {
     quoteScale: 1,
     abilityInk: solid('#000000'),
     moveInk: solid('#000000'),
-    hero: band('#001722'),
-    ability: band('#cfa058'),
-    sidekick: band('#001722'),
+    hero: band('#001722', '#ffffff'),
+    ability: band('#cfa058', '#000000'),
+    sidekick: band('#001722', '#ffffff'),
     replacement: createArtwork(),
     useReplacement: false
   };
@@ -93,7 +97,11 @@ export function cloneCharacterCard(design: CharacterCardDesign): CharacterCardDe
   const bands = Object.fromEntries(
     CHARACTER_BAND_NAMES.map((name) => [
       name,
-      { fill: { ...design[name].fill }, artwork: cloneArtwork(design[name].artwork) }
+      {
+        fill: { ...design[name].fill },
+        artwork: cloneArtwork(design[name].artwork),
+        labelInk: { ...design[name].labelInk }
+      }
     ])
   ) as Pick<CharacterCardDesign, (typeof CHARACTER_BAND_NAMES)[number]>;
 

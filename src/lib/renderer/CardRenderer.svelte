@@ -512,6 +512,7 @@
   .printer-friendly :global(.hero-character .mask.border),
   .printer-friendly :global(.hero-character .mask.badge-accent),
   .printer-friendly :global(.hero-character .mask.move-ink),
+  .printer-friendly :global(.hero-character .mask.label-ink),
   .printer-friendly :global(.hero-character .mask.quote-marks) {
     background: #000 !important;
   }

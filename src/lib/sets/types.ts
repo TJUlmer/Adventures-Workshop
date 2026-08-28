@@ -366,10 +366,19 @@ export type SetId = Id<'Set'>;
  *      Normalisation updates only that exact former default; any other stored
  *      path colour remains an intentional author value.
  *
+ * v47 — each of a hero character card's three bands gained `labelInk`, the
+ *      colour of its own printed tab label and START HEALTH caption. Those
+ *      words were fixed ink in the template picture until now, so an older
+ *      document opens with each band's sampled default — white on the two
+ *      navy bands, black on the gold ability panel — and looks exactly as it
+ *      always did. The bump exists because an older build cannot render the
+ *      choice at all: it has no label masks and its own ink pictures still
+ *      carry the words, so a chosen colour would be silently dropped.
+ *
  * Older documents are *repaired*, not rejected — see `sets/normalize.ts`. Only
  * a version newer than this build understands is refused.
  */
-export const SET_SCHEMA_VERSION = 46;
+export const SET_SCHEMA_VERSION = 47;
 
 /**
  * What a set is for.

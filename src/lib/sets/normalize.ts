@@ -270,7 +270,8 @@ function characterCard(value: unknown): CharacterCardDesign {
     const entry = asRecord(raw[name]);
     return {
       fill: fill(entry['fill'], defaults[name].fill),
-      artwork: artwork(entry['artwork'])
+      artwork: artwork(entry['artwork']),
+      labelInk: fill(entry['labelInk'], defaults[name].labelInk)
     };
   };
   return {

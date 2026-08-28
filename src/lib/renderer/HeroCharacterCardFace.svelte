@@ -18,12 +18,20 @@
    *                **mask**
    *   moveInk      the double-headed arrow beside the move digit *and* the
    *                word MOVE — one **mask**, coloured the same as the digit
-   *   ink          every tab label and the two START HEALTH captions — as a
-   *                picture, already in the colours they print, none of
-   *                which is a choice
+   *   labelInk     each band's own tab label, plus the START HEALTH caption
+   *                on the two bands that carry an attack row — one **mask**
+   *                per band, coloured with that band's `labelInk`
+   *   ink          what is left, and none of it a word: the decorative arcs
+   *                that frame a badge, and the sidekick's own health badge.
+   *                A picture, in the colours it prints
    *
-   * The first four are colours an author would want to choose, independently
-   * of one another; the fifth is not.
+   * Everything but the last is a colour an author would want to choose,
+   * independently of the others. The labels were in `ink` too until an author
+   * repainted a band and found the white tab standing on it illegible — the
+   * template's own pairing is a default, not a rule, so it moved out band by
+   * band rather than word by word: a band is what its labels have to be read
+   * against, and matching three colours across one flat field is not a thing
+   * to ask of anybody.
    *
    * Under all four go the three band fills and whatever artwork each
    * carries; into the holes goes the copy.
@@ -134,6 +142,16 @@
   const badge = $derived(TEMPLATE_ASSETS.heroCharacterBadge[layout]);
   const badgeAccent = $derived(TEMPLATE_ASSETS.heroCharacterBadgeAccent[layout]);
   const ink = $derived(TEMPLATE_ASSETS.heroCharacterInk[layout]);
+  /**
+   * Each band's label mask. The hero's and the ability panel's do not vary by
+   * layout; the sidekick's does, and is `null` on the quote layout, which
+   * prints no sidekick band to label.
+   */
+  const labelInk = $derived({
+    hero: TEMPLATE_ASSETS.heroCharacterLabelInk.hero,
+    ability: TEMPLATE_ASSETS.heroCharacterLabelInk.ability,
+    sidekick: TEMPLATE_ASSETS.heroCharacterLabelInk.sidekick[layout]
+  });
   /** Same mask at every layout — the move row does not vary between them. */
   const moveInk = TEMPLATE_ASSETS.heroCharacterMoveInk;
 
@@ -573,6 +591,21 @@
   style:--move-ink-art="url('{moveInk}')"
   style:background={fillCss(design.moveInk)}
 ></div>
+<!--
+  Each band's own labels, over that band's fill and artwork and under the copy
+  — the same place in the stack the picture below them holds, because that is
+  where they were cut from. One element per band rather than one shared mask,
+  so each takes its own band's colour.
+
+  `--label-ink-art` is one property name across all three: a custom property
+  set on one element is not visible on a sibling (see `.mask.border`'s note),
+  so each instance resolves its own value and they cannot collide.
+-->
+{#each CHARACTER_BAND_NAMES as band (band)}{#if labelInk[band]}<div
+    class="mask full label-ink"
+    style:--label-ink-art="url('{labelInk[band]}')"
+    style:background={fillCss(design[band].labelInk)}
+  ></div>{/if}{/each}
 <img class="template" src={ink} alt="" />
 
 {@render attackRow(CHARACTER_BANDS.heroAttack, identity.attackType)}
@@ -852,8 +885,8 @@
   }
 
   /*
-   * Sized to the whole card — border, badge, badge-accent and move-ink are
-   * all cut from a full-card picture. `quote-marks` is not: it is its own
+   * Sized to the whole card — border, badge, badge-accent, move-ink and each
+   * band's label-ink are all cut from a full-card picture. `quote-marks` is not: it is its own
    * supplied file, sized and positioned to just the row it fills, so it
    * carries its own `left`/`top`/`width`/`height` inline instead.
    */
@@ -883,6 +916,11 @@
   .mask.move-ink {
     mask-image: var(--move-ink-art);
     -webkit-mask-image: var(--move-ink-art);
+  }
+
+  .mask.label-ink {
+    mask-image: var(--label-ink-art);
+    -webkit-mask-image: var(--label-ink-art);
   }
 
   .mask.quote-marks {

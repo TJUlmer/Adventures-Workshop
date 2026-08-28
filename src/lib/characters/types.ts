@@ -168,6 +168,25 @@ export type CharacterBandName = (typeof CHARACTER_BAND_NAMES)[number];
 export interface CharacterBandStyle {
   fill: Fill;
   artwork: Artwork;
+  /**
+   * The band's own printed labels: its rotated tab down the left edge, and —
+   * on the hero's and the sidekick's, which carry an attack row — the START
+   * HEALTH caption beside the badge. So "HERO", "ATTACK" and "START HEALTH"
+   * together on the hero's, "SPECIAL ABILITY" alone on the ability panel's,
+   * "SIDEKICK", "ATTACK" and "START HEALTH" on the sidekick's.
+   *
+   * One colour per band rather than one per word, because a band is the thing
+   * these have to read *against*: they are set on whatever `fill` and
+   * `artwork` put behind them, and the template's own pairing (white on the
+   * navy bands, black on the gold ability panel) stops being a safe default
+   * the moment an author repaints one. Splitting further would be asking
+   * somebody to match three colours across one flat field.
+   *
+   * Not the attack *type* lockup, which sits in the same row: that is one
+   * supplied picture, word and icon together, in the colour that identifies
+   * the type — see `ATTACK_TYPE_SYMBOLS`.
+   */
+  labelInk: Fill;
 }
 
 /**
@@ -179,12 +198,18 @@ export interface CharacterBandStyle {
  * cascade, and it does not go through the cascade proper: the sheet is one
  * fixed layout and its chrome is supplied art, so what an author gets to
  * choose is the border's colour, the health badge's colour and the value
- * printed on it, what fills each of the three bands, the special ability
- * text's own colour, the move value's — or, with `useReplacement` on, a
- * finished sheet that skips composing one entirely, the same escape hatch
- * every other printed face already has. Everything else — the tab labels,
- * the START HEALTH captions — stays the printed art's own fixed ink;
- * nobody asked to recolour a label.
+ * printed on it, what fills each of the three bands *and how that band's own
+ * labels are inked over it*, the special ability text's own colour, the move
+ * value's — or, with `useReplacement` on, a finished sheet that skips
+ * composing one entirely, the same escape hatch every other printed face
+ * already has.
+ *
+ * The labels were fixed ink until an author repainted a band and found the
+ * white tab standing on it was no longer legible — see
+ * `CharacterBandStyle.labelInk`, which is where that choice lives, beside the
+ * fill it has to be read against. What is left as the printed art's own ink
+ * is only what is not a word: the decorative arcs that frame a badge, and the
+ * sidekick's own health badge.
  */
 export interface CharacterCardDesign {
   /** The pink outline and the bars between the bands, in the printed art. */

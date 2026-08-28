@@ -25,6 +25,8 @@ Outputs, all alpha masks unless noted:
   hero_character_badge*.png      …the hero's own health badge, as a mask
   hero_character_badge_accent*.png …the small triangle notched into it, as a
                                   separate mask
+  hero_character_label_ink_*.png  …each band's tab label and START HEALTH
+                                  caption, as one mask per band
   hero_character_ink*.png        …and everything else in it, as a picture
 
 The ribbon's straight run is not written at all: it is a rectangle, and the
@@ -277,6 +279,135 @@ def split_move_ink() -> None:
 
     if shared_alpha is not None:
         mask_png(shared_alpha).save(written)
+
+
+# Each band's own run down the card, matching `CHARACTER_BAND_RUNS` in
+# `geometry.ts` — the same three-way split the design object already makes,
+# so a band's labels and a band's fill are cut on one boundary rather than
+# two that could drift apart.
+CHARACTER_LABEL_BANDS = {
+    "hero": (140, 606),
+    "ability": (630, 1588),
+    "sidekick": (1612, 2078),
+}
+
+# The two columns a band's labels stand in: the rotated tab down the left
+# edge, and the "START HEALTH" caption beside the badge. Both are deliberately
+# narrower than the band itself, because the band's rows also carry things
+# that are *not* words — the decorative arcs at x1280..1403, and (on the
+# sidekick layouts) the sidekick's own health badge, which is fixed ink at
+# x1280..1404 rather than a mask like the hero's. Taking whole rows would
+# sweep both into a mask labelled "the words in this band".
+#
+# `CAP_COLUMN` spans both the ordinary caption (x1086..1179) and the shifted
+# one a 3+ health swarm prints (x1004..1097), and stops short of
+# `CHARACTER_ATTACK_ROW.badgeX` at 1209 so no badge art can reach it.
+LABEL_TAB_COLUMN = (150, 220)
+LABEL_CAP_COLUMN = (995, 1205)
+
+# Which mask each layout's sidekick band reads. The hero and ability bands are
+# pixel-identical in all four ink files (asserted below, not assumed), so each
+# writes one file; the sidekick band is not — a 3+ health swarm shifts its
+# caption left — and the quote layout has no sidekick labels at all.
+SIDEKICK_LABEL_FILES = {
+    "": None,
+    "_sidekick": "hero_character_label_ink_sidekick.png",
+    "_multi": "hero_character_label_ink_sidekick.png",
+    "_multihealth": "hero_character_label_ink_sidekick_multihealth.png",
+}
+
+
+def label_roi(band: str, shape: tuple[int, int]) -> np.ndarray:
+    """The region one band's own labels stand in, as a boolean mask."""
+    y0, y1 = CHARACTER_LABEL_BANDS[band]
+    roi = np.zeros(shape, dtype=bool)
+    roi[y0 : y1 + 1, LABEL_TAB_COLUMN[0] : LABEL_TAB_COLUMN[1] + 1] = True
+    # The ability band is one tall panel with no attack row, so no caption.
+    if band != "ability":
+        roi[y0 : y1 + 1, LABEL_CAP_COLUMN[0] : LABEL_CAP_COLUMN[1] + 1] = True
+    return roi
+
+
+def split_label_ink() -> None:
+    """Pull each band's tab label and START HEALTH caption into its own mask.
+
+    "HERO", "ATTACK" and "START HEALTH" in the name band; "SPECIAL ABILITY" in
+    the ability band; "SIDEKICK", "ATTACK" and "START HEALTH" in the
+    sidekick's. All of it used to be fixed ink on the reasoning that a label
+    is nobody's choice — which held right up until an author wanted the words
+    to sit on a band they had recoloured. A white tab on a navy band is the
+    template's own pairing, not a rule; recolour the band and the pairing is
+    the author's to make again.
+
+    One mask per *band*, not per word, because a band is what the picker sits
+    beside — `CharacterBandStyle.labelInk`, next to the fill it has to read
+    against. The three are cut on `CHARACTER_BAND_RUNS`' own boundaries, so a
+    label can only ever belong to the band whose colour it is judged against.
+
+    What is deliberately left in the picture: the decorative arcs that frame a
+    badge, and the sidekick's own health badge on the sidekick layouts. Neither
+    is a word, and the badge in particular is a whole shape drawn as fixed ink
+    (see `HeroCharacterCardFace`'s note on why the sidekick's was never a
+    mask) — inking it with the labels would hand one picker two unrelated jobs.
+
+    **This stage erases from the files it reads**, exactly as `split_move_ink`
+    does and for the same unfixable reason: there is no supplied `_raw` copy of
+    the four ink files to read instead. So an already-run band is *skipped*
+    rather than raised on, keyed on the mask beside it already existing.
+    """
+    written: dict[str, np.ndarray] = {}
+    skipped = 0
+
+    for suffix in CHARACTER_INK_SUFFIXES:
+        path = TEMPLATES / f"hero_character_ink{suffix}.png"
+        ink = np.array(Image.open(path).convert("RGBA")).astype(int)
+        touched = False
+
+        for band in CHARACTER_LABEL_BANDS:
+            if band == "sidekick":
+                name = SIDEKICK_LABEL_FILES[suffix]
+                if name is None:
+                    continue  # the quote layout prints no sidekick band
+            else:
+                name = f"hero_character_label_ink_{band}.png"
+
+            roi = label_roi(band, ink.shape[:2])
+            region = roi & (ink[:, :, 3] > 128)
+            if not region.any():
+                if (TEMPLATES / name).exists():
+                    skipped += 1
+                    continue
+                raise RuntimeError(f"no {band} label ink found in {path.name}")
+
+            # The same antialiased-fringe recovery `split_move_ink` documents:
+            # >128 leaves a ring of sub-threshold alpha behind, which shows as
+            # a ghost outline in the picture and a mask a shade small. Clipped
+            # back to the ROI so a dilation cannot reach into a neighbouring
+            # band or out towards the badge.
+            claimed = ndimage.binary_dilation(region, iterations=3) & (ink[:, :, 3] > 0) & roi
+            alpha = np.where(claimed, ink[:, :, 3], 0)
+
+            # Every layout that shares a mask must agree pixel-for-pixel, or
+            # one of them is being drawn somebody else's labels. Checked here
+            # rather than trusted: the hero and ability bands are identical in
+            # all four files, and `_sidekick`/`_multi` in the two that share.
+            if name in written:
+                if not np.array_equal(alpha, written[name]):
+                    raise RuntimeError(f"{path.name}: {band} labels differ from {name}")
+            else:
+                written[name] = alpha
+
+            ink[claimed, 3] = 0
+            touched = True
+
+        if touched:
+            Image.fromarray(ink.astype(np.uint8)).save(path)
+
+    for name, alpha in written.items():
+        mask_png(alpha).save(TEMPLATES / name)
+        print(f"wrote {name}  ({int((alpha > 128).sum())} px)")
+    if skipped:
+        print(f"label ink already out of {skipped} band(s); skipped")
 
 
 def main() -> None:
@@ -567,6 +698,7 @@ def main() -> None:
         )
 
     split_move_ink()
+    split_label_ink()
 
     # -- what geometry.ts is checked against -------------------------------
     scale = BLEED[1] / height

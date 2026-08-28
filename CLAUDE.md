@@ -549,11 +549,53 @@ split by `tools/hero-card-assets.py` into **a border and its ink** — and the
 split is the whole of what this card exposes to an author:
 
 - **border** — the pink outline and the bars between the bands, as a mask, so
-  it takes a colour. It is the only piece of this card's chrome anyone would
-  want to choose.
-- **ink** — every tab label, the two START HEALTH captions, the health badge,
-  the move arrow and the word MOVE, as a picture. All already in the colours
-  they print, none of them a choice, and none overlapping the border.
+  it takes a colour.
+- **badge** / **badgeAccent** — the hero's own health shield and the small
+  triangle notched into it, each its own mask.
+- **moveInk** — the double-headed arrow *and* the word MOVE, one mask, taking
+  the same colour as the digit between them: recolouring the move value means
+  recolouring what names it, not just the number.
+- **labelInk** — each band's own printed words, one mask **per band**: "HERO",
+  "ATTACK" and "START HEALTH" on the name band, "SPECIAL ABILITY" on the
+  ability panel, and the sidekick's own three. See below.
+- **ink** — what is left, and none of it a word: the decorative arcs that
+  frame a badge, and the sidekick's own health badge, which is fixed ink
+  rather than a mask on every layout that shows it. A picture, already in the
+  colours it prints, and not overlapping the border.
+
+**The labels were part of `ink` until an author repainted a band and found the
+white tab standing on it illegible.** The template's own pairing — white on
+the two navy bands, black on the gold ability panel — is a default, not a
+rule, so it had to become a choice the moment the field behind it did. Four
+things about how that split was drawn:
+
+- **Per band, not per word.** `CharacterBandStyle.labelInk` sits beside the
+  `fill` and `artwork` it has to be read against, so the picker is where the
+  problem is. Splitting to one picker per word would mean matching three
+  colours across one flat field, which is not a thing to ask of anybody.
+- **Cut on `CHARACTER_BAND_RUNS`' own boundaries**, the same three-way split
+  the design object already makes — so a label can only ever belong to the
+  band whose colour it is judged against, and a band's fill and its labels
+  cannot drift onto two different boundaries.
+- **Narrower than the band, deliberately.** `split_label_ink` takes two
+  columns out of each band's rows — the rotated tab at x150..220 and the
+  START HEALTH caption at x995..1205 — rather than whole rows, because those
+  rows also carry things that are *not* words: the decorative arcs at
+  x1280..1403, and the sidekick's own health badge. `LABEL_CAP_COLUMN` stops
+  short of `CHARACTER_ATTACK_ROW.badgeX` (1209) so no badge art can reach it.
+  Taking whole rows would have handed one picker two unrelated jobs.
+- **The masks are shared only where the art genuinely is identical**, asserted
+  by the split rather than assumed: `hero` and `ability` are pixel-identical
+  in all four ink files, so each writes one file; the sidekick's is not — a
+  3+ health swarm shifts its caption left — so it stays a per-layout record,
+  and the quote layout gets `null` because it prints no sidekick band to
+  label. Verified end to end by reconstructing each original ink file from
+  its masks plus the residue: byte-identical alpha, no overlap, in all four.
+
+Schema v47 is `CharacterBandStyle.labelInk` alone. An older document opens
+with each band's sampled default and looks exactly as it always did; the bump
+exists because an older build has no label masks and its own ink pictures
+still carry the words, so a chosen colour would be silently dropped.
 
 Under both go three band fills and whatever artwork each carries. The bands are
 `CHARACTER_BAND_RUNS`, and there are **three, not five**: the hero's name band

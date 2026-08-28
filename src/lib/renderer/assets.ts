@@ -173,6 +173,35 @@ export const TEMPLATE_ASSETS = {
    */
   heroCharacterMoveInk: `${TEMPLATES}/hero_character_move_ink.png`,
   /**
+   * Each band's own printed words — its rotated tab label, and the START
+   * HEALTH caption on the two bands that carry an attack row — pulled out of
+   * `heroCharacterInk` by `tools/hero-card-assets.py`'s `split_label_ink` so
+   * each band can ink them with `CharacterBandStyle.labelInk`, beside the
+   * fill they are read against.
+   *
+   * Keyed by band, not by layout, because that is how the picker is keyed.
+   * `hero` and `ability` are one file apiece: both are pixel-identical in all
+   * four ink files, asserted by the split rather than assumed. `sidekick` is
+   * not — a 3+ health swarm shifts its caption left to clear the reused badge
+   * — so it stays a per-layout record, and `quote` is `null` because that
+   * layout prints a quote panel where the sidekick's bands would be and has
+   * no labels there at all.
+   *
+   * What stayed behind in the picture is everything that is not a word: the
+   * decorative arcs framing a badge, and the sidekick's own health badge,
+   * which is fixed ink rather than a mask on every layout that shows it.
+   */
+  heroCharacterLabelInk: {
+    hero: `${TEMPLATES}/hero_character_label_ink_hero.png`,
+    ability: `${TEMPLATES}/hero_character_label_ink_ability.png`,
+    sidekick: {
+      quote: null,
+      sidekick: `${TEMPLATES}/hero_character_label_ink_sidekick.png`,
+      multi: `${TEMPLATES}/hero_character_label_ink_sidekick.png`,
+      multiHealth: `${TEMPLATES}/hero_character_label_ink_sidekick_multihealth.png`
+    }
+  },
+  /**
    * The sidekick band's opening and closing quotation marks, drawn as
    * artwork rather than set as type — the printed template's marks are not
    * in any face this project stands in for, so the app used a browser
