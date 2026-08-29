@@ -24,6 +24,7 @@
     readinessOf,
     fetchCollectionBySlug,
     fetchCollectionTiles,
+    addOwnDeckDirectly,
     inviteDeck,
     listMemberships,
     removeMember,
@@ -388,21 +389,15 @@
   /**
    * Put one of my own decks forward.
    *
-   * Which verb depends on which hat I am wearing, and the difference is the
-   * policies', not a preference: `members_submit` requires the collection to
-   * be open for submissions, while `members_invite` lets an organizer invite
-   * **any** deck, their own included. So an organizer adding their own deck
-   * goes in as an invitation they then accept — two acts by one person, but
-   * honest ones, and it keeps the consent sentence in front of them rather
-   * than skipping the moment because they happen to run the project.
-   *
-   * The first version offered this to organizers of a closed collection and
-   * called `submitDeck`, which RLS refused outright: the panel was showing a
-   * button the database was never going to honour.
+   * An organizer's own deck goes straight in; anybody else's is an offer the
+   * organizers decide on. There is no consent to collect in the first case,
+   * because both parties to it would be the same person — which is what
+   * `members_self_add` says, and why this no longer routes an organizer
+   * through an invitation they then had to accept from themselves.
    */
   async function addOwnDeck(setId: string): Promise<void> {
     await run(`offer-${setId}`, async () => {
-      if (organizer) await inviteDeck(collection!.id, setId);
+      if (organizer) await addOwnDeckDirectly(collection!.id, setId);
       else await submitDeck(collection!.id, setId);
     });
   }
@@ -878,8 +873,8 @@
         <section class="panel">
           <h2>Add one of your own decks</h2>
           <p class="hint">
-            Yours joins as an invitation you then accept, so the same terms apply to you as to
-            everyone else.
+            Yours goes straight in — you own the deck and you organize the collection, so
+            there is nobody else to ask.
           </p>
           <ul class="rows">
             {#each offerable as row (row.id)}

@@ -385,6 +385,19 @@ export async function submitDeck(collectionId: string, setId: string): Promise<v
 }
 
 /**
+ * An organizer puts one of their own decks straight in.
+ *
+ * No invitation and no acceptance, because both parties to that exchange
+ * would be the same person — `members_self_add` allows `accepted` only when
+ * the caller owns the deck *and* organizes the collection. Anything else
+ * still goes the long way round.
+ */
+export async function addOwnDeckDirectly(collectionId: string, setId: string): Promise<void> {
+  await auth.ensureFresh();
+  await join(collectionId, setId, 'accepted');
+}
+
+/**
  * The deck owner's answer to an invitation.
  *
  * Accepting is what makes the deck reachable through the collection's link —

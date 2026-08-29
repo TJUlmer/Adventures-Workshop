@@ -487,6 +487,30 @@ create policy members_submit on public.collection_members
   );
 
 /*
+ * An organizer adding a deck they own puts it straight in.
+ *
+ * Every other insert lands as pending, because two people are involved and
+ * the second has to agree. Here they are the same person: the check requires
+ * the caller to own the deck **and** organize the collection, so there is
+ * nobody else whose consent is being skipped.
+ *
+ * Without this the case went in as an `invited` row the same person then had
+ * to accept — an organizer asking themselves for permission, which reads as a
+ * bug because it is one. Neither of the other routes widens: an organizer
+ * still cannot add somebody else's deck without an invitation, and an author
+ * still cannot add themselves to a collection they do not organize without
+ * submitting.
+ */
+drop policy if exists members_self_add on public.collection_members;
+create policy members_self_add on public.collection_members
+  for insert to authenticated
+  with check (
+    status = 'accepted'
+    and public.owns_set(set_id, auth.uid())
+    and public.is_collection_organizer(collection_id, auth.uid())
+  );
+
+/*
  * Two update policies, because the two parties make two different moves —
  * the same arrangement as `contributions_withdraw`/`contributions_resolve`,
  * and for the same reason.
