@@ -9,9 +9,10 @@
    * already carry. See `state/navigation.svelte.ts`'s `openAuthor` for why
    * this is plain browse state rather than a URL, unlike a shared set.
    *
-   * Renders outside the shell, like the gallery and a share link, for the
+   * Renders outside the set shell, like the gallery and a share link, for the
    * same reason: a visitor who followed a credit line may have no sets of
-   * their own and no business being shown a workshop nav.
+   * their own and no business being shown a workshop nav. The application
+   * banner remains above it.
    */
   import { cloudEnabled } from '$lib/cloud/config';
   import {
@@ -125,9 +126,9 @@
       </span>
     </span>
 
-    <Button variant="ghost" onclick={() => navigation.leaveShared()}>
+    <Button variant="ghost" onclick={() => navigation.leaveShared({ kind: 'gallery' })}>
       <Icon name="chevronRight" size={13} />
-      Back
+      Back to Gallery
     </Button>
   </header>
 
@@ -172,7 +173,7 @@
 <style>
   /* Owns its own scrolling — see the identical note in `GalleryScreen.svelte`. */
   .screen {
-    height: 100vh;
+    height: 100%;
     overflow-y: auto;
     padding: var(--space-6);
     background: var(--surface-sunken);

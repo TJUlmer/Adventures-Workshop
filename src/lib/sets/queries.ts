@@ -10,6 +10,7 @@ import type { CardStyleOverride, CardTheme } from '$lib/cards/style';
 import type { StyleOrigin } from '$lib/cards/theme';
 import { resolveCardTheme, styleOrigin } from '$lib/cards/theme';
 import type { Card, CardId } from '$lib/cards/types';
+import { characterLabel } from '$lib/characters/factory';
 import type { Character, CharacterId, CharacterRole } from '$lib/characters/types';
 import type { Deck, DeckId } from '$lib/decks/types';
 import type { Figure } from '$lib/figures/types';
@@ -61,6 +62,13 @@ export function deckOwner(set: AdventureSet, deck: Deck): Character | null {
 export function characterForCard(set: AdventureSet, card: Card): Character | null {
   const deck = findDeck(set, card.deckId);
   return deck ? deckOwner(set, deck) : null;
+}
+
+/** Assigned figure name used when an initiative card leaves its top-band copy empty. */
+export function initiativeSubjectForCard(set: AdventureSet, card: Card): string | null {
+  if (card.type !== 'initiative') return null;
+  const character = findCharacter(set, card.characterId);
+  return character ? characterLabel(character) : null;
 }
 
 export function initiativeDecks(set: AdventureSet): Deck[] {

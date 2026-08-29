@@ -7,21 +7,13 @@
  * that decides whether any of it is any use.
  *
  * A TTS save refers to its art by URL and will not read a data URI, so an
- * export is only finished once the images have an address — and there are
- * three ways that happens, tried in this order:
+ * export is only finished once the images have an address. The author chooses
+ * one hosting target, while every renderer and object builder stays shared:
  *
- *   1. A dev server, which can both write the files to a real folder *and*
- *      answer with its own path — the save comes out complete, on disk.
- *   2. No dev server, but `TtsBundleOptions.savedObjectsPath` is set: the
- *      files still only go out as an archive, but every URL in the JSON is
- *      already the real `file://` address they will have once that archive
- *      is extracted into the folder the author typed in — see
- *      `fileUrlFromPath` and `storage/settings.ts`. This is what makes the
- *      "no editing" outcome reachable from a deployed build, in any browser,
- *      with nothing for the browser itself to support.
- *   3. Neither: the same archive, with the URLs left as a marked blank —
- *      honest about the one thing that cannot be derived rather than
- *      guessing at it.
+ *   - Online: generated files go to a permanent public host and the downloaded
+ *     JSON works for both single-player and multiplayer.
+ *   - Local: the existing folder/ZIP flow writes `file://` addresses for one
+ *     machine, with a dev server still allowed to land the folder directly.
  */
 import { characterLabel } from '$lib/characters/factory';
 import { figureLabel, tokenSpecOf } from '$lib/figures/types';
@@ -53,31 +45,42 @@ import { imageCount, MAX_SHEET_PIXELS, renderDeckSheets, renderSharedBack } from
 import type { ExportResult } from './types';
 import { createZip } from './zip';
 
-/** What goes in the URLs when there is nowhere to write the images. */
-export const PLACEHOLDER_BASE = 'PASTE_THE_FOLDER_URL_HERE';
-
-interface OutputFile {
+export interface TtsHostedAsset {
   /** Path under the export's own folder. Forward slashes make the folders. */
   path: string;
+  contentType: string;
   bytes: Uint8Array<ArrayBuffer>;
 }
+
+export interface TtsUploadProgress extends TtsUploadResult {
+  done: number;
+  total: number;
+}
+
+export interface TtsUploadResult {
+  uploaded: number;
+  reused: number;
+}
+
+/** Supplied by the cloud layer so this exporter stays storage-provider agnostic. */
+export interface TtsOnlineAssetHost {
+  /** Deterministic before upload, so object URLs can be built during rendering. */
+  urlFor(path: string): string;
+  /** Resolve only after every referenced file is present at its public URL. */
+  upload(
+    assets: readonly TtsHostedAsset[],
+    onProgress?: (progress: TtsUploadProgress) => void
+  ): Promise<TtsUploadResult>;
+}
+
+export type TtsHosting =
+  | { kind: 'online'; host: TtsOnlineAssetHost }
+  | { kind: 'local'; savedObjectsPath: string };
 
 export interface TtsBundleOptions {
   /** Called as images are drawn, so a long export can say where it has got to. */
   onProgress?: (done: number, total: number, label: string) => void;
-  /**
-   * This machine's Tabletop Simulator Saved Objects folder, typed in once by
-   * the author and remembered — see `storage/settings.ts`.
-   *
-   * The dev-server folder (below) still wins when both are available: it
-   * writes the files to disk itself, where this can only ever address a
-   * folder the author is going to put them in by hand. But it needs a real
-   * server behind the page, which a deployed build never has — this is what
-   * lets the very same "no placeholder to paste" outcome reach someone using
-   * the hosted app, in any browser, with nothing new the browser has to
-   * support.
-   */
-  savedObjectsPath?: string;
+  hosting: TtsHosting;
 }
 
 /**
@@ -148,6 +151,7 @@ function joinFileUrl(base: string, relative: string): string {
 }
 
 export interface TtsBundleResult {
+  hosting: TtsHosting['kind'];
   /** Absolute folder the files landed in, when the dev server wrote them. */
   directory: string | null;
   /** The archive, when nothing could write to disk. */
@@ -157,6 +161,9 @@ export interface TtsBundleResult {
   removedCount: number;
   /** Things the author will want to know, none of which stopped the export. */
   warnings: string[];
+  /** Online files newly written versus already present under the same hash. */
+  uploadedCount: number;
+  reusedCount: number;
 }
 
 const encoder = new TextEncoder();
@@ -184,28 +191,30 @@ async function bytesOf(blob: Blob): Promise<Uint8Array<ArrayBuffer>> {
  * habit; leaving them costs disk and nothing else.
  */
 async function writeBytes(
-  files: OutputFile[],
+  files: TtsHostedAsset[],
   taken: Set<string>,
   base: string,
   extension: string,
+  contentType: string,
   bytes: Uint8Array<ArrayBuffer>
 ): Promise<string> {
   const path = `${base}-${await shortHash(bytes)}.${extension}`;
   if (taken.has(path)) return path;
   taken.add(path);
-  files.push({ path, bytes });
+  files.push({ path, contentType, bytes });
   return path;
 }
 
 /** The same, for the blobs the renderers hand back. */
 async function writeAsset(
-  files: OutputFile[],
+  files: TtsHostedAsset[],
   taken: Set<string>,
   base: string,
   extension: string,
   blob: Blob
 ): Promise<string> {
-  return writeBytes(files, taken, base, extension, await bytesOf(blob));
+  const contentType = blob.type || (extension === 'png' ? 'image/png' : 'application/octet-stream');
+  return writeBytes(files, taken, base, extension, contentType, await bytesOf(blob));
 }
 
 /** Read the ObjectStates out of a saved-object file, or `null` if it has none. */
@@ -224,6 +233,35 @@ async function readObjectStates(url: string): Promise<unknown[] | null> {
 }
 
 /**
+ * A saved object can carry dependencies the workshop never received — its JSON
+ * names a local texture or mesh, but contains none of that file's bytes. Those
+ * references cannot be made multiplayer-ready by uploading the JSON itself, so
+ * find them before an online export claims the whole object is portable.
+ */
+function localAssetReferences(value: unknown): string[] {
+  const found = new Set<string>();
+  const isLocal = (text: string): boolean =>
+    /^(?:file:\/{2,3}|[a-z]:[\\/]|\\\\|PASTE_THE_FOLDER_URL_HERE)/i.test(text.trim());
+
+  const walk = (node: unknown): void => {
+    if (typeof node === 'string') {
+      if (isLocal(node)) found.add(node);
+      return;
+    }
+    if (Array.isArray(node)) {
+      for (const item of node) walk(item);
+      return;
+    }
+    if (node && typeof node === 'object') {
+      for (const item of Object.values(node)) walk(item);
+    }
+  };
+
+  walk(value);
+  return [...found];
+}
+
+/**
  * The dial's mesh, written once per *variant* — one-sided, two-sided, or both
  * — however many dials of each a set has.
  *
@@ -234,20 +272,23 @@ async function readObjectStates(url: string): Promise<unknown[] | null> {
  * dial writes exactly two mesh files rather than either one dial file or one
  * per dial.
  */
-function dialMeshUrl(
+async function dialMeshUrl(
   twoSided: boolean,
   urlFor: (path: string) => string,
-  files: OutputFile[],
+  files: TtsHostedAsset[],
   taken: Set<string>
-): string {
-  const path = healthDialMeshPath(twoSided);
-  if (!taken.has(path)) {
-    taken.add(path);
-    files.push({
-      path,
-      bytes: encoder.encode(tokenObj(buildTokenMesh(healthDialSpec(twoSided)), HEALTH_DIAL_MATERIAL))
-    });
-  }
+): Promise<string> {
+  /* The old fixed filename was harmless on disk but unsafe on a public host:
+     TTS caches by URL, so a later mesh correction would keep drawing the old
+     geometry. Hash it through the same writer as every other generated file. */
+  const path = await writeBytes(
+    files,
+    taken,
+    healthDialMeshPath(twoSided).replace(/\.obj$/i, ''),
+    'obj',
+    'model/obj',
+    encoder.encode(tokenObj(buildTokenMesh(healthDialSpec(twoSided)), HEALTH_DIAL_MATERIAL))
+  );
   return urlFor(path);
 }
 
@@ -267,7 +308,7 @@ async function dialObjects(
   name: string,
   index: number,
   urlFor: (path: string) => string,
-  files: OutputFile[],
+  files: TtsHostedAsset[],
   taken: Set<string>,
   warnings: string[]
 ): Promise<object[]> {
@@ -277,7 +318,7 @@ async function dialObjects(
     return [];
   }
 
-  const meshUrl = dialMeshUrl(figure.token.twoSided, urlFor, files, taken);
+  const meshUrl = await dialMeshUrl(figure.token.twoSided, urlFor, files, taken);
 
   let diffuseUrl = '';
   if (figure.reference.source) {
@@ -338,9 +379,10 @@ async function componentFor(
   ownerName: string | null,
   index: number,
   urlFor: (path: string) => string,
-  files: OutputFile[],
+  files: TtsHostedAsset[],
   taken: Set<string>,
-  warnings: string[]
+  warnings: string[],
+  online: boolean
 ): Promise<object[]> {
   const name = figureLabel(figure, ownerName);
 
@@ -359,7 +401,18 @@ async function componentFor(
           ? (parsed as Record<string, unknown>)['ObjectStates']
           : null;
 
-      if (Array.isArray(states) && states.length > 0) return placeSavedObjects(states, index);
+      if (Array.isArray(states) && states.length > 0) {
+        const localReferences = online ? localAssetReferences(states) : [];
+        if (localReferences.length > 0) {
+          warnings.push(
+            `${name}: its imported TTS object still contains ${localReferences.length} local ` +
+              `${localReferences.length === 1 ? 'asset reference' : 'asset references'}. ` +
+              'Those files were not attached to this set, so other players may not see them; ' +
+              'open the object in TTS and use Cloud Manager → Upload All.'
+          );
+        }
+        return placeSavedObjects(states, index);
+      }
       warnings.push(`${name}: its Tabletop Simulator file holds no objects.`);
     } catch {
       warnings.push(`${name}: its Tabletop Simulator file could not be read.`);
@@ -378,7 +431,12 @@ async function componentFor(
     const spec = await resolvedTokenSpec(figure, tokenSpecOf(figure.token));
     const mesh = buildTokenMesh(spec);
     const meshPath = await writeBytes(
-      files, taken, `models/${slug}`, 'obj', encoder.encode(tokenObj(mesh, slug))
+      files,
+      taken,
+      `models/${slug}`,
+      'obj',
+      'model/obj',
+      encoder.encode(tokenObj(mesh, slug))
     );
     const texturePath = await writeAsset(
       files, taken, `models/${slug}`, 'png', await buildTokenArt(figure)
@@ -429,8 +487,8 @@ async function componentFor(
 }
 
 /**
- * Where the images ended up, and what is still owed before TTS can read
- * them — one of three states, in the order they are preferred.
+ * Where a local-only export landed, and what is still owed before TTS can read
+ * it — one of two states, in the order they are preferred.
  *
  *  1. `directory` — a dev server wrote the files for real, to a real path on
  *     disk. Nothing about the images is left to do.
@@ -439,13 +497,11 @@ async function componentFor(
  *     `storage/settings.ts`), so the URLs baked into the JSON already point
  *     there. The archive still has to be extracted and placed, but nothing
  *     in it has to be *edited*.
- *  3. Neither — every URL reads `PASTE_THE_FOLDER_URL_HERE`, exactly as
- *     before this existed.
  */
 function howToImport(
   set: AdventureSet,
   root: string,
-  info: { directory: string | null; savedObjectsPath: string | null }
+  info: { directory: string | null; savedObjectsPath: string }
 ): string {
   const decks = planTabletopDecks(set);
   const piles = decks
@@ -456,7 +512,7 @@ function howToImport(
     .join('\n');
 
   /*
-   * One rule regardless of which of the three states applies, and it is
+   * One rule regardless of which local state applies, and it is
    * worth having only one: **the whole `${root}` folder — the .json beside
    * models/, sheets/ and the rest — belongs inside Saved Objects, not just
    * the .json on its own.** Every image in it is addressed relative to that
@@ -483,7 +539,7 @@ into your Saved Objects folder. Nothing to unzip; it is already unpacked.
      Documents/My Games/Tabletop Simulator/Saves/Saved Objects/
   2. In TTS: Objects → Saved Objects → spawn it once.
      Everything appears at once, laid out in a row.`;
-  } else if (info.savedObjectsPath) {
+  } else {
     /*
      * Trimmed once, here, and read from nowhere else — every mention of this
      * path below (and the URL `base` computed from the same raw setting up
@@ -515,30 +571,6 @@ the whole folder, models/sheets/map and all.
      directly inside:
      ${savedObjectsPath}
   3. In TTS: Objects → Saved Objects → spawn it once.
-     Everything appears at once, laid out in a row.`;
-  } else {
-    placement = `The images have no address yet, so every FaceURL and BackURL in the JSON
-reads ${PLACEHOLDER_BASE}.
-
-  1. Decide where this is going to live — most simply, straight inside your
-     Saved Objects folder (Documents/My Games/Tabletop Simulator/Saves/
-     Saved Objects/) — and extract this archive there.
-  2. Replace ${PLACEHOLDER_BASE} throughout the JSON with that folder's own
-     "file:///" address, e.g. "file:///C:/Users/you/Documents/My Games/
-     Tabletop Simulator/Saves/Saved Objects/${root}". One find-and-replace
-     does it.
-
-Set your Saved Objects folder once in the export panel and every future
-export arrives with this already done — see "Running the workshop from its
-own dev server" below for the one case that needs neither.`;
-    installing = `In short: unzip this archive, fix the URLs (above), then copy the entire
-unzipped folder into your Saved Objects folder — the whole thing, not just
-the .json.
-
-  1. Once the JSON's URLs are fixed (above), make sure the folder holding
-     it — this one, "${root}" — is sitting directly inside Saved Objects.
-     If you extracted it there already in step 1 above, it already is.
-  2. In TTS: Objects → Saved Objects → spawn it once.
      Everything appears at once, laid out in a row.`;
   }
 
@@ -573,6 +605,13 @@ Installing it
 -------------
 ${installing}
 
+Making this local export multiplayer-ready later
+-------------------------------------------------
+In TTS, open Upload → Cloud Manager and choose Upload All (the black up arrow).
+Wait for the local and cached assets to finish uploading, then save the object
+again. TTS rewrites those asset sources to its Steam Cloud so other players can
+download them; saving afterwards is what keeps the rewritten URLs.
+
 Running the workshop from its own dev server
 ----------------------------------------------
 "npm run dev", then open the app at the address it prints instead of wherever
@@ -593,27 +632,32 @@ Generated by Unmatched Labs.
 
 export async function exportTabletopSimulator(
   set: AdventureSet,
-  options: TtsBundleOptions = {}
+  options: TtsBundleOptions
 ): Promise<TtsBundleResult> {
-  const folder = await findExportsFolder();
   const root = `${slugify(set.name, 'adventure-set')}-tts`;
-  const savedObjectsPath = options.savedObjectsPath?.trim() || null;
+  const online = options.hosting.kind === 'online';
+  /* A development server is a local-output convenience. It must never win
+     over an explicit online choice and quietly put file URLs in a save that
+     was promised to work for the rest of the table. */
+  const folder = online ? null : await findExportsFolder();
+  const savedObjectsPath =
+    options.hosting.kind === 'local' ? options.hosting.savedObjectsPath.trim() : '';
+  if (!online && !savedObjectsPath) {
+    throw new Error('A Tabletop Simulator Saved Objects folder is required for local hosting.');
+  }
 
-  /*
-   * The dev server, when there is one, wins — it writes the files for real
-   * rather than only addressing a folder the author has to put them in by
-   * hand. See `TtsBundleOptions.savedObjectsPath`.
-   *
-   * `rawRoot` tracks whether `base` is a genuine raw-path `file://` address
-   * (either one) or the placeholder, which is not an address at all and is
-   * joined with a plain `/` same as it always was — it is getting replaced
-   * by hand regardless of which slash it wears.
-   */
-  const rawRoot = folder ? folder.url : savedObjectsPath ? fileUrlFromPath(savedObjectsPath) : null;
-  const base = rawRoot ? joinFileUrl(rawRoot, root) : PLACEHOLDER_BASE;
-  const urlFor = (path: string): string => (rawRoot ? joinFileUrl(base, path) : `${base}/${path}`);
+  let urlFor: (path: string) => string;
+  if (options.hosting.kind === 'online') {
+    urlFor = options.hosting.host.urlFor;
+  } else {
+    const rawRoot = folder?.url ?? fileUrlFromPath(savedObjectsPath);
+    const base = joinFileUrl(rawRoot, root);
+    urlFor = (path) => joinFileUrl(base, path);
+  }
 
-  const files: OutputFile[] = [];
+  /* JSON and instructions are added only for the local archive. Until then
+     this is exactly the list the online host must make publicly available. */
+  const files: TtsHostedAsset[] = [];
   const taken = new Set<string>();
   const warnings: string[] = [];
 
@@ -723,18 +767,53 @@ export async function exportTabletopSimulator(
       : null;
     const ownerName = owner ? characterLabel(owner) : null;
     components.push(
-      ...(await componentFor(figure, ownerName, components.length, urlFor, files, taken, warnings))
+      ...(await componentFor(
+        figure,
+        ownerName,
+        components.length,
+        urlFor,
+        files,
+        taken,
+        warnings,
+        online
+      ))
     );
   }
 
+  const saveName = `${slugify(set.name, 'adventure-set')}.json`;
+  const saveText = buildTabletopSimulatorSave({ set, decks, threat, map, components });
+
+  if (options.hosting.kind === 'online') {
+    const uploaded = await options.hosting.host.upload(files, (progress) => {
+      options.onProgress?.(progress.done, progress.total, 'Uploading assets');
+    });
+
+    return {
+      hosting: 'online',
+      directory: null,
+      removedCount: 0,
+      download: {
+        filename: saveName,
+        mimeType: 'application/json',
+        blob: new Blob([saveText], { type: 'application/json' })
+      },
+      fileCount: files.length + 1,
+      warnings,
+      uploadedCount: uploaded.uploaded,
+      reusedCount: uploaded.reused
+    };
+  }
+
   files.push({
-    path: `${slugify(set.name, 'adventure-set')}.json`,
-    bytes: encoder.encode(buildTabletopSimulatorSave({ set, decks, threat, map, components }))
+    path: saveName,
+    contentType: 'application/json',
+    bytes: encoder.encode(saveText)
   });
 
   const directory = folder ? `${folder.directory}\\${root}` : null;
   files.push({
     path: 'HOW_TO_IMPORT.txt',
+    contentType: 'text/plain',
     bytes: encoder.encode(howToImport(set, root, { directory, savedObjectsPath }))
   });
 
@@ -747,10 +826,20 @@ export async function exportTabletopSimulator(
        export leaves the previous good one intact. */
     const removed = await pruneExportsBundle(root, files.map((file) => file.path));
 
-    return { directory, download: null, fileCount: files.length, removedCount: removed, warnings };
+    return {
+      hosting: 'local',
+      directory,
+      download: null,
+      fileCount: files.length,
+      removedCount: removed,
+      warnings,
+      uploadedCount: 0,
+      reusedCount: 0
+    };
   }
 
   return {
+    hosting: 'local',
     directory: null,
     removedCount: 0,
     download: {
@@ -773,7 +862,9 @@ export async function exportTabletopSimulator(
       blob: createZip(files)
     },
     fileCount: files.length,
-    warnings
+    warnings,
+    uploadedCount: 0,
+    reusedCount: 0
   };
 }
 

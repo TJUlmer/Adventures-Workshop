@@ -447,16 +447,16 @@ export const GUIDES: readonly Guide[] = [
       },
       {
         text:
-          'The Tabletop Simulator export will create a zipped folder of all the assets needed for TTS. Unzip it, then copy the whole unzipped folder into your Tabletop Simulator Saved Objects folder. Type that folder\'s path in once below before exporting and every future export already points there, so nothing needs editing by hand.',
+          'The Tabletop Simulator export hosts its generated artwork online by default, so the one saved-object JSON it downloads is ready for multiplayer: put that JSON in your Tabletop Simulator Saved Objects folder and everyone at the table can load the artwork. Turn off “Host assets online” when you deliberately want a local-only zip instead; that route shows the machine-specific folder setting and explains how to make it multiplayer-ready later with Cloud Manager’s Upload All command.',
         shot: 'sharing-a-set/03-tts.webp',
-        alt: 'The Tabletop Simulator export button, with its note explaining to copy the entire unzipped folder into the Saved Objects folder.',
+        alt: 'The Tabletop Simulator export button and its hosting choice.',
         hotspots: [
           {
             x: 0.0,
             y: 0.28,
             w: 1.0,
             h: 0.2,
-            label: 'The whole folder — not one file out of it'
+            label: 'Online for multiplayer; local only when you choose it'
           }
         ]
       },

@@ -1,11 +1,8 @@
 <script lang="ts">
-  import { cloudEnabled } from '$lib/cloud/config';
-  import AccountMenu from '$lib/components/cloud/AccountMenu.svelte';
   import { EXPORTERS, getExporter, saveExport } from '$lib/export';
-  import { navigation } from '$lib/state/navigation.svelte';
   import { setLabel } from '$lib/sets/factory';
   import { workshop } from '$lib/state/workshop.svelte';
-  import { Button, Icon, ThemeToggle } from '$lib/ui';
+  import { Button, Icon } from '$lib/ui';
 
   let message = $state<string | null>(null);
 
@@ -60,20 +57,6 @@
 </script>
 
 <div class="bar">
-  <!--
-    The one piece of chrome here that looked clickable and was not — a brand
-    mark in the top-left corner reads as "go home" everywhere on the web, and
-    this one sat right beside a button that actually does that ("Home", added
-    when Home replaced the library page) without itself doing anything.
-    `workshop.closeSet`, not a bare `navigation.openHome`, for the same reason
-    that button uses it: leaving a set is what refreshes the library index
-    and clears "last open".
-  -->
-  <button class="brand" type="button" onclick={() => void workshop.closeSet()} title="Home">
-    <img class="mark" src="/assets/labs_beaker5.png" alt="" aria-hidden="true" />
-    <span class="wordmark">Unmatched Labs</span>
-  </button>
-
   <button class="doc" type="button" onclick={() => workshop.selectSet()} title="Set details">
     <Icon name="book" size={14} />
     <span class="doc-name">{setName}</span>
@@ -82,40 +65,6 @@
   <div class="actions">
     {#if message}
       <span class="message">{message}</span>
-    {/if}
-
-    <!--
-      Both Home and the gallery live here now, as a pair — the same "where
-      else could I be" pairing Home itself offers. This replaces `SetNav`'s
-      old back-chevron rather than sitting beside it: two controls that both
-      mean "leave this set" is redundant chrome, not a convenience, and this
-      one is where an author is already looking. `workshop.closeSet`, not a
-      bare `navigation.openHome`, for the reason `SetNav`'s own back button
-      used it — leaving a set is what refreshes the library index and clears
-      "last open", not just a view change.
-    -->
-    <Button size="sm" variant="ghost" title="Your sets" onclick={() => void workshop.closeSet()}>
-      <Icon name="grid" size={14} />
-      Home
-    </Button>
-
-    <!--
-      The way into the gallery, from wherever the author happens to be. It used
-      to live only on the Library, which meant browsing what other people had
-      made was a thing you could only think of before opening a set.
-
-      Importing still lives on the Library, where opening a set already happens.
-    -->
-    {#if cloudEnabled()}
-      <Button
-        size="sm"
-        variant="ghost"
-        title="Sets other people have published"
-        onclick={() => navigation.openGallery()}
-      >
-        <Icon name="layers" size={14} />
-        Gallery
-      </Button>
     {/if}
 
     <Button size="sm" variant="ghost" title="Save to this browser" onclick={saveNow}>
@@ -155,56 +104,17 @@
       {/if}
     </div>
 
-    <ThemeToggle />
-
-    <!--
-      Always here now, signed in or not — the one entry point into signing in
-      that is not tied to sharing or contributing; see `AccountMenu`'s own
-      note.
-    -->
-    <AccountMenu />
   </div>
 </div>
 
 <style>
   .bar {
-    display: grid;
-    grid-template-columns: 1fr auto 1fr;
+    display: flex;
     align-items: center;
+    justify-content: space-between;
     gap: var(--space-4);
     height: 100%;
     padding-inline: var(--space-4);
-  }
-
-  .brand {
-    display: flex;
-    align-items: center;
-    gap: var(--space-3);
-    min-width: 0;
-    padding: 0;
-    border: none;
-    background: none;
-    cursor: pointer;
-    border-radius: var(--radius-sm);
-  }
-
-  .brand:hover .wordmark {
-    color: var(--text-primary);
-  }
-
-  .mark {
-    width: 22px;
-    height: 22px;
-    flex: none;
-    object-fit: contain;
-  }
-
-  .wordmark {
-    font-size: var(--text-sm);
-    font-weight: var(--weight-semibold);
-    letter-spacing: var(--tracking-tight);
-    color: var(--text-secondary);
-    white-space: nowrap;
   }
 
   .doc {

@@ -24,6 +24,7 @@ export {
   findDeck,
   getVillain,
   initiativeDecks,
+  initiativeSubjectForCard,
   looseDecks,
   outline,
   resolveStyleForCard,

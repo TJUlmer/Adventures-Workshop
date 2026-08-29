@@ -110,8 +110,10 @@ refers to card art by URL and will not read a data URI, so a TTS save is only
 usable once its images have an address — and a page cannot learn its own
 absolute path, while the dev server can. Dev only (`apply: 'serve'`), confined
 to `exports/`, and every path segment matched against a slug-shaped pattern.
-Nothing else in the app may depend on it; the TTS exporter falls back to an
-archive with the URLs left blank when it is not there.
+Nothing else in the app may depend on it. It is now only the direct-write
+convenience for an explicitly local TTS export; the default online route never
+probes it, because discovering a dev server must not silently turn a promised
+multiplayer export back into one machine's `file://` save.
 
 **Runes only.** `svelte.config.js` sets `runes: true`, so legacy `$:` reactivity
 will not compile.
@@ -151,7 +153,31 @@ Three files, split by what they know:
 - `tts-sheets.ts` — a pile drawn onto one sheet. TTS reads a deck as a single
   image plus a grid, at most 10 × 7 and never over 4096px a side, so cell size
   is *derived* from the card count rather than fixed.
-- `tts-bundle.ts` — renders, then writes to `exports/` or falls back to a ZIP.
+- `tts-bundle.ts` — renders once against an explicit `online` or `local` hosting
+  target. Online returns one saved-object JSON after its dependencies are
+  uploaded; local writes to `exports/` or falls back to a ZIP.
+- `cloud/tts-assets.ts` — establishes the author's Supabase identity and hosts
+  generated sheets, boards, textures and OBJ meshes in the public `tts-assets`
+  bucket. Its only interface to the exporter is deterministic `urlFor` plus a
+  bounded `upload`, so storage-provider details never enter object planning.
+
+Online is deliberately the export panel's default rather than a second export
+mode: multiplayer is the least surprising result. Every hosted filename carries
+the bytes' hash, including the otherwise-fixed health-dial meshes, because TTS
+caches assets by URL and must receive a new URL after any generated file changes.
+Public `HEAD` checks reuse unchanged objects; upload failure aborts the export
+instead of quietly returning a local save. The local option remains for fully
+offline work, requires the Saved Objects path, and its instructions document
+TTS's own Cloud Manager → Upload All route for converting that save later.
+
+The hosted URLs belong only to the exported JSON. They never replace embedded
+data URLs in the IndexedDB document, so authoring remains local-first and works
+offline. An online export creates an anonymous Supabase identity when necessary;
+the UI says plainly that the temporary identity belongs to this browser. Public
+objects live under `<owner-id>/<set-id>/<content-hashed filename>`, enforced by
+`supabase/migrations/0012_tts_assets.sql`. Imported TTS saved objects are opaque:
+if their JSON still points at `file://`, drive-letter or UNC assets, the exporter
+cannot upload bytes it was never given and warns the author to use Upload All.
 
 The piles are **one per figure**, plus rules, initiative and events — the
 author's decks merged by who holds them, then split by card format because a TTS

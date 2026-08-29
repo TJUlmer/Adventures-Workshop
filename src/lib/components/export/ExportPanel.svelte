@@ -19,6 +19,9 @@
     saveExport,
     tabletopDeckSummary
   } from '$lib/export';
+  import { auth } from '$lib/cloud/auth.svelte';
+  import { cloudEnabled } from '$lib/cloud/config';
+  import { createTtsAssetHost } from '$lib/cloud/tts-assets';
   import {
     applyExportSelection,
     defaultExportSelection,
@@ -141,16 +144,22 @@
   }
 
   /**
-   * The Tabletop Simulator bundle. Its own button rather than an entry in
-   * `EXPORTERS` because it does not produce a file — it produces a folder, and
-   * where that folder went is the thing the author most needs told.
+   * The Tabletop Simulator saved object. Its own button rather than an entry
+   * in `EXPORTERS` because it renders several kinds of asset before deciding
+   * whether to host them or put them beside the JSON locally.
    */
   const ttsPiles = $derived(tabletopDeckSummary(finalSet));
+  const ttsOnlineAvailable = cloudEnabled();
 
   let ttsProgress = $state<string | null>(null);
+  /** A fresh panel always recommends the multiplayer-ready route. */
+  let hostTtsAssets = $state(true);
   let ttsResult = $state<{
+    hosting: 'online' | 'local';
     directory: string | null;
     removedCount: number;
+    uploadedCount: number;
+    reusedCount: number;
     warnings: string[];
   } | null>(null);
 
@@ -161,10 +170,8 @@
    * awaited, since there is nothing useful to show before it resolves.
    *
    * Read from a browser page rather than asked of the operating system,
-   * because there is no way to ask the operating system — see
-   * `tts-bundle.ts`'s `TtsBundleOptions.savedObjectsPath` for what this
-   * actually buys: every export's JSON arrives with real `file://` image
-   * addresses already in it, in any browser, with no dev server involved.
+   * because there is no way to ask the operating system. It is only needed
+   * when the author deliberately turns online hosting off.
    */
   let savedObjectsPath = $state('');
   void readTtsSavedObjectsPath().then((value) => (savedObjectsPath = value));
@@ -173,28 +180,23 @@
     void writeTtsSavedObjectsPath(savedObjectsPath);
   }
 
-  /**
-   * Blank means every `FaceURL`/`MeshURL` in the export comes out as the
-   * `PASTE_THE_FOLDER_URL_HERE` placeholder — a working but easy-to-miss
-   * fallback (see `tts-bundle.ts`) that someone only discovers once TTS
-   * fails to show any art. Checked here, ahead of the render, so the
-   * warning lands before minutes of sheet-drawing are spent on an export
-   * that needs hand-editing anyway.
-   *
-   * Required even while a dev server is answering and would happily write
-   * real paths on its own, making the field genuinely moot there — asked
-   * for by name, to keep the one rule simple ("the field is blank") rather
-   * than one that quietly depends on how the page happens to be served.
-   */
+  /** Refuse an incomplete local export before spending time rendering it. */
   function missingSavedObjectsPath(): boolean {
     return !savedObjectsPath.trim();
   }
 
   async function exportTts(): Promise<void> {
     if (ttsProgress !== null) return;
-    if (missingSavedObjectsPath()) {
+    if (!hostTtsAssets && missingSavedObjectsPath()) {
       flash(
         'Enter your Tabletop Simulator Saved Objects folder below, then export again.',
+        'error'
+      );
+      return;
+    }
+    if (hostTtsAssets && !ttsOnlineAvailable) {
+      flash(
+        'Online hosting is not configured for this copy of Unmatched Labs. Turn off “Host assets online” to make a local export.',
         'error'
       );
       return;
@@ -202,19 +204,27 @@
     ttsProgress = 'Rendering…';
     ttsResult = null;
     try {
+      const hosting = hostTtsAssets
+        ? { kind: 'online' as const, host: await createTtsAssetHost(finalSet.id) }
+        : { kind: 'local' as const, savedObjectsPath };
       const result = await exportTabletopSimulator(finalSet, {
-        savedObjectsPath,
+        hosting,
         onProgress: (done, total, label) => (ttsProgress = `${label} — ${done} of ${total}…`)
       });
 
       if (result.download) saveExport(result.download);
       ttsResult = {
+        hosting: result.hosting,
         directory: result.directory,
         removedCount: result.removedCount,
+        uploadedCount: result.uploadedCount,
+        reusedCount: result.reusedCount,
         warnings: result.warnings
       };
       flash(
-        result.directory
+        result.hosting === 'online'
+          ? `Exported ${result.download?.filename ?? 'the saved object'} for multiplayer.`
+          : result.directory
           ? `Wrote ${result.fileCount} files to ${result.directory}.`
           : `Exported ${result.download?.filename ?? 'the bundle'}.`
       );
@@ -298,48 +308,75 @@
         <span class="export-label">Tabletop Simulator (one saved object)</span>
         <span class="export-hint">
           {ttsProgress ??
-            `${ttsPiles.length} ${ttsPiles.length === 1 ? 'pile' : 'piles'}, face sheets and components — as a folder here, or a .zip to your downloads.`}
+            (hostTtsAssets
+              ? `${ttsPiles.length} ${ttsPiles.length === 1 ? 'pile' : 'piles'}, face sheets and components — hosted for multiplayer, with one JSON to download.`
+              : `${ttsPiles.length} ${ttsPiles.length === 1 ? 'pile' : 'piles'}, face sheets and components — as a local folder here, or a .zip to your downloads.`)}
         </span>
       </span>
     </button>
 
-    <!--
-      The one sentence someone needs before TTS will actually show this: not
-      "unzip and read the JSON", not "unzip and copy the .json somewhere" —
-      the whole folder, wherever it lands. Said plainly, right under the
-      button, rather than left for `HOW_TO_IMPORT.txt` to be the only place
-      it appears — that file only gets opened by someone already stuck.
-    -->
-    <p class="tts-note">
-      After exporting: unzip the folder, then copy the <strong>entire unzipped
-      folder</strong> into your Tabletop Simulator Saved Objects folder.
-    </p>
-
-    <!--
-      Typed once, remembered from then on. This is what lets an export's JSON
-      arrive with real image addresses already in it on a plain deployed page
-      with no dev server behind it — the same outcome `HOW_TO_IMPORT.txt`
-      describes for that dev-server case, reached a different way. Left
-      blank, `exportTts` refuses rather than quietly handing back a JSON full
-      of placeholder URLs — see `missingSavedObjectsPath`, required even
-      when a dev server is running and would have written real paths anyway.
-    -->
-    <label class="saved-objects">
-      <span class="saved-objects-label">Tabletop Simulator Saved Objects folder</span>
-      <TextInput
-        bind:value={savedObjectsPath}
-        onchange={saveSavedObjectsPath}
-        placeholder="C:\Users\you\Documents\My Games\Tabletop Simulator\Saves\Saved Objects"
-      />
-      <span class="saved-objects-hint">
-        Set this once and every export's images already point here — no editing
-        the JSON by hand. Find it by opening that folder in File Explorer or
-        Finder and copying the path from its address bar.
+    <label class="tts-hosting">
+      <input type="checkbox" bind:checked={hostTtsAssets} disabled={ttsProgress !== null} />
+      <span>
+        <strong>Host assets online</strong>
+        <small>Recommended — other players can see the artwork in multiplayer.</small>
       </span>
     </label>
 
+    {#if hostTtsAssets}
+      <p class="tts-note">
+        The generated sheets, map and models are uploaded to public links, then the saved-object
+        JSON downloads to this device. Put that JSON in Tabletop Simulator’s Saved Objects folder.
+        No image folder is needed.
+      </p>
+      <p class="tts-note account-note">
+        {#if auth.isAnonymous}
+          These hosted assets belong to this browser’s temporary identity. Sign in from Account
+          if you want to keep control of them after clearing browser data or changing devices.
+        {:else if auth.signedIn}
+          Hosted assets are managed under your signed-in account.
+        {:else}
+          Your first online export creates a temporary identity for this browser. You can connect
+          it to an account later without moving the assets.
+        {/if}
+      </p>
+      {#if !ttsOnlineAvailable}
+        <p class="warning">
+          Online hosting is not configured for this copy of Unmatched Labs. Turn this option off
+          to make a local export.
+        </p>
+      {/if}
+    {:else}
+      <p class="tts-note">
+        Local-only export: unzip the folder, then copy the <strong>entire unzipped folder</strong>
+        into your Tabletop Simulator Saved Objects folder. Other players will not see locally
+        stored artwork unless you later use <strong>Upload → Cloud Manager → Upload All</strong>
+        in Tabletop Simulator and save the object again.
+      </p>
+
+      <!-- Typed once and remembered; online hosting never asks for a machine-specific path. -->
+      <label class="saved-objects">
+        <span class="saved-objects-label">Tabletop Simulator Saved Objects folder</span>
+        <TextInput
+          bind:value={savedObjectsPath}
+          onchange={saveSavedObjectsPath}
+          placeholder="C:\Users\you\Documents\My Games\Tabletop Simulator\Saves\Saved Objects"
+        />
+        <span class="saved-objects-hint">
+          Set this once and every local export’s images already point here — no editing the JSON
+          by hand. Copy the path from File Explorer or Finder.
+        </span>
+      </label>
+    {/if}
+
     {#if ttsResult}
-      {#if ttsResult.directory}
+      {#if ttsResult.hosting === 'online'}
+        <p class="landed hosted-result">
+          Hosted {ttsResult.uploadedCount} new
+          {ttsResult.uploadedCount === 1 ? 'asset' : 'assets'}; reused {ttsResult.reusedCount}
+          unchanged {ttsResult.reusedCount === 1 ? 'asset' : 'assets'}.
+        </p>
+      {:else if ttsResult.directory}
         <p class="landed">{ttsResult.directory}</p>
         {#if ttsResult.removedCount > 0}
           <!-- Images are named after their contents so TTS cannot cache a stale
@@ -493,6 +530,50 @@
     font-weight: var(--weight-semibold);
   }
 
+  .tts-hosting {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-2);
+    margin: var(--space-1) var(--space-2) 0;
+    padding: var(--space-2);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-sm);
+    color: var(--text-default);
+    cursor: pointer;
+  }
+
+  .tts-hosting input {
+    margin-top: 2px;
+    accent-color: var(--accent-press);
+  }
+
+  .tts-hosting > span {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .tts-hosting strong {
+    font-size: var(--text-xs);
+    font-weight: var(--weight-semibold);
+  }
+
+  .tts-hosting small {
+    color: var(--text-muted);
+    font-size: var(--text-2xs);
+    line-height: var(--leading-normal);
+  }
+
+  .tts-hosting:has(input:disabled) {
+    opacity: 0.6;
+    cursor: default;
+  }
+
+  .account-note {
+    padding-top: 0;
+    color: var(--text-tertiary);
+  }
+
   .saved-objects {
     display: flex;
     flex-direction: column;
@@ -523,6 +604,10 @@
   .landed {
     color: var(--text-tertiary);
     font-family: var(--font-mono, monospace);
+  }
+
+  .hosted-result {
+    font-family: inherit;
   }
 
   .warning {
@@ -560,6 +645,8 @@
 
   .export-label {
     font-size: var(--text-sm);
+    font-weight: var(--weight-semibold);
+    color: var(--text-accent);
   }
 
   .export-hint {

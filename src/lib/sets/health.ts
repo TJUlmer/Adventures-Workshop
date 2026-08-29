@@ -7,7 +7,6 @@
  */
 import { cardLabel } from '$lib/cards/factory';
 import type { Card } from '$lib/cards/types';
-import { abilityIsEmpty } from '$lib/cards/types';
 import { characterLabel } from '$lib/characters/factory';
 import type { Character } from '$lib/characters/types';
 import { hasArtwork } from '$lib/core/artwork';
@@ -181,7 +180,8 @@ export function assessSet(set: AdventureSet): SetHealth {
   }
 
   const emptyText = set.cards.filter((card) => {
-    if (card.type === 'action') return abilityIsEmpty(card.ability) && abilityIsEmpty(card.defenseAbility);
+    // Combat values alone can be the complete rules of an action card.
+    if (card.type === 'action') return false;
     if (card.type === 'initiative') return !card.rightNow.trim() && !card.endOfRound.trim();
     return richTextIsEmpty(card.body);
   });

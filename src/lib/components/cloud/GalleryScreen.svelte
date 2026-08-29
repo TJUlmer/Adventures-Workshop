@@ -2,9 +2,9 @@
   /**
    * The community gallery.
    *
-   * Outside the app shell, like the library and a share link, because browsing
-   * is not something you do *inside* a set — and a visitor arriving here may
-   * have no sets at all.
+   * Outside the set shell, like Home and a share link, because browsing is not
+   * something you do *inside* a set — and a visitor arriving here may have no
+   * sets at all. The application banner still wraps it in `App.svelte`.
    *
    * A tile opens the set the same way a share link does: through
    * `#/shared/<slug>`, which already knows how to fetch, hydrate, preview and
@@ -21,7 +21,6 @@
    * fix. The toggle is the honest way to say that; folding characters into the
    * set grid would mean a tile that is sometimes a box and sometimes a person.
    */
-  import AccountMenu from '$lib/components/cloud/AccountMenu.svelte';
   import { cloudEnabled } from '$lib/cloud/config';
   import { listPublicCharacters, listPublicSets } from '$lib/cloud/sets';
   import type {
@@ -34,7 +33,7 @@
   import type { CharacterRole } from '$lib/characters/types';
   import { CARD_FORMATS, trimBox } from '$lib/renderer/geometry';
   import { navigation } from '$lib/state/navigation.svelte';
-  import { Button, Icon, SegmentedControl, Select, ThemeToggle } from '$lib/ui';
+  import { Button, Icon, SegmentedControl, Select } from '$lib/ui';
   import { initials, tint } from '$lib/core/swatch';
 
   const PAGE = 36;
@@ -314,14 +313,6 @@
         with.
       </p>
     </div>
-    <div class="actions">
-      <ThemeToggle />
-      <AccountMenu />
-      <Button variant="ghost" onclick={() => navigation.openHome()}>
-        <Icon name="chevronRight" size={13} />
-        Home
-      </Button>
-    </div>
   </header>
 
   {#if !cloudEnabled()}
@@ -588,16 +579,13 @@
   /*
    * Owns its own scrolling, because nothing else will.
    *
-   * `base.css` sets `body { overflow: hidden }` on the grounds that "the shell
-   * owns all scrolling" — and this screen, like the library and a share link,
-   * renders *outside* the shell. So a screen out here either scrolls itself or
-   * does not scroll at all, and this one did not: `min-height: 100vh` let the
-   * grid grow past the viewport while `body` clipped it, so a second row of
-   * tiles existed and could not be reached. `SharedSetScreen` and
-   * `PrintScreen` had already been bitten by exactly this.
+   * `base.css` sets `body { overflow: hidden }`, so this screen must own its
+   * scrolling. Its height comes from the application frame now; using the
+   * viewport directly would add the global banner's height and clip the last
+   * part of the grid.
    */
   .screen {
-    height: 100vh;
+    height: 100%;
     overflow-y: auto;
     padding: var(--space-6);
     background: var(--surface-sunken);
@@ -607,15 +595,8 @@
   .head {
     display: flex;
     align-items: flex-start;
-    justify-content: space-between;
     gap: var(--space-4);
     margin-bottom: var(--space-5);
-  }
-
-  .actions {
-    display: flex;
-    align-items: center;
-    gap: var(--space-2);
   }
 
   .eyebrow {

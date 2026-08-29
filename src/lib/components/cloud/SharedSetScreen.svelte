@@ -28,7 +28,6 @@
    */
   import { untrack } from 'svelte';
   import type { CharacterId } from '$lib/characters/types';
-  import AccountMenu from '$lib/components/cloud/AccountMenu.svelte';
   import ExportPanel from '$lib/components/export/ExportPanel.svelte';
   import AssetsOverview from '$lib/components/tools/AssetsOverview.svelte';
   import { listContributors } from '$lib/cloud/contributions';
@@ -50,7 +49,7 @@
   import { navigation } from '$lib/state/navigation.svelte';
   import { workshop } from '$lib/state/workshop.svelte';
   import { saveSet } from '$lib/storage/library';
-  import { Button, Icon, Select, ThemeToggle } from '$lib/ui';
+  import { Button, Icon, Select } from '$lib/ui';
 
   interface Props {
     slug: string;
@@ -317,23 +316,6 @@
         {/if}
       </div>
 
-      <div class="actions">
-        <ThemeToggle />
-        <AccountMenu />
-        {#if cloudEnabled()}
-          <Button variant="ghost" onclick={() => navigation.leaveShared({ kind: 'gallery' })}>
-            <Icon name="layers" size={14} />
-            Gallery
-          </Button>
-        {/if}
-        <Button variant="ghost" onclick={() => navigation.leaveShared({ kind: 'home' })}>
-          Home
-        </Button>
-        <Button variant="ghost" onclick={() => navigation.leaveShared()}>
-          <Icon name="chevronRight" size={13} />
-          Done
-        </Button>
-      </div>
     </header>
 
     {#if !cloudEnabled()}
@@ -431,14 +413,14 @@
    * as a whole: the overview is hundreds of cards long, and the set's name is
    * the one thing a viewer should never have to scroll back up to find.
    *
-   * `base.css` sets `body { overflow: hidden }` — the shell owns all scrolling
-   * — and this screen renders outside the shell, so the scrolling here is its
-   * own or there is none at all.
+    * `base.css` sets `body { overflow: hidden }`. This screen is outside the
+    * set shell but inside the application frame, so the overview still owns
+    * its scrolling within the height left beneath the global banner.
    */
   .screen {
     display: flex;
     flex-direction: column;
-    height: 100vh;
+    height: 100%;
     overflow: hidden;
     background: var(--surface-sunken);
     color: var(--text-default);
@@ -452,13 +434,6 @@
     padding: var(--space-5) var(--space-6);
     border-bottom: 1px solid var(--border-default);
     background: var(--surface-default);
-  }
-
-  .actions {
-    display: flex;
-    align-items: center;
-    gap: var(--space-2);
-    flex: none;
   }
 
   .mark {

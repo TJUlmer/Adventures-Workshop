@@ -44,9 +44,9 @@ export const SET_PAGE_META: Readonly<Record<SetPage, SetPageMeta>> = {
   assets: { label: 'Overview', hint: 'Every component in one place', icon: 'layers' },
   settings: { label: 'Settings', hint: 'Identity, theme defaults and notes', icon: 'settings' },
   /*
-   * Reached from Export rather than from the nav bar, and rendered outside the
-   * app shell — a print view with a title bar above it has three things to hide
-   * at print time and three chances to shift the sheet. See `PrintScreen`.
+   * Reached from Export rather than from the set nav and rendered outside the
+   * set shell. The application banner remains on screen for orientation, but
+   * `App.svelte` removes it entirely in print media. See `PrintScreen`.
    */
   print: {
     label: 'Print sheets',

@@ -102,6 +102,7 @@
             statCardEntry={cell.statCardEntry ?? null}
             theme={cell.theme}
             side={cell.side}
+            initiativeSubject={cell.initiativeSubject ?? null}
             options={{ surface: 'print', showBleed: false, showGuides: false, printerFriendly }}
             {customSymbols}
           />

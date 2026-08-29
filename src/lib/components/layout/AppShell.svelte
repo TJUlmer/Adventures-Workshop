@@ -2,9 +2,10 @@
   /**
    * The application frame.
    *
-   * Two shapes, because the app has two levels. Outside a set there is only the
-   * library. Inside one there is a title bar, a section nav, and a page — and
-   * the Cards page is the one that opens out into the three-pane workspace.
+   * The contextual frame inside an open set. The application-level banner is
+   * owned by `App.svelte`; this shell adds the set toolbar, section nav, page,
+   * and save status beneath it. The Cards page is the one that opens out into
+   * the three-pane workspace.
    */
   import type { Snippet } from 'svelte';
 

@@ -16,7 +16,6 @@
   import { parseSetFile } from '$lib/export/json';
   import { CHARACTER_ROLE_META, SELECTABLE_ROLES } from '$lib/characters/types';
   import type { CharacterId, CharacterRole } from '$lib/characters/types';
-  import AccountMenu from '$lib/components/cloud/AccountMenu.svelte';
   import { auth } from '$lib/cloud/auth.svelte';
   import { renderCharacterCards } from '$lib/cloud/character-cards';
   import { openContributionCounts } from '$lib/cloud/contributions';
@@ -34,9 +33,7 @@
   import { workshop } from '$lib/state/workshop.svelte';
   import { loadSet, saveSet } from '$lib/storage/library';
   import type { LibraryEntry } from '$lib/storage/library';
-  import { readStorageEstimate } from '$lib/storage/indexeddb';
-  import type { StorageEstimate } from '$lib/storage/indexeddb';
-  import { Button, Icon, SegmentedControl, Select, ThemeToggle } from '$lib/ui';
+  import { Button, Icon, SegmentedControl, Select } from '$lib/ui';
   import NewCollectionDialog from './NewCollectionDialog.svelte';
   import NewSetDialog from './NewSetDialog.svelte';
   import { initials, tint } from '$lib/core/swatch';
@@ -538,10 +535,10 @@
    * satisfies on its own terms, since `heroSlice` forces `kind: 'heroes'` and
    * the slice holds one hero. See `0010_hero_count_and_kind_backfill.sql`.
    *
-   * Fetched regardless of library size — the zero-state welcome panel shows
-   * all four slots full-width, and the "Design your own adventure" card in
-   * the middle of the top row shows the same four, condensed, for a
-   * returning author too.
+   * Fetched regardless of library size — the zero-state welcome panel promotes
+   * one as its community spotlight and shows the other three underneath, while
+   * the "Design your own adventure" card in the middle of the top row shows
+   * the same four condensed for a returning author too.
    */
   interface GallerySlots {
     adventure: GallerySet | null;
@@ -550,6 +547,8 @@
   }
 
   let gallerySlots = $state<GallerySlots>({ adventure: null, heroes: null, singleHeroes: [] });
+  /** Chosen once with the slots, so unrelated reactive updates never reshuffle the spotlight. */
+  let galleryFeature = $state<GallerySet | null>(null);
 
   /**
    * Fisher-Yates, then take the front — picked once when a fetch resolves
@@ -573,6 +572,7 @@
   $effect(() => {
     if (!cloudEnabled()) {
       gallerySlots = { adventure: null, heroes: null, singleHeroes: [] };
+      galleryFeature = null;
       return;
     }
     void (async () => {
@@ -593,11 +593,19 @@
              ever find the latter. */
           listPublicSets({ kind: 'heroes', heroes: 'single', sort: 'popular', limit: POOL })
         ]);
-        gallerySlots = {
+        const nextSlots: GallerySlots = {
           adventure: pickRandom(adventures, 1)[0] ?? null,
           heroes: pickRandom(heroBoxes, 1)[0] ?? null,
           singleHeroes: pickRandom(singleHeroes, 2)
         };
+        gallerySlots = nextSlots;
+        galleryFeature =
+          pickRandom(
+            [nextSlots.adventure, nextSlots.heroes, ...nextSlots.singleHeroes].filter(
+              (set): set is GallerySet => set !== null
+            ),
+            1
+          )[0] ?? null;
       } catch {
         // Same silent fallback as the attention effect above — a missing
         // sample is not worth an error message.
@@ -665,6 +673,29 @@
     return set.thumbnail_url || set.cover_url;
   }
 
+  interface GalleryPick {
+    label: string;
+    set: GallerySet;
+  }
+
+  /** The three samples that did not receive the larger community spotlight. */
+  const supportingGallery = $derived.by((): GalleryPick[] => {
+    const picks: { label: string; set: GallerySet | null }[] = [
+      { label: 'Adventure set', set: gallerySlots.adventure },
+      { label: 'Heroes set', set: gallerySlots.heroes },
+      { label: 'Single hero', set: gallerySlots.singleHeroes[0] ?? null },
+      { label: 'Single hero', set: gallerySlots.singleHeroes[1] ?? null }
+    ];
+    return picks
+      .filter((pick): pick is GalleryPick => pick.set !== null && pick.set.id !== galleryFeature?.id)
+      .slice(0, 3);
+  });
+
+  function galleryKindLabel(set: GallerySet): string {
+    if (set.kind === 'adventure') return 'Adventure set';
+    return set.hero_count === 1 ? 'Single hero' : 'Heroes set';
+  }
+
   /**
    * A slot tile's picture box is the printed card's own shape, and the two
    * constants below are what let a bleeding cover fill it *at trim*.
@@ -683,20 +714,6 @@
   const TRIM_SCALE_TALL =
     CARD_FORMATS.action.bleed.height / trimBox(CARD_FORMATS.action).height;
 
-  /**
-   * Total browser storage this origin is using, against what it could use —
-   * not just this library's own byte counts, which is why it is fetched
-   * separately from `entries` rather than summed from `entry.bytes`: the
-   * quota is shared with whatever else the browser keeps for this origin,
-   * and the point of showing it is the ceiling, not the total.
-   *
-   * `null` while unanswered (the browser has no `navigator.storage.estimate`,
-   * or the call failed) means the line is simply not drawn — there is
-   * nothing useful to say in that case, and no error worth surfacing over it.
-   */
-  let storage = $state<StorageEstimate | null>(null);
-  void readStorageEstimate().then((value) => (storage = value));
-
   function flash(text: string): void {
     message = text;
     setTimeout(() => (message = null), 3000);
@@ -706,13 +723,6 @@
     const date = new Date(value);
     if (Number.isNaN(date.getTime())) return 'Never';
     return date.toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' });
-  }
-
-  function formatSize(bytes: number): string {
-    if (bytes < 1024) return `${bytes} B`;
-    if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
-    if (bytes < 1024 * 1024 * 1024) return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
-    return `${(bytes / 1024 / 1024 / 1024).toFixed(2)} GB`;
   }
 
   async function importSet(event: Event & { currentTarget: HTMLInputElement }): Promise<void> {
@@ -940,6 +950,7 @@
         </span>
         <span class="slot-label">{label}</span>
         <span class="slot-name">{set.name || 'Untitled Adventure'}</span>
+        <span class="slot-author">by {set.author?.display_name || 'Anonymous'}</span>
       </button>
     {:else}
       <div class="slot-tile">
@@ -952,19 +963,28 @@
   </li>
 {/snippet}
 
+<!-- A live gallery cover makes the value proposition visible before any copy is read. -->
+{#snippet montageCard(set: GallerySet | null, label: string, position: string)}
+  <span
+    class="montage-card {position}"
+    style:aspect-ratio={CARD_ASPECT}
+    style:--trim-scale={TRIM_SCALE_TALL}
+    style:background={set ? tint(set.id) : 'var(--surface-raised)'}
+  >
+    {#if set && galleryImage(set)}
+      <img src={galleryImage(set)} class:trimmed={set.cover_bleeds} alt="" />
+    {:else}
+      <span class="montage-mark">{set ? initials(set.name) : '+'}</span>
+    {/if}
+    <span class="montage-label">{label}</span>
+  </span>
+{/snippet}
+
 <div class="library scroll-y">
   <header class="head">
-    <div class="brand">
-      <img class="mark" src="/assets/labs_beaker5.png" alt="" aria-hidden="true" />
-      <div class="titles">
-        <h1 class="title">Unmatched Labs</h1>
-        <p class="subtitle">The unmatched toolkit for Unmatched creation</p>
-        {#if storage}
-          <p class="storage-line">
-            {formatSize(storage.usageBytes)} of {formatSize(storage.quotaBytes)} used
-          </p>
-        {/if}
-      </div>
+    <div class="context-title">
+      <span class="context-eyebrow">Workshop</span>
+      <h1>Your sets</h1>
     </div>
 
     <div class="actions">
@@ -975,39 +995,21 @@
         accept=".json,application/json"
         onchange={importSet}
       />
-      <ThemeToggle />
-
       <!--
-        Always here, signed in or not — the one entry point into signing in
-        that is not tied to sharing or contributing; see `AccountMenu`'s own
-        note. This is the screen an author lands on before any set is open,
-        so it is also the earliest place signing in ahead of publishing can
-        happen.
-      -->
-      <AccountMenu />
+        Theme, account and the gallery link all live in `GlobalHeader` now —
+        they are app-wide chrome, and Home stopped being their only home when
+        the banner arrived. What stays here is what acts on *this* screen.
 
-      <!--
-        The way into the gallery. Beside Import rather than promoted above New
-        set: someone opening the app usually came to work on their own set, and
-        browsing is the occasional errand.
+        Signed-in only, and not because of a policy — an anonymous visitor
+        could create one — but because a collection nobody can find again is
+        worse than no collection. It is reached solely by its link, and the
+        only place that link is listed is the Collections shelf below.
       -->
-      {#if cloudEnabled()}
-        <Button variant="ghost" onclick={() => navigation.openGallery()}>
-          <Icon name="layers" size={14} />
-          Browse gallery
+      {#if cloudEnabled() && auth.signedIn}
+        <Button variant="ghost" onclick={() => (choosingCollection = true)}>
+          <Icon name="users" size={14} />
+          New collection
         </Button>
-        <!--
-          Signed-in only, and not because of a policy — an anonymous visitor
-          could create one — but because a collection nobody can find again is
-          worse than no collection. It is reached solely by its link, and the
-          only place that link is listed is its organizer's own account.
-        -->
-        {#if auth.signedIn}
-          <Button variant="ghost" onclick={() => (choosingCollection = true)}>
-            <Icon name="users" size={14} />
-            New collection
-          </Button>
-        {/if}
       {/if}
       <Button variant="ghost" onclick={() => fileInput?.click()}>
         <Icon name="upload" size={14} />
@@ -1317,88 +1319,306 @@
 
   <div class="body">
     {#if entries.length === 0}
-      <div class="welcome">
-        <h2 class="welcome-title">Design your own Unmatched adventure</h2>
-        <p class="welcome-lede">
-          Build heroes, villains, and their decks — styled, playtested, and exported for print or
-          Tabletop Simulator. Everything saves to this browser as you go, and nothing leaves your
-          machine until you choose to publish it.
-        </p>
-        <div class="welcome-ctas">
-          <Button variant="primary" onclick={() => (choosingKind = true)}>
-            <Icon name="plus" size={14} />
-            Create your first set
-          </Button>
+      <div class="first-run">
+        <main class="welcome-main">
+          <section class="welcome">
+            <div class="welcome-copy">
+              <span class="welcome-kicker">Build it. Play it. Share it.</span>
+              <h2 class="welcome-title">Design your own Unmatched adventure</h2>
+              <p class="welcome-lede">
+                Create heroes, villains, decks, maps, and every component your set needs — with a
+                live preview from the first idea through print or Tabletop Simulator.
+              </p>
+              <div class="welcome-ctas">
+                <Button variant="primary" onclick={() => startSet('adventure')}>
+                  <Icon name="plus" size={14} />
+                  Create an Adventure
+                </Button>
+                <Button variant="ghost" onclick={() => startSet('heroes')}>Create Heroes</Button>
+                <button type="button" class="welcome-import" onclick={() => fileInput?.click()}>
+                  Import a set
+                </button>
+              </div>
+              <ul class="welcome-promises" aria-label="How Unmatched Labs works">
+                <li>Saves locally</li>
+                <li>Sign-in optional</li>
+                <li>Print and TTS exports</li>
+              </ul>
+            </div>
+
+            <div class="welcome-montage" aria-hidden="true">
+              {@render montageCard(gallerySlots.heroes, 'Heroes', 'left')}
+              {@render montageCard(gallerySlots.adventure, 'Adventures', 'centre')}
+              {@render montageCard(gallerySlots.singleHeroes[0] ?? null, 'Cards', 'right')}
+            </div>
+          </section>
+
+          <section class="capabilities">
+            <header class="capabilities-head">
+              <div>
+                <span class="capabilities-kicker">Cards, boards, and components</span>
+                <h2 class="capabilities-title">Build the whole set</h2>
+              </div>
+              <p>
+                Cards are one part of an Unmatched project. Keep the board, tracks, pieces, and
+                collaborative history in the same set.
+              </p>
+            </header>
+
+            <div class="capability-grid">
+              <article class="capability-card major">
+                <div class="capability-visual editor-visual">
+                  <img
+                    src="/assets/guides/custom-symbols/04-bonus.webp"
+                    alt="The card editor beside its live card preview"
+                    loading="lazy"
+                  />
+                </div>
+                <div class="capability-copy">
+                  <h3>Card editor</h3>
+                  <p>
+                    Design action, initiative, rules, and event cards with live previews, layered
+                    styling, split effects, and custom symbols.
+                  </p>
+                </div>
+              </article>
+
+              <article class="capability-card major">
+                <div class="capability-visual map-image-visual">
+                  <img
+                    src="/assets/home/lucy-piper-map.png"
+                    alt="A finished custom map showing zones, textured spaces, one-way paths, a large fighter marker, a secret passage, and layered environment artwork"
+                    loading="lazy"
+                  />
+                </div>
+                <div class="capability-copy">
+                  <h3>Map builder</h3>
+                  <p>
+                    Arrange spaces, paths, zones, secret passages, labels, and environment artwork
+                    on a board of any supported size.
+                  </p>
+                </div>
+              </article>
+
+              <article class="capability-card compact">
+                <div class="capability-visual component-visual">
+                  <img
+                    src="/assets/guides/how-components-work/05-dial.webp"
+                    alt="A health dial being prepared in the component builder"
+                    loading="lazy"
+                  />
+                </div>
+                <div class="capability-copy">
+                  <h3>Health dials</h3>
+                  <p>Set each character’s health range and prepare one- or two-sided dial artwork.</p>
+                </div>
+              </article>
+
+              <article class="capability-card compact">
+                <div class="capability-visual threat-visual">
+                  <img
+                    src="/assets/templates/adventure_threat_track_template.png"
+                    alt="An Unmatched Adventures threat-track template"
+                    loading="lazy"
+                  />
+                </div>
+                <div class="capability-copy">
+                  <h3>Threat tracks</h3>
+                  <p>Build the complete track with styled slots, notes, artwork, and end conditions.</p>
+                </div>
+              </article>
+
+              <article class="capability-card compact">
+                <div class="capability-visual component-visual token-visual">
+                  <img
+                    src="/assets/home/custom-shaped-token.png"
+                    alt="A custom-shaped token model prepared for export"
+                    loading="lazy"
+                  />
+                </div>
+                <div class="capability-copy">
+                  <h3>Tokens and figures</h3>
+                  <p>Create custom token shapes or bring in model files for figures and game pieces.</p>
+                </div>
+              </article>
+
+              <article class="capability-card collaboration-card">
+                <div class="capability-copy">
+                  <span class="collaboration-label">Collaboration</span>
+                  <h3>Build on each other’s work</h3>
+                  <p>
+                    Publish a set, make a copy, propose individual changes, and keep its origin and
+                    creator credits attached.
+                  </p>
+                </div>
+                <div class="capability-visual collaboration-visual">
+                  <img
+                    src="/assets/guides/collaborate-on-a-project/03-offer.webp"
+                    alt="A contribution being prepared and offered back to the original set"
+                    loading="lazy"
+                  />
+                </div>
+              </article>
+            </div>
+          </section>
+
           {#if cloudEnabled()}
-            <Button variant="ghost" onclick={() => navigation.openGallery()}>
-              Browse the gallery for examples
-            </Button>
+            <section class="community">
+              <header class="community-head">
+                <div>
+                  <span class="community-kicker">Made by the community</span>
+                  <h2 class="community-title">Community spotlight</h2>
+                </div>
+                <p>Discover the creators building new worlds for Unmatched.</p>
+              </header>
+
+              {#if galleryFeature}
+                {@const featured = galleryFeature}
+                <article class="spotlight">
+                  <button
+                    type="button"
+                    class="spotlight-art"
+                    style:aspect-ratio={CARD_ASPECT}
+                    style:--trim-scale={TRIM_SCALE_TALL}
+                    style:background={tint(featured.id)}
+                    onclick={() => navigation.openShared(featured.slug)}
+                    aria-label="View {featured.name || 'Untitled Adventure'}"
+                  >
+                    {#if galleryImage(featured)}
+                      <img
+                        src={galleryImage(featured)}
+                        class:trimmed={featured.cover_bleeds}
+                        alt=""
+                      />
+                    {:else}
+                      <span class="spotlight-initials">{initials(featured.name)}</span>
+                    {/if}
+                  </button>
+
+                  <div class="spotlight-body">
+                    <span class="spotlight-kind">{galleryKindLabel(featured)}</span>
+                    <button
+                      type="button"
+                      class="spotlight-name"
+                      onclick={() => navigation.openShared(featured.slug)}
+                    >
+                      {featured.name || 'Untitled Adventure'}
+                    </button>
+                    {#if featured.subtitle}
+                      <p class="spotlight-subtitle">{featured.subtitle}</p>
+                    {/if}
+
+                    <button
+                      type="button"
+                      class="spotlight-creator"
+                      onclick={() => navigation.openAuthor(featured.owner_id)}
+                    >
+                      <span class="creator-avatar" style:background={tint(featured.owner_id)}>
+                        {#if featured.author?.avatar_url}
+                          <img src={featured.author.avatar_url} alt="" loading="lazy" />
+                        {:else}
+                          {initials(featured.author?.display_name || 'Anonymous')}
+                        {/if}
+                      </span>
+                      <span class="creator-copy">
+                        <span>Created by</span>
+                        <strong>{featured.author?.display_name || 'Anonymous'}</strong>
+                      </span>
+                      <span class="creator-profile">View creator profile</span>
+                    </button>
+
+                    <p class="spotlight-stats numeric">
+                      {featured.card_count} cards · {featured.character_count}
+                      {featured.character_count === 1 ? ' character' : ' characters'}
+                      {#if featured.view_count > 0} · {featured.view_count} views{/if}
+                    </p>
+                    {#if featured.origin}
+                      <p class="spotlight-lineage">
+                        Based on {featured.origin.name}{#if featured.origin.author?.display_name}
+                          by {featured.origin.author.display_name}{/if}
+                      </p>
+                    {/if}
+
+                    <div class="spotlight-actions">
+                      <Button variant="primary" onclick={() => navigation.openShared(featured.slug)}>
+                        Explore this set
+                      </Button>
+                      <Button variant="ghost" onclick={() => navigation.openAuthor(featured.owner_id)}>
+                        More by this creator
+                      </Button>
+                    </div>
+                  </div>
+                </article>
+
+                {#if supportingGallery.length > 0}
+                  <div class="more-gallery-head">
+                    <h3>More from the gallery</h3>
+                    <button type="button" onclick={() => navigation.openGallery()}>Browse all sets</button>
+                  </div>
+                  <ul class="gallery-slots welcome-gallery-slots">
+                    {#each supportingGallery as pick (pick.set.id)}
+                      {@render gallerySlot(pick.label, pick.set)}
+                    {/each}
+                  </ul>
+                {/if}
+              {:else}
+                <div class="spotlight-empty">
+                  <span>Community creations will appear here when the gallery is available.</span>
+                  <Button variant="ghost" onclick={() => navigation.openGallery()}>Browse the gallery</Button>
+                </div>
+              {/if}
+            </section>
           {/if}
-        </div>
+        </main>
 
-        <ol class="welcome-steps">
-          <li class="welcome-step">
-            <span class="step-index numeric">1</span>
-            <div class="step-body">
-              <span class="step-title">Start a set</span>
-              <p class="step-text">
-                Choose Adventure (heroes vs. a villain, with a full box) or Heroes set (just
-                heroes and their cards, no villain needed).
-              </p>
-            </div>
-          </li>
-          <li class="welcome-step">
-            <span class="step-index numeric">2</span>
-            <div class="step-body">
-              <span class="step-title">Add your characters</span>
-              <p class="step-text">
-                Each hero, villain, and minion gets its own sheet — identity, stats, and the
-                decks it deals from.
-              </p>
-            </div>
-          </li>
-          <li class="welcome-step">
-            <span class="step-index numeric">3</span>
-            <div class="step-body">
-              <span class="step-title">Design the cards</span>
-              <p class="step-text">
-                Style flows from your set's look down to each character's, down to individual
-                cards — change the top once and everything below follows, until you override it.
-              </p>
-            </div>
-          </li>
-          <li class="welcome-step">
-            <span class="step-index numeric">4</span>
-            <div class="step-body">
-              <span class="step-title">Design the components</span>
-              <p class="step-text">
-                Figures, tokens and a health dial for everyone on the board, plus the threat
-                track and the map the adventure is played on.
-              </p>
-            </div>
-          </li>
-          <li class="welcome-step wide">
-            <span class="step-index numeric">5</span>
-            <div class="step-body">
-              <span class="step-title">Publish your set</span>
-              <p class="step-text">
-                Whenever it's ready — share it as a link, or list it in the gallery for others
-                to find.
-              </p>
-            </div>
-          </li>
-        </ol>
+        <aside class="welcome-journey">
+          <span class="journey-kicker">From idea to table</span>
+          <h2 class="journey-title">How it works</h2>
+          <ol class="welcome-steps">
+            <li class="welcome-step">
+              <span class="step-index numeric">1</span>
+              <div class="step-body">
+                <span class="step-title">Start a set</span>
+                <p class="step-text">
+                  Choose a full Adventure or a Heroes set focused on characters and their decks.
+                </p>
+              </div>
+            </li>
+            <li class="welcome-step">
+              <span class="step-index numeric">2</span>
+              <div class="step-body">
+                <span class="step-title">Add your characters</span>
+                <p class="step-text">Give every hero, villain, and minion an identity, stats, and decks.</p>
+              </div>
+            </li>
+            <li class="welcome-step">
+              <span class="step-index numeric">3</span>
+              <div class="step-body">
+                <span class="step-title">Design the cards</span>
+                <p class="step-text">Set the shared look once, then customise any character or card.</p>
+              </div>
+            </li>
+            <li class="welcome-step">
+              <span class="step-index numeric">4</span>
+              <div class="step-body">
+                <span class="step-title">Build the components</span>
+                <p class="step-text">Create figures, tokens, health dials, the threat track, and your map.</p>
+              </div>
+            </li>
+            <li class="welcome-step wide">
+              <span class="step-index numeric">5</span>
+              <div class="step-body">
+                <span class="step-title">Publish your set</span>
+                <p class="step-text">Print it, play online, share a link, or join the community gallery.</p>
+              </div>
+            </li>
+          </ol>
+          <div class="journey-foot">
+            <span>Your work stays in this browser until you choose otherwise.</span>
+            <Button variant="primary" onclick={() => (choosingKind = true)}>Create your first set</Button>
+          </div>
+        </aside>
       </div>
-
-      {#if cloudEnabled()}
-        <h2 class="section-title">Looking for inspiration? Here are a few sets from the gallery</h2>
-        <ul class="gallery-slots welcome-gallery-slots">
-          {@render gallerySlot('Adventures set', gallerySlots.adventure)}
-          {@render gallerySlot('Heroes set', gallerySlots.heroes)}
-          {@render gallerySlot('Single hero', gallerySlots.singleHeroes[0] ?? null)}
-          {@render gallerySlot('Single hero', gallerySlots.singleHeroes[1] ?? null)}
-        </ul>
-      {/if}
     {:else if mode === 'sets' && filteredSets.length === 0}
       <p class="message">Nothing matches “{search.trim()}”.</p>
     {:else if mode === 'characters' && filteredCharacters.length === 0}
@@ -1515,49 +1735,30 @@
     align-items: center;
     justify-content: space-between;
     gap: var(--space-5);
-    padding: var(--space-7) var(--space-9) var(--space-6);
+    padding: var(--space-5) var(--space-9);
     border-bottom: 1px solid var(--border-subtle);
   }
 
-  .brand {
-    display: flex;
-    align-items: center;
-    gap: var(--space-4);
-  }
-
-  .mark {
-    /* Matches the measured height of the three-line .titles stack beside it,
-       so the mark spans the full title block rather than sitting undersized
-       next to it. */
-    width: 69px;
-    height: 69px;
-    flex: none;
-    object-fit: contain;
-  }
-
-  .titles {
+  .context-title {
     display: flex;
     flex-direction: column;
     gap: 2px;
   }
 
-  .title {
+  .context-title h1 {
+    margin: 0;
     font-family: var(--font-display);
-    font-size: var(--text-xl);
+    font-size: var(--text-lg);
     font-weight: var(--weight-semibold);
     letter-spacing: var(--tracking-tight);
     color: var(--text-primary);
   }
 
-  .subtitle {
+  .context-eyebrow {
     font-size: var(--text-xs);
+    letter-spacing: var(--tracking-wide);
+    text-transform: uppercase;
     color: var(--text-muted);
-  }
-
-  .storage-line {
-    font-size: var(--text-2xs);
-    color: var(--text-muted);
-    opacity: 0.75;
   }
 
   .actions {
@@ -1782,9 +1983,9 @@
   }
 
   /*
-   * The slot grid, shared between the `.about-card` (2×2) and the zero-state
-   * `.welcome` panel (`.welcome-gallery-slots`, 4-across) — same markup from
-   * the same `gallerySlot` snippet either way, only the column count differs.
+   * The slot grid is shared between the returning-author `.about-card` and the
+   * three smaller recommendations beneath the zero-state spotlight. The same
+   * set and creator therefore read consistently in both contexts.
    *
    * Fixed 110px columns, not `1fr`: these are a glance at four sets, not a
    * gallery, and stretching them to fill their container made each one wider
@@ -1861,6 +2062,15 @@
     color: var(--text-muted);
   }
 
+  .slot-author {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: var(--text-2xs);
+    color: var(--text-muted);
+    opacity: 0.8;
+  }
+
   /* A category with nothing published yet still holds its place in the
      grid, at the same footprint a real tile would take. */
   /* Holds a real tile's footprint exactly — same box, same aspect — so an
@@ -1878,15 +2088,18 @@
   }
 
   .welcome-gallery-slots {
-    grid-template-columns: repeat(4, 110px);
-    gap: var(--space-3);
-    margin-bottom: var(--space-6);
+    grid-template-columns: repeat(3, minmax(110px, 150px));
+    gap: var(--space-4);
   }
 
   .welcome-gallery-slots .slot-name {
     font-size: var(--text-xs);
     font-weight: var(--weight-medium);
     color: var(--text-primary);
+  }
+
+  .welcome-gallery-slots .slot-author {
+    color: var(--text-secondary);
   }
 
   .health-status {
@@ -2397,22 +2610,65 @@
     font-size: var(--text-sm);
   }
 
+  .first-run {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(280px, 340px);
+    align-items: start;
+    gap: var(--space-5);
+    max-width: 1180px;
+    margin-inline: auto;
+  }
+
+  .welcome-main {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-5);
+    min-width: 0;
+  }
+
   .welcome {
-    max-width: 640px;
-    margin: 0 auto var(--space-8);
-    padding: var(--space-7);
+    position: relative;
+    display: grid;
+    grid-template-columns: minmax(0, 1.15fr) minmax(250px, 0.85fr);
+    gap: var(--space-5);
+    min-height: 340px;
+    padding: var(--space-8);
     border-radius: var(--radius-lg);
-    background: var(--surface-base);
-    border: 1px solid var(--border-subtle);
-    box-shadow: inset 0 1px 0 var(--edge-highlight);
+    overflow: hidden;
+    background:
+      radial-gradient(circle at 88% 16%, color-mix(in oklab, var(--accent) 22%, transparent), transparent 34%),
+      linear-gradient(135deg, var(--surface-base), var(--surface-raised));
+    border: 1px solid color-mix(in oklab, var(--accent) 24%, var(--border-subtle));
+    box-shadow: inset 0 1px 0 var(--edge-highlight), var(--shadow-md);
+  }
+
+  .welcome-copy {
+    position: relative;
+    z-index: 2;
+    align-self: center;
+    min-width: 0;
+  }
+
+  .welcome-kicker,
+  .capabilities-kicker,
+  .community-kicker,
+  .journey-kicker {
+    display: block;
+    margin-bottom: var(--space-2);
+    font-size: var(--text-2xs);
+    font-weight: var(--weight-semibold);
+    letter-spacing: var(--tracking-caps);
+    text-transform: uppercase;
+    color: var(--accent);
   }
 
   .welcome-title {
     font-family: var(--font-display);
-    font-size: var(--text-xl);
+    font-size: var(--text-2xl);
     letter-spacing: var(--tracking-tight);
     color: var(--text-primary);
-    margin: 0 0 var(--space-2);
+    margin: 0 0 var(--space-3);
+    text-wrap: balance;
   }
 
   .welcome-lede {
@@ -2420,38 +2676,532 @@
     line-height: var(--leading-normal);
     color: var(--text-secondary);
     max-width: 52ch;
-    margin: 0 0 var(--space-5);
+    margin: 0 0 var(--space-6);
   }
 
   .welcome-ctas {
     display: flex;
+    align-items: center;
+    flex-wrap: wrap;
     gap: var(--space-2);
-    margin-bottom: var(--space-7);
+    margin-bottom: var(--space-5);
   }
 
-  /* Same `.panel`/`.steps`/`.step` visual language as `StyleCascadePanel`
-     (a set's own "How card styles cascade") — copied rather than imported,
-     since that component is tightly coupled to an open set's own
-     `SetOutline`/`workshop` state that this app-level screen doesn't have. */
-  /* Staggered two-up, same shape as `.about-steps` — five stacked in one
-     column ran the panel far down the page. */
-  .welcome-steps {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: var(--space-4) var(--space-5);
-    list-style: none;
-    padding-top: var(--space-5);
-    border-top: 1px dashed var(--border-subtle);
+  .welcome-import {
+    padding: var(--space-2);
+    font-size: var(--text-xs);
+    color: var(--text-muted);
+    text-decoration: underline;
+    text-decoration-color: transparent;
+    text-underline-offset: 3px;
   }
 
-  .welcome-step {
+  .welcome-import:hover {
+    color: var(--text-secondary);
+    text-decoration-color: currentColor;
+  }
+
+  .welcome-promises {
     display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    list-style: none;
+  }
+
+  .welcome-promises li {
+    padding: 3px var(--space-2);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-full);
+    background: color-mix(in oklab, var(--surface-sunken) 76%, transparent);
+    font-size: var(--text-2xs);
+    color: var(--text-muted);
+  }
+
+  .welcome-montage {
+    position: relative;
+    align-self: stretch;
+    min-height: 270px;
+    z-index: 1;
+  }
+
+  .montage-card {
+    position: absolute;
+    bottom: 8px;
+    display: grid;
+    place-items: center;
+    width: 145px;
+    max-height: 230px;
+    border-radius: var(--radius-md);
+    overflow: hidden;
+    border: 1px solid color-mix(in oklab, var(--border-strong) 72%, transparent);
+    box-shadow: var(--shadow-lg);
+    transform-origin: 50% 100%;
+  }
+
+  .montage-card.left {
+    left: 0;
+    transform: rotate(-9deg) translateY(8px);
+  }
+
+  .montage-card.centre {
+    left: 50%;
+    z-index: 2;
+    width: 162px;
+    transform: translateX(-50%) translateY(-10px);
+  }
+
+  .montage-card.right {
+    right: 0;
+    transform: rotate(9deg) translateY(8px);
+  }
+
+  .montage-card img,
+  .spotlight-art img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  .montage-card img.trimmed,
+  .spotlight-art img.trimmed {
+    transform: scale(var(--trim-scale));
+  }
+
+  .montage-mark,
+  .spotlight-initials {
+    font-family: var(--card-font-name, sans-serif);
+    font-size: var(--text-xl);
+    letter-spacing: var(--tracking-wide);
+    color: var(--text-secondary);
+  }
+
+  .montage-label {
+    position: absolute;
+    inset: auto var(--space-2) var(--space-2);
+    padding: 3px var(--space-2);
+    border-radius: var(--radius-full);
+    background: color-mix(in oklab, var(--surface-canvas) 88%, transparent);
+    backdrop-filter: blur(5px);
+    text-align: center;
+    font-size: var(--text-2xs);
+    font-weight: var(--weight-semibold);
+    color: var(--text-primary);
+  }
+
+  .capabilities {
+    padding: var(--space-6);
+    border-radius: var(--radius-lg);
+    background: var(--surface-base);
+    border: 1px solid var(--border-subtle);
+    box-shadow: inset 0 1px 0 var(--edge-highlight);
+  }
+
+  .capabilities-head {
+    display: flex;
+    align-items: end;
+    justify-content: space-between;
+    gap: var(--space-5);
+    margin-bottom: var(--space-5);
+  }
+
+  .capabilities-title {
+    margin: 0;
+    font-family: var(--font-display);
+    font-size: var(--text-xl);
+    letter-spacing: var(--tracking-tight);
+    color: var(--text-primary);
+  }
+
+  .capabilities-head > p {
+    max-width: 43ch;
+    font-size: var(--text-xs);
+    line-height: var(--leading-normal);
+    color: var(--text-muted);
+    text-align: right;
+  }
+
+  .capability-grid {
+    display: grid;
+    grid-template-columns: repeat(6, minmax(0, 1fr));
     gap: var(--space-3);
+  }
+
+  .capability-card {
+    min-width: 0;
+    overflow: hidden;
+    border-radius: var(--radius-md);
+    background: var(--surface-raised);
+    border: 1px solid var(--border-subtle);
+  }
+
+  .capability-card.major {
+    grid-column: span 3;
+  }
+
+  .capability-card.compact {
+    grid-column: span 2;
+  }
+
+  .capability-visual {
+    position: relative;
+    overflow: hidden;
+    background: var(--surface-sunken);
+    border-bottom: 1px solid var(--border-subtle);
+  }
+
+  .major .capability-visual {
+    height: 176px;
+  }
+
+  .compact .capability-visual {
+    height: 126px;
+  }
+
+  .editor-visual img,
+  .map-image-visual img,
+  .component-visual img,
+  .collaboration-visual img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  .editor-visual img {
+    object-position: center;
+  }
+
+  .component-visual img {
+    object-position: center 82%;
+  }
+
+  .token-visual img {
+    object-position: center 86%;
+  }
+
+  .capability-copy {
+    padding: var(--space-4);
+  }
+
+  .capability-copy h3 {
+    margin: 0 0 var(--space-1);
+    font-size: var(--text-sm);
+    font-weight: var(--weight-semibold);
+    color: var(--text-primary);
+  }
+
+  .capability-copy p {
+    margin: 0;
+    font-size: var(--text-xs);
+    line-height: var(--leading-normal);
+    color: var(--text-muted);
+    text-wrap: pretty;
+  }
+
+  .threat-visual {
+    display: grid;
+    place-items: center;
+    padding: var(--space-3);
+    background: color-mix(in oklab, var(--danger) 12%, var(--surface-sunken));
+  }
+
+  .threat-visual img {
+    width: 112%;
+    max-width: none;
+    object-fit: contain;
+    filter: drop-shadow(0 5px 9px color-mix(in oklab, var(--text-primary) 24%, transparent));
+  }
+
+  .collaboration-card {
+    grid-column: 1 / -1;
+    display: grid;
+    grid-template-columns: minmax(240px, 0.8fr) minmax(0, 1.2fr);
+    align-items: center;
+    background:
+      linear-gradient(100deg, color-mix(in oklab, var(--accent) 9%, var(--surface-raised)), var(--surface-raised));
+  }
+
+  .collaboration-card .capability-copy {
+    padding: var(--space-5);
+  }
+
+  .collaboration-label {
+    display: block;
+    margin-bottom: var(--space-2);
+    font-size: var(--text-2xs);
+    font-weight: var(--weight-semibold);
+    letter-spacing: var(--tracking-caps);
+    text-transform: uppercase;
+    color: var(--accent);
+  }
+
+  .collaboration-card .capability-copy h3 {
+    font-family: var(--font-display);
+    font-size: var(--text-lg);
+    letter-spacing: var(--tracking-tight);
+  }
+
+  .collaboration-visual {
+    height: 136px;
+    margin: var(--space-3);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-sm);
+  }
+
+  .collaboration-visual img {
+    object-position: center;
+  }
+
+  .community {
+    padding: var(--space-6);
+    border-radius: var(--radius-lg);
+    background: var(--surface-base);
+    border: 1px solid var(--border-subtle);
+    box-shadow: inset 0 1px 0 var(--edge-highlight);
+  }
+
+  .community-head {
+    display: flex;
+    align-items: end;
+    justify-content: space-between;
+    gap: var(--space-5);
+    margin-bottom: var(--space-5);
+  }
+
+  .community-title,
+  .journey-title {
+    margin: 0;
+    font-family: var(--font-display);
+    font-size: var(--text-xl);
+    letter-spacing: var(--tracking-tight);
+    color: var(--text-primary);
+  }
+
+  .community-head p {
+    max-width: 34ch;
+    font-size: var(--text-xs);
+    line-height: var(--leading-normal);
+    color: var(--text-muted);
+    text-align: right;
+  }
+
+  .spotlight {
+    display: grid;
+    grid-template-columns: minmax(180px, 240px) minmax(0, 1fr);
+    gap: var(--space-6);
+    align-items: center;
+    padding: var(--space-5);
+    border-radius: var(--radius-md);
+    background: var(--surface-raised);
+    border: 1px solid color-mix(in oklab, var(--accent) 20%, var(--border-subtle));
+  }
+
+  .spotlight-art {
+    display: grid;
+    place-items: center;
+    width: 100%;
+    overflow: hidden;
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-lg);
+    outline: 1px solid transparent;
+    outline-offset: 3px;
+    transition: outline-color var(--duration-fast) var(--ease-out), transform var(--duration-fast) var(--ease-out);
+  }
+
+  .spotlight-art:hover {
+    outline-color: var(--border-strong);
+    transform: translateY(-2px);
+  }
+
+  .spotlight-body {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
     min-width: 0;
   }
 
-  .welcome-step.wide {
-    grid-column: 1 / -1;
+  .spotlight-kind {
+    margin-bottom: var(--space-2);
+    padding: 2px var(--space-2);
+    border-radius: var(--radius-full);
+    background: color-mix(in oklab, var(--accent) 12%, transparent);
+    font-size: var(--text-2xs);
+    font-weight: var(--weight-semibold);
+    letter-spacing: var(--tracking-caps);
+    text-transform: uppercase;
+    color: var(--accent);
+  }
+
+  .spotlight-name {
+    max-width: 100%;
+    margin-bottom: var(--space-1);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-family: var(--font-display);
+    font-size: var(--text-xl);
+    font-weight: var(--weight-semibold);
+    color: var(--text-primary);
+    text-align: left;
+  }
+
+  .spotlight-name:hover {
+    color: var(--accent);
+  }
+
+  .spotlight-subtitle {
+    margin-bottom: var(--space-4);
+    font-size: var(--text-sm);
+    line-height: var(--leading-normal);
+    color: var(--text-secondary);
+  }
+
+  .spotlight-creator {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: center;
+    gap: var(--space-3);
+    width: 100%;
+    margin-bottom: var(--space-3);
+    padding: var(--space-3);
+    border-radius: var(--radius-md);
+    background: var(--surface-base);
+    border: 1px solid var(--border-subtle);
+    text-align: left;
+  }
+
+  .spotlight-creator:hover {
+    border-color: var(--border-strong);
+    background: var(--surface-hover);
+  }
+
+  .creator-avatar {
+    display: grid;
+    place-items: center;
+    width: 42px;
+    height: 42px;
+    overflow: hidden;
+    border-radius: var(--radius-full);
+    font-size: var(--text-xs);
+    color: var(--text-primary);
+  }
+
+  .creator-avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  .creator-copy {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    font-size: var(--text-2xs);
+    color: var(--text-muted);
+  }
+
+  .creator-copy strong {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: var(--text-sm);
+    font-weight: var(--weight-semibold);
+    color: var(--text-primary);
+  }
+
+  .creator-profile {
+    font-size: var(--text-2xs);
+    color: var(--accent);
+  }
+
+  .spotlight-stats,
+  .spotlight-lineage {
+    font-size: var(--text-xs);
+    color: var(--text-muted);
+  }
+
+  .spotlight-lineage {
+    margin-top: var(--space-1);
+  }
+
+  .spotlight-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    margin-top: var(--space-5);
+  }
+
+  .more-gallery-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--space-4);
+    margin-block: var(--space-6) var(--space-3);
+  }
+
+  .more-gallery-head h3 {
+    margin: 0;
+    font-size: var(--text-sm);
+    font-weight: var(--weight-semibold);
+    color: var(--text-secondary);
+  }
+
+  .more-gallery-head button {
+    font-size: var(--text-xs);
+    color: var(--accent);
+  }
+
+  .more-gallery-head button:hover {
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+
+  .spotlight-empty {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-4);
+    min-height: 180px;
+    padding: var(--space-6);
+    border-radius: var(--radius-md);
+    border: 1px dashed var(--border-subtle);
+    color: var(--text-muted);
+  }
+
+  .welcome-journey {
+    position: sticky;
+    top: var(--space-5);
+    padding: var(--space-6);
+    border-radius: var(--radius-lg);
+    background: var(--surface-base);
+    border: 1px solid var(--border-subtle);
+    box-shadow: inset 0 1px 0 var(--edge-highlight);
+  }
+
+  /* Same journey language as `StyleCascadePanel`, now vertical so it can sit
+     beside the visual story without making the hero itself text-heavy. */
+  .welcome-steps {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    list-style: none;
+    margin-top: var(--space-5);
+  }
+
+  .welcome-step {
+    position: relative;
+    display: flex;
+    gap: var(--space-4);
+    padding-bottom: var(--space-5);
+    min-width: 0;
+  }
+
+  .welcome-step:not(:last-child)::before {
+    content: '';
+    position: absolute;
+    left: 11px;
+    top: 24px;
+    bottom: 1px;
+    width: 1px;
+    background: var(--border-subtle);
   }
 
   .step-index {
@@ -2465,6 +3215,7 @@
     border: 1px solid var(--border-subtle);
     font-size: var(--text-xs);
     color: var(--accent);
+    z-index: 1;
   }
 
   .step-body {
@@ -2485,6 +3236,162 @@
     line-height: var(--leading-normal);
     color: var(--text-muted);
     text-wrap: pretty;
+  }
+
+  .journey-foot {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--space-4);
+    padding-top: var(--space-5);
+    border-top: 1px dashed var(--border-subtle);
+  }
+
+  .journey-foot > span {
+    font-size: var(--text-xs);
+    line-height: var(--leading-normal);
+    color: var(--text-muted);
+  }
+
+  @media (max-width: 1050px) {
+    .first-run {
+      grid-template-columns: 1fr;
+    }
+
+    .welcome-journey {
+      position: static;
+    }
+
+    .welcome-steps {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: var(--space-4) var(--space-5);
+    }
+
+    .welcome-step {
+      padding-bottom: 0;
+    }
+
+    .welcome-step:not(:last-child)::before {
+      display: none;
+    }
+
+    .welcome-step.wide {
+      grid-column: 1 / -1;
+    }
+  }
+
+  @media (max-width: 760px) {
+    .head,
+    .capabilities-head,
+    .community-head {
+      align-items: flex-start;
+      flex-direction: column;
+    }
+
+    .actions {
+      flex-wrap: wrap;
+    }
+
+    .body,
+    .head {
+      padding-inline: var(--space-5);
+    }
+
+    .welcome {
+      grid-template-columns: 1fr;
+      padding: var(--space-6);
+    }
+
+    .welcome-montage {
+      min-height: 245px;
+    }
+
+    .community-head p {
+      text-align: left;
+    }
+
+    .capabilities-head > p {
+      text-align: left;
+    }
+
+    .capability-grid {
+      grid-template-columns: 1fr 1fr;
+    }
+
+    .capability-card.major,
+    .capability-card.compact {
+      grid-column: span 1;
+    }
+
+    .collaboration-card {
+      grid-column: 1 / -1;
+    }
+
+    .spotlight {
+      grid-template-columns: minmax(150px, 210px) minmax(0, 1fr);
+      gap: var(--space-4);
+    }
+
+    .creator-profile {
+      display: none;
+    }
+
+    .spotlight-creator {
+      grid-template-columns: auto minmax(0, 1fr);
+    }
+  }
+
+  @media (max-width: 560px) {
+    .capabilities,
+    .community,
+    .welcome-journey {
+      padding: var(--space-5);
+    }
+
+    .capability-grid {
+      grid-template-columns: 1fr;
+    }
+
+    .capability-card.major,
+    .capability-card.compact,
+    .collaboration-card {
+      grid-column: 1;
+    }
+
+    .collaboration-card {
+      grid-template-columns: 1fr;
+    }
+
+    .collaboration-visual {
+      order: -1;
+      height: 118px;
+    }
+
+    .spotlight {
+      grid-template-columns: 1fr;
+    }
+
+    .spotlight-art {
+      width: min(220px, 72%);
+      justify-self: center;
+    }
+
+    .welcome-gallery-slots {
+      grid-template-columns: repeat(2, minmax(100px, 1fr));
+    }
+
+    .welcome-steps {
+      display: flex;
+    }
+
+    .welcome-step {
+      padding-bottom: var(--space-5);
+    }
+
+    .welcome-step:not(:last-child)::before {
+      display: block;
+    }
   }
 
   .initials {

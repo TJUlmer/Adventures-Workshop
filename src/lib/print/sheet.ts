@@ -17,7 +17,12 @@ import type { Card } from '$lib/cards/types';
 import { characterLabel } from '$lib/characters/factory';
 import type { Character, HeroCharacterCard } from '$lib/characters/types';
 import { CARD_FORMATS } from '$lib/renderer/geometry';
-import { characterForCard, outline, resolveStyleForCard } from '$lib/sets/queries';
+import {
+  characterForCard,
+  initiativeSubjectForCard,
+  outline,
+  resolveStyleForCard
+} from '$lib/sets/queries';
 import type { AdventureSet } from '$lib/sets/types';
 import { gridFor } from './paper';
 import type { PageGrid, Paper } from './paper';
@@ -40,6 +45,8 @@ export interface PrintItem {
   statCardEntry?: HeroCharacterCard | null;
   theme: CardTheme | undefined;
   side: 'front' | 'back';
+  /** Assigned figure name for an initiative card whose saved subject is empty. */
+  initiativeSubject?: string | null;
 }
 
 export interface PrintPage {
@@ -183,7 +190,8 @@ function planPairings(
       character,
       cardback: null,
       theme,
-      side: 'front'
+      side: 'front',
+      initiativeSubject: initiativeSubjectForCard(set, card)
     };
 
     /*

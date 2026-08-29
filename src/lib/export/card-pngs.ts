@@ -11,7 +11,12 @@ import { characterLabel } from '$lib/characters/factory';
 import type { Character, HeroCharacterCard } from '$lib/characters/types';
 import { hasArtwork } from '$lib/core/artwork';
 import { CARD_FORMATS } from '$lib/renderer/geometry';
-import { characterForCard, outline, resolveStyleForCard } from '$lib/sets/queries';
+import {
+  characterForCard,
+  initiativeSubjectForCard,
+  outline,
+  resolveStyleForCard
+} from '$lib/sets/queries';
 import type { AdventureSet, CharacterEntry } from '$lib/sets/types';
 import { formatForCard } from './card-image';
 import { photographThreatBoard, withCardStage } from './card-stage';
@@ -331,6 +336,7 @@ export async function exportCardPngs(
           statCardEntry: job.statCardEntry ?? null,
           theme: job.card ? resolveStyleForCard(set, job.card) : undefined,
           side: job.side ?? 'front',
+          initiativeSubject: job.card ? initiativeSubjectForCard(set, job.card) : null,
           customSymbols: set.customSymbols
         },
         format,

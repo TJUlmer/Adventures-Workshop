@@ -20,5 +20,13 @@ export { photographMapBoard } from './card-stage';
 export type { CardPngOptions } from './card-pngs';
 export { exportCardPngs } from './card-pngs';
 
-export type { TtsBundleOptions, TtsBundleResult } from './tts-bundle';
+export type {
+  TtsBundleOptions,
+  TtsBundleResult,
+  TtsHostedAsset,
+  TtsHosting,
+  TtsOnlineAssetHost,
+  TtsUploadProgress,
+  TtsUploadResult
+} from './tts-bundle';
 export { exportTabletopSimulator, tabletopDeckSummary } from './tts-bundle';

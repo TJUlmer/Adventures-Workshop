@@ -13,7 +13,7 @@
  * as a full deck of them.
  */
 import type { AdventureSet } from '$lib/sets/types';
-import { resolveStyleForCard } from '$lib/sets/queries';
+import { initiativeSubjectForCard, resolveStyleForCard } from '$lib/sets/queries';
 import { CARD_FORMATS, trimBox } from '$lib/renderer/geometry';
 import type { Photograph } from './card-stage';
 import {
@@ -169,6 +169,9 @@ export async function renderDeckSheets(
         statCard: planned.statCard ?? null,
         statCardEntry: planned.statCardEntry ?? null,
         theme: planned.card ? resolveStyleForCard(context.set, planned.card) : undefined,
+        initiativeSubject: planned.card
+          ? initiativeSubjectForCard(context.set, planned.card)
+          : null,
         customSymbols: context.set.customSymbols
       };
 
