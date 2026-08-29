@@ -36,6 +36,13 @@
   import { Button, Icon, SegmentedControl, Select } from '$lib/ui';
   import NewSetDialog from './NewSetDialog.svelte';
 
+  interface Props {
+    /** Keep the full introduction visible even after the library has sets. */
+    welcome?: boolean;
+  }
+
+  let { welcome = false }: Props = $props();
+
   let fileInput = $state<HTMLInputElement | null>(null);
   let message = $state<string | null>(null);
   let confirmingDelete = $state<string | null>(null);
@@ -59,6 +66,7 @@
 
   const entries = $derived(workshop.library);
   const deletedEntries = $derived(workshop.deletedLibrary);
+  const welcomeMode = $derived(welcome || entries.length === 0);
 
   /**
    * Each set's own cover picture, mirroring the gallery's tile — see
@@ -904,8 +912,8 @@
 <div class="library scroll-y">
   <header class="head">
     <div class="context-title">
-      <span class="context-eyebrow">Workshop</span>
-      <h1>Your sets</h1>
+      <span class="context-eyebrow">{welcomeMode ? 'Unmatched Labs' : 'Workshop'}</span>
+      <h1>{welcomeMode ? 'Welcome' : 'Your sets'}</h1>
     </div>
 
     <div class="actions">
@@ -931,7 +939,7 @@
     <p class="message">{message}</p>
   {/if}
 
-  {#if entries.length > 0}
+  {#if entries.length > 0 && !welcome}
     <div class="top-row">
       <div class="top-main">
         <div class="stat-row">
@@ -1132,7 +1140,7 @@
     </div>
   {/if}
 
-  {#if entries.length > 0}
+  {#if entries.length > 0 && !welcome}
     <div class="controls">
       <SegmentedControl bind:value={mode} segments={MODES} label="Browse" />
 
@@ -1154,7 +1162,7 @@
   {/if}
 
   <div class="body">
-    {#if entries.length === 0}
+    {#if welcomeMode}
       <div class="first-run">
         <main class="welcome-main">
           <section class="welcome">
@@ -1293,6 +1301,72 @@
                     alt="A contribution being prepared and offered back to the original set"
                     loading="lazy"
                   />
+                </div>
+              </article>
+            </div>
+          </section>
+
+          <section class="principles">
+            <header class="principles-head">
+              <div>
+                <span class="principles-kicker">A few deliberate choices</span>
+                <h2 class="principles-title">What sets this tool apart</h2>
+              </div>
+              <p>
+                Unmatched Labs is organised around the practical needs of finishing and sharing a
+                complete fan-made set, not around a collection of disconnected generators.
+              </p>
+            </header>
+
+            <div class="principle-grid">
+              <article class="principle">
+                <span class="principle-index numeric">01</span>
+                <div>
+                  <h3>All components in one place</h3>
+                  <p>
+                    Cards, decks, maps, threat tracks, dials, tokens, figures, and export settings
+                    remain part of the same project.
+                  </p>
+                </div>
+              </article>
+              <article class="principle">
+                <span class="principle-index numeric">02</span>
+                <div>
+                  <h3>A comprehensive card editor</h3>
+                  <p>
+                    Build action, initiative, rules, event, and character cards with layered styles,
+                    custom symbols, and print-faithful live previews.
+                  </p>
+                </div>
+              </article>
+              <article class="principle">
+                <span class="principle-index numeric">03</span>
+                <div>
+                  <h3>Built-in collaboration</h3>
+                  <p>
+                    Fork a published set, offer specific changes back, and keep its origin and creator
+                    credits attached throughout the process.
+                  </p>
+                </div>
+              </article>
+              <article class="principle">
+                <span class="principle-index numeric">04</span>
+                <div>
+                  <h3>Local until you choose otherwise</h3>
+                  <p>
+                    Authoring works without an account. A project leaves the browser only when you
+                    publish, share, or export it for online play.
+                  </p>
+                </div>
+              </article>
+              <article class="principle wide">
+                <span class="principle-index numeric">05</span>
+                <div>
+                  <h3>The preview is the export</h3>
+                  <p>
+                    The same renderer used while editing produces card images and print output, so
+                    there is no second approximation to discover at the end.
+                  </p>
                 </div>
               </article>
             </div>
@@ -1451,7 +1525,9 @@
           </ol>
           <div class="journey-foot">
             <span>Your work stays in this browser until you choose otherwise.</span>
-            <Button variant="primary" onclick={() => (choosingKind = true)}>Create your first set</Button>
+            <Button variant="primary" onclick={() => (choosingKind = true)}>
+              {entries.length > 0 ? 'Create another set' : 'Create your first set'}
+            </Button>
           </div>
         </aside>
       </div>
@@ -1516,7 +1592,7 @@
       </ul>
     {/if}
 
-    {#if deletedEntries.length > 0}
+    {#if !welcome && deletedEntries.length > 0}
       <div class="deleted-section">
         <button type="button" class="deleted-toggle" onclick={() => (showDeleted = !showDeleted)}>
           <Icon name={showDeleted ? 'chevronDown' : 'chevronRight'} size={13} />
@@ -1535,6 +1611,10 @@
 
   <p class="disclaimer">
     Unmatched Labs is a fan-made tool, not affiliated with Restoration Games.
+  </p>
+  <p class="support-note">
+    Enjoying Unmatched Labs? You can leave a one-time tip to help support its continued development.
+    <a href="https://ko-fi.com/tombadilbombadil" target="_blank" rel="noreferrer">Visit Ko-fi</a>
   </p>
 </div>
 
@@ -2376,6 +2456,7 @@
 
   .welcome-kicker,
   .capabilities-kicker,
+  .principles-kicker,
   .community-kicker,
   .journey-kicker {
     display: block;
@@ -2549,6 +2630,81 @@
     display: grid;
     grid-template-columns: repeat(6, minmax(0, 1fr));
     gap: var(--space-3);
+  }
+
+  .principles {
+    padding: var(--space-6);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-lg);
+    background: var(--surface-sunken);
+  }
+
+  .principles-head {
+    display: flex;
+    align-items: end;
+    justify-content: space-between;
+    gap: var(--space-5);
+    margin-bottom: var(--space-5);
+  }
+
+  .principles-title {
+    margin: 0;
+    font-family: var(--font-display);
+    font-size: var(--text-xl);
+    letter-spacing: var(--tracking-tight);
+    color: var(--text-primary);
+  }
+
+  .principles-head > p {
+    max-width: 46ch;
+    font-size: var(--text-xs);
+    line-height: var(--leading-normal);
+    text-align: right;
+    color: var(--text-muted);
+  }
+
+  .principle-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1px;
+    overflow: hidden;
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-md);
+    background: var(--border-subtle);
+  }
+
+  .principle {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: var(--space-4);
+    min-width: 0;
+    padding: var(--space-5);
+    background: var(--surface-base);
+  }
+
+  .principle.wide {
+    grid-column: 1 / -1;
+  }
+
+  .principle-index {
+    padding-top: 2px;
+    font-size: var(--text-2xs);
+    color: var(--accent);
+  }
+
+  .principle h3 {
+    margin: 0 0 var(--space-2);
+    font-size: var(--text-sm);
+    font-weight: var(--weight-semibold);
+    color: var(--text-primary);
+  }
+
+  .principle p {
+    margin: 0;
+    max-width: 58ch;
+    font-size: var(--text-xs);
+    line-height: var(--leading-normal);
+    color: var(--text-muted);
   }
 
   .capability-card {
@@ -3009,6 +3165,7 @@
   @media (max-width: 760px) {
     .head,
     .capabilities-head,
+    .principles-head,
     .community-head {
       align-items: flex-start;
       flex-direction: column;
@@ -3037,6 +3194,10 @@
     }
 
     .capabilities-head > p {
+      text-align: left;
+    }
+
+    .principles-head > p {
       text-align: left;
     }
 
@@ -3069,6 +3230,7 @@
 
   @media (max-width: 560px) {
     .capabilities,
+    .principles,
     .community,
     .welcome-journey {
       padding: var(--space-5);
@@ -3076,6 +3238,14 @@
 
     .capability-grid {
       grid-template-columns: 1fr;
+    }
+
+    .principle-grid {
+      grid-template-columns: 1fr;
+    }
+
+    .principle.wide {
+      grid-column: 1;
     }
 
     .capability-card.major,
@@ -3268,9 +3438,26 @@
   }
 
   .disclaimer {
-    padding-block: var(--space-6) var(--space-4);
+    padding: var(--space-6) var(--space-5) var(--space-2);
     text-align: center;
     font-size: var(--text-2xs);
     color: var(--text-muted);
+  }
+
+  .support-note {
+    margin: 0;
+    padding: 0 var(--space-5) var(--space-6);
+    text-align: center;
+    font-size: var(--text-2xs);
+    line-height: var(--leading-normal);
+    color: var(--text-muted);
+  }
+
+  .support-note a {
+    margin-left: var(--space-1);
+    font-weight: var(--weight-medium);
+    color: var(--accent);
+    text-decoration: underline;
+    text-underline-offset: 3px;
   }
 </style>

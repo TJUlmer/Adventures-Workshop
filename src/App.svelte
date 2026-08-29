@@ -134,6 +134,8 @@
         <GalleryScreen />
       {:else if navigation.view.kind === 'author'}
         <AuthorProfileScreen id={navigation.view.id} />
+      {:else if navigation.view.kind === 'welcome'}
+        <HomeScreen welcome />
       {:else if navigation.view.kind === 'home'}
         <HomeScreen />
       {:else if currentPage === 'print'}
