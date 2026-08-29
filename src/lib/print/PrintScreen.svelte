@@ -224,15 +224,14 @@
    * This screen owns its own scrolling, and has to.
    *
    * `base.css` sets `body { overflow: hidden }` — "the shell owns all
-   * scrolling" — and this screen deliberately renders *outside* the shell, so
-   * there is no shell to own it. Without a scroll container here the sheets
-   * are simply clipped at the fold: the first page cut off, and no way to
-   * reach the second.
+   * scrolling" — and this screen deliberately renders *outside* the set shell.
+   * The application frame supplies its available height, but this component
+   * still has to own the sheet scroll area or later pages are clipped.
    */
   .screen {
     display: flex;
     flex-direction: column;
-    height: 100vh;
+    height: 100%;
     background: var(--surface-sunken);
     color: var(--text-default);
   }

@@ -2,13 +2,14 @@
   /**
    * Routing.
    *
-   * Everything lives inside a set: Home is the only screen outside one, and
-   * every other page assumes a set is open. That assumption is what lets the
-   * rest of the app read `workshop.adventure` without guarding it.
+   * Authoring pages live inside a set; Home and the public browsing views do
+   * not. `GlobalHeader` sits above both levels so moving between them no
+   * longer replaces the application's identity and primary navigation.
    */
   import SetHome from '$lib/components/home/SetHome.svelte';
   import AppShell from '$lib/components/layout/AppShell.svelte';
   import EditorPanes from '$lib/components/layout/EditorPanes.svelte';
+  import GlobalHeader from '$lib/components/layout/GlobalHeader.svelte';
   import SetNav from '$lib/components/layout/SetNav.svelte';
   import StatusBar from '$lib/components/layout/StatusBar.svelte';
   import TitleBar from '$lib/components/layout/TitleBar.svelte';
@@ -123,73 +124,71 @@
     Nothing here reads `navigation.view` correctly until the restore (and,
     where it applies, the deep link it defers to) has actually run.
   -->
-  {#if navigation.view.kind === 'shared'}
-    <!--
-      Outside the shell: this is very often someone's first sight of the app, and
-      they have not entered a workshop yet. Chrome for a set they do not have
-      would be answering a question they have not asked.
-    -->
-    <SharedSetScreen slug={navigation.view.slug} characterHint={navigation.view.characterHint} />
-  {:else if navigation.view.kind === 'gallery'}
-    <GalleryScreen />
-  {:else if navigation.view.kind === 'author'}
-    <AuthorProfileScreen id={navigation.view.id} />
-  {:else if navigation.view.kind === 'home'}
-    <HomeScreen />
-  {:else if currentPage === 'print'}
-    <!--
-      Outside the shell on purpose: printing is the one thing the app does where
-      the chrome is not merely irrelevant but harmful, because anything laid out
-      around the sheet can move it. See `PrintScreen`.
-    -->
-    <PrintScreen />
-  {:else}
-    <AppShell>
-      {#snippet titlebar()}
-        <TitleBar />
-      {/snippet}
+  <div class="app-frame">
+    <header class="global-banner"><GlobalHeader /></header>
 
-      {#snippet subnav()}
-        <SetNav />
-      {/snippet}
+    <div class="app-view">
+      {#if navigation.view.kind === 'shared'}
+        <SharedSetScreen slug={navigation.view.slug} characterHint={navigation.view.characterHint} />
+      {:else if navigation.view.kind === 'gallery'}
+        <GalleryScreen />
+      {:else if navigation.view.kind === 'author'}
+        <AuthorProfileScreen id={navigation.view.id} />
+      {:else if navigation.view.kind === 'home'}
+        <HomeScreen />
+      {:else if currentPage === 'print'}
+        <!-- The banner remains on screen, but `@media print` below removes it
+             from paper so it cannot shift a sheet. -->
+        <PrintScreen />
+      {:else}
+        <AppShell>
+          {#snippet titlebar()}
+            <TitleBar />
+          {/snippet}
 
-      {#snippet page()}
-        {#if currentPage === 'editor'}
-          <EditorPanes>
-            {#snippet sidebar()}
-              <SetSidebar />
-            {/snippet}
-            {#snippet workspace()}
-              <Workspace />
-            {/snippet}
-            {#snippet preview()}
-              <PreviewPanel />
-            {/snippet}
-          </EditorPanes>
-        {:else if currentPage === 'threat'}
-          <ThreatTracker />
-        {:else if currentPage === 'map'}
-          <MapEditor />
-        {:else if currentPage === 'figures'}
-          <FiguresPanel />
-        {:else if currentPage === 'symbols'}
-          <SymbolsPanel />
-        {:else if currentPage === 'assets'}
-          <AssetsOverview />
-        {:else if currentPage === 'contributions'}
-          <ContributionsScreen />
-        {:else if currentPage === 'settings'}
-          <SetSettings />
-        {:else}
-          <SetHome />
-        {/if}
-      {/snippet}
+          {#snippet subnav()}
+            <SetNav />
+          {/snippet}
 
-      {#snippet statusbar()}
-        <StatusBar />
-      {/snippet}
-    </AppShell>
-  {/if}
+          {#snippet page()}
+            {#if currentPage === 'editor'}
+              <EditorPanes>
+                {#snippet sidebar()}
+                  <SetSidebar />
+                {/snippet}
+                {#snippet workspace()}
+                  <Workspace />
+                {/snippet}
+                {#snippet preview()}
+                  <PreviewPanel />
+                {/snippet}
+              </EditorPanes>
+            {:else if currentPage === 'threat'}
+              <ThreatTracker />
+            {:else if currentPage === 'map'}
+              <MapEditor />
+            {:else if currentPage === 'figures'}
+              <FiguresPanel />
+            {:else if currentPage === 'symbols'}
+              <SymbolsPanel />
+            {:else if currentPage === 'assets'}
+              <AssetsOverview />
+            {:else if currentPage === 'contributions'}
+              <ContributionsScreen />
+            {:else if currentPage === 'settings'}
+              <SetSettings />
+            {:else}
+              <SetHome />
+            {/if}
+          {/snippet}
+
+          {#snippet statusbar()}
+            <StatusBar />
+          {/snippet}
+        </AppShell>
+      {/if}
+    </div>
+  </div>
 
   <!--
     Mounted once, outside the view switch, because a guide is an overlay on
@@ -200,3 +199,39 @@
   -->
   <GuideModal />
 {/if}
+
+<style>
+  .app-frame {
+    display: grid;
+    grid-template-rows: 72px minmax(0, 1fr);
+    height: 100%;
+    min-height: 0;
+    background: var(--surface-canvas);
+  }
+
+  .global-banner {
+    min-width: 0;
+    border-bottom: 1px solid var(--border-subtle);
+    background: linear-gradient(180deg, var(--surface-base), var(--surface-sunken));
+  }
+
+  .app-view {
+    min-width: 0;
+    min-height: 0;
+  }
+
+  @media print {
+    .app-frame {
+      display: block;
+      height: auto;
+    }
+
+    .global-banner {
+      display: none;
+    }
+
+    .app-view {
+      height: auto;
+    }
+  }
+</style>

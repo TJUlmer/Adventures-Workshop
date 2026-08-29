@@ -16,7 +16,6 @@
   import { parseSetFile } from '$lib/export/json';
   import { CHARACTER_ROLE_META, SELECTABLE_ROLES } from '$lib/characters/types';
   import type { CharacterId, CharacterRole } from '$lib/characters/types';
-  import AccountMenu from '$lib/components/cloud/AccountMenu.svelte';
   import { auth } from '$lib/cloud/auth.svelte';
   import { renderCharacterCards } from '$lib/cloud/character-cards';
   import { openContributionCounts } from '$lib/cloud/contributions';
@@ -34,9 +33,7 @@
   import { workshop } from '$lib/state/workshop.svelte';
   import { loadSet, saveSet } from '$lib/storage/library';
   import type { LibraryEntry } from '$lib/storage/library';
-  import { readStorageEstimate } from '$lib/storage/indexeddb';
-  import type { StorageEstimate } from '$lib/storage/indexeddb';
-  import { Button, Icon, SegmentedControl, Select, ThemeToggle } from '$lib/ui';
+  import { Button, Icon, SegmentedControl, Select } from '$lib/ui';
   import NewSetDialog from './NewSetDialog.svelte';
 
   let fileInput = $state<HTMLInputElement | null>(null);
@@ -638,20 +635,6 @@
   const TRIM_SCALE_TALL =
     CARD_FORMATS.action.bleed.height / trimBox(CARD_FORMATS.action).height;
 
-  /**
-   * Total browser storage this origin is using, against what it could use —
-   * not just this library's own byte counts, which is why it is fetched
-   * separately from `entries` rather than summed from `entry.bytes`: the
-   * quota is shared with whatever else the browser keeps for this origin,
-   * and the point of showing it is the ceiling, not the total.
-   *
-   * `null` while unanswered (the browser has no `navigator.storage.estimate`,
-   * or the call failed) means the line is simply not drawn — there is
-   * nothing useful to say in that case, and no error worth surfacing over it.
-   */
-  let storage = $state<StorageEstimate | null>(null);
-  void readStorageEstimate().then((value) => (storage = value));
-
   function flash(text: string): void {
     message = text;
     setTimeout(() => (message = null), 3000);
@@ -661,13 +644,6 @@
     const date = new Date(value);
     if (Number.isNaN(date.getTime())) return 'Never';
     return date.toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' });
-  }
-
-  function formatSize(bytes: number): string {
-    if (bytes < 1024) return `${bytes} B`;
-    if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
-    if (bytes < 1024 * 1024 * 1024) return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
-    return `${(bytes / 1024 / 1024 / 1024).toFixed(2)} GB`;
   }
 
   async function importSet(event: Event & { currentTarget: HTMLInputElement }): Promise<void> {
@@ -927,17 +903,9 @@
 
 <div class="library scroll-y">
   <header class="head">
-    <div class="brand">
-      <img class="mark" src="/assets/labs_beaker5.png" alt="" aria-hidden="true" />
-      <div class="titles">
-        <h1 class="title">Unmatched Labs</h1>
-        <p class="subtitle">The unmatched toolkit for Unmatched creation</p>
-        {#if storage}
-          <p class="storage-line">
-            {formatSize(storage.usageBytes)} of {formatSize(storage.quotaBytes)} used
-          </p>
-        {/if}
-      </div>
+    <div class="context-title">
+      <span class="context-eyebrow">Workshop</span>
+      <h1>Your sets</h1>
     </div>
 
     <div class="actions">
@@ -948,28 +916,6 @@
         accept=".json,application/json"
         onchange={importSet}
       />
-      <ThemeToggle />
-
-      <!--
-        Always here, signed in or not — the one entry point into signing in
-        that is not tied to sharing or contributing; see `AccountMenu`'s own
-        note. This is the screen an author lands on before any set is open,
-        so it is also the earliest place signing in ahead of publishing can
-        happen.
-      -->
-      <AccountMenu />
-
-      <!--
-        The way into the gallery. Beside Import rather than promoted above New
-        set: someone opening the app usually came to work on their own set, and
-        browsing is the occasional errand.
-      -->
-      {#if cloudEnabled()}
-        <Button variant="ghost" onclick={() => navigation.openGallery()}>
-          <Icon name="layers" size={14} />
-          Browse gallery
-        </Button>
-      {/if}
       <Button variant="ghost" onclick={() => fileInput?.click()}>
         <Icon name="upload" size={14} />
         Import
@@ -1618,49 +1564,30 @@
     align-items: center;
     justify-content: space-between;
     gap: var(--space-5);
-    padding: var(--space-7) var(--space-9) var(--space-6);
+    padding: var(--space-5) var(--space-9);
     border-bottom: 1px solid var(--border-subtle);
   }
 
-  .brand {
-    display: flex;
-    align-items: center;
-    gap: var(--space-4);
-  }
-
-  .mark {
-    /* Matches the measured height of the three-line .titles stack beside it,
-       so the mark spans the full title block rather than sitting undersized
-       next to it. */
-    width: 69px;
-    height: 69px;
-    flex: none;
-    object-fit: contain;
-  }
-
-  .titles {
+  .context-title {
     display: flex;
     flex-direction: column;
     gap: 2px;
   }
 
-  .title {
+  .context-title h1 {
+    margin: 0;
     font-family: var(--font-display);
-    font-size: var(--text-xl);
+    font-size: var(--text-lg);
     font-weight: var(--weight-semibold);
     letter-spacing: var(--tracking-tight);
     color: var(--text-primary);
   }
 
-  .subtitle {
+  .context-eyebrow {
     font-size: var(--text-xs);
+    letter-spacing: var(--tracking-wide);
+    text-transform: uppercase;
     color: var(--text-muted);
-  }
-
-  .storage-line {
-    font-size: var(--text-2xs);
-    color: var(--text-muted);
-    opacity: 0.75;
   }
 
   .actions {
