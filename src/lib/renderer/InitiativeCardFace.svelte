@@ -15,6 +15,7 @@
   import type { CardTheme } from '$lib/cards/style';
   import { fillCss, solid } from '$lib/cards/style';
   import type { InitiativeBands } from '$lib/cards/types';
+  import { INITIATIVE_SUBJECT_LABELS } from '$lib/cards/types';
   import { createArtwork } from '$lib/core/artwork';
   import type { InitiativeCard } from '$lib/cards/types';
   import { initiativeBandLabel } from '$lib/cards/types';
@@ -53,10 +54,12 @@
   interface Props {
     card: InitiativeCard;
     theme: CardTheme;
+    /** Assigned figure name, used only when the saved top-band copy is exactly empty. */
+    subjectFallback?: string | null;
     customSymbols?: CustomSymbol[];
   }
 
-  let { card, theme, customSymbols = [] }: Props = $props();
+  let { card, theme, subjectFallback = null, customSymbols = [] }: Props = $props();
 
   const badge = INITIATIVE.moveBadge;
 
@@ -86,7 +89,18 @@
       : INITIATIVE.textWidth
   );
 
-  const actor = $derived(card.subjectText.trim() || 'Villain');
+  const fallbackActor = $derived(
+    subjectFallback?.trim() || INITIATIVE_SUBJECT_LABELS[card.subject]
+  );
+
+  /*
+   * Exact empty means "follow the assigned figure". Whitespace is deliberately
+   * different: it is the author's escape hatch for a visually blank top band.
+   * Keep a non-blank subject for generated prose and `{{name}}` tokens even
+   * when that band is intentionally blank.
+   */
+  const actor = $derived(card.subjectText.length === 0 ? fallbackActor : card.subjectText.trim());
+  const abilitySubject = $derived(actor || fallbackActor);
 
   /**
    * A character card almost always just says the figure takes a turn, so that
@@ -99,7 +113,7 @@
    * must print empty. See the two guards below.
    */
   const rightNowText = $derived(
-    card.rightNow.trim() || (card.variant === 'card' ? `${actor} takes a turn.` : '')
+    card.rightNow.trim() || (card.variant === 'card' ? `${abilitySubject} takes a turn.` : '')
   );
 
   /**
@@ -215,7 +229,7 @@
           bonusAbility: '',
           bonusIcon: ''
         }}
-        subject={actor}
+        subject={abilitySubject}
         {customSymbols}
       />
     {/if}
@@ -283,7 +297,7 @@
           bonusAbility: '',
           bonusIcon: ''
         }}
-        subject={actor}
+        subject={abilitySubject}
         {customSymbols}
       />
     {/if}

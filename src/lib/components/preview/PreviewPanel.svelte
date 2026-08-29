@@ -16,7 +16,7 @@
   import type { CardFormat } from '$lib/renderer/geometry';
   import { BLEED_MM, CARD_FORMATS, trimBox } from '$lib/renderer/geometry';
   import { characterEditorView } from '$lib/state/character-editor-view.svelte';
-  import { findDeck } from '$lib/sets/queries';
+  import { findDeck, initiativeSubjectForCard } from '$lib/sets/queries';
   import { workshop } from '$lib/state/workshop.svelte';
   import { Button, EmptyState, Icon } from '$lib/ui';
 
@@ -77,6 +77,9 @@
 
   const owner = $derived(workshop.previewCharacter);
   const theme = $derived(workshop.previewTheme);
+  const initiativeSubject = $derived(
+    card ? initiativeSubjectForCard(workshop.adventure, card) : null
+  );
   const deck = $derived(card ? findDeck(workshop.adventure, card.deckId) : null);
   const meta = $derived(card ? CARD_TYPE_META[card.type] : null);
 
@@ -277,6 +280,7 @@
           {cardback}
           character={owner}
           {theme}
+          {initiativeSubject}
           options={{ showBleed: bleeding, showGuides: showGuides && bleeding }}
           customSymbols={workshop.adventure.customSymbols}
         />
@@ -296,6 +300,7 @@
           character={owner}
           {theme}
           side="back"
+          {initiativeSubject}
           options={{ showBleed: bleeding, showGuides: showGuides && bleeding }}
           customSymbols={workshop.adventure.customSymbols}
         />

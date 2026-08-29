@@ -605,6 +605,7 @@
             >
               <AbilityText
                 ability={card.ability}
+                placeholder=""
                 subject={ribbonName}
                 bonusInk={theme.bonusAbilityInk}
                 bonusIconSize={theme.bonusIconSize}
@@ -625,6 +626,7 @@
           >
             <AbilityText
               ability={card.ability}
+              placeholder=""
               subject={ribbonName}
               bonusInk={theme.bonusAbilityInk}
               bonusIconSize={theme.bonusIconSize}

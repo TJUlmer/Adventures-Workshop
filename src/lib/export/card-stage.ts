@@ -54,6 +54,8 @@ export interface StageJob {
   theme?: CardTheme;
   /** Which face of a two-sided card. Only event cards have both. */
   side?: 'front' | 'back';
+  /** Assigned figure name for an initiative card whose saved subject is empty. */
+  initiativeSubject?: string | null;
   customSymbols?: CustomSymbol[];
 }
 
@@ -86,6 +88,7 @@ export async function withCardStage<T>(run: (photograph: Photograph) => Promise<
         statCardEntry: job.statCardEntry ?? null,
         theme: job.theme,
         side: job.side ?? 'front',
+        initiativeSubject: job.initiativeSubject ?? null,
         customSymbols: job.customSymbols ?? [],
         options: { showBleed: true, showGuides: false }
       }

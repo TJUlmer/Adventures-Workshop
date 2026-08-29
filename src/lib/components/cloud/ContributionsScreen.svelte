@@ -30,7 +30,11 @@
   import CardRenderer from '$lib/renderer/CardRenderer.svelte';
   import { applyEntries, reviewEntries } from '$lib/sets/contribution';
   import type { ReviewedEntry } from '$lib/sets/contribution';
-  import { characterForCard, resolveStyleForCard } from '$lib/sets/queries';
+  import {
+    characterForCard,
+    initiativeSubjectForCard,
+    resolveStyleForCard
+  } from '$lib/sets/queries';
   import type { AdventureSet } from '$lib/sets/types';
   import { workshop } from '$lib/state/workshop.svelte';
   import { Button, EmptyState, Icon } from '$lib/ui';
@@ -259,6 +263,7 @@
                       card={before}
                       character={characterForCard(set, before)}
                       theme={resolveStyleForCard(set, before)}
+                      initiativeSubject={initiativeSubjectForCard(set, before)}
                       customSymbols={set.customSymbols}
                     />
                   </div>
@@ -273,6 +278,7 @@
                       card={after}
                       character={characterForCard(preview, after)}
                       theme={resolveStyleForCard(preview, after)}
+                      initiativeSubject={initiativeSubjectForCard(preview, after)}
                       customSymbols={preview.customSymbols}
                     />
                   </div>

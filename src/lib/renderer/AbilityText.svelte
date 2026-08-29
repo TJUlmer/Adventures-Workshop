@@ -81,7 +81,9 @@
 
 <div class="ability">
   {#if empty}
-    <p class="line placeholder">{placeholder}</p>
+    {#if placeholder}
+      <p class="line placeholder">{placeholder}</p>
+    {/if}
   {:else}
     {#if hasPlain}
       <p class="line">{@render run(ability.plain)}</p>

@@ -53,6 +53,8 @@
     theme?: CardTheme;
     /** Which face of a two-sided card to draw. Only event cards have both. */
     side?: 'front' | 'back';
+    /** Assigned figure name for an initiative card whose saved subject is empty. */
+    initiativeSubject?: string | null;
     options?: Partial<CardRenderOptions>;
     /** The set's author-uploaded glyphs, for resolving `{{custom:…}}` tokens. */
     customSymbols?: CustomSymbol[];
@@ -66,6 +68,7 @@
     statCardEntry = null,
     theme,
     side = 'front',
+    initiativeSubject = null,
     options,
     customSymbols = []
   }: Props = $props();
@@ -287,7 +290,7 @@
         {#if card.type === 'action'}
           <ActionCardFace {card} {character} theme={look} {customSymbols} />
         {:else if card.type === 'initiative'}
-          <InitiativeCardFace {card} theme={look} {customSymbols} />
+          <InitiativeCardFace {card} theme={look} subjectFallback={initiativeSubject} {customSymbols} />
         {:else if card.type === 'event'}
           <EventCardFace {card} theme={look} {side} {customSymbols} />
         {:else}
