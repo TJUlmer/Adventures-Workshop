@@ -270,13 +270,27 @@ revoke all on function public.owns_set(uuid, uuid) from public;
 grant execute on function public.owns_set(uuid, uuid) to authenticated;
 
 /*
- * Is this collection reachable at all? `security definer` for exactly the
- * reason `set_accepts_contributions` is: the read policy below exposes public
- * collections only, so a policy checking `collections` directly would refuse
- * every submission to an *unlisted* one — which is every collection during
- * the entire production phase.
+ * May a deck be offered to this collection?
+ *
+ * `security definer` for exactly the reason `set_accepts_contributions` is:
+ * the read policy below exposes public collections only, so a policy checking
+ * `collections` directly would refuse every submission to an *unlisted* one —
+ * which is every collection during the entire production phase.
+ *
+ * **Visibility and `open_submissions` are both checked here, in one place,
+ * and that is the whole point of the function.** The first version of
+ * `members_submit` called a definer helper for the visibility half and then
+ * added `exists (select 1 from public.collections where ... and
+ * open_submissions)` for the other — a raw read, subject to the very policy
+ * the helper existed to see past. It returned nothing for an unlisted
+ * collection, so every submission was refused, and the trap was reintroduced
+ * two lines below the comment describing it.
+ *
+ * Measured through the real PostgREST path rather than reasoned about: the
+ * definer call answered `true` while the same visitor's own read of the same
+ * row came back `[]`.
  */
-create or replace function public.collection_is_open(target uuid)
+create or replace function public.collection_accepts_submissions(target uuid)
 returns boolean
 language sql
 security definer
@@ -288,11 +302,12 @@ as $$
     where c.id = target
       and c.visibility in ('unlisted', 'public')
       and not c.hidden
+      and c.open_submissions
   );
 $$;
 
-revoke all on function public.collection_is_open(uuid) from public;
-grant execute on function public.collection_is_open(uuid) to authenticated;
+revoke all on function public.collection_accepts_submissions(uuid) from public;
+grant execute on function public.collection_accepts_submissions(uuid) to authenticated;
 
 -- ---------------------------------------------------------------------------
 -- Row level security
@@ -468,11 +483,7 @@ create policy members_submit on public.collection_members
   with check (
     status = 'submitted'
     and public.owns_set(set_id, auth.uid())
-    and public.collection_is_open(collection_id)
-    and exists (
-      select 1 from public.collections c
-      where c.id = collection_id and c.open_submissions
-    )
+    and public.collection_accepts_submissions(collection_id)
   );
 
 /*
@@ -795,7 +806,7 @@ grant execute on function public.collections_for_set(uuid) to anon, authenticate
  */
 revoke execute on function public.is_collection_organiser(uuid, uuid) from anon;
 revoke execute on function public.owns_set(uuid, uuid) from anon;
-revoke execute on function public.collection_is_open(uuid) from anon;
+revoke execute on function public.collection_accepts_submissions(uuid) from anon;
 
 revoke all on function public.seed_collection_organiser() from public, anon, authenticated;
 revoke all on function public.guard_collection_member_fields() from public, anon, authenticated;

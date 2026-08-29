@@ -269,6 +269,20 @@
   );
 
   /**
+   * My decks that are waiting on somebody else — offered, not yet decided.
+   *
+   * Without this the page went silent the moment an offer succeeded: the
+   * joining panel correctly stopped inviting a second offer, and nothing took
+   * its place, so the answer to "did that work?" was a blank page. An offer
+   * that vanishes is indistinguishable from one that failed.
+   */
+  const myPending = $derived(
+    memberships.filter(
+      (row) => row.status === 'submitted' && row.set?.owner_id === auth.user?.id
+    )
+  );
+
+  /**
    * Whether this visitor already has a deck here, in any state that means
    * "you are dealt with" — accepted, or awaiting somebody's decision.
    */
@@ -644,6 +658,32 @@
       {/if}
 
       {#if notice}<p class="notice">{notice}</p>{/if}
+
+      {#if myPending.length > 0}
+        <section class="panel">
+          <h2>Waiting on the organisers</h2>
+          <p class="hint">
+            Offered, and not decided yet. It will appear in the collection once an organiser
+            accepts it; you can withdraw it before then.
+          </p>
+          <ul class="rows">
+            {#each myPending as row (row.set_id)}
+              <li>
+                <span class="row-name">{row.set?.name || 'Untitled'}</span>
+                <button
+                  type="button"
+                  class="btn"
+                  disabled={busy !== null}
+                  onclick={() =>
+                    run(`withdraw-${row.set_id}`, () => removeMember(collection!.id, row.set_id))}
+                >
+                  Withdraw
+                </button>
+              </li>
+            {/each}
+          </ul>
+        </section>
+      {/if}
 
       {#if myInvitations.length > 0}
         <!--
