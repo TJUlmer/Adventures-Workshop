@@ -19,7 +19,7 @@
    * it was pasted, by somebody who signed in once and forgot.
    */
   import {
-    amOrganiser,
+    amOrganizer,
     collectionUrl,
     readinessOf,
     fetchCollectionBySlug,
@@ -101,9 +101,9 @@
 
   const heading = $derived(collection?.name.trim() || 'Untitled collection');
 
-  // -- Organiser editing --------------------------------------------------
+  // -- Organizer editing --------------------------------------------------
 
-  let organiser = $state(false);
+  let organizer = $state(false);
   let editing = $state(false);
   let saving = $state(false);
   let notice = $state<string | null>(null);
@@ -118,7 +118,7 @@
   $effect(() => {
     const id = collection?.id;
     if (!id) {
-      organiser = false;
+      organizer = false;
       return;
     }
     /* Read `auth.signedIn` synchronously so signing in *while this page is
@@ -127,8 +127,8 @@
        reason `HomeScreen`'s published-sets effect reads it at the top. */
     void auth.signedIn;
     void (async () => {
-      const yes = await amOrganiser(id).catch(() => false);
-      if (collection?.id === id) organiser = yes;
+      const yes = await amOrganizer(id).catch(() => false);
+      if (collection?.id === id) organizer = yes;
     })();
   });
 
@@ -310,7 +310,7 @@
    * to nothing.
    */
   const joining = $derived.by(() => {
-    if (organiser || iHaveADeckHere) return 'settled';
+    if (organizer || iHaveADeckHere) return 'settled';
     if (!auth.signedIn) return 'signed-out';
     if (myPublished.length === 0) return 'nothing-published';
     if (offerable.length === 0) return 'settled';
@@ -321,7 +321,7 @@
    * Accepted rows this visitor may end.
    *
    * Both parties can, and the governance table says so: a deck's author
-   * leaves, an organiser unlinks. Neither is destructive — `removeMember`
+   * leaves, an organizer unlinks. Neither is destructive — `removeMember`
    * writes a status, and the set's own row, slug, shelf entry and gallery
    * listing are untouched by either.
    */
@@ -329,7 +329,7 @@
     memberships.filter(
       (row) =>
         row.status === 'accepted' &&
-        (organiser || row.set?.owner_id === auth.user?.id)
+        (organizer || row.set?.owner_id === auth.user?.id)
     )
   );
 
@@ -390,19 +390,19 @@
    *
    * Which verb depends on which hat I am wearing, and the difference is the
    * policies', not a preference: `members_submit` requires the collection to
-   * be open for submissions, while `members_invite` lets an organiser invite
-   * **any** deck, their own included. So an organiser adding their own deck
+   * be open for submissions, while `members_invite` lets an organizer invite
+   * **any** deck, their own included. So an organizer adding their own deck
    * goes in as an invitation they then accept — two acts by one person, but
    * honest ones, and it keeps the consent sentence in front of them rather
    * than skipping the moment because they happen to run the project.
    *
-   * The first version offered this to organisers of a closed collection and
+   * The first version offered this to organizers of a closed collection and
    * called `submitDeck`, which RLS refused outright: the panel was showing a
    * button the database was never going to honour.
    */
   async function addOwnDeck(setId: string): Promise<void> {
     await run(`offer-${setId}`, async () => {
-      if (organiser) await inviteDeck(collection!.id, setId);
+      if (organizer) await inviteDeck(collection!.id, setId);
       else await submitDeck(collection!.id, setId);
     });
   }
@@ -439,7 +439,7 @@
    *
    * Only the deck's own author may — enforced by a trigger, not a policy,
    * because a `with check` sees only the new row and cannot notice that an
-   * organiser's otherwise-legitimate update also flipped somebody's `ready`.
+   * organizer's otherwise-legitimate update also flipped somebody's `ready`.
    * The UI simply agrees with that rather than being what enforces it.
    */
   const myAccepted = $derived(
@@ -452,9 +452,9 @@
    * Set when Public was asked for while somebody is still not ready.
    *
    * A confirmation rather than a refusal: the gate exists so one eager
-   * organiser cannot debut a half-finished deck over its author's head, but
+   * organizer cannot debut a half-finished deck over its author's head, but
    * an absent member must not be able to freeze a project for ever either —
-   * so it names who, and lets an organiser go anyway having read the names.
+   * so it names who, and lets an organizer go anyway having read the names.
    */
   let publishGate = $state<string[] | null>(null);
 
@@ -468,7 +468,7 @@
   }
 
   const VISIBILITIES: { value: CollectionVisibility; label: string; hint: string }[] = [
-    { value: 'private', label: 'Private', hint: 'Only organisers. The link stops working.' },
+    { value: 'private', label: 'Private', hint: 'Only organizers. The link stops working.' },
     { value: 'unlisted', label: 'Unlisted', hint: 'Anyone with the link. Not in the gallery.' },
     { value: 'public', label: 'Public', hint: 'Listed for everyone to find.' }
   ];
@@ -518,7 +518,7 @@
         {#if collection.banner_url}
           <img src={collection.banner_url} alt="" />
         {/if}
-        {#if organiser}
+        {#if organizer}
           <input
             bind:this={bannerInput}
             class="sr-only"
@@ -556,7 +556,7 @@
       {:else}
         <div class="title-row">
           <h1>{heading}</h1>
-          {#if organiser}
+          {#if organizer}
             <button type="button" class="btn" onclick={startEditing}>Edit details</button>
           {/if}
         </div>
@@ -564,9 +564,9 @@
         {#if collection.blurb}<p class="blurb">{collection.blurb}</p>{/if}
       {/if}
 
-      {#if organiser}
+      {#if organizer}
         <!--
-          Organiser-only, and each control says what the setting *does* rather
+          Organizer-only, and each control says what the setting *does* rather
           than naming it: "unlisted" means nothing to somebody who has not read
           the schema, while "anyone with the link" is the actual promise being
           made about their collaborators' work.
@@ -634,7 +634,7 @@
             </label>
             <!--
               Says what it does to *other people's* view, because that is the
-              thing an organiser cannot see from here and the reason this was
+              thing an organizer cannot see from here and the reason this was
               confusing: turning it off makes the page silent for visitors
               unless they are told why.
             -->
@@ -661,9 +661,9 @@
 
       {#if myPending.length > 0}
         <section class="panel">
-          <h2>Waiting on the organisers</h2>
+          <h2>Waiting on the organizers</h2>
           <p class="hint">
-            Offered, and not decided yet. It will appear in the collection once an organiser
+            Offered, and not decided yet. It will appear in the collection once an organizer
             accepts it; you can withdraw it before then.
           </p>
           <ul class="rows">
@@ -727,7 +727,7 @@
         </section>
       {/if}
 
-      {#if organiser && submissions.length > 0}
+      {#if organizer && submissions.length > 0}
         <section class="panel">
           <h2>Decks offered to this collection</h2>
           <ul class="rows">
@@ -767,7 +767,7 @@
         </section>
       {/if}
 
-      {#if organiser}
+      {#if organizer}
         <section class="panel">
           <h2>Invite a deck</h2>
           <p class="hint">
@@ -850,7 +850,7 @@
             </p>
           {:else if joining === 'invite-only'}
             <p class="hint">
-              This collection is invitation-only. Send an organiser the share link of the deck
+              This collection is invitation-only. Send an organizer the share link of the deck
               you would like to add, and they can invite it.
             </p>
           {:else}
@@ -874,7 +874,7 @@
         </section>
       {/if}
 
-      {#if organiser && offerable.length > 0}
+      {#if organizer && offerable.length > 0}
         <section class="panel">
           <h2>Add one of your own decks</h2>
           <p class="hint">
@@ -918,7 +918,7 @@
         <section class="panel">
           <h2>Your deck{myAccepted.length === 1 ? '' : 's'} here</h2>
           <p class="hint">
-            Marking a deck ready tells the organisers it is finished. Only you can, and you
+            Marking a deck ready tells the organizers it is finished. Only you can, and you
             can change your mind while the collection is still unpublished.
           </p>
           <ul class="rows">
@@ -950,7 +950,7 @@
           read as "not started yet" rather than "broken".
         -->
         <p class="message">
-          No decks yet. Whoever is organising this can invite them, or open it for submissions.
+          No decks yet. Whoever is organizing this can invite them, or open it for submissions.
         </p>
       {:else}
         <ul class="grid">

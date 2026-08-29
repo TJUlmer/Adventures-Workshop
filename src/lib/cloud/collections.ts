@@ -32,7 +32,7 @@ export type CollectionVisibility = 'private' | 'unlisted' | 'public';
  *
  * Two pending states rather than one, because which side is waiting is the
  * whole of what the other side has to be shown: `invited` waits on the deck's
- * owner, `submitted` waits on an organiser. Collapsing them would mean
+ * owner, `submitted` waits on an organizer. Collapsing them would mean
  * deriving that from who inserted the row.
  */
 export type MembershipStatus = 'invited' | 'submitted' | 'accepted' | 'declined' | 'removed';
@@ -86,7 +86,7 @@ export interface CollectionTile {
 }
 
 /**
- * A membership row as the two parties to it see it — an organiser reviewing
+ * A membership row as the two parties to it see it — an organizer reviewing
  * what is waiting, or an author looking at their own invitations.
  *
  * Distinct from `CollectionTile` on purpose: a tile is the *public* view of
@@ -114,7 +114,7 @@ export interface CollectionMembership {
   collection: { slug: string; name: string; subtitle: string } | null;
 }
 
-export interface CollectionOrganiser {
+export interface CollectionOrganizer {
   collection_id: string;
   user_id: string;
   created_at: string;
@@ -167,7 +167,7 @@ export async function fetchCollectionBySlug(slug: string): Promise<Collection | 
   return rows[0] ?? null;
 }
 
-/** The accepted decks in a collection, in the order its organisers set. */
+/** The accepted decks in a collection, in the order its organizers set. */
 export async function fetchCollectionTiles(slug: string): Promise<CollectionTile[]> {
   return request<CollectionTile[]>('/rest/v1/rpc/collection_members_by_slug', {
     method: 'POST',
@@ -209,12 +209,12 @@ export interface CollectionFields {
 }
 
 /**
- * Make one. The creator becomes its first organiser.
+ * Make one. The creator becomes its first organizer.
  *
  * That second row is written by a **trigger**, not here — see
- * `seed_collection_organiser`. As a client-side pair it would be one failed
+ * `seed_collection_organizer`. As a client-side pair it would be one failed
  * request away from a collection nobody can administer, and since only an
- * organiser may insert into `collection_organisers`, that state is
+ * organizer may insert into `collection_organizers`, that state is
  * unrecoverable without a service role.
  *
  * `created_by` *is* sent, and that is deliberate rather than lax: the policy
@@ -248,7 +248,7 @@ export async function createCollection(fields: CollectionFields = {}): Promise<C
   return row;
 }
 
-/** Edit the parts an organiser chooses. Silently a no-op for anyone else. */
+/** Edit the parts an organizer chooses. Silently a no-op for anyone else. */
 export async function updateCollection(id: string, fields: CollectionFields): Promise<void> {
   await auth.ensureFresh();
   const body: Record<string, unknown> = {};
@@ -270,7 +270,7 @@ export async function updateCollection(id: string, fields: CollectionFields): Pr
 /**
  * Delete a collection outright.
  *
- * Its membership and organiser rows cascade away; **no set is touched**, by
+ * Its membership and organizer rows cascade away; **no set is touched**, by
  * construction — nothing in the schema cascades upward into `sets`. This is
  * the one destructive call in the file, and it destroys only the curation.
  */
@@ -279,16 +279,40 @@ export async function deleteCollection(id: string): Promise<void> {
   await request(`/rest/v1/collections?id=eq.${encodeURIComponent(id)}`, { method: 'DELETE' });
 }
 
-/** Every collection this person organises, for their own shelf. */
-export async function listMyCollections(): Promise<Collection[]> {
+/** A collection on somebody's own shelf, with how they are part of it. */
+export interface MyCollection {
+  id: string;
+  slug: string;
+  name: string;
+  subtitle: string;
+  banner_url: string;
+  visibility: CollectionVisibility;
+  open_submissions: boolean;
+  /** Organizer, as against being here because a deck of yours is. */
+  is_organizer: boolean;
+  /** Accepted decks, so a shelf tile can say how big the box is. */
+  deck_count: number;
+  updated_at: string;
+}
+
+/**
+ * Every collection this person is part of — organizing, or with a deck in.
+ *
+ * Through `my_collections()`, a `security definer` function, rather than a
+ * filtered table read. "Mine" is not a column here: it is *organizer of*, or
+ * *owner of a deck that is in it*, which PostgREST cannot express as a
+ * filter. Leaving it to RLS instead — an unfiltered select — would return
+ * every **public** collection alongside the caller's own, which is precisely
+ * the bug `listMyPublishedSets` had.
+ *
+ * This is the only way back to a collection once its link is out of somebody's
+ * clipboard, so it is also what stops an author making a second one because
+ * they cannot find the first.
+ */
+export async function listMyCollections(): Promise<MyCollection[]> {
   await auth.ensureFresh();
   if (!auth.user) return [];
-  /* Filtered by the policy rather than by a `user_id` parameter: an organiser
-     may read exactly the collections they organise, so asking for "all" and
-     asking for "mine" are the same question with the same answer. */
-  return request<Collection[]>(
-    `/rest/v1/collections?select=${COLLECTION_COLUMNS}&order=updated_at.desc`
-  );
+  return request<MyCollection[]>('/rest/v1/rpc/my_collections', { method: 'POST', body: {} });
 }
 
 // -- Membership ----------------------------------------------------------
@@ -342,10 +366,10 @@ async function join(
 }
 
 /**
- * An organiser asks a deck to join. The deck's owner decides.
+ * An organizer asks a deck to join. The deck's owner decides.
  *
  * `status` is pinned to `invited` by `members_invite`'s own `with check`, so
- * an organiser cannot insert a row that is already accepted on somebody's
+ * an organizer cannot insert a row that is already accepted on somebody's
  * behalf — the invitation and the acceptance are always two separate acts by
  * two different people.
  */
@@ -354,7 +378,7 @@ export async function inviteDeck(collectionId: string, setId: string): Promise<v
   await join(collectionId, setId, 'invited', { invited_by: auth.user?.id ?? null });
 }
 
-/** An author offers their own deck. An organiser decides. */
+/** An author offers their own deck. An organizer decides. */
 export async function submitDeck(collectionId: string, setId: string): Promise<void> {
   await auth.ensureFresh();
   await join(collectionId, setId, 'submitted');
@@ -380,7 +404,7 @@ export async function respondToInvitation(
   });
 }
 
-/** An organiser's answer to a submission. Same shape, other side. */
+/** An organizer's answer to a submission. Same shape, other side. */
 export async function resolveSubmission(
   collectionId: string,
   setId: string,
@@ -398,9 +422,9 @@ export async function resolveSubmission(
  * Unlink a deck. **Not a delete of anything the author owns.**
  *
  * `removed` rather than a row delete, so the collection remembers that this
- * deck was once in it and an organiser is not offered the same submission
+ * deck was once in it and an organizer is not offered the same submission
  * again the moment it is declined. Either party may do it: an author leaves,
- * an organiser unlinks, and neither touches the set itself.
+ * an organizer unlinks, and neither touches the set itself.
  *
  * The database clears `ready` on its way out (`guard_collection_member_fields`),
  * so re-joining later cannot re-arm the publish gate with an assurance nobody
@@ -420,8 +444,8 @@ export async function removeMember(collectionId: string, setId: string): Promise
  *
  * **Only they can.** A `before update` trigger enforces it rather than a
  * policy, because a `with check` sees only the new row and cannot notice that
- * an organiser's otherwise-legitimate update also flipped somebody's `ready`
- * — and `ready` is what the publish gate reads, so an organiser who could set
+ * an organizer's otherwise-legitimate update also flipped somebody's `ready`
+ * — and `ready` is what the publish gate reads, so an organizer who could set
  * it could debut a half-finished deck over its author's head.
  */
 export async function setMemberReady(
@@ -437,7 +461,7 @@ export async function setMemberReady(
   });
 }
 
-/** Where a deck sits in the printed order. Organisers only, by the same trigger. */
+/** Where a deck sits in the printed order. Organizers only, by the same trigger. */
 export async function reorderMember(
   collectionId: string,
   setId: string,
@@ -454,7 +478,7 @@ export async function reorderMember(
 /**
  * Every membership row of one collection, undecided ones included.
  *
- * The organiser's view, and deliberately not what the page draws for a
+ * The organizer's view, and deliberately not what the page draws for a
  * visitor — that comes from `fetchCollectionTiles`, which returns accepted
  * rows only. Reading this as a stranger returns nothing; the policy decides,
  * so asking wrongly cannot widen it.
@@ -474,7 +498,7 @@ export async function listMemberships(collectionId: string): Promise<CollectionM
  * Both directions in one call, because Home's attention strip asks one
  * question — "is anything waiting on me?" — and already answers it for
  * contributions. An `invited` row waits on the deck's owner; a `submitted`
- * row waits on an organiser; `members_read` means each side only ever sees
+ * row waits on an organizer; `members_read` means each side only ever sees
  * the rows it is a party to, so a single unfiltered fetch cannot leak the
  * other side's pending work.
  */
@@ -487,21 +511,21 @@ export async function listPendingMemberships(): Promise<CollectionMembership[]> 
   );
 }
 
-// -- Organisers ----------------------------------------------------------
+// -- Organizers ----------------------------------------------------------
 
-export async function listOrganisers(collectionId: string): Promise<CollectionOrganiser[]> {
+export async function listOrganizers(collectionId: string): Promise<CollectionOrganizer[]> {
   await auth.ensureFresh();
-  return request<CollectionOrganiser[]>(
-    '/rest/v1/collection_organisers?select=collection_id,user_id,created_at,' +
+  return request<CollectionOrganizer[]>(
+    '/rest/v1/collection_organizers?select=collection_id,user_id,created_at,' +
       'profile:profiles(display_name,avatar_url)' +
       `&collection_id=eq.${encodeURIComponent(collectionId)}&order=created_at.asc`
   );
 }
 
-/** Hand curation to somebody else. Only an existing organiser may. */
-export async function promoteOrganiser(collectionId: string, userId: string): Promise<void> {
+/** Hand curation to somebody else. Only an existing organizer may. */
+export async function promoteOrganizer(collectionId: string, userId: string): Promise<void> {
   await auth.ensureFresh();
-  await request('/rest/v1/collection_organisers', {
+  await request('/rest/v1/collection_organizers', {
     method: 'POST',
     body: { collection_id: collectionId, user_id: userId },
     headers: { Prefer: 'return=minimal' }
@@ -509,38 +533,38 @@ export async function promoteOrganiser(collectionId: string, userId: string): Pr
 }
 
 /**
- * Stand down, or remove another organiser.
+ * Stand down, or remove another organizer.
  *
- * The database refuses the *last* one — an empty organiser table would be
- * unrecoverable through PostgREST, since only an organiser may promote one.
+ * The database refuses the *last* one — an empty organizer table would be
+ * unrecoverable through PostgREST, since only an organizer may promote one.
  * So transferring a collection is promote-then-leave, and needs no mechanism
  * of its own.
  */
-export async function removeOrganiser(collectionId: string, userId: string): Promise<void> {
+export async function removeOrganizer(collectionId: string, userId: string): Promise<void> {
   await auth.ensureFresh();
   await request(
-    `/rest/v1/collection_organisers?collection_id=eq.${encodeURIComponent(collectionId)}` +
+    `/rest/v1/collection_organizers?collection_id=eq.${encodeURIComponent(collectionId)}` +
       `&user_id=eq.${encodeURIComponent(userId)}`,
     { method: 'DELETE' }
   );
 }
 
 /**
- * Am I one of this collection's organisers?
+ * Am I one of this collection's organizers?
  *
  * Asked as a filtered read of one row rather than by listing them all,
  * because the answer gates a whole edit surface and every visitor's page load
  * would otherwise pay for the full list. Signed out, the answer is no without
- * a request at all — `organisers_read` would return nothing anyway, and a
+ * a request at all — `organizers_read` would return nothing anyway, and a
  * public page should not fire an authenticated call to be told so.
  */
-export async function amOrganiser(collectionId: string): Promise<boolean> {
+export async function amOrganizer(collectionId: string): Promise<boolean> {
   if (!auth.signedIn) return false;
   await auth.ensureFresh();
   const me = auth.user;
   if (!me) return false;
   const rows = await request<{ user_id: string }[]>(
-    `/rest/v1/collection_organisers?select=user_id` +
+    `/rest/v1/collection_organizers?select=user_id` +
       `&collection_id=eq.${encodeURIComponent(collectionId)}` +
       `&user_id=eq.${encodeURIComponent(me.id)}&limit=1`
   );
@@ -600,7 +624,7 @@ export function collectionUrl(slug: string): string {
  * Whether a collection may go public yet, and who is holding it up.
  *
  * The gate itself is a UI decision rather than a database one, deliberately:
- * an organiser may publish anyway, and a rule the server enforced could not
+ * an organizer may publish anyway, and a rule the server enforced could not
  * be overridden without a second, weaker rule beside it. What the server does
  * guarantee is the part that matters — that `ready` can only ever have been
  * set by the deck's own author.

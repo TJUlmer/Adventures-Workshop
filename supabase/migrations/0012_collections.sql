@@ -26,9 +26,9 @@ create table if not exists public.collections (
 
   /*
    * Who first made it. Audit only — it carries no privilege of its own, and
-   * every check in this file goes through `collection_organisers` instead.
+   * every check in this file goes through `collection_organizers` instead.
    *
-   * `on delete set null`, never cascade. An organiser closing their account
+   * `on delete set null`, never cascade. An organizer closing their account
    * must not delete a project several other people's work is listed in. This
    * is the same lesson `sets.forked_from` already carries, and `sets.owner_id`
    * cascading from `profiles` has destroyed a published set once.
@@ -46,7 +46,7 @@ create table if not exists public.collections (
    * enforcement**: `collections_insert` refuses any value but the caller's
    * own, so a client may name only itself either way.
    *
-   * `on delete set null`, never cascade. An organiser closing their account
+   * `on delete set null`, never cascade. An organizer closing their account
    * must not delete a project several other people's work is listed in — the
    * same lesson `sets.forked_from` carries, and `sets.owner_id` cascading from
    * `profiles` has destroyed a published set once.
@@ -60,7 +60,7 @@ create table if not exists public.collections (
   name text not null default '',
   subtitle text not null default '',
   blurb text not null default '',
-  -- A picture the organisers upload, not one composed from member cards. See
+  -- A picture the organizers upload, not one composed from member cards. See
   -- COLLECTIONS.md on why the cheap answer is the right one here.
   banner_url text not null default '',
 
@@ -69,7 +69,7 @@ create table if not exists public.collections (
 
   /*
    * Moderation, held apart from `visibility` exactly as it is on `sets`: a
-   * takedown must leave the organisers' own setting alone, and must kill the
+   * takedown must leave the organizers' own setting alone, and must kill the
    * *link* as well as the listing, or a hidden project vanishes from the
    * gallery while every held URL still works.
    */
@@ -80,7 +80,7 @@ create table if not exists public.collections (
    *
    * **Open by default**, which read as the reckless choice and is not: being
    * open does not let anybody *in*, it only lets them ask. Every submission
-   * still lands as `submitted` and still needs an organiser to accept it, and
+   * still lands as `submitted` and still needs an organizer to accept it, and
    * the collection is only reachable by an unguessable link to begin with —
    * so this is a spam control, and the consent boundary is acceptance.
    *
@@ -108,42 +108,42 @@ create trigger collections_touch_updated_at
 -- ---------------------------------------------------------------------------
 
 /*
- * Organisers are **people**, not decks — and this is the one place the design
+ * Organizers are **people**, not decks — and this is the one place the design
  * doc was wrong, found by trying to write it.
  *
  * `COLLECTIONS.md` put `role` on the membership row. That cannot work: a
  * membership row is keyed by `set_id`, so the person who creates a collection
  * has no row at all until they add a deck of their own, and would therefore
  * have no way to invite anyone into the thing they just made. It also ties a
- * curation right to a deck, when the two are plainly separate — an organiser
+ * curation right to a deck, when the two are plainly separate — an organizer
  * may run a project without contributing to it, and a contributor's right to
  * their own deck has nothing to do with whether they curate.
  *
  * So roles live here, keyed by person, and `collection_members` below is only
  * ever "which decks are in". The doc is corrected to match.
  */
-create table if not exists public.collection_organisers (
+create table if not exists public.collection_organizers (
   collection_id uuid not null references public.collections (id) on delete cascade,
-  -- Cascade: an account that no longer exists cannot organise anything. The
+  -- Cascade: an account that no longer exists cannot organize anything. The
   -- collection itself survives, because `collections.created_by` is set null.
   user_id uuid not null references public.profiles (id) on delete cascade,
   created_at timestamptz not null default now(),
   primary key (collection_id, user_id)
 );
 
-create index if not exists collection_organisers_user_idx
-  on public.collection_organisers (user_id);
+create index if not exists collection_organizers_user_idx
+  on public.collection_organizers (user_id);
 
 /*
- * The creator becomes the first organiser, by trigger rather than by asking
+ * The creator becomes the first organizer, by trigger rather than by asking
  * the client to insert two rows.
  *
  * As a client-side pair it is one failed request away from a collection
- * nobody can administer — and, because only an organiser may insert into
- * `collection_organisers`, that state is unrecoverable without a service
+ * nobody can administer — and, because only an organizer may insert into
+ * `collection_organizers`, that state is unrecoverable without a service
  * role. A trigger cannot half-happen.
  */
-create or replace function public.seed_collection_organiser()
+create or replace function public.seed_collection_organizer()
 returns trigger
 language plpgsql
 security definer
@@ -151,7 +151,7 @@ set search_path = ''
 as $$
 begin
   if new.created_by is not null then
-    insert into public.collection_organisers (collection_id, user_id)
+    insert into public.collection_organizers (collection_id, user_id)
     values (new.id, new.created_by)
     on conflict do nothing;
   end if;
@@ -159,10 +159,10 @@ begin
 end;
 $$;
 
-drop trigger if exists collections_seed_organiser on public.collections;
-create trigger collections_seed_organiser
+drop trigger if exists collections_seed_organizer on public.collections;
+create trigger collections_seed_organizer
   after insert on public.collections
-  for each row execute function public.seed_collection_organiser();
+  for each row execute function public.seed_collection_organizer();
 
 -- ---------------------------------------------------------------------------
 -- Which decks are in
@@ -179,8 +179,8 @@ create table if not exists public.collection_members (
   set_id uuid not null references public.sets (id) on delete cascade,
 
   /*
-   * `invited` — an organiser asked; the deck's owner decides.
-   * `submitted` — the owner offered; an organiser decides.
+   * `invited` — an organizer asked; the deck's owner decides.
+   * `submitted` — the owner offered; an organizer decides.
    *
    * Two pending states rather than one, because which side is waiting is the
    * whole of what the other side needs to be shown, and collapsing them would
@@ -228,16 +228,16 @@ create trigger collection_members_touch_updated_at
 /*
  * **The recursion footgun, and why this function exists.**
  *
- * The natural policy on `collection_organisers` is "may I write this row? —
- * am I an organiser of this collection?", which queries
- * `collection_organisers` from a policy *on* `collection_organisers`.
+ * The natural policy on `collection_organizers` is "may I write this row? —
+ * am I an organizer of this collection?", which queries
+ * `collection_organizers` from a policy *on* `collection_organizers`.
  * Postgres evaluates the policy again for that inner read, and the statement
  * fails outright with infinite recursion. `security definer` runs with the
  * function owner's rights and so bypasses RLS on the inner read, which breaks
  * the cycle — the same technique `set_accepts_contributions` uses, there for
  * visibility rather than recursion.
  */
-create or replace function public.is_collection_organiser(target uuid, who uuid)
+create or replace function public.is_collection_organizer(target uuid, who uuid)
 returns boolean
 language sql
 security definer
@@ -245,13 +245,13 @@ set search_path = public
 stable
 as $$
   select exists (
-    select 1 from public.collection_organisers o
+    select 1 from public.collection_organizers o
     where o.collection_id = target and o.user_id = who
   );
 $$;
 
-revoke all on function public.is_collection_organiser(uuid, uuid) from public;
-grant execute on function public.is_collection_organiser(uuid, uuid) to authenticated;
+revoke all on function public.is_collection_organizer(uuid, uuid) from public;
+grant execute on function public.is_collection_organizer(uuid, uuid) to authenticated;
 
 /** Does this person own the published set behind a membership row? */
 create or replace function public.owns_set(target uuid, who uuid)
@@ -314,7 +314,7 @@ grant execute on function public.collection_accepts_submissions(uuid) to authent
 -- ---------------------------------------------------------------------------
 
 alter table public.collections enable row level security;
-alter table public.collection_organisers enable row level security;
+alter table public.collection_organizers enable row level security;
 alter table public.collection_members enable row level security;
 
 /*
@@ -341,7 +341,7 @@ create policy collections_public_read on public.collections
  * new row's slug, which makes the statement an `insert ... returning` — and
  * RETURNING is a *read*, needing a SELECT policy as well as a passing WITH
  * CHECK. None applied to a brand-new collection: not public, no members, and
- * its creator not yet an organiser as far as the returning clause could see.
+ * its creator not yet an organizer as far as the returning clause could see.
  *
  * Postgres reports that as "new row violates row-level security policy",
  * which is indistinguishable from a genuine WITH CHECK failure — so the
@@ -351,17 +351,17 @@ create policy collections_public_read on public.collections
  * separated the two halves.
  *
  * It earns its place independently of that: reading your own collection
- * should not depend on the organiser trigger having run.
+ * should not depend on the organizer trigger having run.
  */
 drop policy if exists collections_creator_read on public.collections;
 create policy collections_creator_read on public.collections
   for select to authenticated
   using (created_by = auth.uid());
 
-drop policy if exists collections_organiser_read on public.collections;
-create policy collections_organiser_read on public.collections
+drop policy if exists collections_organizer_read on public.collections;
+create policy collections_organizer_read on public.collections
   for select to authenticated
-  using (public.is_collection_organiser(id, auth.uid()));
+  using (public.is_collection_organizer(id, auth.uid()));
 
 /*
  * A deck's owner may read any collection theirs has been invited into, or is
@@ -383,16 +383,16 @@ create policy collections_insert on public.collections
   for insert to authenticated
   with check (created_by = auth.uid());
 
-drop policy if exists collections_organiser_write on public.collections;
-create policy collections_organiser_write on public.collections
+drop policy if exists collections_organizer_write on public.collections;
+create policy collections_organizer_write on public.collections
   for update to authenticated
-  using (public.is_collection_organiser(id, auth.uid()))
-  with check (public.is_collection_organiser(id, auth.uid()));
+  using (public.is_collection_organizer(id, auth.uid()))
+  with check (public.is_collection_organizer(id, auth.uid()));
 
-drop policy if exists collections_organiser_delete on public.collections;
-create policy collections_organiser_delete on public.collections
+drop policy if exists collections_organizer_delete on public.collections;
+create policy collections_organizer_delete on public.collections
   for delete to authenticated
-  using (public.is_collection_organiser(id, auth.uid()));
+  using (public.is_collection_organizer(id, auth.uid()));
 
 /*
  * Anonymous accounts may curate by link but not list publicly, the same
@@ -419,41 +419,41 @@ create policy collections_anon_no_public_update on public.collections
     or (auth.jwt() ->> 'is_anonymous')::boolean is not true
   );
 
--- -- Organisers ------------------------------------------------------------
+-- -- Organizers ------------------------------------------------------------
 
-drop policy if exists organisers_read on public.collection_organisers;
-create policy organisers_read on public.collection_organisers
+drop policy if exists organizers_read on public.collection_organizers;
+create policy organizers_read on public.collection_organizers
   for select to authenticated
   using (
     user_id = auth.uid()
-    or public.is_collection_organiser(collection_id, auth.uid())
+    or public.is_collection_organizer(collection_id, auth.uid())
   );
 
--- Only an existing organiser may promote another. The definer helper is what
+-- Only an existing organizer may promote another. The definer helper is what
 -- keeps this from recursing on its own table.
-drop policy if exists organisers_promote on public.collection_organisers;
-create policy organisers_promote on public.collection_organisers
+drop policy if exists organizers_promote on public.collection_organizers;
+create policy organizers_promote on public.collection_organizers
   for insert to authenticated
-  with check (public.is_collection_organiser(collection_id, auth.uid()));
+  with check (public.is_collection_organizer(collection_id, auth.uid()));
 
 /*
  * Standing down is your own decision; removing somebody else is an
- * organiser's. Both routes go through the same policy, and neither can leave
- * the collection with nobody — see `guard_last_organiser` below.
+ * organizer's. Both routes go through the same policy, and neither can leave
+ * the collection with nobody — see `guard_last_organizer` below.
  */
-drop policy if exists organisers_remove on public.collection_organisers;
-create policy organisers_remove on public.collection_organisers
+drop policy if exists organizers_remove on public.collection_organizers;
+create policy organizers_remove on public.collection_organizers
   for delete to authenticated
   using (
     user_id = auth.uid()
-    or public.is_collection_organiser(collection_id, auth.uid())
+    or public.is_collection_organizer(collection_id, auth.uid())
   );
 
 -- -- Members ---------------------------------------------------------------
 
 /*
  * A membership row is visible to the two parties it concerns: the deck's own
- * owner, and any organiser of the collection. The *public* listing does not
+ * owner, and any organizer of the collection. The *public* listing does not
  * come through here at all — it comes through `collection_members_by_slug`,
  * which is what lets a visitor see an unlisted member deck's tile without
  * this policy having to expose unlisted rows to everyone.
@@ -463,17 +463,17 @@ create policy members_read on public.collection_members
   for select to authenticated
   using (
     public.owns_set(set_id, auth.uid())
-    or public.is_collection_organiser(collection_id, auth.uid())
+    or public.is_collection_organizer(collection_id, auth.uid())
   );
 
--- An organiser invites a deck. Status pinned, so an invitation cannot be
+-- An organizer invites a deck. Status pinned, so an invitation cannot be
 -- inserted already accepted on the owner's behalf.
 drop policy if exists members_invite on public.collection_members;
 create policy members_invite on public.collection_members
   for insert to authenticated
   with check (
     status = 'invited'
-    and public.is_collection_organiser(collection_id, auth.uid())
+    and public.is_collection_organizer(collection_id, auth.uid())
   );
 
 -- A creator offers their own deck, to a collection that is open to it.
@@ -493,7 +493,7 @@ create policy members_submit on public.collection_members
  *
  * They are permissive and therefore OR together, and each pins in its own
  * `with check` the statuses its side may produce. That is what stops an
- * organiser accepting an invitation on a creator's behalf: their policy can
+ * organizer accepting an invitation on a creator's behalf: their policy can
  * only ever resolve a `submitted` row, never an `invited` one.
  */
 drop policy if exists members_owner_decide on public.collection_members;
@@ -505,12 +505,12 @@ create policy members_owner_decide on public.collection_members
     and status in ('accepted', 'declined', 'removed', 'submitted')
   );
 
-drop policy if exists members_organiser_decide on public.collection_members;
-create policy members_organiser_decide on public.collection_members
+drop policy if exists members_organizer_decide on public.collection_members;
+create policy members_organizer_decide on public.collection_members
   for update to authenticated
-  using (public.is_collection_organiser(collection_id, auth.uid()))
+  using (public.is_collection_organizer(collection_id, auth.uid()))
   with check (
-    public.is_collection_organiser(collection_id, auth.uid())
+    public.is_collection_organizer(collection_id, auth.uid())
     and status in ('accepted', 'declined', 'removed', 'invited')
   );
 
@@ -519,7 +519,7 @@ create policy members_delete on public.collection_members
   for delete to authenticated
   using (
     public.owns_set(set_id, auth.uid())
-    or public.is_collection_organiser(collection_id, auth.uid())
+    or public.is_collection_organizer(collection_id, auth.uid())
   );
 
 -- ---------------------------------------------------------------------------
@@ -537,9 +537,9 @@ grant insert (created_by, name, subtitle, blurb, banner_url, visibility, open_su
 grant update (name, subtitle, blurb, banner_url, visibility, open_submissions)
   on public.collections to authenticated;
 
-revoke all on public.collection_organisers from anon, authenticated;
-grant select, delete on public.collection_organisers to authenticated;
-grant insert (collection_id, user_id) on public.collection_organisers to authenticated;
+revoke all on public.collection_organizers from anon, authenticated;
+grant select, delete on public.collection_organizers to authenticated;
+grant insert (collection_id, user_id) on public.collection_organizers to authenticated;
 
 revoke all on public.collection_members from anon, authenticated;
 grant select, delete on public.collection_members to authenticated;
@@ -552,15 +552,15 @@ grant update (status, ready, sort_order) on public.collection_members to authent
 -- ---------------------------------------------------------------------------
 
 /*
- * **`ready` is the deck owner's, `position` is the organiser's — and RLS
+ * **`ready` is the deck owner's, `position` is the organizer's — and RLS
  * cannot express that on its own.**
  *
  * A column grant is table-wide, not per-policy, so granting `update (status,
  * ready, position)` grants all three to whichever policy lets the row through
  * — and a `with check` sees only the NEW row, so it cannot notice that an
- * organiser's otherwise-legitimate update also flipped somebody's `ready`.
+ * organizer's otherwise-legitimate update also flipped somebody's `ready`.
  * That matters more than it looks: `ready` is what the publish gate reads, so
- * an organiser who could set it could debut a half-finished deck over its
+ * an organizer who could set it could debut a half-finished deck over its
  * author's head, which is the exact thing the gate exists to prevent.
  *
  * A `before update` trigger *can* see OLD, so the rule goes here. Same reason
@@ -593,8 +593,8 @@ begin
   end if;
 
   if new.sort_order is distinct from old.sort_order
-     and not public.is_collection_organiser(new.collection_id, auth.uid()) then
-    raise exception 'only an organiser may reorder a collection';
+     and not public.is_collection_organizer(new.collection_id, auth.uid()) then
+    raise exception 'only an organizer may reorder a collection';
   end if;
 
   /* Readiness is a claim about the deck as it stands. Letting it survive a
@@ -614,14 +614,14 @@ create trigger collection_members_guard
   for each row execute function public.guard_collection_member_fields();
 
 /*
- * A collection must never end up with no organiser.
+ * A collection must never end up with no organizer.
  *
- * Only an organiser may promote one, so an empty organiser table is
+ * Only an organizer may promote one, so an empty organizer table is
  * unrecoverable through PostgREST — the project would need a service role to
  * rescue. Cheaper to refuse the last one leaving, and to say why.
  *
  * **A cascade does not skip a row trigger**, which this file claimed and was
- * wrong about. Deleting a collection cascades to its organiser rows and fires
+ * wrong about. Deleting a collection cascades to its organizer rows and fires
  * this guard once per row, so the last one tripped it and rolled the whole
  * delete back — a collection could never be deleted at all, and silently,
  * since PostgREST reports a refused delete as zero rows affected. Caught by
@@ -632,10 +632,10 @@ create trigger collection_members_guard
  * this delete is a cascade rather than somebody standing down.
  *
  * An account deletion cascading from `profiles` is deliberately left able to
- * remove a last organiser: it orphans the collection, which is survivable and
+ * remove a last organizer: it orphans the collection, which is survivable and
  * visible, where blocking somebody's account deletion is neither.
  */
-create or replace function public.guard_last_organiser()
+create or replace function public.guard_last_organizer()
 returns trigger
 language plpgsql
 security definer
@@ -647,19 +647,19 @@ begin
   end if;
 
   if not exists (
-    select 1 from public.collection_organisers o
+    select 1 from public.collection_organizers o
     where o.collection_id = old.collection_id and o.user_id <> old.user_id
   ) then
-    raise exception 'a collection needs at least one organiser; promote somebody first';
+    raise exception 'a collection needs at least one organizer; promote somebody first';
   end if;
   return old;
 end;
 $$;
 
-drop trigger if exists collection_organisers_guard_last on public.collection_organisers;
-create trigger collection_organisers_guard_last
-  before delete on public.collection_organisers
-  for each row execute function public.guard_last_organiser();
+drop trigger if exists collection_organizers_guard_last on public.collection_organizers;
+create trigger collection_organizers_guard_last
+  before delete on public.collection_organizers
+  for each row execute function public.guard_last_organizer();
 
 -- ---------------------------------------------------------------------------
 -- Reading a collection by its share token
@@ -793,7 +793,7 @@ grant execute on function public.collections_for_set(uuid) to anon, authenticate
  * `public` to `anon`, `authenticated` and `service_role` at creation time.
  * Those are explicit grants to named roles, so revoking from PUBLIC leaves
  * them entirely untouched — which left `owns_set` and
- * `is_collection_organiser` callable without signing in: an oracle for "does
+ * `is_collection_organizer` callable without signing in: an oracle for "does
  * user X own set Y", answerable by anybody with two uuids.
  *
  * Found by reading `proacl` after the fact rather than by trusting the
@@ -804,10 +804,10 @@ grant execute on function public.collections_for_set(uuid) to anon, authenticate
  * the sharing mechanism. Everything else here is internal to a policy or a
  * trigger and has no business being an endpoint at all.
  */
-revoke execute on function public.is_collection_organiser(uuid, uuid) from anon;
+revoke execute on function public.is_collection_organizer(uuid, uuid) from anon;
 revoke execute on function public.owns_set(uuid, uuid) from anon;
 revoke execute on function public.collection_accepts_submissions(uuid) from anon;
 
-revoke all on function public.seed_collection_organiser() from public, anon, authenticated;
+revoke all on function public.seed_collection_organizer() from public, anon, authenticated;
 revoke all on function public.guard_collection_member_fields() from public, anon, authenticated;
-revoke all on function public.guard_last_organiser() from public, anon, authenticated;
+revoke all on function public.guard_last_organizer() from public, anon, authenticated;

@@ -157,7 +157,7 @@ ${image ? `<meta property="og:image" content="${escapeAttr(image)}">\n` : ''}<me
  * A collection's preview.
  *
  * No composed picture of its own — a collection has no cards to render, and
- * its banner is a file its organisers uploaded, so there is nothing to fall
+ * its banner is a file its organizers uploaded, so there is nothing to fall
  * back to when they have not. That is the deliberate answer recorded in
  * `COLLECTIONS.md`: the cheap option is the right one here, and an absent
  * banner simply yields a text-only unfurl rather than borrowing some member's

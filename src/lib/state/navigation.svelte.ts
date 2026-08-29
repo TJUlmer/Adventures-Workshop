@@ -139,7 +139,7 @@ export function readSharedSlug(): string | null {
  * other one that will ever be justified the same way.
  *
  * It earns the exception for exactly the reason a shared set's does and for
- * no other: a collection link is the thing an organiser pastes into a Discord
+ * no other: a collection link is the thing an organizer pastes into a Discord
  * to announce a project, so it has to unfurl, and an unfurler reads a plain
  * HTTP request in which a fragment never appears. Everything else in this app
  * stays a hash on purpose. **Do not read this as a precedent for a third**

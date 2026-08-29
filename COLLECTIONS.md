@@ -144,29 +144,29 @@ membership row; that cannot work, because a membership row is keyed by
 `set_id`, so whoever creates a collection has no row at all until they add a
 deck of their own, and would have no way to invite anybody into the thing they
 just made. It also ties a curation right to a deck when the two are plainly
-separate: an organiser may run a project without contributing to it.
+separate: an organizer may run a project without contributing to it.
 
-So `collection_organisers` is its own table, keyed by person, and
+So `collection_organizers` is its own table, keyed by person, and
 `collection_members` is only ever "which decks are in".
 `collections.created_by` is audit only and carries no privilege — a trigger
-seeds the creator as the first organiser, because doing that as a second
+seeds the creator as the first organizer, because doing that as a second
 client-side insert is one failed request away from a collection nobody can
-administer, and only an organiser may create one.
+administer, and only an organizer may create one.
 
-Then the permissions are split so that an organiser cannot damage anyone:
+Then the permissions are split so that an organizer cannot damage anyone:
 
 | Action | Who |
 |---|---|
-| Edit name, blurb, banner, ordering | any organiser |
-| Accept a submission, send an invitation | any organiser |
-| Flip visibility | any organiser |
-| Promote another organiser | any organiser |
+| Edit name, blurb, banner, ordering | any organizer |
+| Accept a submission, send an invitation | any organizer |
+| Flip visibility | any organizer |
+| Promote another organizer | any organizer |
 | Remove **your own** deck, or leave | that deck's owner, alone |
-| Remove someone else's deck | any organiser — but it only **unlinks**; that deck's own row, slug, shelf entry and gallery listing are untouched |
+| Remove someone else's deck | any organizer — but it only **unlinks**; that deck's own row, slug, shelf entry and gallery listing are untouched |
 
 Once removal is non-destructive and departure is unilateral, "who owns the
 collection" stops being a power question and becomes a housekeeping one. The
-bus factor goes with it: an organiser who disappears mid-project blocks
+bus factor goes with it: an organizer who disappears mid-project blocks
 nothing.
 
 **Transfer is therefore uninteresting** and needs no special mechanism —
@@ -180,14 +180,14 @@ RLS writes itself from an existing, attacked-and-tested precedent.
 Two directions, both ending in the *other* side's acceptance:
 
 - **Creator submits** — the collection is open for submissions; a creator
-  points their published deck at it; an organiser accepts.
-- **Organiser invites** — an organiser adds a deck by its share link; that
+  points their published deck at it; an organizer accepts.
+- **Organizer invites** — an organizer adds a deck by its share link; that
   deck's owner accepts.
 
 The policy shape is `0004_contributions.sql`'s: **two permissive `update`
 policies that OR together, each pinning in its own `with check` the status its
-own side is allowed to produce.** An organiser's policy can only ever write
-`accepted`/`removed` on a collection they organise; a member's can only ever
+own side is allowed to produce.** An organizer's policy can only ever write
+`accepted`/`removed` on a collection they organize; a member's can only ever
 write `accepted`/`declined` on a row naming a set they own. Neither can forge
 the other's decision, for the same reason a contributor cannot mark their own
 offer accepted.
@@ -259,13 +259,13 @@ accepts. **Nothing about the other five changes** — no re-merge, no
 re-publish, no stale exports, nobody's document touched. Adding the sixth deck
 is inserting one row.
 
-**Week 7 — Maya goes quiet.** Dev is already an organiser and keeps things
+**Week 7 — Maya goes quiet.** Dev is already an organizer and keeps things
 moving. Nothing he can do damages anyone (see the table above).
 
 **Week 9 — release candidate.** All six mark ready. Banner art and ordering
 land. "Download the whole box" produces one TTS save and one print run.
 
-**Week 10 — launch.** An organiser flips the collection **public**. The link
+**Week 10 — launch.** An organizer flips the collection **public**. The link
 unfurls with banner and blurb. Each creator separately chooses whether to make
 their own deck public too, so it also stands alone in the gallery and on their
 profile — two doors to one deck.
@@ -318,7 +318,7 @@ collections
   open_submissions boolean not null default false
   created_at, updated_at
 
-collection_organisers
+collection_organizers
   collection_id uuid not null references collections (id) on delete cascade
   user_id       uuid not null references profiles (id) on delete cascade
   primary key (collection_id, user_id)
@@ -335,14 +335,14 @@ collection_members
 
 Notes that are not obvious:
 
-- **`created_by` is `on delete set null`, never cascade.** An organiser
+- **`created_by` is `on delete set null`, never cascade.** An organizer
   deleting their account must not delete other people's project. This is the
   same lesson `forked_from` already carries — `owner_id`'s cascade has
   destroyed a published set once.
 - **`set_id` *is* `on delete cascade`.** An unpublished deck should leave the
   collection; the collection must survive it. Nothing cascades upward.
 - **`hidden` is held apart from `visibility`**, exactly as on `sets`, so a
-  takedown leaves the organisers' own setting alone and kills the link as well
+  takedown leaves the organizers' own setting alone and kills the link as well
   as the listing.
 
 ### One new function, and one footgun
@@ -358,10 +358,10 @@ at length.
 boundary* above.
 
 > **The recursion footgun.** The natural policy on `collection_members` is "may
-> I write this row? — am I an organiser of this collection?", which queries
+> I write this row? — am I an organizer of this collection?", which queries
 > `collection_members` from a policy *on* `collection_members`. That is the
 > classic Postgres RLS infinite recursion. A `security definer` helper
-> (`is_collection_organiser(collection_id, uid)`) runs with definer rights,
+> (`is_collection_organizer(collection_id, uid)`) runs with definer rights,
 > bypasses RLS, and breaks the cycle — the same technique
 > `set_accepts_contributions` already uses for a different reason.
 
@@ -406,9 +406,9 @@ boundary* above.
 
 - ~~**Does going public require every member's `ready`?**~~ **Decided: yes,
   with an override.** The gate fits the consent theme and stops one eager
-  organiser debuting someone's half-finished deck, but an absent member must
+  organizer debuting someone's half-finished deck, but an absent member must
   not be able to freeze a project indefinitely — so the control names who is
-  not ready and lets an organiser go anyway, rather than sitting disabled with
+  not ready and lets an organizer go anyway, rather than sitting disabled with
   nothing to be done about it.
 - **Should members be pushed to publish publicly at launch?** Staying unlisted
   and reachable only through the box is a legitimate creative choice ("these
@@ -416,10 +416,10 @@ boundary* above.
   way — but the launch flow should ask rather than leave it to chance.
 - **Does the collection get its own social image**, or reuse the first
   member's? `cloud/social-image.ts` composes from cards and would need a
-  collection-shaped variant. A banner the organisers upload is the cheap
+  collection-shaped variant. A banner the organizers upload is the cheap
   answer and probably the right one.
 - **Ordering** — manual `position`, or by acceptance date? Manual, presumably,
-  but it is one more thing organisers must agree on.
+  but it is one more thing organizers must agree on.
 - ~~**Is there a lighter first outing?**~~ **Decided: no — build phase 1
   proper.** A bare `sets.collection_tag` plus a gallery filter is an
   afternoon's work, but it buys no curation, no ordering, no banner and no
@@ -470,7 +470,7 @@ All of it on its own branch — and, since this runs alongside ordinary work on
 
 Both tables, their RLS, and three `security definer` functions:
 `collection_by_slug`, `collection_members_by_slug`, and
-`is_collection_organiser`. The third is not a convenience — it is what breaks
+`is_collection_organizer`. The third is not a convenience — it is what breaks
 the RLS recursion described above, and writing the policies without it is the
 one way this step fails outright.
 
@@ -491,7 +491,7 @@ The client module, shaped like `cloud/contributions.ts`: types, then one
 function per verb — `createCollection`, `updateCollection`,
 `fetchCollectionBySlug`, `listMyCollections`, `listCollectionMembers`,
 `inviteDeck`, `submitDeck`, `respondToInvitation`, `setMemberReady`,
-`reorderMember`, `removeMember`, `promoteToOrganiser`,
+`reorderMember`, `removeMember`, `promoteToOrganizer`,
 `setCollectionVisibility`.
 
 **Every public read passes `anonymous: true`.** The rule from `cloud/sets.ts`
@@ -527,12 +527,12 @@ exists to confuse the picture.
 ### 5. Creating and editing a collection — **done**
 
 "New collection" from Home; then name, subtitle, blurb, banner and the
-visibility control on the collection page itself, for organisers only.
+visibility control on the collection page itself, for organizers only.
 
 ### 6. Membership, both directions — **done**
 
 "Add my deck" for a signed-in author with published sets; "Invite a deck" for an
-organiser, by share link. Both land as a pending row the *other* side decides.
+organizer, by share link. Both land as a pending row the *other* side decides.
 
 The accept control carries the consent sentence verbatim — see *the consent
 boundary* — and it belongs on the button, not behind a help link.

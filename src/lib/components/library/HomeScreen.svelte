@@ -40,8 +40,8 @@
   import NewCollectionDialog from './NewCollectionDialog.svelte';
   import NewSetDialog from './NewSetDialog.svelte';
   import { initials, tint } from '$lib/core/swatch';
-  import { createCollection, listPendingMemberships } from '$lib/cloud/collections';
-  import type { CollectionMembership } from '$lib/cloud/collections';
+  import { createCollection, listMyCollections, listPendingMemberships } from '$lib/cloud/collections';
+  import type { CollectionMembership, MyCollection } from '$lib/cloud/collections';
 
   let fileInput = $state<HTMLInputElement | null>(null);
   let message = $state<string | null>(null);
@@ -76,6 +76,27 @@
    * failure, like every other cloud read on this page: Home has to draw.
    */
   let pendingMemberships = $state<CollectionMembership[]>([]);
+
+  /**
+   * Collections this person is part of, either way in.
+   *
+   * A collection is reachable only by an unguessable link or an invitation,
+   * so without this there is no way back to one after the link leaves your
+   * clipboard — which in practice meant making another, and another. The
+   * shelf is the address book for something that otherwise has no address.
+   */
+  let myCollections = $state<MyCollection[]>([]);
+
+  $effect(() => {
+    void auth.signedIn;
+    if (!cloudEnabled() || !auth.signedIn) {
+      myCollections = [];
+      return;
+    }
+    void listMyCollections()
+      .then((rows) => (myCollections = rows))
+      .catch(() => (myCollections = []));
+  });
 
   $effect(() => {
     void auth.signedIn;
@@ -121,6 +142,11 @@
     try {
       const created = await createCollection({ name });
       choosingCollection = false;
+      /* Refreshed rather than pushed onto the list by hand: the row this
+         renders carries counts and a role the server works out, and guessing
+         them here is how a shelf starts disagreeing with the page it links
+         to. */
+      void listMyCollections().then((rows) => (myCollections = rows));
       navigation.openCollection(created.slug);
     } catch (error) {
       message = error instanceof Error ? error.message : 'Could not create the collection.';
@@ -974,7 +1000,7 @@
           Signed-in only, and not because of a policy — an anonymous visitor
           could create one — but because a collection nobody can find again is
           worse than no collection. It is reached solely by its link, and the
-          only place that link is listed is its organiser's own account.
+          only place that link is listed is its organizer's own account.
         -->
         {#if auth.signedIn}
           <Button variant="ghost" onclick={() => (choosingCollection = true)}>
@@ -996,6 +1022,51 @@
 
   {#if message}
     <p class="message">{message}</p>
+  {/if}
+
+  {#if myCollections.length > 0}
+    <section class="collections">
+      <h2 class="section-title">Collections</h2>
+      <p class="section-hint">
+        Themed boxes you organize, or that a deck of yours is part of.
+      </p>
+      <ul class="collection-grid">
+        {#each myCollections as entry (entry.id)}
+          <li>
+            <button
+              type="button"
+              class="collection-tile"
+              onclick={() => navigation.openCollection(entry.slug)}
+            >
+              <span class="collection-banner" style:background={tint(entry.id)}>
+                {#if entry.banner_url}
+                  <img src={entry.banner_url} alt="" loading="lazy" />
+                {/if}
+              </span>
+              <span class="collection-body">
+                <span class="collection-name">{entry.name || 'Untitled collection'}</span>
+                {#if entry.subtitle}
+                  <span class="collection-subtitle">{entry.subtitle}</span>
+                {/if}
+                <span class="collection-meta">
+                  <!--
+                    The role first, because it is the thing that decides what
+                    this page is *for* on the other side of the click.
+                  -->
+                  <span class="role" class:organizer={entry.is_organizer}>
+                    {entry.is_organizer ? 'Organizer' : 'Your deck is in this'}
+                  </span>
+                  <span>{entry.deck_count} {entry.deck_count === 1 ? 'deck' : 'decks'}</span>
+                  {#if entry.visibility !== 'public'}
+                    <span>{entry.visibility}</span>
+                  {/if}
+                </span>
+              </span>
+            </button>
+          </li>
+        {/each}
+      </ul>
+    </section>
   {/if}
 
   {#if entries.length > 0}
@@ -1854,6 +1925,110 @@
     border: 1px solid color-mix(in oklab, var(--warning) 40%, transparent);
     color: var(--warning);
     font-size: var(--text-2xs);
+  }
+
+  .collections {
+    margin-bottom: var(--space-6);
+  }
+
+  .section-title {
+    margin: 0 0 var(--space-1);
+    font-size: var(--text-base);
+    color: var(--text-primary);
+  }
+
+  .section-hint {
+    margin: 0 0 var(--space-3);
+    font-size: var(--text-sm);
+    color: var(--text-tertiary);
+  }
+
+  .collection-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr));
+    gap: var(--space-3);
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+
+  .collection-tile {
+    display: flex;
+    width: 100%;
+    gap: var(--space-3);
+    padding: var(--space-3);
+    text-align: left;
+    font: inherit;
+    color: inherit;
+    cursor: pointer;
+    background: var(--surface-raised);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-md);
+    transition: border-color var(--duration-fast) var(--ease-out);
+  }
+  .collection-tile:hover {
+    border-color: var(--border-strong);
+  }
+  .collection-tile:focus-visible {
+    outline: none;
+    box-shadow: var(--focus-ring);
+  }
+
+  .collection-banner {
+    flex: none;
+    width: 3.25rem;
+    height: 3.25rem;
+    border-radius: var(--radius-sm);
+    overflow: hidden;
+  }
+  .collection-banner img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  .collection-body {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+  }
+
+  .collection-name {
+    font-weight: 600;
+    color: var(--text-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .collection-subtitle {
+    font-size: var(--text-sm);
+    color: var(--text-tertiary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .collection-meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0 var(--space-2);
+    margin-top: var(--space-1);
+    font-size: var(--text-xs);
+    color: var(--text-muted);
+  }
+
+  .role {
+    padding: 0 var(--space-2);
+    border-radius: var(--radius-sm);
+    background: var(--surface-inset);
+    color: var(--text-secondary);
+  }
+  .role.organizer {
+    background: var(--accent-soft);
+    color: var(--text-accent);
   }
 
   .attention {
