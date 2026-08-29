@@ -268,15 +268,34 @@ export async function updateCollection(id: string, fields: CollectionFields): Pr
 }
 
 /**
- * Delete a collection outright.
+ * Delete a collection outright. **Only an empty one.**
  *
- * Its membership and organizer rows cascade away; **no set is touched**, by
- * construction — nothing in the schema cascades upward into `sets`. This is
- * the one destructive call in the file, and it destroys only the curation.
+ * Its organizer rows cascade away; no set is touched, by construction —
+ * nothing in the schema cascades upward into `sets`. This is the one
+ * destructive call in the file, and it destroys only the curation.
+ *
+ * The database refuses this while any membership is `accepted`, `invited` or
+ * `submitted`, so a full collection cannot be wound up by one organizer
+ * without the others noticing. Callers should use `liveMemberCount` to say so
+ * *before* offering the button rather than letting the attempt fail.
  */
 export async function deleteCollection(id: string): Promise<void> {
   await auth.ensureFresh();
   await request(`/rest/v1/collections?id=eq.${encodeURIComponent(id)}`, { method: 'DELETE' });
+}
+
+/**
+ * How many decks are in or waiting on a collection.
+ *
+ * Counted rather than derived from the tiles, because tiles are the accepted
+ * members only and an undecided invitation blocks deletion just as an
+ * accepted deck does — a control that read the grid would offer Delete on a
+ * collection the database is about to refuse.
+ */
+export function liveMemberCount(rows: readonly CollectionMembership[]): number {
+  return rows.filter(
+    (row) => row.status === 'accepted' || row.status === 'invited' || row.status === 'submitted'
+  ).length;
 }
 
 /** A collection on somebody's own shelf, with how they are part of it. */

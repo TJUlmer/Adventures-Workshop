@@ -552,6 +552,14 @@ create policy members_delete on public.collection_members
 
 revoke all on public.collections from anon, authenticated;
 grant select on public.collections to anon, authenticated;
+/* `delete` as well as the column grants below. `collections_organizer_delete`
+   has existed since this file was written and could never fire without it —
+   privileges are checked before any policy, so every attempt failed with
+   "permission denied for table collections", which reads like a policy doing
+   its job rather than a missing grant. `collection_members` and
+   `collection_organizers` were both granted `select, delete`; only this table
+   was missed. */
+grant delete on public.collections to authenticated;
 -- `created_by` *is* insertable, and is safe because `collections_insert`
 -- checks it against `auth.uid()` — see the column's own note. `slug` and
 -- `hidden` stay absent, so neither a share token nor a moderator's decision
@@ -636,6 +644,65 @@ drop trigger if exists collection_members_guard on public.collection_members;
 create trigger collection_members_guard
   before update on public.collection_members
   for each row execute function public.guard_collection_member_fields();
+
+/*
+ * A collection may only be deleted while nothing is in it.
+ *
+ * `collections_organizer_delete` allows the delete; this decides when it is
+ * reasonable. Without it, deleting a full collection took every membership
+ * row with it by cascade, silently unlinking other people's decks from a
+ * project they had agreed to join. Those decks survive — nothing cascades
+ * into `sets` — but the agreement would disappear with none of them told, and
+ * one organizer should not be able to end a shared project that quietly.
+ *
+ * "Empty" means no membership in a *live* state. `declined` and `removed` are
+ * closed records of decisions already taken, and holding a collection hostage
+ * to them would mean a project tried once and abandoned could never be tidied
+ * away. An `invited` or `submitted` row does block, deliberately: somebody has
+ * been asked, or has asked, and has not had an answer.
+ *
+ * Deliberately narrow while it is the only rule. How a collection *with*
+ * decks should be wound up — archive, notify, hand over — is a decision not
+ * yet taken, and this refuses rather than guessing at it.
+ */
+create or replace function public.guard_collection_delete()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare live integer;
+begin
+  /* No JWT means the service role, a migration or a psql session — trusted,
+     and unable to reach this table through PostgREST anyway, since `anon` has
+     no delete grant. The same escape `guard_collection_member_fields` takes,
+     and found the same way: the guard refused a cleanup of its own fixtures.
+     The rule is about one organizer quietly ending a shared project, not a
+     claim that an operator may never remove the row. */
+  if auth.uid() is null then
+    return old;
+  end if;
+
+  select count(*) into live
+  from public.collection_members m
+  where m.collection_id = old.id
+    and m.status in ('accepted', 'invited', 'submitted');
+
+  if live > 0 then
+    raise exception
+      'this collection still has % deck(s) or pending request(s); remove them first', live;
+  end if;
+
+  return old;
+end;
+$$;
+
+revoke all on function public.guard_collection_delete() from public, anon, authenticated;
+
+drop trigger if exists collections_guard_delete on public.collections;
+create trigger collections_guard_delete
+  before delete on public.collections
+  for each row execute function public.guard_collection_delete();
 
 /*
  * A collection must never end up with no organizer.

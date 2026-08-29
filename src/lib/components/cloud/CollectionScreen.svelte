@@ -21,6 +21,8 @@
   import {
     amOrganizer,
     collectionUrl,
+    deleteCollection,
+    liveMemberCount,
     readinessOf,
     fetchCollectionBySlug,
     fetchCollectionTiles,
@@ -453,6 +455,29 @@
    */
   let publishGate = $state<string[] | null>(null);
 
+  // -- Deleting an empty collection ---------------------------------------
+
+  /**
+   * Counted from the membership rows, not from the tiles.
+   *
+   * Tiles are the accepted members only, and an undecided invitation blocks
+   * deletion just as an accepted deck does — reading the grid would offer
+   * Delete on a collection the database is about to refuse.
+   */
+  const liveMembers = $derived(liveMemberCount(memberships));
+  let confirmingDelete = $state(false);
+
+  async function removeCollection(): Promise<void> {
+    if (!collection) return;
+    await run('delete', async () => {
+      await deleteCollection(collection!.id);
+      /* Straight Home, and through `leaveCollection` so the
+         `/collection/{slug}` path is cleared — otherwise a reload would try
+         to reopen something that no longer exists. */
+      navigation.leaveCollection({ kind: 'home' });
+    });
+  }
+
   async function askToPublish(): Promise<void> {
     if (!collection) return;
     if (readiness.waitingOn.length > 0) {
@@ -638,6 +663,41 @@
                 ? 'You still decide what is added — an offer is only a request.'
                 : 'Visitors are told the collection is invitation-only and asked to send you a link.'}
             </span>
+          </div>
+
+          <div class="admin-row">
+            <span class="field-label">Delete</span>
+            {#if liveMembers > 0}
+              <!--
+                Said rather than hidden. A missing button is a puzzle; naming
+                the condition tells an organizer what to do about it.
+              -->
+              <span class="hint">
+                Only an empty collection can be deleted. Remove its
+                {liveMembers}
+                {liveMembers === 1 ? 'deck or pending request' : 'decks and pending requests'}
+                first.
+              </span>
+            {:else if confirmingDelete}
+              <div class="row-actions">
+                <button
+                  type="button"
+                  class="btn danger"
+                  disabled={busy !== null}
+                  onclick={removeCollection}
+                >
+                  {busy === 'delete' ? 'Deleting…' : 'Delete for good'}
+                </button>
+                <button type="button" class="btn" onclick={() => (confirmingDelete = false)}>
+                  Keep it
+                </button>
+              </div>
+            {:else}
+              <button type="button" class="btn" onclick={() => (confirmingDelete = true)}>
+                Delete this collection
+              </button>
+              <span class="hint">It is empty, so nothing of anyone else's is affected.</span>
+            {/if}
           </div>
 
           <div class="admin-row">
@@ -1332,6 +1392,15 @@
   .invite-row input:focus-visible {
     outline: none;
     box-shadow: var(--focus-ring);
+  }
+
+  .btn.danger {
+    border-color: var(--danger);
+    color: var(--danger);
+  }
+  .btn.danger:hover {
+    background: var(--danger);
+    color: var(--text-on-accent);
   }
 
   .btn:disabled {
