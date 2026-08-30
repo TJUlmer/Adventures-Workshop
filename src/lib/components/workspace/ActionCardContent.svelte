@@ -91,9 +91,9 @@
 
   /**
    * "Who may play this card" pulls from the hero's own named identities: the
-   * primary one, then each additional character card, then the sidekick —
-   * only when it's a swarm, since a single tracked companion is now itself
-   * an additional card, not a separate slot — then "Any," always last.
+   * primary one, then each additional character card, then the sidekick when
+   * enabled, then "Any," always last. `multiple` only chooses the sidekick's
+   * printed layout; a single tracked companion is still a playable identity.
    */
   const ownerOptions = $derived.by(() => {
     const options: { value: CardOwner; label: string }[] = [
@@ -102,7 +102,7 @@
     for (const extra of owner?.additionalCards ?? []) {
       options.push({ value: extra.id, label: extra.name.trim() || 'Character card' });
     }
-    if (owner?.sidekick.enabled && owner.sidekick.multiple) {
+    if (owner?.sidekick.enabled) {
       options.push({ value: 'sidekick', label: owner.sidekick.name.trim() || 'Sidekick' });
     }
     options.push({ value: 'any', label: 'Any' });
