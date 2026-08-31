@@ -114,6 +114,8 @@
   /** The forked copy, once one has been taken. Names the set for the message. */
   let forked = $state<string | null>(null);
   let forking = $state(false);
+  let compactLayout = $state(false);
+  let actionsDialog = $state<HTMLDialogElement | null>(null);
 
   /**
    * The whole set this one was sliced out of, for a hero- or villain-scoped
@@ -130,6 +132,25 @@
    * what was missing.
    */
   let parent = $state<{ slug: string; name: string } | null>(null);
+
+  /*
+   * The export rail needs a real minimum width to remain usable, but that is
+   * most of a phone. Let the same actions become a modal sheet there instead
+   * of squeezing the set overview into the leftover strip.
+   */
+  $effect(() => {
+    const query = window.matchMedia('(max-width: 700px)');
+    const update = (): void => {
+      compactLayout = query.matches;
+    };
+    update();
+    query.addEventListener('change', update);
+    return () => query.removeEventListener('change', update);
+  });
+
+  $effect(() => {
+    if (!compactLayout && actionsDialog?.open) actionsDialog.close();
+  });
 
   $effect(() => {
     const wanted = slug;
@@ -194,6 +215,10 @@
     } finally {
       forking = false;
     }
+  }
+
+  function openActions(): void {
+    if (actionsDialog && !actionsDialog.open) actionsDialog.showModal();
   }
 </script>
 
@@ -292,6 +317,44 @@
     {:else if set}
       {@const shown = computeScopedSet(set, viewScope)}
       {@const scopeOptions = scopeOptionsFor(set)}
+      {#snippet actions(currentSet: AdventureSet)}
+        {#if SHOW_FORK || forked}
+          <section class="panel">
+            <h2 class="panel-title">Build on this</h2>
+
+            {#if forked}
+              <p class="panel-hint">
+                “{forked}” is in your library, with this set recorded as where it
+                came from.
+              </p>
+              <Button
+                variant="primary"
+                onclick={() => navigation.leaveShared({ kind: 'home' })}
+              >
+                Go to Home
+              </Button>
+            {:else}
+              <Button variant="primary" disabled={forking} onclick={fork}>
+                <Icon name="download" size={13} />
+                Make a copy to work on
+              </Button>
+              <p class="fineprint">
+                Yours to change{authorName ? `, credited to ${authorName}` : ''}, and
+                it remembers which version it started from. Their set is untouched
+                by anything you do to yours.
+              </p>
+            {/if}
+          </section>
+        {/if}
+
+        <section class="panel">
+          <h2 class="panel-title">Export</h2>
+          <p class="panel-hint">
+            Shares the "Showing" pick above — change either one and the other follows.
+          </p>
+          <ExportPanel set={currentSet} onprint={() => (printing = true)} bind:scope={viewScope} />
+        </section>
+      {/snippet}
       <!--
         The set left, its exports right — the same arrangement as the map
         editor, and for the same reason: the thing being looked at is by far
@@ -319,55 +382,35 @@
               />
             </label>
           {/if}
+          {#if compactLayout}
+            <button type="button" class="mobile-actions" onclick={openActions}>
+              <Icon name="settings" size={14} />
+              Actions
+            </button>
+          {/if}
           <AssetsOverview set={shown} interactive={false} heading={false} />
         </div>
 
-        <aside class="rail scroll-y">
-          <!--
-            Above the exports, because it is the one thing here that starts
-            something rather than finishing it.
-
-            Shown only once a copy exists — see `SHOW_FORK`. Nothing below is
-            removed: a fork already taken still finds its way home from here.
-          -->
-          {#if SHOW_FORK || forked}
-          <section class="panel">
-            <h2 class="panel-title">Build on this</h2>
-
-            {#if forked}
-              <p class="panel-hint">
-                “{forked}” is in your library, with this set recorded as where it
-                came from.
-              </p>
-              <Button
-                variant="primary"
-                onclick={() => navigation.leaveShared({ kind: 'home' })}
-              >
-                Go to Home
-              </Button>
-            {:else}
-              <Button variant="primary" disabled={forking} onclick={fork}>
-                <Icon name="download" size={13} />
-                Make a copy to work on
-              </Button>
-              <p class="fineprint">
-                Yours to change{authorName ? `, credited to ${authorName}` : ''}, and
-                it remembers which version it started from. Their set is untouched
-                by anything you do to yours.
-              </p>
-            {/if}
-          </section>
-          {/if}
-
-          <section class="panel">
-            <h2 class="panel-title">Export</h2>
-            <p class="panel-hint">
-              Shares the "Showing" pick above — change either one and the other follows.
-            </p>
-            <ExportPanel {set} onprint={() => (printing = true)} bind:scope={viewScope} />
-          </section>
-        </aside>
+        {#if !compactLayout}
+          <aside class="rail scroll-y">
+            {@render actions(set)}
+          </aside>
+        {/if}
       </div>
+
+      <dialog bind:this={actionsDialog} class="actions-sheet" aria-labelledby="actions-sheet-title">
+        {#if compactLayout}
+          <div class="sheet-inner scroll-y">
+            <header class="sheet-head">
+              <h2 id="actions-sheet-title">Actions</h2>
+              <button type="button" class="sheet-close" onclick={() => actionsDialog?.close()}>
+                Close
+              </button>
+            </header>
+            {@render actions(set)}
+          </div>
+        {/if}
+      </dialog>
     {/if}
   </div>
 {/if}
@@ -551,6 +594,10 @@
     color: var(--text-tertiary);
   }
 
+  .mobile-actions {
+    display: none;
+  }
+
   .rail {
     display: flex;
     flex-direction: column;
@@ -591,5 +638,82 @@
     font-size: var(--text-2xs);
     line-height: var(--leading-normal);
     text-wrap: pretty;
+  }
+
+  /* The content is the page on a phone. Copying and exporting are still one
+     tap away, but no longer take a permanent slice out of the card overview. */
+  @media (max-width: 700px) {
+    .split {
+      grid-template-columns: minmax(0, 1fr);
+    }
+
+    .filter-row {
+      padding: var(--space-4) var(--space-4) 0;
+    }
+
+    .mobile-actions {
+      flex: none;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: var(--space-2);
+      min-height: 44px;
+      margin: var(--space-3) var(--space-4) 0;
+      border: 1px solid var(--border-default);
+      border-radius: var(--radius-sm);
+      background: var(--surface-default);
+      color: var(--text-default);
+      font: inherit;
+      font-size: var(--text-sm);
+      font-weight: var(--weight-semibold);
+    }
+
+    .actions-sheet {
+      width: 100%;
+      max-width: none;
+      max-height: min(78dvh, 640px);
+      margin: auto 0 0;
+      padding: 0;
+      border: 1px solid var(--border-default);
+      border-bottom: none;
+      border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+      background: var(--surface-base);
+      color: var(--text-default);
+    }
+
+    .actions-sheet::backdrop {
+      background: color-mix(in srgb, var(--grey-1000) 68%, transparent);
+    }
+
+    .sheet-inner {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-4);
+      max-height: inherit;
+      padding: var(--space-5) var(--space-4) calc(var(--space-5) + env(safe-area-inset-bottom));
+    }
+
+    .sheet-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--space-4);
+    }
+
+    .sheet-head h2 {
+      margin: 0;
+      font-size: var(--text-lg);
+    }
+
+    .sheet-close {
+      min-height: 44px;
+      padding: 0 var(--space-3);
+      border: none;
+      border-radius: var(--radius-sm);
+      background: transparent;
+      color: var(--text-muted);
+      font: inherit;
+      font-size: var(--text-sm);
+    }
   }
 </style>
