@@ -11,10 +11,10 @@
   import { sameFill } from '$lib/cards/style';
   import { createCardback } from '$lib/characters/factory';
   import type { Character } from '$lib/characters/types';
-  import { hasArtwork } from '$lib/core/artwork';
+  import { createArtwork, hasArtwork } from '$lib/core/artwork';
   import { readArtworkFile } from '$lib/core/image-import';
   import { workshop } from '$lib/state/workshop.svelte';
-  import { Button, ColorInput, FillEditor, Icon, Slider, TextInput } from '$lib/ui';
+  import { Button, ColorInput, FillEditor, Icon, Slider, Switch, TextInput } from '$lib/ui';
   import EditorSection from './EditorSection.svelte';
   import ReplacementPanel from './ReplacementPanel.svelte';
 
@@ -70,6 +70,19 @@
   }
 
   const pct = (value: number) => `${Math.round(value * 100)}%`;
+  const signed = (value: number) => `${value > 0 ? '+' : ''}${Math.round(value * 100)}%`;
+
+  function resetPlacement(): void {
+    workshop.editCardback(character.id, (design) => {
+      design.artwork.transform = { ...createArtwork().transform };
+    });
+  }
+
+  function resetAdjustments(): void {
+    workshop.editCardback(character.id, (design) => {
+      design.artwork.adjustments = { ...createArtwork().adjustments };
+    });
+  }
 </script>
 
 <!-- The block around this panel carries the subject, so this names its own job. -->
@@ -160,6 +173,7 @@
   >
     {#snippet actions()}
       {#if hasInset}
+        <Button size="sm" variant="ghost" onclick={resetPlacement}>Reset placement</Button>
         <Button
           size="sm"
           variant="ghost"
@@ -217,13 +231,27 @@
             )}
         />
         <Slider
+          label="Rotation"
+          value={back.artwork.transform.rotation}
+          min={-180}
+          max={180}
+          step={1}
+          neutral={0}
+          format={(value) => `${value}°`}
+          onchange={(rotation) =>
+            workshop.editCardback(
+              character.id,
+              (design) => (design.artwork.transform.rotation = rotation)
+            )}
+        />
+        <Slider
           label="Horizontal"
           value={back.artwork.transform.offsetX}
           min={-1}
           max={1}
           step={0.005}
           neutral={0}
-          format={pct}
+          format={signed}
           onchange={(offsetX) =>
             workshop.editCardback(
               character.id,
@@ -237,16 +265,150 @@
           max={1}
           step={0.005}
           neutral={0}
-          format={pct}
+          format={signed}
           onchange={(offsetY) =>
             workshop.editCardback(
               character.id,
               (design) => (design.artwork.transform.offsetY = offsetY)
             )}
         />
+        <Slider
+          label="Crop width"
+          value={back.artwork.crop.width}
+          min={0.1}
+          max={1}
+          step={0.005}
+          neutral={1}
+          format={pct}
+          onchange={(width) =>
+            workshop.editCardback(character.id, (design) => (design.artwork.crop.width = width))}
+        />
+        <Slider
+          label="Crop height"
+          value={back.artwork.crop.height}
+          min={0.1}
+          max={1}
+          step={0.005}
+          neutral={1}
+          format={pct}
+          onchange={(height) =>
+            workshop.editCardback(character.id, (design) => (design.artwork.crop.height = height))}
+        />
       </div>
+
+      <Switch
+        label="Mirror horizontally"
+        checked={back.artwork.transform.flipX}
+        onchange={(flipX) =>
+          workshop.editCardback(character.id, (design) => (design.artwork.transform.flipX = flipX))}
+      />
     {/if}
   </EditorSection>
+
+  {#if hasInset}
+    <EditorSection title="Colour">
+      {#snippet actions()}
+        <Button size="sm" variant="ghost" onclick={resetAdjustments}>Reset</Button>
+      {/snippet}
+
+      <div class="grid">
+        <Slider
+          label="Brightness"
+          value={back.artwork.adjustments.brightness}
+          min={0.2}
+          max={2}
+          step={0.01}
+          neutral={1}
+          format={pct}
+          onchange={(brightness) =>
+            workshop.editCardback(
+              character.id,
+              (design) => (design.artwork.adjustments.brightness = brightness)
+            )}
+        />
+        <Slider
+          label="Contrast"
+          value={back.artwork.adjustments.contrast}
+          min={0.2}
+          max={2}
+          step={0.01}
+          neutral={1}
+          format={pct}
+          onchange={(contrast) =>
+            workshop.editCardback(
+              character.id,
+              (design) => (design.artwork.adjustments.contrast = contrast)
+            )}
+        />
+        <Slider
+          label="Saturation"
+          value={back.artwork.adjustments.saturation}
+          min={0}
+          max={2}
+          step={0.01}
+          neutral={1}
+          format={pct}
+          onchange={(saturation) =>
+            workshop.editCardback(
+              character.id,
+              (design) => (design.artwork.adjustments.saturation = saturation)
+            )}
+        />
+        <Slider
+          label="Hue"
+          value={back.artwork.adjustments.hue}
+          min={-180}
+          max={180}
+          step={1}
+          neutral={0}
+          format={(value) => `${value}°`}
+          onchange={(hue) =>
+            workshop.editCardback(character.id, (design) => (design.artwork.adjustments.hue = hue))}
+        />
+        <Slider
+          label="Greyscale"
+          value={back.artwork.adjustments.grayscale}
+          min={0}
+          max={1}
+          step={0.01}
+          neutral={0}
+          format={pct}
+          onchange={(grayscale) =>
+            workshop.editCardback(
+              character.id,
+              (design) => (design.artwork.adjustments.grayscale = grayscale)
+            )}
+        />
+        <Slider
+          label="Sepia"
+          value={back.artwork.adjustments.sepia}
+          min={0}
+          max={1}
+          step={0.01}
+          neutral={0}
+          format={pct}
+          onchange={(sepia) =>
+            workshop.editCardback(
+              character.id,
+              (design) => (design.artwork.adjustments.sepia = sepia))}
+        />
+        <Slider
+          label="Opacity"
+          value={back.artwork.adjustments.opacity}
+          min={0}
+          max={1}
+          step={0.01}
+          neutral={1}
+          format={pct}
+          onchange={(opacity) =>
+            workshop.editCardback(
+              character.id,
+              (design) => (design.artwork.adjustments.opacity = opacity)
+            )}
+        />
+      </div>
+    </EditorSection>
+  {/if}
 {/if}
 
 {#if error}<p class="error">{error}</p>{/if}
