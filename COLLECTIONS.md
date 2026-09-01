@@ -7,9 +7,8 @@ Only the status has moved: build steps 1–8 are marked **done** at the foot of
 this file, and `0015_collections.sql` is applied to production with live
 collections in it.
 
-Still open: the `middleware.ts` unfurl needs a deploy to confirm (step 8), and
-everything under *Deliberately not in phase 1* — the combined box export,
-pinned revisions — is unbuilt.
+See *Where this stands* for what is deployed and what is merely written, and
+*Phases beyond the first* for what is left.
 
 The goal is **a themed box assembled from decks that several people each own
 outright** — the shape the Unmatched community already works in, where ten
@@ -19,6 +18,44 @@ Extravaganza" is the worked one below.
 
 It is written backwards from that: every decision exists because taking it
 later would be a migration, and taking it now costs nothing.
+
+---
+
+## Where this stands
+
+Phase 1 is deployed. All eight build steps at the foot of this file are
+**done**, and `0015_collections.sql` is applied to production — reconciled
+against the live catalogue rather than assumed to match it, after two drifts
+turned up that reading the file could never have shown: a deployed
+`my_collections()` that had never been folded back in (Home's Collections shelf
+calls it, so a clean replay would have built a database that looks complete and
+fails the moment the shelf loads), and four policies still carrying the
+`organiser` spelling, which a replay would have left in place while adding an
+`organizer` twin beside them. All eleven functions, nineteen policies and six
+triggers now agree.
+
+Production holds two collections, two accepted memberships and two organizers.
+So it is exercised — but **nothing has been made public yet**, and no real
+project with real creators has run through it. That is the next thing to learn
+from, and it is worth doing before phase 2: the combined export rests on
+assumptions about how a box gets assembled, and one actual Winter Extravaganza
+will correct more of them than any further design will.
+
+Two things are implemented but **not verified**, and the distinction matters
+because both look finished from inside the repository:
+
+- **The unfurl.** `middleware.ts` matches `/collection/:slug*` and renders a
+  preview from `collection_by_slug`, but `vite dev` has no Edge Runtime to run
+  it in. Confirming it means a real deploy plus either a spoofed bot
+  User-Agent or a paste into Discord — whose per-URL unfurl cache is
+  aggressive enough that a second attempt needs a throwaway slug.
+- **The migration as a source of truth.** Production reached its state through
+  seventeen incremental migrations, including three attempts at `created_by`
+  and a table rename. This file is their hand-reconciliation and has **never
+  been replayed against an empty database**, so today it is a faithful
+  description of production rather than a proven recipe for it. A throwaway
+  Supabase project settles that cheaply, and settling it is what makes the
+  file trustworthy for anyone who is not the person who wrote it.
 
 ---
 
@@ -445,7 +482,7 @@ boundary* above.
 - ~~**Which database does the branch develop against?**~~ **Decided:
   production.** `DEPLOYMENT.md` warns that preview builds share the production
   database, and says to decide this before the branch rather than during. It is
-  safe here for one specific reason: `0012` is purely additive — two new
+  safe here for one specific reason: `0015` is purely additive — two new
   tables, no `alter` on `sets`, and nothing in the shipped app reads them — so
   the migration cannot affect live data by existing. Re-read that reasoning
   before any later migration; it does not generalise.
@@ -575,8 +612,87 @@ to run it in, so verifying it means a real deploy plus either a spoofed bot
 User-Agent or a paste into Discord. Discord caches unfurls per URL aggressively,
 so budget a throwaway slug for the second attempt.
 
-### Not in this milestone
+---
 
-The combined box export (phase 2), pinned revisions, and any merged document.
-Each deck exports individually through its own shared page meanwhile — which is
-exactly what the production phase of the worked timeline already assumes.
+## Phases beyond the first
+
+Until phase 2 lands, every deck exports individually through its own shared
+page — exactly what the production phase of the worked timeline already
+assumes. The box download is the only thing missing, and it is missing on
+purpose.
+
+### Phase 2 — the combined box export
+
+The prize, and the reason *the finding that shapes the export* exists. No
+schema change and no new renderer: it is a bundle path over machinery that
+already works, joining finished object graphs rather than documents.
+
+1. **Fetch the box.** Every accepted member's published document, hydrated
+   through the same `fetchAndEmbedAssets` route a shared set already takes.
+2. **Tabletop Simulator.** `placeSavedObjects(states, index)` positions by a
+   running index already, and `writeAsset` names every file by a content hash
+   of its own bytes — so N bundles written into one folder dedupe their shared
+   assets and cannot collide on a name. The multi-source case comes free, on
+   machinery built to defeat TTS's texture cache and for no other reason.
+3. **Print sheets.** `print/sheet.ts` groups pages by printed size; N members
+   is more pages in the same buckets.
+4. **Card PNGs.** A folder per creator.
+
+Gated as recorded above: **offered only when every member is a heroes-scope
+deck.** A collection of full adventures, each with its own map and threat
+track, is not a box and must not pretend to be one — it stays a
+browse-and-download-individually page.
+
+### Phase 3 — what a real project turns out to ask for
+
+Deliberately unscheduled. Every item here is a guess until a collection has run
+in public, and the cost of guessing wrong is a column or a flow that has to be
+unpicked rather than added:
+
+- **Pinned revisions** (`collection_members.pinned_revision`), freezing the box
+  as it debuted so a ZIP downloaded in December is the one that shipped in
+  October. An added column, not a migration — `forked_from_revision` is the
+  existing precedent for storing exactly this.
+- **The launch flow**, where members choose public or unlisted at debut. The
+  open decision most in need of a real project to answer it.
+- **The collection's own social image.** An organizer-uploaded banner is the
+  cheap answer and probably the right one; a composed picture would need a
+  collection-shaped variant of `cloud/social-image.ts`.
+- **Ordering.** Manual `position` is presumably right, but it is one more thing
+  organizers have to agree on between themselves.
+
+### Not ever
+
+Restated from *Deliberately not in phase 1* because each is a thing somebody
+will eventually propose: no merged **document**, no collections containing
+collections, no `kind` for collections. All three follow from *the one rule* —
+a collection is not a set — and the day one of them looks reasonable is the day
+to re-read that section rather than the day to build it.
+
+---
+
+## Sequencing against the cloud-storage transition
+
+`CLOUD_STORAGE_PLAN.md` moves the author's *draft* library to Supabase. The two
+are orthogonal by construction and verified to be so in the code: collections
+point at published rows, that plan touches only private drafts, neither reads
+the other's tables, and nothing under `cloud/collections.ts` or
+`CollectionScreen.svelte` mentions `storage/library.ts`, `LibraryEntry`,
+IndexedDB or `saveSet`. Its Phases 1–3 — the drafts backend, the drafts client
+and the persistence coordinator, which between them carry most of its risk —
+rebuild `storage/library.ts`, `state/persistence.svelte.ts` and
+`state/workshop.svelte.ts`, and this work touches none of those three. So the
+two can be built in parallel.
+
+They meet in exactly two places:
+
+- **`HomeScreen.svelte`.** Collections restructured it; that plan's Phase 4
+  rewrites it again to source the library from cloud summaries. Land the
+  collections changes first — rebasing a change not yet written onto one that
+  has landed is free, and the reverse is a hand merge across thirty-odd hunks
+  of a file neither side is only adding to.
+- **Deleting a draft must not break a published row.** That plan already says
+  so; collections raises the stakes, because the row a draft deletion could
+  strand is now a member of somebody else's box rather than only the author's
+  own listing. Worth an explicit check in its acceptance criteria rather than
+  an implied one.

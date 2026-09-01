@@ -21,7 +21,9 @@
   import {
     amOrganizer,
     collectionUrl,
+    combinableProblem,
     deleteCollection,
+    fetchCollectionDecks,
     liveMemberCount,
     readinessOf,
     fetchCollectionBySlug,
@@ -46,6 +48,10 @@
     CollectionVisibility
   } from '$lib/cloud/collections';
   import { cloudEnabled } from '$lib/cloud/config';
+  import { createTtsAssetHost } from '$lib/cloud/tts-assets';
+  import { exportCollectionBundle } from '$lib/export/tts-bundle';
+  import { saveExport } from '$lib/export';
+  import { readTtsSavedObjectsPath, writeTtsSavedObjectsPath } from '$lib/storage/settings';
   import { initials, tint } from '$lib/core/swatch';
   import { CARD_FORMATS, trimBox } from '$lib/renderer/geometry';
   import { auth } from '$lib/cloud/auth.svelte';
@@ -454,6 +460,89 @@
    * so it names who, and lets an organizer go anyway having read the names.
    */
   let publishGate = $state<string[] | null>(null);
+
+  // -- Downloading the whole box ------------------------------------------
+
+  /**
+   * The combined export, offered to anybody who can see the collection.
+   *
+   * Not organizer-only: a box is for playing, and everybody a link reaches is
+   * a potential player. Nothing it produces is anybody's to authorise —
+   * every deck in it is already downloadable one at a time from its own
+   * shared page, and this only saves the visitor doing that six times and
+   * assembling the result by hand.
+   */
+  let boxProgress = $state<string | null>(null);
+  let boxProblem = $state<string | null>(null);
+  let boxSkipped = $state<{ name: string; reason: string }[]>([]);
+  let hostBoxOnline = $state(true);
+  let boxPath = $state('');
+  void readTtsSavedObjectsPath().then((value) => (boxPath = value));
+
+  const onlineAvailable = cloudEnabled();
+
+  async function downloadBox(): Promise<void> {
+    if (!collection || boxProgress !== null) return;
+    if (!hostBoxOnline && !boxPath.trim()) {
+      notice = 'Enter your Tabletop Simulator Saved Objects folder below, then try again.';
+      return;
+    }
+    if (hostBoxOnline && !onlineAvailable) {
+      notice = 'Online hosting is not configured for this copy of Unmatched Labs.';
+      return;
+    }
+
+    boxProgress = 'Fetching decks…';
+    boxProblem = null;
+    boxSkipped = [];
+    notice = null;
+
+    try {
+      /* Fetched here rather than reusing the tiles: a tile is a summary, and
+         rendering needs the whole document. This is also the slow half, so it
+         reports per deck. */
+      const { decks, skipped } = await fetchCollectionDecks(collection.slug, (progress) => {
+        boxProgress = `Fetching ${progress.name} — ${progress.done} of ${progress.total}…`;
+      });
+      boxSkipped = skipped;
+
+      /* Checked against what actually arrived, not against the tiles: a
+         member that failed to load is not in the box, so it must not decide
+         whether the box can be built. */
+      const problem = combinableProblem(decks);
+      if (problem) {
+        boxProblem = problem;
+        return;
+      }
+
+      if (!hostBoxOnline) void writeTtsSavedObjectsPath(boxPath);
+
+      const hosting = hostBoxOnline
+        ? { kind: 'online' as const, host: await createTtsAssetHost(collection.id) }
+        : { kind: 'local' as const, savedObjectsPath: boxPath };
+
+      const result = await exportCollectionBundle(
+        decks.map((deck) => ({ author: deck.tile.author_name || 'Anonymous', set: deck.set })),
+        {
+          name: collection.name || 'Collection',
+          subtitle: collection.subtitle,
+          hosting,
+          onProgress: (done, total, label) => (boxProgress = `${label} — ${done} of ${total}…`)
+        }
+      );
+
+      if (result.download) saveExport(result.download);
+      notice = result.directory
+        ? `Wrote ${result.fileCount} files to ${result.directory}.`
+        : result.hosting === 'online'
+          ? `Downloaded the box. ${result.uploadedCount} files uploaded, ${result.reusedCount} already online.`
+          : `Downloaded the box as ${result.download?.filename ?? 'an archive'}.`;
+    } catch (error) {
+      notice = error instanceof Error ? error.message : 'That export did not finish.';
+    } finally {
+      boxProgress = null;
+    }
+  }
 
   // -- Deleting an empty collection ---------------------------------------
 
@@ -998,6 +1087,65 @@
         </section>
       {/if}
 
+      {#if tiles.length > 0}
+        <section class="panel box">
+          <h2>Download the whole box</h2>
+          <p class="hint">
+            Every deck here as one Tabletop Simulator save — a row per creator, each drawn
+            under its own author's styling. Artwork two decks share is stored once.
+          </p>
+
+          {#if onlineAvailable}
+            <label class="toggle">
+              <input type="checkbox" bind:checked={hostBoxOnline} />
+              <span>Host the images online, so everyone at the table can see them</span>
+            </label>
+          {/if}
+
+          {#if !hostBoxOnline || !onlineAvailable}
+            <!-- Only asked for when the images are not going online: a local
+                 save addresses them by a path on this machine. -->
+            <label class="field">
+              <span class="field-label">Saved Objects folder</span>
+              <input
+                type="text"
+                bind:value={boxPath}
+                placeholder="C:\Users\you\Documents\My Games\Tabletop Simulator\Saves\Saved Objects"
+              />
+            </label>
+          {/if}
+
+          <div class="row-actions">
+            <button
+              type="button"
+              class="btn primary"
+              disabled={boxProgress !== null}
+              onclick={downloadBox}
+            >
+              {boxProgress ?? 'Download the box'}
+            </button>
+          </div>
+
+          {#if boxProblem}
+            <p class="hint problem">{boxProblem}</p>
+          {/if}
+
+          {#if boxSkipped.length > 0}
+            <!--
+              Named rather than counted. A box quietly missing a deck is worse
+              than one that says which, because the person downloading it has
+              no other way to find out.
+            -->
+            <p class="hint problem">
+              Left out:
+              {#each boxSkipped as entry, index (entry.name)}
+                {#if index > 0}; {/if}{entry.name} — {entry.reason}
+              {/each}
+            </p>
+          {/if}
+        </section>
+      {/if}
+
       {#if tiles.length === 0}
         <!--
           Not an error. A collection with no accepted decks is the ordinary
@@ -1327,6 +1475,30 @@
     font-size: var(--text-base);
     color: var(--text-primary);
   }
+  .panel.box .field {
+    max-width: 44rem;
+    margin-bottom: var(--space-3);
+  }
+  .panel.box .field input {
+    font: inherit;
+    color: var(--text-primary);
+    background: var(--surface-inset);
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-sm);
+    padding: var(--space-2) var(--space-3);
+  }
+  .panel.box .field input:focus-visible {
+    outline: none;
+    box-shadow: var(--focus-ring);
+  }
+  .panel.box .toggle {
+    margin-bottom: var(--space-3);
+  }
+  .hint.problem {
+    color: var(--warning);
+    margin-top: var(--space-3);
+  }
+
   .panel.joining {
     border-color: var(--border-accent);
   }

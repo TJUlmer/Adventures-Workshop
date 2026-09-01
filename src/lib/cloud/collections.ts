@@ -23,6 +23,7 @@ import { auth } from './auth.svelte';
 import { CloudError, request } from './http';
 import { assetPrefix, fetchSetBySlug, hydratePublishedSet, uploadAsset } from './sets';
 import type { AdventureSet } from '$lib/sets/types';
+import { charactersByRole } from '$lib/sets/queries';
 import { hashHex } from '$lib/core/hash';
 import { readArtworkFile } from '$lib/core/image-import';
 
@@ -263,6 +264,31 @@ export async function fetchCollectionDecks(
 }
 
 /**
+ * Is this member a heroes deck?
+ *
+ * **Read off the published row, not the document.** `AdventureSet.kind` only
+ * exists from schema v28, and `normalizeSet` opens a kind-less document as
+ * `'adventure'` unconditionally — deliberately, so pre-v28 documents still
+ * open at all. So a genuine heroes set published before v28 hydrates claiming
+ * to be an adventure, and a gate reading the document rejects it.
+ *
+ * That is not hypothetical: it is how this was found. Two real published
+ * heroes decks — schema 18 and 27, `kind` absent from both documents, `kind`
+ * = 'heroes' on both rows — were refused as "full adventures" by the first
+ * version of this check.
+ *
+ * `sets.kind` is the value the rest of the app already trusts, and migration
+ * `0010_hero_count_and_kind_backfill.sql` exists precisely to make it
+ * reliable for rows published before the column did. `null` survives only for
+ * a row that predates even that, so it falls back to the same rule the
+ * backfill used: an adventure needs a villain.
+ */
+function isHeroesDeck(deck: CollectionDeck): boolean {
+  if (deck.tile.kind) return deck.tile.kind === 'heroes';
+  return charactersByRole(deck.set, 'villain').length === 0;
+}
+
+/**
  * Whether a box can be assembled from these decks at all.
  *
  * **Heroes-scope only**, which is the gate `COLLECTIONS.md` sets and the
@@ -274,7 +300,7 @@ export async function fetchCollectionDecks(
  */
 export function combinableProblem(decks: readonly CollectionDeck[]): string | null {
   if (decks.length === 0) return 'There are no decks in this collection yet.';
-  const wrong = decks.filter((deck) => deck.set.kind !== 'heroes');
+  const wrong = decks.filter((deck) => !isHeroesDeck(deck));
   if (wrong.length === 0) return null;
   const names = wrong.map((deck) => deck.tile.name).join(', ');
   return (
