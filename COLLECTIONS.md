@@ -1,6 +1,15 @@
 # Collections — one box, many creators
 
-A specification, not a change. Nothing here is built.
+**Phase 1 is built, deployed, and carrying real data.** This was written as a
+specification before any of it existed, and everything below is still that
+document, kept as it was — the reasoning it records is what the code now does.
+Only the status has moved: build steps 1–8 are marked **done** at the foot of
+this file, and `0015_collections.sql` is applied to production with live
+collections in it.
+
+Still open: the `middleware.ts` unfurl needs a deploy to confirm (step 8), and
+everything under *Deliberately not in phase 1* — the combined box export,
+pinned revisions — is unbuilt.
 
 The goal is **a themed box assembled from decks that several people each own
 outright** — the shape the Unmatched community already works in, where ten
@@ -303,9 +312,16 @@ Each is a decision, not a bug.
 
 ---
 
-## Database — migration `0012_collections.sql`
+## Database — migration `0015_collections.sql`
 
 Two tables, no change to `sets` at all.
+
+Numbered `0015` rather than `0012`, which is what it was written and deployed
+as. Production records it under timestamped versions, so the number here only
+ever governed a clean replay — and it had to move once `0012_tts_assets.sql`
+was baselined into the live ledger under that number and the cloud-drafts work
+reserved `0013`/`0014`. The file's own header carries the same warning worth
+repeating: **this is already applied to production and must not be re-run.**
 
 ```
 collections
@@ -466,7 +482,7 @@ All of it on its own branch — and, since this runs alongside ordinary work on
 
     git worktree add ../Adventures_Workshop-collections -b collections
 
-### 1. `supabase/migrations/0012_collections.sql` — **done**
+### 1. `supabase/migrations/0015_collections.sql` — **done**
 
 Both tables, their RLS, and three `security definer` functions:
 `collection_by_slug`, `collection_members_by_slug`, and

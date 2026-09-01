@@ -14,6 +14,17 @@
 -- previews sharing production): two new tables, no `alter` on `sets`, and
 -- nothing in the shipped app reads either one. That reasoning is specific to
 -- this migration and does not generalise to the next.
+--
+-- **Numbered 0015, and the gap below it is deliberate.** This was written as
+-- `0012` and applied to production long before it was renumbered, so the live
+-- ledger records it under timestamped versions rather than under any number
+-- here. That left the repository with two `0012`s once `0012_tts_assets.sql`
+-- was baselined into the ledger under that number, and the cloud-drafts work
+-- reserves `0013_grant_reconciliation.sql` and `0014_set_drafts.sql`. The file
+-- moved rather than those, because this one is the one already deployed and so
+-- the one a clean replay must run last. Nothing here changed with the name:
+-- **do not re-run this against production**, which already holds these tables
+-- and real rows in them.
 
 create extension if not exists pgcrypto;
 
@@ -871,6 +882,76 @@ $$;
 
 revoke all on function public.collections_for_set(uuid) from public;
 grant execute on function public.collections_for_set(uuid) to anon, authenticated;
+
+/*
+ * Every collection one person is part of — organizing, or with a deck in.
+ *
+ * `security definer` rather than a filtered table read, because "mine" is not
+ * a column here: it is *organizer of*, or *owner of a deck that is in it*,
+ * which PostgREST cannot express as a filter. Leaving it to RLS instead — an
+ * unfiltered `select * from collections` — would return every **public**
+ * collection alongside the caller's own, which is exactly the bug
+ * `listMyPublishedSets` had: a function quietly disagreeing with its own name.
+ *
+ * `is_organizer` says which door somebody came in by, because the page shows
+ * different things to each and guessing from counts would be wrong for an
+ * organizer who also contributed a deck.
+ *
+ * `declined` and `removed` are excluded. Having once been turned down is not
+ * being part of something, and a shelf listing it would be a standing
+ * reminder of a no.
+ *
+ * **This was deployed and then missed out of this file for two days.** The
+ * app reached production state through seventeen incremental migrations and
+ * this file is their hand-reconciliation; a replay of it would have produced a
+ * database without this function, and the Home shelf would have failed with
+ * "function does not exist" against a schema that looked complete. Found by
+ * listing production's own functions and diffing them against this file rather
+ * than by reading it — which is the only way that class of omission shows up.
+ */
+create or replace function public.my_collections()
+returns table (
+  id uuid,
+  slug text,
+  name text,
+  subtitle text,
+  banner_url text,
+  visibility text,
+  open_submissions boolean,
+  is_organizer boolean,
+  deck_count integer,
+  updated_at timestamptz
+)
+language sql
+security definer
+set search_path = public
+stable
+as $$
+  select
+    c.id, c.slug, c.name, c.subtitle, c.banner_url, c.visibility, c.open_submissions,
+    public.is_collection_organizer(c.id, auth.uid()) as is_organizer,
+    (select count(*)::integer from public.collection_members m2
+      where m2.collection_id = c.id and m2.status = 'accepted') as deck_count,
+    c.updated_at
+  from public.collections c
+  where auth.uid() is not null
+    and not c.hidden
+    and (
+      public.is_collection_organizer(c.id, auth.uid())
+      or exists (
+        select 1
+        from public.collection_members m
+        join public.sets s on s.id = m.set_id
+        where m.collection_id = c.id
+          and s.owner_id = auth.uid()
+          and m.status in ('accepted', 'invited', 'submitted')
+      )
+    )
+  order by c.updated_at desc;
+$$;
+
+revoke all on function public.my_collections() from public, anon;
+grant execute on function public.my_collections() to authenticated;
 
 -- ---------------------------------------------------------------------------
 -- Closing the grants `revoke ... from public` does not close

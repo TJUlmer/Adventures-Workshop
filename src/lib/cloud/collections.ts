@@ -5,7 +5,7 @@
  * people own (see `COLLECTIONS.md`), so unlike `cloud/sets.ts` there is
  * nothing here that uploads artwork, lifts data URLs into Storage or embeds
  * them again on the way back. Every function in this file moves small rows,
- * and the whole of the trust lives in `supabase/migrations/0012_collections.sql`
+ * and the whole of the trust lives in `supabase/migrations/0015_collections.sql`
  * rather than in anything a client could get wrong.
  *
  * **Every public read is `anonymous: true`**, and that is not an
