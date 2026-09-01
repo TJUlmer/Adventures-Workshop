@@ -787,5 +787,124 @@ export function buildTabletopSimulatorSave(input: TtsSaveInput): string {
   return JSON.stringify(save, null, 2);
 }
 
+/**
+ * One creator's contribution to a combined box.
+ *
+ * `author` is carried separately from the set because a published document
+ * knows its own name and not who published it — and in a box assembled from
+ * several people's work, whose pile this is is the one thing a player most
+ * needs off the table.
+ */
+export interface TtsCollectionMember {
+  author: string;
+  set: AdventureSet;
+  decks: TtsDeckImages[];
+  components: object[];
+}
+
+export interface TtsCollectionInput {
+  name: string;
+  subtitle: string;
+  members: readonly TtsCollectionMember[];
+}
+
+/** Clear of the deepest row a single member can produce, in inches. */
+const MEMBER_ROW_DEPTH = 6;
+
+/**
+ * A whole collection, as one saved object.
+ *
+ * **Concatenation, not merging** — the decision `COLLECTIONS.md` records, and
+ * the reason this is short. Each member's decks were rendered from that
+ * member's own document under that member's own styling, and what is joined
+ * here is the finished object graph. Nothing merges documents, so nothing has
+ * to reconcile entity ids that forks deliberately keep identical, flatten one
+ * `set.style` layer onto another, or choose between singletons.
+ *
+ * Two things make the join safe, and both are properties the single-set
+ * exporter already had for unrelated reasons:
+ *
+ *   * **`CardID`s are scoped per object.** Every deck object carries its own
+ *     `CustomDeck` dictionary (see `deckObject`), so two members' piles cannot
+ *     collide however their sheets were keyed. The `sheetIdBase` counter runs
+ *     across the whole box anyway — costing nothing and keeping the ids
+ *     readable when somebody opens the JSON.
+ *   * **Assets are named by content hash.** `writeAsset` gives identical bytes
+ *     one path, so a card back two members happen to share is written once,
+ *     and two different backs can never land on one name.
+ *
+ * Laid out a row per creator, receding along Z. A single flat row of six
+ * people's decks is a wall nobody can read; a row each means a player can see
+ * whose is whose without picking anything up, which is what the nicknames are
+ * for as well.
+ */
+export function buildCollectionSave(input: TtsCollectionInput): string {
+  const objects: object[] = [];
+  let deckIndex = 0;
+
+  input.members.forEach((member, row) => {
+    const z = -row * MEMBER_ROW_DEPTH;
+    const positions = layOut(member.decks);
+
+    member.decks.forEach((deck, index) => {
+      const at = positions[index] ?? transform(index * 3, 0, scaleOf(deck.plan.format.mm));
+      objects.push(
+        deckObject(
+          { ...deck, plan: { ...deck.plan, nickname: `${deck.plan.nickname} — ${member.author}` } },
+          { ...at, posZ: at.posZ + z },
+          /* 100 apart across the *whole box*, not per member, for the same
+             reason the single-set exporter spaces them: a pile can grow to 70
+             cards and its `CardID`s must not reach the next pile's. */
+          100 + deckIndex * 10
+        )
+      );
+      deckIndex += 1;
+    });
+
+    /* Components sit behind their own creator's row rather than in one shared
+       strip, so a figure stays with the deck it belongs to. `placeSavedObjects`
+       has already put them at `COMPONENT_ROW_Z`; this only moves the row. */
+    for (const component of member.components) {
+      const state = component as Record<string, unknown>;
+      const at = (typeof state['Transform'] === 'object' && state['Transform'] !== null
+        ? state['Transform']
+        : {}) as Record<string, unknown>;
+      objects.push({
+        ...state,
+        Transform: { ...at, posZ: Number(at['posZ'] ?? COMPONENT_ROW_Z) + z }
+      });
+    }
+  });
+
+  const save = {
+    SaveName: input.name,
+    GameMode: input.name,
+    Date: new Date().toISOString(),
+    VersionNumber: '',
+    GameType: 'Unmatched Adventures',
+    GameComplexity: '',
+    Gravity: 0.5,
+    PlayArea: 0.5,
+    Table: '',
+    Sky: '',
+    Note: [
+      input.subtitle,
+      `${input.members.length} decks by ${
+        new Set(input.members.map((member) => member.author)).size
+      } creators.`
+    ]
+      .filter(Boolean)
+      .join('\n'),
+    Rules: '',
+    TabStates: {},
+    LuaScript: '',
+    LuaScriptState: '',
+    XmlUI: '',
+    ObjectStates: objects
+  };
+
+  return JSON.stringify(save, null, 2);
+}
+
 /** The threat board's printed proportions, for the card that carries it. */
 export const THREAT_CARD_MM = THREAT_TRACK.mm;

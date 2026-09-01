@@ -33,13 +33,20 @@ import { MAP_WIDTH_MM, mapHeightMm } from '$lib/map/types';
 import { shortHash } from '$lib/core/hash';
 import { slugify } from './json';
 import {
+  buildCollectionSave,
   buildTabletopSimulatorSave,
   modelObject,
   placeSavedObjects,
   planTabletopDecks,
   THREAT_CARD_MM
 } from './tabletop-simulator';
-import type { TtsDeckImages, TtsMapImage, TtsSheet, TtsThreatImage } from './tabletop-simulator';
+import type {
+  TtsCollectionMember,
+  TtsDeckImages,
+  TtsMapImage,
+  TtsSheet,
+  TtsThreatImage
+} from './tabletop-simulator';
 import { buildTokenArt, resolvedTokenSpec } from './token-model';
 import { imageCount, MAX_SHEET_PIXELS, renderDeckSheets, renderSharedBack } from './tts-sheets';
 import type { ExportResult } from './types';
@@ -498,19 +505,16 @@ async function componentFor(
  *     there. The archive still has to be extracted and placed, but nothing
  *     in it has to be *edited*.
  */
-function howToImport(
-  set: AdventureSet,
+/**
+ * Where the files have to end up, and how to get them there.
+ *
+ * Extracted so the single-set and whole-box instructions cannot drift into
+ * wording the one rule two different ways — see the note inside.
+ */
+function placementAdvice(
   root: string,
   info: { directory: string | null; savedObjectsPath: string }
-): string {
-  const decks = planTabletopDecks(set);
-  const piles = decks
-    .map((plan) => {
-      const count = plan.cards.length;
-      return `  ${plan.nickname} — ${count} ${count === 1 ? 'card' : 'cards'}, ${plan.format.label}`;
-    })
-    .join('\n');
-
+): { placement: string; installing: string } {
   /*
    * One rule regardless of which local state applies, and it is
    * worth having only one: **the whole `${root}` folder — the .json beside
@@ -573,6 +577,24 @@ the whole folder, models/sheets/map and all.
   3. In TTS: Objects → Saved Objects → spawn it once.
      Everything appears at once, laid out in a row.`;
   }
+
+  return { placement, installing };
+}
+
+function howToImport(
+  set: AdventureSet,
+  root: string,
+  info: { directory: string | null; savedObjectsPath: string }
+): string {
+  const { placement, installing } = placementAdvice(root, info);
+
+  const decks = planTabletopDecks(set);
+  const piles = decks
+    .map((plan) => {
+      const count = plan.cards.length;
+      return `  ${plan.nickname} — ${count} ${count === 1 ? 'card' : 'cards'}, ${plan.format.label}`;
+    })
+    .join('\n');
 
   return `Tabletop Simulator import — ${set.name}
 ${'='.repeat(30 + set.name.length)}
@@ -873,4 +895,287 @@ export function tabletopDeckSummary(set: AdventureSet): string[] {
   return planTabletopDecks(set).map(
     (plan) => `${plan.nickname} (${plan.cards.length}${plan.back.kind === 'character' ? `, ${characterLabel(plan.back.character)} back` : ''})`
   );
+}
+
+// -- A whole collection, as one box ---------------------------------------
+
+/** One member of a collection, ready to render into a shared bundle. */
+export interface BoxMember {
+  /** Whose deck it is, for the pile nicknames and the row it sits in. */
+  author: string;
+  set: AdventureSet;
+}
+
+export interface BoxBundleOptions extends TtsBundleOptions {
+  /** The collection's own name, which names the save and its folder. */
+  name: string;
+  subtitle?: string;
+}
+
+/**
+ * Every deck in a collection, as one Tabletop Simulator save.
+ *
+ * Lands the same three ways `exportTabletopSimulator` does — an online host, a
+ * dev-server folder, or an archive addressed at a typed Saved Objects path —
+ * because a box has exactly the single set's problem: TTS reads art by URL and
+ * will not take a data URI.
+ *
+ * What differs is only what goes in, and deliberately little:
+ *
+ *   * **One `files`/`taken` accumulator across every member.** This is what
+ *     makes `writeAsset`'s content-hash naming pay across creators: a card
+ *     back two of them happen to share is written once for the whole box
+ *     rather than once per deck, and two different backs can never collide.
+ *   * **One card stage** for the lot, rather than paying its setup per member.
+ *   * **No threat track and no map.** Every member is a heroes set — enforced
+ *     by `combinableProblem` before this is called — so there is no board to
+ *     draw and no question of whose it would be.
+ *
+ * The object graphs are joined by `buildCollectionSave`, never the documents.
+ * See its own note, and *the finding that shapes the export* in
+ * `COLLECTIONS.md`.
+ */
+export async function exportCollectionBundle(
+  members: readonly BoxMember[],
+  options: BoxBundleOptions
+): Promise<TtsBundleResult> {
+  const root = `${slugify(options.name, 'collection')}-tts`;
+  const online = options.hosting.kind === 'online';
+  const folder = online ? null : await findExportsFolder();
+  const savedObjectsPath =
+    options.hosting.kind === 'local' ? options.hosting.savedObjectsPath.trim() : '';
+  if (!online && !savedObjectsPath) {
+    throw new Error('A Tabletop Simulator Saved Objects folder is required for local hosting.');
+  }
+
+  let urlFor: (path: string) => string;
+  if (options.hosting.kind === 'online') {
+    urlFor = options.hosting.host.urlFor;
+  } else {
+    const rawRoot = folder?.url ?? fileUrlFromPath(savedObjectsPath);
+    const base = joinFileUrl(rawRoot, root);
+    urlFor = (path) => joinFileUrl(base, path);
+  }
+
+  const files: TtsHostedAsset[] = [];
+  const taken = new Set<string>();
+  const warnings: string[] = [];
+
+  const plansByMember = members.map((member) => planTabletopDecks(member.set));
+  const total = plansByMember.reduce(
+    (count, plans) => count + plans.reduce((n, plan) => n + imageCount(plan), 0),
+    0
+  );
+  let done = 0;
+
+  const built: TtsCollectionMember[] = [];
+
+  await withCardStage(async (photograph) => {
+    for (const [memberIndex, member] of members.entries()) {
+      const plans = plansByMember[memberIndex] ?? [];
+      const decks: TtsDeckImages[] = [];
+      /* Namespaced per creator, because two people's piles are very often
+         called the same thing. The content hash keeps their *bytes* apart
+         regardless; this is so the folder is readable by a human, where six
+         files called `deck-back` would not be. */
+      const who = slugify(member.author, 'creator');
+
+      for (const plan of plans) {
+        const context = {
+          set: member.set,
+          photograph,
+          onImage: () => {
+            done += 1;
+            options.onProgress?.(done, total, `${member.author} — ${plan.nickname}`);
+          }
+        };
+
+        const rendered = await renderDeckSheets(plan, context);
+        const cell = rendered[0]?.grid ?? { cellWidth: 512, cellHeight: 715 };
+        const shared = await renderSharedBack(plan, context, {
+          width: cell.cellWidth,
+          height: cell.cellHeight
+        });
+
+        let sharedUrl = '';
+        if (shared) {
+          const path = await writeAsset(files, taken, `sheets/${who}-${plan.id}-back`, 'png', shared);
+          sharedUrl = urlFor(path);
+        }
+
+        const sheets: TtsSheet[] = [];
+        for (const [page, sheet] of rendered.entries()) {
+          const stem = `sheets/${who}-${plan.id}${rendered.length > 1 ? `-${page + 1}` : ''}`;
+          const facePath = await writeAsset(files, taken, stem, 'png', sheet.face);
+
+          let backUrl = sharedUrl;
+          if (sheet.back) {
+            const backPath = await writeAsset(files, taken, `${stem}-back`, 'png', sheet.back);
+            backUrl = urlFor(backPath);
+          }
+
+          sheets.push({
+            faceUrl: urlFor(facePath),
+            backUrl,
+            uniqueBack: sheet.back !== null,
+            columns: sheet.grid.columns,
+            rows: sheet.grid.rows,
+            cards: sheet.cards
+          });
+        }
+
+        decks.push({ plan, sheets });
+      }
+
+      const components: object[] = [];
+      for (const figure of member.set.figures) {
+        const owner = figure.characterId
+          ? member.set.characters.find((character) => character.id === figure.characterId)
+          : null;
+        const ownerName = owner ? characterLabel(owner) : null;
+        components.push(
+          ...(await componentFor(
+            figure,
+            ownerName,
+            components.length,
+            urlFor,
+            files,
+            taken,
+            warnings,
+            online
+          ))
+        );
+      }
+
+      built.push({ author: member.author, set: member.set, decks, components });
+    }
+  });
+
+  const saveName = `${slugify(options.name, 'collection')}.json`;
+  const saveText = buildCollectionSave({
+    name: options.name,
+    subtitle: options.subtitle ?? '',
+    members: built
+  });
+
+  if (options.hosting.kind === 'online') {
+    const uploaded = await options.hosting.host.upload(files, (progress) => {
+      options.onProgress?.(progress.done, progress.total, 'Uploading assets');
+    });
+
+    return {
+      hosting: 'online',
+      directory: null,
+      removedCount: 0,
+      download: {
+        filename: saveName,
+        mimeType: 'application/json',
+        blob: new Blob([saveText], { type: 'application/json' })
+      },
+      fileCount: files.length + 1,
+      warnings,
+      uploadedCount: uploaded.uploaded,
+      reusedCount: uploaded.reused
+    };
+  }
+
+  files.push({ path: saveName, contentType: 'application/json', bytes: encoder.encode(saveText) });
+
+  const directory = folder ? `${folder.directory}\\\\${root}` : null;
+  files.push({
+    path: 'HOW_TO_IMPORT.txt',
+    contentType: 'text/plain',
+    bytes: encoder.encode(howToImportBox(options.name, built, root, { directory, savedObjectsPath }))
+  });
+
+  if (folder) {
+    for (const file of files) await writeToExportsFolder(`${root}/${file.path}`, file.bytes);
+    const removed = await pruneExportsBundle(root, files.map((file) => file.path));
+    return {
+      hosting: 'local',
+      directory,
+      download: null,
+      fileCount: files.length,
+      removedCount: removed,
+      warnings,
+      uploadedCount: 0,
+      reusedCount: 0
+    };
+  }
+
+  return {
+    hosting: 'local',
+    directory: null,
+    removedCount: 0,
+    download: {
+      filename: `${root}.zip`,
+      mimeType: 'application/zip',
+      blob: createZip(files)
+    },
+    fileCount: files.length,
+    warnings,
+    uploadedCount: 0,
+    reusedCount: 0
+  };
+}
+
+/**
+ * The box's own instructions.
+ *
+ * Shares `placementAdvice` with the single-set version, so the one rule that
+ * matters — move the *whole folder* into Saved Objects, not just the .json —
+ * cannot come to be worded two different ways in two files.
+ */
+function howToImportBox(
+  name: string,
+  members: readonly TtsCollectionMember[],
+  root: string,
+  info: { directory: string | null; savedObjectsPath: string }
+): string {
+  const { placement, installing } = placementAdvice(root, info);
+
+  const rows = members
+    .map((member) => {
+      const piles = member.decks.length;
+      return `  ${member.author} — ${piles} ${piles === 1 ? 'pile' : 'piles'}`;
+    })
+    .join('\\n');
+
+  const creators = new Set(members.map((member) => member.author)).size;
+
+  return `Tabletop Simulator import — ${name}
+${'='.repeat(30 + name.length)}
+
+What is in the save
+-------------------
+One Saved Object holding every deck in the collection, as a flat list of
+ObjectStates — a row per creator, receding away from you:
+
+${rows || '  (no decks yet)'}
+
+${members.length} ${members.length === 1 ? 'deck' : 'decks'} by ${creators} ${
+    creators === 1 ? 'creator' : 'creators'
+  }. Each was drawn from its own author's published set, under their own
+styling — nothing here is re-themed to match anything else, because a
+collection gathers finished decks rather than remaking them.
+
+Every pile's name carries its creator, so whose is whose reads from the table
+without picking anything up.
+
+Where the images are
+--------------------
+${placement}
+
+Installing it
+-------------
+${installing}
+
+Notes
+-----
+  Card quantities are expanded: a card with x3 is three cards in the pile.
+  A pile over 70 cards is split across several sheets and is still one pile.
+  Artwork shared between two creators' decks is stored once, not twice.
+
+Generated by Unmatched Labs.
+`;
 }

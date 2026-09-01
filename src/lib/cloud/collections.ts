@@ -21,7 +21,8 @@
 import { decodeDataUrl } from './assets';
 import { auth } from './auth.svelte';
 import { CloudError, request } from './http';
-import { assetPrefix, uploadAsset } from './sets';
+import { assetPrefix, fetchSetBySlug, hydratePublishedSet, uploadAsset } from './sets';
+import type { AdventureSet } from '$lib/sets/types';
 import { hashHex } from '$lib/core/hash';
 import { readArtworkFile } from '$lib/core/image-import';
 
@@ -195,6 +196,92 @@ export async function collectionsForSet(
   } catch {
     return [];
   }
+}
+
+/**
+ * One member's deck, fetched whole and ready to render.
+ *
+ * `tile` is kept alongside the document because the tile is what names the
+ * *author*: a published document carries the set's own name but not who
+ * published it, and a combined export is worth nothing if it cannot say whose
+ * deck each pile is.
+ */
+export interface CollectionDeck {
+  tile: CollectionTile;
+  set: AdventureSet;
+}
+
+export interface FetchBoxProgress {
+  /** Which deck is being fetched, 1-based, for a status line. */
+  done: number;
+  total: number;
+  name: string;
+}
+
+/**
+ * Every accepted deck in a collection, hydrated.
+ *
+ * Sequential, not parallel, and that is deliberate: each document carries its
+ * own embedded artwork, so six decks fetched at once is six multi-megabyte
+ * hydrations competing for the same connection with no way to report which is
+ * where. One at a time is slower to finish and far better to watch, and this
+ * is a button somebody presses once.
+ *
+ * **A member that cannot be read does not fail the box.** A deck published
+ * from a newer build of the app throws in `hydratePublishedSet` by design —
+ * refusing a document from the future is the schema rule, not a bug — and one
+ * such deck in a six-deck project must not make the other five undownloadable.
+ * Failures come back as `skipped` for the caller to show, which is also the
+ * only place a visitor ever learns that a box is incomplete.
+ */
+export async function fetchCollectionDecks(
+  slug: string,
+  onProgress?: (progress: FetchBoxProgress) => void
+): Promise<{ decks: CollectionDeck[]; skipped: { name: string; reason: string }[] }> {
+  const tiles = await fetchCollectionTiles(slug);
+  const decks: CollectionDeck[] = [];
+  const skipped: { name: string; reason: string }[] = [];
+
+  for (const [index, tile] of tiles.entries()) {
+    onProgress?.({ done: index + 1, total: tiles.length, name: tile.name });
+    try {
+      const row = await fetchSetBySlug(tile.slug);
+      if (!row) {
+        skipped.push({ name: tile.name, reason: 'it is no longer shared' });
+        continue;
+      }
+      decks.push({ tile, set: await hydratePublishedSet(row) });
+    } catch (error) {
+      skipped.push({
+        name: tile.name,
+        reason: error instanceof Error ? error.message : 'it could not be read'
+      });
+    }
+  }
+
+  return { decks, skipped };
+}
+
+/**
+ * Whether a box can be assembled from these decks at all.
+ *
+ * **Heroes-scope only**, which is the gate `COLLECTIONS.md` sets and the
+ * reason the combined export is tractable: a heroes deck has no threat track,
+ * no map, no initiative deck and no box art, so N of them concatenate. A full
+ * adventure brings singletons that have no meaning in multiple — whose map? —
+ * and a box quietly built from two of them would be wrong in a way nobody
+ * would see until they were at the table.
+ */
+export function combinableProblem(decks: readonly CollectionDeck[]): string | null {
+  if (decks.length === 0) return 'There are no decks in this collection yet.';
+  const wrong = decks.filter((deck) => deck.set.kind !== 'heroes');
+  if (wrong.length === 0) return null;
+  const names = wrong.map((deck) => deck.tile.name).join(', ');
+  return (
+    `A combined box is only offered when every deck is a heroes set. ` +
+    `${names} ${wrong.length === 1 ? 'is' : 'are'} a full adventure, which brings its own ` +
+    `map and threat track — download those from their own pages instead.`
+  );
 }
 
 // -- Creating and editing ------------------------------------------------
