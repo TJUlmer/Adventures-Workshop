@@ -94,13 +94,10 @@ export const TEMPLATE_ASSETS = {
    *
    * Four layouts, because each supplied frame is one flat picture with
    * nothing in it to switch off: a quote panel, a sidekick's two bands, a
-   * derived third for a swarm sidekick with the lower health badge taken out,
-   * and a fourth for a swarm at 3+ health, whose `border` and `ink` both
-   * differ from the third to make room for the shifted badge — which is not
-   * itself baked into either; that state still has no badge of its own in
-   * the frame, and the badge shown there is a reused, transformed copy of
-   * the hero's own (see `HeroCharacterCardFace.svelte`'s `healthBadgeAt`).
-   * `multi`'s own `border` also had the decorative arc (and its small
+   * 1–2-health swarm frame, and a swarm at 3+ health. `multiLowHealth`
+   * starts as a duplicate of `multi`, but has its own source frame so that
+   * state can be revised without changing the ordinary stack. Its `border`
+   * also had the decorative arc (and its small
    * accent mark) that normally frames a badge erased from it, straight out
    * of the supplied file — a token stack stands in at that health instead,
    * and the arc had nothing left to decorate.
@@ -135,7 +132,7 @@ export const TEMPLATE_ASSETS = {
   heroCharacterBorder: {
     quote: `${TEMPLATES}/hero_character_border.png`,
     sidekick: `${TEMPLATES}/hero_character_border_sidekick.png`,
-    multi: `${TEMPLATES}/hero_character_border_multi.png`,
+    multiLowHealth: `${TEMPLATES}/hero_character_border_multi_lowhealth.png`,
     multiHealth: `${TEMPLATES}/hero_character_border_multihealth.png`
   },
   /**
@@ -145,20 +142,20 @@ export const TEMPLATE_ASSETS = {
   heroCharacterBadge: {
     quote: `${TEMPLATES}/hero_character_badge.png`,
     sidekick: `${TEMPLATES}/hero_character_badge_sidekick.png`,
-    multi: `${TEMPLATES}/hero_character_badge_multi.png`,
+    multiLowHealth: `${TEMPLATES}/hero_character_badge_multi_lowhealth.png`,
     multiHealth: `${TEMPLATES}/hero_character_badge_multi.png`
   },
   /** A small triangle notched into the badge, printed as its own decorative colour. */
   heroCharacterBadgeAccent: {
     quote: `${TEMPLATES}/hero_character_badge_accent.png`,
     sidekick: `${TEMPLATES}/hero_character_badge_accent_sidekick.png`,
-    multi: `${TEMPLATES}/hero_character_badge_accent_multi.png`,
+    multiLowHealth: `${TEMPLATES}/hero_character_badge_accent_multi_lowhealth.png`,
     multiHealth: `${TEMPLATES}/hero_character_badge_accent_multi.png`
   },
   heroCharacterInk: {
     quote: `${TEMPLATES}/hero_character_ink.png`,
     sidekick: `${TEMPLATES}/hero_character_ink_sidekick.png`,
-    multi: `${TEMPLATES}/hero_character_ink_multi.png`,
+    multiLowHealth: `${TEMPLATES}/hero_character_ink_multi_lowhealth.png`,
     multiHealth: `${TEMPLATES}/hero_character_ink_multihealth.png`
   },
   /**
@@ -197,7 +194,7 @@ export const TEMPLATE_ASSETS = {
     sidekick: {
       quote: null,
       sidekick: `${TEMPLATES}/hero_character_label_ink_sidekick.png`,
-      multi: `${TEMPLATES}/hero_character_label_ink_sidekick.png`,
+      multiLowHealth: `${TEMPLATES}/hero_character_label_ink_sidekick.png`,
       multiHealth: `${TEMPLATES}/hero_character_label_ink_sidekick_multihealth.png`
     }
   },

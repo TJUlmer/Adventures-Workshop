@@ -121,7 +121,7 @@
    *
    * They differ only below the ability panel — a sidekick's two bands or a
    * quote panel filling the same space — and a swarm sidekick differs again
-   * by health state: `multi` has no badge of its own (a token stack stands
+   * by health state: `multiLowHealth` has no badge of its own (a token stack stands
    * in), and `multiHealth` is the same frame with its "START HEALTH" caption,
    * arc and dividers shifted to make room for the reused, shifted badge (see
    * `healthBadgeAt`) — see `TEMPLATE_ASSETS.heroCharacterInk`'s own doc
@@ -136,7 +136,7 @@
         ? 'sidekick'
         : sidekickHealthState === 'shifted'
           ? 'multiHealth'
-          : 'multi'
+          : 'multiLowHealth'
   );
   const border = $derived(TEMPLATE_ASSETS.heroCharacterBorder[layout]);
   const badge = $derived(TEMPLATE_ASSETS.heroCharacterBadge[layout]);
@@ -550,7 +550,7 @@
 {/if}
 
 <!--
-  The frame art, over the copy and under the figures.
+   The frame art, over the copy and under the figures.
 
   Over the copy because it is opaque everywhere the card is not content: it
   covers the fills' square corners, every band join and the bleed, and it is
@@ -562,16 +562,52 @@
   goes inside it; the move figure fills the hole left for it so exactly that a
   wider digit would be trimmed by its edges; and the attack row's hole is cut
   to whichever lockup the template happened to show, so a longer one loses its
-  tail to that edge.
+   tail to that edge.
 -->
 <!--
-  The three `--card-*` values are for printer-friendly mode alone, and are set
+  A sidekick's reusable badge has to enter the stack here rather than beside
+  its value below: a frame divider must be able to cover the badge's edge,
+  just as it does the hero's built-in badge. The number still comes later,
+  above the frame, where it remains legible.
+-->
+{#if showSidekick}
+  {#if sidekickHealthState === 'paired'}
+    {#each [-1, 1] as sign, index (index)}
+      {@const cx = CHARACTER_TOKENS_PAIRED.centerX + (sign * CHARACTER_TOKENS_PAIRED.pitch) / 2}
+      {@render healthBadgeShapeAt(
+        cx,
+        CHARACTER_TOKENS.centerY + CHARACTER_TOKENS_PAIRED.badgeOffsetY,
+        CHARACTER_TOKENS_PAIRED.badgeScale
+      )}
+    {/each}
+  {:else if sidekickHealthState === 'shifted'}
+    {@render healthBadgeShapeAt(
+      CHARACTER_HEALTH_SHIFTED.centerX,
+      CHARACTER_HEALTH.sidekickCenterY,
+      1
+    )}
+  {:else if sidekickHealthState === 'single'}
+    {@render healthBadgeShapeAt(
+      CHARACTER_HEALTH.sidekickCenterX,
+      CHARACTER_HEALTH.sidekickCenterY,
+      1
+    )}
+  {/if}
+{/if}
+<!--
+   The three `--card-*` values are for printer-friendly mode alone, and are set
   here because this is where the geometry is: `CardRenderer`'s own stylesheet
   owns that mode (see there) but knows nothing about this card's measurements.
   What it does with them is clip this mask back to a keyline, because the
   border is a 144px band of colour around the whole card — pale pink on the
   printed sheet, and a 2.9mm solid black picture frame if it is simply inked.
 -->
+<div class="mask full badge" style:--badge-art="url('{badge}')" style:background={fillCss(design.healthBadge)}></div>
+<div
+  class="mask full badge-accent"
+  style:--badge-accent-art="url('{badgeAccent}')"
+  style:background={fillCss(design.healthBadgeAccent)}
+></div>
 <div
   class="mask full border"
   style:--border-art="url('{border}')"
@@ -579,12 +615,6 @@
   style:--card-inset-y={py(CHARACTER_CARD.y)}
   style:--card-radius={pu(CHARACTER_CARD.radius)}
   style:background={fillCss(design.border)}
-></div>
-<div class="mask full badge" style:--badge-art="url('{badge}')" style:background={fillCss(design.healthBadge)}></div>
-<div
-  class="mask full badge-accent"
-  style:--badge-accent-art="url('{badgeAccent}')"
-  style:background={fillCss(design.healthBadgeAccent)}
 ></div>
 <div
   class="mask full move-ink"
@@ -683,7 +713,7 @@
 
     {#each [-1, 1] as sign, index (index)}
       {@const cx = CHARACTER_TOKENS_PAIRED.centerX + (sign * CHARACTER_TOKENS_PAIRED.pitch) / 2}
-      {@render healthBadgeAt(
+      {@render sidekickHealthValueAt(
         cx,
         CHARACTER_TOKENS.centerY + CHARACTER_TOKENS_PAIRED.badgeOffsetY,
         CHARACTER_TOKENS_PAIRED.badgeScale,
@@ -707,7 +737,7 @@
       `ink` (not drawn here) already carries the caption, arc and both
       dividers this state needs, shifted to match.
     -->
-    {@render healthBadgeAt(
+    {@render sidekickHealthValueAt(
       CHARACTER_HEALTH_SHIFTED.centerX,
       CHARACTER_HEALTH.sidekickCenterY,
       1,
@@ -731,7 +761,7 @@
       hero's own badge, same as the shifted state uses, so it takes
       `design.healthBadge` like every other badge on this card.
     -->
-    {@render healthBadgeAt(
+    {@render sidekickHealthValueAt(
       CHARACTER_HEALTH.sidekickCenterX,
       CHARACTER_HEALTH.sidekickCenterY,
       1,
@@ -822,7 +852,7 @@
   what lets a plain `translate` + `scale` move a copy of it anywhere without
   the shape itself distorting off-centre.
 -->
-{#snippet healthBadgeAt(centerX: number, centerY: number, scale: number, value: number)}
+{#snippet healthBadgeShapeAt(centerX: number, centerY: number, scale: number)}
   {@const origin = `${px(CHARACTER_HEALTH.centerX)} ${py(CHARACTER_HEALTH.heroCenterY)}`}
   {@const move = `translate(${pu(centerX - CHARACTER_HEALTH.centerX)}, ${pu(
     centerY - CHARACTER_HEALTH.heroCenterY
@@ -841,6 +871,9 @@
     style:transform-origin={origin}
     style:transform={move}
   ></div>
+{/snippet}
+
+{#snippet sidekickHealthValueAt(centerX: number, centerY: number, scale: number, value: number)}
   <span
     class="health"
     style:left={px(centerX)}

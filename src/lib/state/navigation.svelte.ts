@@ -70,6 +70,8 @@ export const SET_PAGE_META: Readonly<Record<SetPage, SetPageMeta>> = {
 
 export type View =
   | { kind: 'home' }
+  /** The full introduction, kept available after the library stops being empty. */
+  | { kind: 'welcome' }
   /** The community gallery. Outside a set, like Home. */
   | { kind: 'gallery' }
   | { kind: 'set'; page: SetPage }
@@ -185,6 +187,10 @@ class Navigation {
 
   openHome(): void {
     this.view = { kind: 'home' };
+  }
+
+  openWelcome(): void {
+    this.view = { kind: 'welcome' };
   }
 
   openGallery(): void {

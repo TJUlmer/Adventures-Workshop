@@ -14,11 +14,11 @@
    * else's set is not a control at all. What is *drawn* is identical, which is
    * the point: a viewer sees the set, not a summary of it.
    */
-  import { untrack } from 'svelte';
   import { cardLabel } from '$lib/cards/factory';
   import type { Card } from '$lib/cards/types';
   import { CARD_TYPE_META, INITIATIVE_VARIANTS } from '$lib/cards/types';
   import { characterLabel } from '$lib/characters/factory';
+  import { CHARACTER_ROLE_META } from '$lib/characters/types';
   import type { Character, CharacterRole, HeroCharacterCard } from '$lib/characters/types';
   import { hasArtwork } from '$lib/core/artwork';
   import type { Deck, DeckKind } from '$lib/decks/types';
@@ -42,9 +42,21 @@
     interactive?: boolean;
     /** Off where the screen around it has already named the set. */
     heading?: boolean;
+    /** Controlled card width for a parent that owns the review toolbar. */
+    cardSize?: number;
+    /** The self-contained shared-set view still uses this component's slider. */
+    showZoom?: boolean;
+    onCardSizeChange?: (value: number) => void;
   }
 
-  let { set: given, interactive = true, heading = true }: Props = $props();
+  let {
+    set: given,
+    interactive = true,
+    heading = true,
+    cardSize,
+    showZoom = true,
+    onCardSizeChange
+  }: Props = $props();
 
   const set = $derived(given ?? workshop.adventure);
 
@@ -169,10 +181,10 @@
   }
 
   /**
-   * Every card in the set, in the order the set is assembled: each figure with
-   * its decks, then initiative split by what the card does, then rules and
-   * events. Deck order in the document is an authoring accident; this is the
-   * order someone reviewing the set expects to walk it in.
+   * Every card in the set, in the order the set is assembled: heroes, villains,
+   * and minions with each of their own decks, followed by the shared set decks.
+   * Deck order in the document is an authoring accident; this is the order
+   * someone reviewing the set expects to walk it in.
    */
   const groups = $derived.by(() => {
     const out: Group[] = [];
@@ -199,6 +211,7 @@
     // Initiative reads as two things, not one deck — acting, then resolving.
     const initiative: Card[] = [];
     for (const deck of set.decks.filter((deck) => deck.kind === 'initiative')) {
+      if (placed.has(deck.id)) continue;
       placed.add(deck.id);
       initiative.push(...cardsIn(deck.id));
     }
@@ -278,31 +291,40 @@
   });
 
   /*
-   * The zoom range and its starting point both depend on who is looking.
-   *
-   * The author's own workspace keeps the range this always had — 150 is
-   * comfortable for someone who opens this page repeatedly and already knows
-   * the cards. A visitor reading someone else's set from a share link is
-   * seeing it for the first time and wants everything legible immediately,
-   * with no slider to discover first — so that view starts at what used to
-   * be this control's own maximum, and the range is widened so that starting
-   * point lands in the *middle* of it rather than pinned to one end, letting
-   * a reader zoom in further on top of already being enlarged, or back down
-   * to compare more cards at once, in either direction from where they
-   * started rather than only one.
+   * The old maximum is now the neutral starting point: cards open large
+   * enough to read, with equal room to shrink the gallery or inspect a card
+   * more closely. Keeping one range here also means the editable and shared
+   * Overviews never disagree about what the same slider position means.
    */
-  const ZOOM = $derived(
-    interactive ? { min: 110, max: 260, start: 150 } : { min: 110, max: 410, start: 260 }
+  const ZOOM: { min: number; max: number; start: number } = { min: 110, max: 410, start: 260 };
+  let localSize = $state(ZOOM.start);
+  const size = $derived(cardSize ?? localSize);
+
+  function changeSize(value: number): void {
+    localSize = value;
+    onCardSizeChange?.(value);
+  }
+
+  const setGroups = $derived(groups.filter((group) => group.owner === null));
+  const orderedCharacters = $derived(
+    ROLE_ORDER.flatMap((role) => set.characters.filter((character) => character.role === role))
   );
-  /*
-   * `untrack` marks the one-time read as deliberate rather than a bug Svelte
-   * should warn about — `size` is meant to start from wherever `ZOOM.start`
-   * is *at creation* and then live independently as the reader's own choice,
-   * the same as it already did as a bare literal before `ZOOM` existed.
-   * `interactive` cannot change after a screen mounts one of these anyway,
-   * so there is nothing this would miss by not staying reactive.
-   */
-  let size = $state(untrack(() => ZOOM.start));
+
+  function groupsFor(character: Character): Group[] {
+    return groups.filter((group) => group.owner?.id === character.id);
+  }
+
+  function characterCardsFor(character: Character): CharacterCardTile[] {
+    return characterCardTiles.filter((entry) => entry.character.id === character.id);
+  }
+
+  const hasContent = $derived(
+    set.characters.length > 0 ||
+      set.cards.length > 0 ||
+      set.figures.length > 0 ||
+      set.threat.enabled ||
+      set.map.enabled
+  );
 
   /**
    * One tile failing must not take the page with it.
@@ -343,238 +365,214 @@
   </div>
 {/snippet}
 
+{#snippet deckBack(character: Character)}
+  <figure class="tile identity-tile">
+    <svelte:element
+      this={tile}
+      class="tile-card"
+      type={interactive ? 'button' : undefined}
+      role={interactive ? 'button' : undefined}
+      onclick={interactive ? () => workshop.selectCharacter(character.id) : undefined}
+    >
+      <svelte:boundary onerror={(error) => report(`${characterLabel(character)}'s deck back`, error)}>
+        <CardRenderer card={null} cardback={character} />
+        {#snippet failed(error)}
+          {@render broken(`${characterLabel(character)}'s deck back`, error)}
+        {/snippet}
+      </svelte:boundary>
+    </svelte:element>
+    <figcaption class="tile-caption">
+      <span class="tile-name">{characterLabel(character)}</span>
+      <span class="tile-meta">Deck back</span>
+    </figcaption>
+  </figure>
+{/snippet}
+
+{#snippet characterCard(tileEntry: CharacterCardTile)}
+  <figure class="tile identity-tile">
+    <svelte:element
+      this={tile}
+      class="tile-card"
+      type={interactive ? 'button' : undefined}
+      role={interactive ? 'button' : undefined}
+      onclick={interactive ? () => workshop.selectCharacter(tileEntry.character.id) : undefined}
+    >
+      <svelte:boundary onerror={(error) => report(`${tileEntry.name}'s character card`, error)}>
+        <CardRenderer
+          card={null}
+          statCard={tileEntry.character}
+          statCardEntry={tileEntry.entry}
+          customSymbols={set.customSymbols}
+        />
+        {#snippet failed(error)}
+          {@render broken(`${tileEntry.name}'s character card`, error)}
+        {/snippet}
+      </svelte:boundary>
+    </svelte:element>
+    <figcaption class="tile-caption">
+      <span class="tile-name">{tileEntry.name}</span>
+      <span class="tile-meta">Character card</span>
+    </figcaption>
+  </figure>
+{/snippet}
+
+{#snippet deckGroup(group: Group)}
+  <div class="deck-group">
+    <h3 class="deck-title">
+      {group.title}
+      <span class="group-count numeric">{group.cards.length}</span>
+    </h3>
+    <div class="gallery" style:--tile="{size}px">
+      {#each group.cards as card (card.id)}
+        {@const sides = card.type === 'event' ? EVENT_SIDES : FRONT_ONLY}
+        {#each sides as side (side)}
+          <figure class="tile">
+            <svelte:element
+              this={tile}
+              class="tile-card"
+              type={interactive ? 'button' : undefined}
+              role={interactive ? 'button' : undefined}
+              onclick={interactive ? () => workshop.selectCard(card.id) : undefined}
+            >
+              <svelte:boundary onerror={(error) => report(`Card “${cardLabel(card)}”`, error)}>
+                <CardRenderer
+                  {card}
+                  character={group.owner}
+                  theme={resolveStyleForCard(set, card)}
+                  customSymbols={set.customSymbols}
+                  {side}
+                />
+                {#snippet failed(error)}
+                  {@render broken(`Card “${cardLabel(card)}”`, error)}
+                {/snippet}
+              </svelte:boundary>
+            </svelte:element>
+            <figcaption class="tile-caption">
+              <span class="tile-name">{cardLabel(card)}</span>
+              <span class="tile-meta">
+                {side === 'back' ? 'Reverse' : CARD_TYPE_META[card.type].label}
+                {#if card.quantity > 1}<span class="numeric">×{card.quantity}</span>{/if}
+              </span>
+            </figcaption>
+          </figure>
+        {/each}
+      {/each}
+    </div>
+  </div>
+{/snippet}
+
 <div class="page scroll-y">
-  <header class="head">
-    {#if heading}
-      <div>
-        <span class="eyebrow">Set tool</span>
-        <h1 class="title">Overview</h1>
-        <p class="lede">Every card, figure and track in the set.</p>
-      </div>
-    {/if}
+  {#if heading || showZoom}
+    <header class="head">
+      {#if heading}
+        <div>
+          <span class="eyebrow">Set tool</span>
+          <h1 class="title">Overview</h1>
+          <p class="lede">Every card, board, and physical component in the set.</p>
+        </div>
+      {/if}
 
-    <label class="zoom">
-      <Icon name="search" size={12} />
-      <input
-        type="range"
-        min={ZOOM.min}
-        max={ZOOM.max}
-        step="10"
-        value={size}
-        aria-label="Card size"
-        oninput={(event) => (size = event.currentTarget.valueAsNumber)}
-      />
-    </label>
-  </header>
+      {#if showZoom}
+        <label class="zoom">
+          <Icon name="search" size={12} />
+          <input
+            type="range"
+            min={ZOOM.min}
+            max={ZOOM.max}
+            step="10"
+            value={size}
+            aria-label="Card size"
+            oninput={(event) => changeSize(event.currentTarget.valueAsNumber)}
+          />
+        </label>
+      {/if}
+    </header>
+  {/if}
 
-  {#if set.cards.length === 0 && set.figures.length === 0}
+  {#if !hasContent}
     <EmptyState
       icon="layers"
       title="Nothing to review yet"
-      description="Cards, figures and the threat track all appear here once the set has some."
+      description="Cards, boards, and components all appear here once the set has some."
     />
   {/if}
 
-  <!-- Deck backs --------------------------------------------------------- -->
-  {#if set.characters.length > 0}
-    <section class="group">
-      <h2 class="group-title">
-        Deck backs
-        <span class="group-count numeric">{set.characters.length}</span>
-      </h2>
+  {#if set.threat.enabled || set.map.enabled}
+    <section class="showcase battlefield">
+      <header class="section-heading">
+        <div>
+          <span class="section-kicker">On the table</span>
+          <h2>Battlefield</h2>
+        </div>
+        <p>The threat tracker and map in their physical playing order.</p>
+      </header>
 
-      <div class="gallery" style:--tile="{size}px">
-        {#each set.characters as character (character.id)}
-          <figure class="tile">
+      <div class="board-stack">
+        {#if set.threat.enabled}
+          <article class="board-card">
+            <header class="board-heading">
+              <h3>Threat tracker</h3>
+              <span class="numeric">{threatTotal(set.threat)} total</span>
+            </header>
             <svelte:element
               this={tile}
-              class="tile-card"
+              class="track-open"
               type={interactive ? 'button' : undefined}
               role={interactive ? 'button' : undefined}
-              onclick={interactive ? () => workshop.selectCharacter(character.id) : undefined}
+              onclick={interactive ? () => navigation.go('threat') : undefined}
             >
-              <svelte:boundary onerror={(error) => report(`${characterLabel(character)}'s deck back`, error)}>
-                <CardRenderer card={null} cardback={character} />
-                {#snippet failed(error)}
-                  {@render broken(`${characterLabel(character)}'s deck back`, error)}
-                {/snippet}
-              </svelte:boundary>
-            </svelte:element>
-            <figcaption class="tile-caption">
-              <span class="tile-name">{characterLabel(character)}</span>
-              <span class="tile-meta">Deck back</span>
-            </figcaption>
-          </figure>
-        {/each}
-      </div>
-    </section>
-  {/if}
-
-  <!-- Character cards ------------------------------------------------------ -->
-  {#if characterCardTiles.length > 0}
-    <section class="group">
-      <h2 class="group-title">
-        Character cards
-        <span class="group-count numeric">{characterCardTiles.length}</span>
-      </h2>
-
-      <div class="gallery" style:--tile="{size}px">
-        {#each characterCardTiles as tileEntry (tileEntry.key)}
-          <figure class="tile">
-            <svelte:element
-              this={tile}
-              class="tile-card"
-              type={interactive ? 'button' : undefined}
-              role={interactive ? 'button' : undefined}
-              onclick={interactive ? () => workshop.selectCharacter(tileEntry.character.id) : undefined}
-            >
-              <svelte:boundary onerror={(error) => report(`${tileEntry.name}'s character card`, error)}>
-                <CardRenderer
-                  card={null}
-                  statCard={tileEntry.character}
-                  statCardEntry={tileEntry.entry}
-                  customSymbols={set.customSymbols}
+              <svelte:boundary onerror={(error) => report('The threat tracker', error)}>
+                <ThreatBoard
+                  track={set.threat}
+                  villainName={threatVillain ? characterLabel(threatVillain) : ''}
+                  editable={false}
                 />
                 {#snippet failed(error)}
-                  {@render broken(`${tileEntry.name}'s character card`, error)}
+                  {@render broken('The threat tracker', error)}
                 {/snippet}
               </svelte:boundary>
             </svelte:element>
-            <figcaption class="tile-caption">
-              <span class="tile-name">{tileEntry.name}</span>
-              <span class="tile-meta">Character card</span>
-            </figcaption>
-          </figure>
-        {/each}
+          </article>
+        {/if}
+
+        {#if set.map.enabled}
+          <article class="board-card">
+            <header class="board-heading">
+              <h3>Map</h3>
+              <span class="numeric">
+                {set.map.spaces.length} {set.map.spaces.length === 1 ? 'space' : 'spaces'} ·
+                {set.map.paths.length} {set.map.paths.length === 1 ? 'path' : 'paths'}
+              </span>
+            </header>
+            <svelte:element
+              this={tile}
+              class="track-open"
+              type={interactive ? 'button' : undefined}
+              role={interactive ? 'button' : undefined}
+              onclick={interactive ? () => navigation.go('map') : undefined}
+            >
+              <svelte:boundary onerror={(error) => report('The map', error)}>
+                <MapBoard map={set.map} customSymbols={set.customSymbols} />
+                {#snippet failed(error)}
+                  {@render broken('The map', error)}
+                {/snippet}
+              </svelte:boundary>
+            </svelte:element>
+          </article>
+        {/if}
       </div>
     </section>
   {/if}
 
-  <!-- Decks -------------------------------------------------------------- -->
-  {#each groups as group (group.key)}
-    <section class="group">
-      <h2 class="group-title">
-        {group.title}
-        {#if group.owner}<span class="group-owner">{characterLabel(group.owner)}</span>{/if}
-        <span class="group-count numeric">{group.cards.length}</span>
-      </h2>
-
-      <div class="gallery" style:--tile="{size}px">
-        {#each group.cards as card (card.id)}
-          <!-- An event card is designed on both sides, so both belong here. -->
-          {@const sides = card.type === 'event' ? EVENT_SIDES : FRONT_ONLY}
-          {#each sides as side (side)}
-            <figure class="tile">
-              <svelte:element
-                this={tile}
-                class="tile-card"
-                type={interactive ? 'button' : undefined}
-                role={interactive ? 'button' : undefined}
-                onclick={interactive ? () => workshop.selectCard(card.id) : undefined}
-              >
-                <svelte:boundary onerror={(error) => report(`Card “${cardLabel(card)}”`, error)}>
-                  <CardRenderer
-                    {card}
-                    character={group.owner}
-                    theme={resolveStyleForCard(set, card)}
-                    customSymbols={set.customSymbols}
-                    {side}
-                  />
-                  {#snippet failed(error)}
-                    {@render broken(`Card “${cardLabel(card)}”`, error)}
-                  {/snippet}
-                </svelte:boundary>
-              </svelte:element>
-              <figcaption class="tile-caption">
-                <span class="tile-name">{cardLabel(card)}</span>
-                <span class="tile-meta">
-                  {side === 'back' ? 'Reverse' : CARD_TYPE_META[card.type].label}
-                  {#if card.quantity > 1}<span class="numeric">×{card.quantity}</span>{/if}
-                </span>
-              </figcaption>
-            </figure>
-          {/each}
-        {/each}
-      </div>
-    </section>
-  {/each}
-
-  <!-- Threat track ------------------------------------------------------- -->
-  {#if set.threat.enabled}
-    <section class="group">
-      <h2 class="group-title">
-        Threat track
-        <span class="group-count numeric">{threatTotal(set.threat)} total</span>
-      </h2>
-
-      <!--
-        The real board, drawn read-only through the same component the editor
-        and the exporter use, so the overview shows exactly what prints rather
-        than a sketch of it. Click to open the track for editing.
-      -->
-      <svelte:element
-        this={tile}
-        class="track-open"
-        type={interactive ? 'button' : undefined}
-        role={interactive ? 'button' : undefined}
-        onclick={interactive ? () => navigation.go('threat') : undefined}
-      >
-        <svelte:boundary onerror={(error) => report('The threat track', error)}>
-          <ThreatBoard
-            track={set.threat}
-            villainName={threatVillain ? characterLabel(threatVillain) : ''}
-            editable={false}
-          />
-          {#snippet failed(error)}
-            {@render broken('The threat track', error)}
-          {/snippet}
-        </svelte:boundary>
-      </svelte:element>
-    </section>
-  {/if}
-
-  <!-- Map ----------------------------------------------------------------- -->
-  {#if set.map.enabled}
-    <section class="group">
-      <h2 class="group-title">
-        Map
-        <span class="group-count numeric">
-          {set.map.spaces.length}
-          {set.map.spaces.length === 1 ? 'space' : 'spaces'}, {set.map.paths.length}
-          {set.map.paths.length === 1 ? 'path' : 'paths'}
-        </span>
-      </h2>
-
-      <!--
-        The real board, read-only, through the same component the editor draws —
-        the overview shows what prints rather than a sketch of it. Same reasoning
-        as the threat track above, and it sits next to it because on the table
-        the two are one board.
-      -->
-      <svelte:element
-        this={tile}
-        class="track-open"
-        type={interactive ? 'button' : undefined}
-        role={interactive ? 'button' : undefined}
-        onclick={interactive ? () => navigation.go('map') : undefined}
-      >
-        <svelte:boundary onerror={(error) => report('The map', error)}>
-          <MapBoard map={set.map} customSymbols={set.customSymbols} />
-          {#snippet failed(error)}
-            {@render broken('The map', error)}
-          {/snippet}
-        </svelte:boundary>
-      </svelte:element>
-    </section>
-  {/if}
-
-  <!-- Figures ------------------------------------------------------------ -->
   {#if set.figures.length > 0}
-    <section class="group">
-      <h2 class="group-title">
-        Components
-        <span class="group-count numeric">{set.figures.length}</span>
-      </h2>
+    <section class="showcase">
+      <header class="section-heading">
+        <div>
+          <span class="section-kicker">Physical pieces</span>
+          <h2>Components</h2>
+        </div>
+        <span class="section-count numeric">{set.figures.length}</span>
+      </header>
 
       <div class="figures">
         {#each set.figures as figure (figure.id)}
@@ -607,6 +605,65 @@
       </div>
     </section>
   {/if}
+
+  {#if set.characters.length > 0}
+    <section class="collections">
+      <header class="section-heading collection-heading">
+        <div>
+          <span class="section-kicker">Characters and decks</span>
+          <h2>The roster</h2>
+        </div>
+        <span class="section-count numeric">{set.characters.length}</span>
+      </header>
+
+      <div class="collection-list">
+        {#each orderedCharacters as character (character.id)}
+          {@const ownedGroups = groupsFor(character)}
+          {@const statCards = characterCardsFor(character)}
+          {@const ownedCardCount = ownedGroups.reduce((total, group) => total + group.cards.length, 0)}
+          <article class="character-collection">
+            <header class="character-heading">
+              <div>
+                <span class="role-badge">{CHARACTER_ROLE_META[character.role].label}</span>
+                <h3>{characterLabel(character)}</h3>
+              </div>
+              <span class="character-count numeric">{ownedCardCount} card designs</span>
+            </header>
+
+            <div class="identity-block">
+              <h4>Identity</h4>
+              <div class="gallery identity-gallery" style:--tile="{size}px">
+                {@render deckBack(character)}
+                {#each statCards as tileEntry (tileEntry.key)}
+                  {@render characterCard(tileEntry)}
+                {/each}
+              </div>
+            </div>
+
+            {#each ownedGroups as group (group.key)}
+              {@render deckGroup(group)}
+            {/each}
+          </article>
+        {/each}
+      </div>
+    </section>
+  {/if}
+
+  {#if setGroups.length > 0}
+    <section class="showcase set-decks">
+      <header class="section-heading">
+        <div>
+          <span class="section-kicker">Shared material</span>
+          <h2>Set decks</h2>
+        </div>
+        <span class="section-count numeric">{setGroups.length}</span>
+      </header>
+
+      {#each setGroups as group (group.key)}
+        {@render deckGroup(group)}
+      {/each}
+    </section>
+  {/if}
 </div>
 
 <style>
@@ -616,7 +673,7 @@
     display: flex;
     flex-direction: column;
     gap: var(--space-7);
-    padding: var(--space-7) var(--space-8) var(--space-10);
+    padding: var(--space-2) var(--space-8) var(--space-10);
   }
 
   .head {
@@ -624,6 +681,7 @@
     align-items: flex-end;
     justify-content: space-between;
     gap: var(--space-5);
+    padding-block: var(--space-4);
   }
 
   .eyebrow {
@@ -692,16 +750,133 @@
     overflow-wrap: anywhere;
   }
 
-  .group {
+  .showcase,
+  .character-collection {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-5);
+    padding: var(--space-5);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-lg);
+    background: var(--surface-base);
+    box-shadow: var(--shadow-sm);
+  }
+
+  .section-heading,
+  .character-heading,
+  .board-heading,
+  .deck-title {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-4);
+  }
+
+  .section-heading h2,
+  .character-heading h3,
+  .board-heading h3,
+  .deck-title {
+    margin: 0;
+    color: var(--text-primary);
+  }
+
+  .section-heading h2 {
+    font-family: var(--font-display);
+    font-size: var(--text-lg);
+    font-weight: var(--weight-semibold);
+  }
+
+  .section-heading > p {
+    max-width: 42ch;
+    margin: 0;
+    font-size: var(--text-xs);
+    color: var(--text-muted);
+    text-align: right;
+  }
+
+  .section-kicker {
+    display: block;
+    margin-bottom: 2px;
+    font-size: var(--text-2xs);
+    font-weight: var(--weight-semibold);
+    letter-spacing: var(--tracking-caps);
+    text-transform: uppercase;
+    color: var(--text-muted);
+  }
+
+  .section-count,
+  .character-count,
+  .board-heading span,
+  .group-count {
+    font-size: var(--text-2xs);
+    color: var(--text-muted);
+  }
+
+  .battlefield {
+    background:
+      linear-gradient(145deg, color-mix(in oklab, var(--accent) 5%, transparent), transparent 45%),
+      var(--surface-base);
+  }
+
+  .board-stack {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-5);
+  }
+
+  .board-card {
     display: flex;
     flex-direction: column;
     gap: var(--space-3);
+    padding: var(--space-4);
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-md);
+    background: var(--surface-sunken);
+    box-shadow: inset 0 1px 0 color-mix(in oklab, var(--text-primary) 4%, transparent);
   }
 
-  .group-title {
+  .board-heading h3 {
+    font-size: var(--text-sm);
+  }
+
+  .collections {
     display: flex;
-    align-items: baseline;
-    gap: var(--space-3);
+    flex-direction: column;
+    gap: var(--space-4);
+  }
+
+  .collection-heading {
+    padding-inline: var(--space-1);
+  }
+
+  .collection-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-5);
+  }
+
+  .character-collection {
+    background:
+      linear-gradient(150deg, color-mix(in oklab, var(--accent) 4%, transparent), transparent 42%),
+      var(--surface-base);
+  }
+
+  .character-heading {
+    padding-bottom: var(--space-3);
+    border-bottom: 1px solid var(--border-subtle);
+  }
+
+  .character-heading h3 {
+    margin-top: var(--space-1);
+    font-family: var(--font-display);
+    font-size: var(--text-md);
+  }
+
+  .role-badge {
+    display: inline-flex;
+    padding: 2px var(--space-2);
+    border-radius: var(--radius-full);
+    background: var(--surface-active);
     font-size: var(--text-2xs);
     font-weight: var(--weight-semibold);
     letter-spacing: var(--tracking-caps);
@@ -709,16 +884,35 @@
     color: var(--text-tertiary);
   }
 
-  .group-owner {
-    text-transform: none;
-    letter-spacing: var(--tracking-normal);
-    color: var(--text-muted);
-    font-weight: var(--weight-normal);
+  .identity-block,
+  .deck-group {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
   }
 
-  .group-count {
-    margin-left: auto;
-    color: var(--text-muted);
+  .identity-block h4,
+  .deck-title {
+    font-size: var(--text-xs);
+    font-weight: var(--weight-semibold);
+    letter-spacing: var(--tracking-wide);
+    color: var(--text-tertiary);
+  }
+
+  .deck-group + .deck-group {
+    padding-top: var(--space-4);
+    border-top: 1px solid var(--border-subtle);
+  }
+
+  .set-decks .deck-group {
+    padding: var(--space-4);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-md);
+    background: var(--surface-sunken);
+  }
+
+  .set-decks .deck-group + .deck-group {
+    padding-top: var(--space-4);
   }
 
   .gallery {
@@ -738,6 +932,7 @@
     display: block;
     padding: 0;
     border-radius: var(--radius-sm);
+    box-shadow: var(--shadow-md);
     /*
      * A native `<button>` defaults to `text-align: center`, and it is a
      * button here whenever the tile is clickable (`interactive`). Card faces
@@ -748,7 +943,9 @@
      * card actually prints.
      */
     text-align: left;
-    transition: translate var(--duration-fast) var(--ease-out);
+    transition:
+      translate var(--duration-fast) var(--ease-out),
+      box-shadow var(--duration-fast) var(--ease-out);
   }
 
   /*
@@ -757,6 +954,7 @@
    */
   button.tile-card:hover {
     translate: 0 -2px;
+    box-shadow: var(--shadow-lg);
   }
 
   .tile-caption {
@@ -792,21 +990,26 @@
     width: 100%;
     padding: 0;
     border-radius: var(--radius-lg);
+    overflow: hidden;
+    box-shadow: var(--shadow-md);
     /* Same reasoning as `.tile-card` above — a free-floating threat-track
        note has no `text-align` of its own to fall back on either. */
     text-align: left;
-    transition: translate var(--duration-fast) var(--ease-out);
+    transition:
+      translate var(--duration-fast) var(--ease-out),
+      box-shadow var(--duration-fast) var(--ease-out);
   }
 
   button.track-open:hover {
     translate: 0 -2px;
+    box-shadow: var(--shadow-lg);
   }
 
   /* -- figures ----------------------------------------------------------- */
   .figures {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-    gap: var(--space-3);
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    gap: var(--space-4);
   }
 
   .figure {
@@ -815,14 +1018,20 @@
     gap: var(--space-2);
     padding: var(--space-3);
     border-radius: var(--radius-md);
-    background: var(--surface-base);
+    background: var(--surface-sunken);
     border: 1px solid var(--border-subtle);
+    box-shadow: var(--shadow-xs);
     text-align: left;
-    transition: border-color var(--duration-fast) var(--ease-out);
+    transition:
+      border-color var(--duration-fast) var(--ease-out),
+      translate var(--duration-fast) var(--ease-out),
+      box-shadow var(--duration-fast) var(--ease-out);
   }
 
   button.figure:hover {
     border-color: var(--border-strong);
+    translate: 0 -2px;
+    box-shadow: var(--shadow-md);
   }
 
   .figure-thumb {
@@ -859,5 +1068,25 @@
     gap: var(--space-2);
     font-size: var(--text-2xs);
     color: var(--text-muted);
+  }
+
+  @media (max-width: 760px) {
+    .page {
+      padding-inline: var(--space-5);
+    }
+
+    .section-heading {
+      align-items: flex-start;
+      flex-direction: column;
+    }
+
+    .section-heading > p {
+      text-align: left;
+    }
+
+    .showcase,
+    .character-collection {
+      padding: var(--space-4);
+    }
   }
 </style>

@@ -25,9 +25,9 @@
   import { readCollectionSlug, readSharedSlug } from '$lib/state/navigation.svelte';
   import PreviewPanel from '$lib/components/preview/PreviewPanel.svelte';
   import SetSidebar from '$lib/components/sidebar/SetSidebar.svelte';
-  import AssetsOverview from '$lib/components/tools/AssetsOverview.svelte';
   import FiguresPanel from '$lib/components/tools/FiguresPanel.svelte';
   import MapEditor from '$lib/components/tools/MapEditor.svelte';
+  import OverviewScreen from '$lib/components/tools/OverviewScreen.svelte';
   import SetSettings from '$lib/components/tools/SetSettings.svelte';
   import SymbolsPanel from '$lib/components/tools/SymbolsPanel.svelte';
   import ThreatTracker from '$lib/components/tools/ThreatTracker.svelte';
@@ -181,6 +181,8 @@
         <GalleryScreen />
       {:else if navigation.view.kind === 'author'}
         <AuthorProfileScreen id={navigation.view.id} />
+      {:else if navigation.view.kind === 'welcome'}
+        <HomeScreen welcome />
       {:else if navigation.view.kind === 'home'}
         <HomeScreen />
       {:else if currentPage === 'print'}
@@ -219,7 +221,7 @@
             {:else if currentPage === 'symbols'}
               <SymbolsPanel />
             {:else if currentPage === 'assets'}
-              <AssetsOverview />
+              <OverviewScreen />
             {:else if currentPage === 'contributions'}
               <ContributionsScreen />
             {:else if currentPage === 'settings'}

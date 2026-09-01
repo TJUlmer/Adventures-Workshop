@@ -129,13 +129,14 @@ export type CombatSymbol = (typeof COMBAT_SYMBOLS)[number];
  * `CARD_OWNERS` stays the fixed, always-offered set: `'hero'` is whichever
  * identity's fields live directly on `Character` (the primary one — unset by
  * this widening, unaffected by how many `additionalCards` exist), `'sidekick'`
- * is meaningful only when `sidekick.enabled && sidekick.multiple` (a swarm —
- * see `HeroSidekick`), `'any'` always. A `HeroCharacterCardId` is also a valid
- * `CardOwner` — one of `character.additionalCards`, offered dynamically by
- * `ActionCardContent`'s picker rather than enumerated here, the way a duo's
- * second (and further) identity is addressed. Not cross-validated against
- * `additionalCards` at load — this repo already tolerates a dangling foreign
- * key rather than checking one (`Figure.characterId`, `InitiativeCard.characterId`);
+ * is meaningful whenever `sidekick.enabled` (whether one tracked companion or
+ * a swarm — see `HeroSidekick`), `'any'` always. A `HeroCharacterCardId` is
+ * also a valid `CardOwner` — one of `character.additionalCards`, offered
+ * dynamically by `ActionCardContent`'s picker rather than enumerated here,
+ * the way a duo's second (and further) identity is addressed. Not
+ * cross-validated against `additionalCards` at load — this repo already
+ * tolerates a dangling foreign key rather than checking one
+ * (`Figure.characterId`, `InitiativeCard.characterId`);
  * an id that no longer resolves to anything just reads as `'hero'` would.
  */
 export const CARD_OWNERS = ['hero', 'sidekick', 'any'] as const;

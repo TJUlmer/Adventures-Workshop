@@ -50,6 +50,7 @@
     MapEnvironmentPiece,
     MapEnvironmentPieceId,
     MapNote,
+    MapNoteId,
     MapSecretPassage,
     MapSize,
     MapSpaceId,
@@ -87,6 +88,11 @@
   let selectedZoneColor = $state<string | null>(null);
   let linkFrom = $state<MapSpaceId | null>(null);
   let dragging = $state<MapSpaceId | null>(null);
+  let draggingNote = $state<{
+    id: MapNoteId;
+    offsetX: number;
+    offsetY: number;
+  } | null>(null);
   let draggingEnvironment = $state<{
     id: MapEnvironmentPieceId;
     offsetX: number;
@@ -269,7 +275,7 @@
       hint: 'Click empty board to add a space, click a space to select it, drag a space to move it — hold shift to select more than one'
     },
     { value: 'link', label: 'Link', hint: 'Click two spaces to connect them, or again to unlink' },
-    { value: 'text', label: 'Text', hint: 'Click the board to place a label' }
+    { value: 'text', label: 'Text', hint: 'Click the board to place a label, or drag one to move it' }
   ];
 
   const orphans = $derived(orphanSpaces(map));
@@ -518,6 +524,25 @@
     }
 
     if (mode === 'text') {
+      const target = event.target instanceof Element ? event.target : null;
+      const noteId = target
+        ?.closest('[data-map-note]')
+        ?.getAttribute('data-map-note') as MapNoteId | null;
+      const noteAtPointer = noteId ? map.notes.find((entry) => entry.id === noteId) : null;
+      if (noteAtPointer) {
+        selectedNote = noteAtPointer.id;
+        /* Keep the point an author grabbed beneath the pointer. A label's
+           anchor is not necessarily its visual centre, so snapping it there
+           would make the text jump before the first move. */
+        draggingNote = {
+          id: noteAtPointer.id,
+          offsetX: point.x - noteAtPointer.x,
+          offsetY: point.y - noteAtPointer.y
+        };
+        (event.currentTarget as Element).setPointerCapture?.(event.pointerId);
+        return;
+      }
+
       const note = createMapNote();
       note.x = point.x;
       note.y = point.y;
@@ -573,6 +598,15 @@
       return;
     }
 
+    if (draggingNote !== null) {
+      const point = toModel(event);
+      const note = map.notes.find((entry) => entry.id === draggingNote?.id);
+      if (!point || !note) return;
+      note.x = Math.min(1, Math.max(0, point.x - draggingNote.offsetX));
+      note.y = Math.min(mapHeight(map), Math.max(0, point.y - draggingNote.offsetY));
+      return;
+    }
+
     if (dragging === null) return;
     const point = toModel(event);
     const space = findSpace(map, dragging);
@@ -586,6 +620,11 @@
   function onPointerUp(): void {
     if (draggingEnvironment !== null) {
       draggingEnvironment = null;
+      // Like a space drag, one pointer gesture is one persisted edit.
+      workshop.editMap(() => {});
+    }
+    if (draggingNote !== null) {
+      draggingNote = null;
       // Like a space drag, one pointer gesture is one persisted edit.
       workshop.editMap(() => {});
     }
@@ -1412,6 +1451,7 @@
           <div
             class="board"
             class:dragging-environment={draggingEnvironment !== null}
+            class:dragging-note={draggingNote !== null}
             bind:this={board}
             role="application"
             aria-label="Adventure map"
@@ -2974,8 +3014,17 @@
     cursor: grab;
   }
 
+  .board :global(.note) {
+    cursor: grab;
+  }
+
   .board.dragging-environment,
   .board.dragging-environment :global(.environment-piece) {
+    cursor: grabbing;
+  }
+
+  .board.dragging-note,
+  .board.dragging-note :global(.note) {
     cursor: grabbing;
   }
 
