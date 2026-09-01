@@ -24,6 +24,7 @@ import {
   resolveStyleForCard
 } from '$lib/sets/queries';
 import type { AdventureSet } from '$lib/sets/types';
+import type { CustomSymbol } from '$lib/symbols/types';
 import { gridFor } from './paper';
 import type { PageGrid, Paper } from './paper';
 
@@ -44,6 +45,17 @@ export interface PrintItem {
   /** Which of `statCard`'s identities. Absent draws their own. */
   statCardEntry?: HeroCharacterCard | null;
   theme: CardTheme | undefined;
+  /**
+   * The registry this card's `{{custom:…}}` glyphs resolve against.
+   *
+   * Per item rather than per page, and for the same reason `theme` is: a
+   * collection's sheet can carry two creators' cards, and a custom symbol is
+   * identified by an id that means something only inside its own set. Read
+   * off the page — or worse, off whichever set the print screen happened to
+   * default to — a member's glyphs resolve against a registry that does not
+   * contain them.
+   */
+  customSymbols?: CustomSymbol[];
   side: 'front' | 'back';
   /** Assigned figure name for an initiative card whose saved subject is empty. */
   initiativeSubject?: string | null;
@@ -78,6 +90,13 @@ export interface PrintPlanOptions {
    * Follow every sheet with its reverse, laid out for a long-edge duplex flip.
    */
   backs: boolean;
+}
+
+/** One creator's deck in a collection, for the combined sheets. */
+export interface PrintMember {
+  /** Carried for the caller's own labelling; the sheets group by size, not author. */
+  author: string;
+  set: AdventureSet;
 }
 
 /** A front and the reverse it should be printed against, if it has one. */
@@ -167,6 +186,8 @@ function planPairings(
 
   const add = (size: SizeName, pairing: Pairing, quantity: number): void => {
     const bucket = groups.get(size) ?? [];
+    const own = (item: PrintItem): PrintItem => ({ ...item, customSymbols: set.customSymbols });
+    pairing = { front: own(pairing.front), back: pairing.back ? own(pairing.back) : null };
     // `quantity` is the physical count, so a 3-of is three cards on the paper.
     for (let copy = 0; copy < quantity; copy += 1) {
       bucket.push(
@@ -324,6 +345,82 @@ const SIZE_LABELS: Readonly<Record<SizeName, string>> = {
 
 export function planPrintPages(set: AdventureSet, options: PrintPlanOptions): PrintPlan {
   const { groups, warnings } = planPairings(set, options);
+  return paginate(groups, warnings, options);
+}
+
+/**
+ * Every deck in a collection, on one set of sheets.
+ *
+ * Pages are grouped by printed size exactly as a single set's are, so two
+ * creators' cards share a sheet wherever they share a size, rather than each
+ * member being paged on its own.
+ *
+ * **The paper this saves is small, and can be none.** Merging can only ever
+ * recover whole sheets out of the members' combined leftovers, so the ceiling
+ * is one sheet per member less one — and the floor is zero. Measured on a real
+ * two-member box at A4, nine cards to a sheet: 35 cards and 122 cards waste one
+ * cell and four separately, five together, so both ways came to 18 sheets and
+ * merging saved nothing at all. It is worth doing for the case where the
+ * leftovers do combine; it is not worth claiming as the reason a box prints
+ * more cheaply than its decks would apart.
+ *
+ * Each member is paired by `planPairings` against **its own document**, which
+ * is what keeps every card under its own author's styling: `resolveStyleForCard`
+ * reads the set's and the character's layers, so passing one merged document
+ * would silently redraw everybody's cards under one theme. Nothing here merges
+ * documents — the same rule the Tabletop Simulator box follows.
+ */
+export function planCollectionPrintPages(
+  members: readonly PrintMember[],
+  options: PrintPlanOptions
+): PrintPlan {
+  const groups = new Map<SizeName, Pairing[]>();
+  const warnings: string[] = [];
+
+  members.forEach((member, index) => {
+    const plan = planPairings(member.set, options);
+
+    for (const [size, pairings] of plan.groups) {
+      const bucket = groups.get(size) ?? [];
+      bucket.push(...pairings.map((pairing) => namespaced(pairing, index)));
+      groups.set(size, bucket);
+    }
+
+    /* The same three single-sided warnings come back per member, worded
+       identically, and N copies of one sentence says nothing the first did
+       not. Deduped rather than attributed: which creator's rules cards lack a
+       reverse does not change what the author has to do about it. */
+    for (const warning of plan.warnings) {
+      if (!warnings.includes(warning)) warnings.push(warning);
+    }
+  });
+
+  return paginate(groups, warnings, options);
+}
+
+/**
+ * Prefix a pairing's keys with the member it came from.
+ *
+ * **Two members can hold the same card ids.** `sets/fork.ts` keeps every id
+ * inside a document deliberately, so that a change can later be described as
+ * "this card moved and nothing else did" — which means a collection holding
+ * two forks of one published set holds two cards claiming the same id. Their
+ * keys are what `{#each}` tracks pages by, so without this the second card
+ * silently replaces the first on the sheet.
+ */
+function namespaced(pairing: Pairing, member: number): Pairing {
+  return {
+    front: { ...pairing.front, key: `m${member}-${pairing.front.key}` },
+    back: pairing.back ? { ...pairing.back, key: `m${member}-${pairing.back.key}` } : null
+  };
+}
+
+/** Lay grouped pairings onto paper. Shared by the single-set and box planners. */
+function paginate(
+  groups: Map<SizeName, Pairing[]>,
+  warnings: string[],
+  options: PrintPlanOptions
+): PrintPlan {
   const pages: PrintPage[] = [];
 
   for (const [size, pairings] of groups) {

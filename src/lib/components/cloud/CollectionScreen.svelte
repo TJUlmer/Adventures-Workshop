@@ -48,6 +48,9 @@
     CollectionVisibility
   } from '$lib/cloud/collections';
   import { cloudEnabled } from '$lib/cloud/config';
+  import type { CollectionDeck } from '$lib/cloud/collections';
+  import PrintScreen from '$lib/print/PrintScreen.svelte';
+  import type { PrintMember } from '$lib/print/sheet';
   import { createTtsAssetHost } from '$lib/cloud/tts-assets';
   import { exportCollectionBundle } from '$lib/export/tts-bundle';
   import { saveExport } from '$lib/export';
@@ -481,6 +484,64 @@
 
   const onlineAvailable = cloudEnabled();
 
+  /**
+   * Fetch every member's document and check the box can be built at all.
+   *
+   * Shared by both the Tabletop Simulator download and the print sheets so
+   * the two cannot come to disagree about which collections are a box —
+   * `combinableProblem` is one rule, and it is checked against the decks that
+   * actually arrived rather than against the tiles, because a member that
+   * failed to load is not in the box and must not decide whether it can be
+   * built.
+   */
+  async function loadBox(): Promise<CollectionDeck[] | null> {
+    if (!collection) return null;
+
+    /* Fetched rather than read off the tiles: a tile is a summary, and both
+       rendering and paging need the whole document. This is also the slow
+       half, so it reports per deck. */
+    const { decks, skipped } = await fetchCollectionDecks(collection.slug, (progress) => {
+      boxProgress = `Fetching ${progress.name} — ${progress.done} of ${progress.total}…`;
+    });
+    boxSkipped = skipped;
+
+    const problem = combinableProblem(decks);
+    if (problem) {
+      boxProblem = problem;
+      return null;
+    }
+    return decks;
+  }
+
+  /**
+   * The same decks, laid out as printable sheets instead.
+   *
+   * Swaps the whole screen for `PrintScreen`, the way `SharedSetScreen`
+   * already does — a print view nested inside this page's own header would
+   * have chrome to hide at print time and a chance to shift the sheet.
+   */
+  let printMembers = $state<PrintMember[] | null>(null);
+
+  async function openPrint(): Promise<void> {
+    if (!collection || boxProgress !== null) return;
+    boxProgress = 'Fetching decks…';
+    boxProblem = null;
+    boxSkipped = [];
+    notice = null;
+    try {
+      const decks = await loadBox();
+      if (!decks) return;
+      printMembers = decks.map((deck) => ({
+        author: deck.tile.author_name || 'Anonymous',
+        set: deck.set
+      }));
+    } catch (error) {
+      notice = error instanceof Error ? error.message : 'Those decks could not be fetched.';
+    } finally {
+      boxProgress = null;
+    }
+  }
+
   async function downloadBox(): Promise<void> {
     if (!collection || boxProgress !== null) return;
     if (!hostBoxOnline && !boxPath.trim()) {
@@ -498,22 +559,8 @@
     notice = null;
 
     try {
-      /* Fetched here rather than reusing the tiles: a tile is a summary, and
-         rendering needs the whole document. This is also the slow half, so it
-         reports per deck. */
-      const { decks, skipped } = await fetchCollectionDecks(collection.slug, (progress) => {
-        boxProgress = `Fetching ${progress.name} — ${progress.done} of ${progress.total}…`;
-      });
-      boxSkipped = skipped;
-
-      /* Checked against what actually arrived, not against the tiles: a
-         member that failed to load is not in the box, so it must not decide
-         whether the box can be built. */
-      const problem = combinableProblem(decks);
-      if (problem) {
-        boxProblem = problem;
-        return;
-      }
+      const decks = await loadBox();
+      if (!decks) return;
 
       if (!hostBoxOnline) void writeTtsSavedObjectsPath(boxPath);
 
@@ -583,7 +630,13 @@
   ];
 </script>
 
-<div class="screen">
+{#if printMembers}
+  <!-- Swapped for, not nested inside: `PrintScreen` renders outside the app
+       shell for the same reason, since chrome around a sheet is chrome to
+       hide at print time and a chance to shift it by a millimetre. -->
+  <PrintScreen members={printMembers} onback={() => (printMembers = null)} />
+{:else}
+  <div class="screen">
   <header class="head">
     <div class="head-left">
       <button
@@ -1089,11 +1142,24 @@
 
       {#if tiles.length > 0}
         <section class="panel box">
-          <h2>Download the whole box</h2>
+          <h2>The whole box</h2>
           <p class="hint">
-            Every deck here as one Tabletop Simulator save — a row per creator, each drawn
-            under its own author's styling. Artwork two decks share is stored once.
+            Every deck here at once, each drawn under its own author's styling — as one
+            Tabletop Simulator save with a row per creator, or as printable sheets.
           </p>
+
+          <div class="row-actions">
+            <button
+              type="button"
+              class="btn"
+              disabled={boxProgress !== null}
+              onclick={openPrint}
+            >
+              Print sheets
+            </button>
+          </div>
+
+          <h3 class="sub">Tabletop Simulator</h3>
 
           {#if onlineAvailable}
             <label class="toggle">
@@ -1122,7 +1188,7 @@
               disabled={boxProgress !== null}
               onclick={downloadBox}
             >
-              {boxProgress ?? 'Download the box'}
+              {boxProgress ?? 'Download the save'}
             </button>
           </div>
 
@@ -1215,6 +1281,7 @@
     {/if}
   </main>
 </div>
+{/if}
 
 <style>
   /* Owns its own scrolling — see the note at the top of this file. */

@@ -94,6 +94,9 @@
     {#each page.cells as cell, index (cell?.key ?? `empty-${index}`)}
       <div class="cell">
         {#if cell}
+          <!-- The cell's own symbol registry wins over the page's: a
+               collection's sheet can carry two creators' cards, and a custom
+               symbol id means something only inside the set it came from. -->
           <CardRenderer
             card={cell.card}
             character={cell.character}
@@ -104,7 +107,7 @@
             side={cell.side}
             initiativeSubject={cell.initiativeSubject ?? null}
             options={{ surface: 'print', showBleed: false, showGuides: false, printerFriendly }}
-            {customSymbols}
+            customSymbols={cell.customSymbols ?? customSymbols}
           />
         {/if}
       </div>

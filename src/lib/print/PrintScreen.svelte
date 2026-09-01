@@ -25,7 +25,8 @@
   import { PAPERS, PAPER_IDS } from './paper';
   import type { PaperId } from './paper';
   import PrintSheet from './PrintSheet.svelte';
-  import { countCards, planPrintPages } from './sheet';
+  import { countCards, planCollectionPrintPages, planPrintPages } from './sheet';
+  import type { PrintMember } from './sheet';
 
   interface Props {
     /**
@@ -34,10 +35,19 @@
      * view hands in the document it fetched and takes the viewer back to it.
      */
     set?: AdventureSet;
+    /**
+     * Several creators' decks, laid out together as one collection's sheets.
+     *
+     * Takes precedence over `set` when present. A second prop rather than a
+     * second screen because everything below the plan — paper, zoom, the
+     * sheets themselves, the print rules — is already indifferent to where
+     * the pages came from, and only `plan` is not.
+     */
+    members?: readonly PrintMember[];
     onback?: () => void;
   }
 
-  let { set: given, onback }: Props = $props();
+  let { set: given, members, onback }: Props = $props();
 
   const set = $derived(given ?? workshop.adventure);
   const back = (): void => (onback ? onback() : navigation.go('home'));
@@ -93,7 +103,9 @@
   const scale = $derived(zoom === 'fit' ? fitScale : Number(zoom));
 
   const plan = $derived(
-    planPrintPages(set, { paper, useQuantities, backs })
+    members
+      ? planCollectionPrintPages(members, { paper, useQuantities, backs })
+      : planPrintPages(set, { paper, useQuantities, backs })
   );
 
   const cardCount = $derived(countCards(plan));
