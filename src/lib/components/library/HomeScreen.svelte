@@ -20,8 +20,14 @@
   import { renderCharacterCards } from '$lib/cloud/character-cards';
   import { openContributionCounts } from '$lib/cloud/contributions';
   import { cloudEnabled } from '$lib/cloud/config';
-  import { fetchSetSummaryBySlug, listMyPublishedSets, listPublicSets } from '$lib/cloud/sets';
-  import type { GallerySet } from '$lib/cloud/sets';
+  import {
+    fetchProfile,
+    fetchSetSummaryBySlug,
+    listMyPublishedSets,
+    listPublicCharacters,
+    listPublicSets
+  } from '$lib/cloud/sets';
+  import type { GalleryCharacter, GallerySet } from '$lib/cloud/sets';
   import { coverArtwork } from '$lib/cloud/thumbnail';
   import { asId } from '$lib/core/id';
   import { GUIDES } from '$lib/guides/content';
@@ -448,20 +454,182 @@
    * satisfies on its own terms, since `heroSlice` forces `kind: 'heroes'` and
    * the slice holds one hero. See `0010_hero_count_and_kind_backfill.sql`.
    *
-   * Fetched regardless of library size — the zero-state welcome panel promotes
-   * one as its community spotlight and shows the other three underneath, while
-   * the "Design your own adventure" card in the middle of the top row shows
-   * the same four condensed for a returning author too.
+   * **The Single hero pool is two different shapes of "a single hero", not
+   * one.** The paragraph above covers a hero that is its own *published row*
+   * — a standalone box or a slice. It does not cover Maui, who has never been
+   * published on his own and never will be: he is one hero inside the larger
+   * `Forgotten Pantheons` adventure set, findable in the Gallery's own
+   * Characters mode (`GalleryScreen.svelte`, `listPublicCharacters` reading
+   * the `gallery_characters` view) precisely because that mode reads at the
+   * character level rather than the set level. A Single hero slot that only
+   * ever queried `listPublicSets` could never find him — there is no `sets`
+   * row that is just Maui. So this slot's pool is the union of both: every
+   * single-hero *set* (as before) plus every published *character* whose role
+   * is hero, read the same way the Gallery already does, via `characterPick`
+   * below.
    */
   interface GallerySlots {
-    adventure: GallerySet | null;
-    heroes: GallerySet | null;
-    singleHeroes: GallerySet[];
+    adventure: GallerySlotPick | null;
+    heroes: GallerySlotPick | null;
+    singleHeroes: GallerySlotPick[];
+  }
+
+  /**
+   * What a Single hero slot (and the "More from the gallery" strip beside the
+   * community spotlight) actually needs to draw a tile and open it — the
+   * common ground between a `GallerySet` (an Adventures/Heroes set, or a
+   * sliced-out single hero) and a `GalleryCharacter` (a hero read out of a
+   * larger box). Built once at fetch time by `setPick`/`characterPick` so the
+   * `gallerySlot`/`montageCard` snippets never need to know which kind of row
+   * a given tile came from.
+   *
+   * Deliberately thinner than `SpotlightFeature` below: the community
+   * spotlight card wants richer fields (subtitle, card/character counts, an
+   * author credit) that a small tile never shows, so it is built by a
+   * separate pair of adapters rather than reused here.
+   */
+  interface GallerySlotPick {
+    id: string;
+    slug: string;
+    /** Passed to `navigation.openShared` so a hero read out of a full box
+        opens scoped to just them, the same as the Gallery's own Characters
+        mode. `undefined` for a set-shaped pick, which already opens as
+        itself. */
+    characterId?: string;
+    name: string;
+    image: string;
+    bleeds: boolean;
+    /** "by {author}" for a set; which box a character was read out of, or
+        that they are published on their own, for a character. */
+    byline: string;
+  }
+
+  function setPick(set: GallerySet): GallerySlotPick {
+    return {
+      id: set.id,
+      slug: set.slug,
+      name: set.name || 'Untitled Adventure',
+      image: galleryImage(set),
+      bleeds: set.cover_bleeds,
+      byline: `by ${set.author?.display_name || 'Anonymous'}`
+    };
+  }
+
+  /** Same fallback chain `GalleryScreen`'s own `characterImage`/
+      `characterImageBleeds` use — the two have to agree, since a thumbnail
+      is not automatically bleed-free the moment covers can fall through to a
+      deck back (see `GalleryScreen.svelte`). */
+  function characterPick(character: GalleryCharacter): GallerySlotPick {
+    return {
+      id: `${character.set_id}:${character.character_id}`,
+      slug: character.slug,
+      characterId: character.listing_scope === 'full' ? character.character_id : undefined,
+      name: character.name,
+      image: character.image_url || character.thumbnail_url || character.cover_url,
+      bleeds: character.image_url ? character.image_bleeds : character.cover_bleeds,
+      byline:
+        character.listing_scope === 'full'
+          ? `In ${character.listing_name}`
+          : 'Published on their own'
+    };
+  }
+
+  /**
+   * The Community spotlight card's own shape — richer than `GallerySlotPick`,
+   * since the spotlight prints a subtitle, a creator credit with an avatar,
+   * card/character counts and fork lineage that a small slot tile never
+   * shows. Built once per fetch by `setFeature`/`characterFeature`, the same
+   * way `GallerySlotPick` is, so the template never has to know whether the
+   * feature it is drawing came from a `GallerySet` row or a `GalleryCharacter`
+   * one — Maui, read out of `Forgotten Pantheons`, can win the draw exactly
+   * like a whole published set can.
+   */
+  interface SpotlightFeature {
+    id: string;
+    slug: string;
+    /** See `GallerySlotPick.characterId`. */
+    characterId?: string;
+    kindLabel: string;
+    name: string;
+    subtitle: string;
+    image: string;
+    bleeds: boolean;
+    ownerId: string;
+    authorName: string;
+    authorAvatar: string;
+    viewCount: number;
+    /** `null` for a character-sourced feature — a hero read out of a larger
+        box has no card/character count of their own to print; only a whole
+        published set does. */
+    stats: { cardCount: number; characterCount: number } | null;
+    origin: { name: string; authorName: string } | null;
+  }
+
+  function setFeature(set: GallerySet): SpotlightFeature {
+    return {
+      id: set.id,
+      slug: set.slug,
+      kindLabel: galleryKindLabel(set),
+      name: set.name || 'Untitled Adventure',
+      subtitle: set.subtitle,
+      image: galleryImage(set),
+      bleeds: set.cover_bleeds,
+      ownerId: set.owner_id,
+      authorName: set.author?.display_name || 'Anonymous',
+      authorAvatar: set.author?.avatar_url || '',
+      viewCount: set.view_count,
+      stats: { cardCount: set.card_count, characterCount: set.character_count },
+      origin: set.origin
+        ? { name: set.origin.name, authorName: set.origin.author?.display_name || '' }
+        : null
+    };
+  }
+
+  /**
+   * `fetchProfile` rather than the `author:profiles(…)` embed a `GallerySet`
+   * gets for free — `gallery_characters` carries no such join (see
+   * `GalleryCharacter.owner_id`'s own doc comment in `cloud/sets.ts`), so the
+   * one profile this card actually needs is fetched on its own, the same call
+   * `AuthorProfileScreen` makes for its header. A failed lookup still shows
+   * the character rather than nothing — a credit is worth having and never
+   * worth blocking the card for, same reasoning `fetchAuthorName` documents.
+   */
+  async function characterFeature(character: GalleryCharacter): Promise<SpotlightFeature> {
+    const profile = await fetchProfile(character.owner_id);
+    return {
+      id: `${character.set_id}:${character.character_id}`,
+      slug: character.slug,
+      characterId: character.listing_scope === 'full' ? character.character_id : undefined,
+      kindLabel: 'Single hero',
+      name: character.name,
+      subtitle:
+        character.listing_scope === 'full'
+          ? `In ${character.listing_name}`
+          : 'Published on their own',
+      image: character.image_url || character.thumbnail_url || character.cover_url,
+      bleeds: character.image_url ? character.image_bleeds : character.cover_bleeds,
+      ownerId: character.owner_id,
+      authorName: profile?.display_name || 'Anonymous',
+      authorAvatar: profile?.avatar_url || '',
+      viewCount: character.view_count,
+      stats: null,
+      origin: null
+    };
+  }
+
+  /** The raw row behind a spotlight-eligible pick, tagged by which of the two
+      adapters above it needs — see `resolveFeature`. */
+  type SingleHeroSource =
+    | { kind: 'set'; set: GallerySet }
+    | { kind: 'character'; character: GalleryCharacter };
+
+  function resolveFeature(source: SingleHeroSource): SpotlightFeature | Promise<SpotlightFeature> {
+    return source.kind === 'set' ? setFeature(source.set) : characterFeature(source.character);
   }
 
   let gallerySlots = $state<GallerySlots>({ adventure: null, heroes: null, singleHeroes: [] });
   /** Chosen once with the slots, so unrelated reactive updates never reshuffle the spotlight. */
-  let galleryFeature = $state<GallerySet | null>(null);
+  let galleryFeature = $state<SpotlightFeature | null>(null);
 
   /**
    * Fisher-Yates, then take the front — picked once when a fetch resolves
@@ -491,7 +659,7 @@
     void (async () => {
       const POOL = 8;
       try {
-        const [adventures, heroBoxes, singleHeroes] = await Promise.all([
+        const [adventures, heroBoxes, singleHeroSets, singleHeroCharacters] = await Promise.all([
           listPublicSets({ scope: 'full', kind: 'adventure', sort: 'popular', limit: POOL }),
           listPublicSets({
             scope: 'full',
@@ -504,21 +672,74 @@
              hero and a hero published on its own are both "a single hero" to
              a reader, and pinning `scope` here is what made this slot only
              ever find the latter. */
-          listPublicSets({ kind: 'heroes', heroes: 'single', sort: 'popular', limit: POOL })
+          listPublicSets({ kind: 'heroes', heroes: 'single', sort: 'popular', limit: POOL }),
+          /* The other half of the pool — a hero who has never been published
+             on their own, only read out of a larger box. See this block's
+             own doc comment above `GallerySlots`. */
+          listPublicCharacters({ role: 'hero', sort: 'popular', limit: POOL })
         ]);
-        const nextSlots: GallerySlots = {
-          adventure: pickRandom(adventures, 1)[0] ?? null,
-          heroes: pickRandom(heroBoxes, 1)[0] ?? null,
-          singleHeroes: pickRandom(singleHeroes, 2)
+
+        const adventurePick = pickRandom(adventures, 1)[0] ?? null;
+        const heroesPick = pickRandom(heroBoxes, 1)[0] ?? null;
+
+        /*
+         * `singleHeroSets` and `singleHeroCharacters` can name the *same*
+         * published listing twice. A hero sliced out and published on their
+         * own (Louhi) or a heroes-box whose only content is one hero (Spy vs
+         * Spy, Lucy & Piper) already satisfies `heroes: 'single'` as a real
+         * `sets` row — and `gallery_characters` reports that same row's own
+         * character too, since a box with exactly one hero is, from the
+         * character index's point of view, indistinguishable from any other
+         * box a hero happens to live in. Deduping by `slug` is what tells
+         * them apart from Maui's actual case: a hero read out of a box that
+         * is *not itself* a single-hero listing (Forgotten Pantheons,
+         * hero_count 3), whose slug cannot collide with anything already in
+         * `singleHeroSets`. The set-sourced pick wins the collision so its
+         * richer `source` survives into the spotlight pool below.
+         *
+         * `source` carries the *raw* row alongside its display pick, tagged
+         * by which adapter it needs — `resolveFeature` reads this to build
+         * whichever `SpotlightFeature` the draw actually needs, without a
+         * second query to re-fetch what is already in hand.
+         */
+        const claimedSlugs = new Set(singleHeroSets.map((set) => set.slug));
+        const singleHeroCandidates: { pick: GallerySlotPick; source: SingleHeroSource }[] = [
+          ...singleHeroSets.map((set) => ({
+            pick: setPick(set),
+            source: { kind: 'set' as const, set }
+          })),
+          ...singleHeroCharacters
+            .filter((character) => !claimedSlugs.has(character.slug))
+            .map((character) => ({
+              pick: characterPick(character),
+              source: { kind: 'character' as const, character }
+            }))
+        ];
+        const chosenSingleHeroes = pickRandom(singleHeroCandidates, 2);
+
+        gallerySlots = {
+          adventure: adventurePick ? setPick(adventurePick) : null,
+          heroes: heroesPick ? setPick(heroesPick) : null,
+          singleHeroes: chosenSingleHeroes.map((entry) => entry.pick)
         };
-        gallerySlots = nextSlots;
-        galleryFeature =
-          pickRandom(
-            [nextSlots.adventure, nextSlots.heroes, ...nextSlots.singleHeroes].filter(
-              (set): set is GallerySet => set !== null
-            ),
-            1
-          )[0] ?? null;
+
+        /*
+         * Every one of the four slots is spotlight-eligible now, a hero read
+         * out of a larger box included — the earlier restriction to
+         * `GallerySet` rows only was a scope decision, not a limit either
+         * adapter actually needs. `resolveFeature` is `async` only for the
+         * `'character'` branch (`characterFeature` fetches the one profile it
+         * needs), which is why the whole draw is resolved before assigning
+         * `galleryFeature` rather than picked synchronously like the slots
+         * above it.
+         */
+        const featurePool: SingleHeroSource[] = [
+          ...(adventurePick ? [{ kind: 'set' as const, set: adventurePick }] : []),
+          ...(heroesPick ? [{ kind: 'set' as const, set: heroesPick }] : []),
+          ...chosenSingleHeroes.map((entry) => entry.source)
+        ];
+        const chosenFeature = pickRandom(featurePool, 1)[0] ?? null;
+        galleryFeature = chosenFeature ? await resolveFeature(chosenFeature) : null;
       } catch {
         // Same silent fallback as the attention effect above — a missing
         // sample is not worth an error message.
@@ -604,19 +825,25 @@
 
   interface GalleryPick {
     label: string;
-    set: GallerySet;
+    pick: GallerySlotPick;
   }
 
-  /** The three samples that did not receive the larger community spotlight. */
+  /** The three samples that did not receive the larger community spotlight.
+      `galleryFeature` is always a genuine `GallerySet`, so comparing its `id`
+      against a `GallerySlotPick.id` still correctly excludes whichever slot
+      it was drawn from — a character-sourced pick's id can never collide
+      with a set's, see `characterPick`. */
   const supportingGallery = $derived.by((): GalleryPick[] => {
-    const picks: { label: string; set: GallerySet | null }[] = [
-      { label: 'Adventure set', set: gallerySlots.adventure },
-      { label: 'Heroes set', set: gallerySlots.heroes },
-      { label: 'Single hero', set: gallerySlots.singleHeroes[0] ?? null },
-      { label: 'Single hero', set: gallerySlots.singleHeroes[1] ?? null }
+    const picks: { label: string; pick: GallerySlotPick | null }[] = [
+      { label: 'Adventure set', pick: gallerySlots.adventure },
+      { label: 'Heroes set', pick: gallerySlots.heroes },
+      { label: 'Single hero', pick: gallerySlots.singleHeroes[0] ?? null },
+      { label: 'Single hero', pick: gallerySlots.singleHeroes[1] ?? null }
     ];
     return picks
-      .filter((pick): pick is GalleryPick => pick.set !== null && pick.set.id !== galleryFeature?.id)
+      .filter(
+        (entry): entry is GalleryPick => entry.pick !== null && entry.pick.id !== galleryFeature?.id
+      )
       .slice(0, 3);
   });
 
@@ -851,35 +1078,41 @@
 {/snippet}
 
 <!--
-  One slot in the gallery sample — a fixed category label plus whatever set
-  (if any) `gallerySlots` picked for it. Reused for all eight renders (four
-  full-size in the zero-state welcome panel, four condensed in the
-  returning-author "Design your own adventure" card) — sizing comes from
-  each context's own `.gallery-slots` CSS, not a prop, so this stays one
-  snippet rather than growing a `compact` flag.
+  One slot in the gallery sample — a fixed category label plus whatever pick
+  (if any) `gallerySlots` chose for it. `GallerySlotPick` rather than
+  `GallerySet` because a Single hero slot may hold either a set or a
+  character read out of a larger one — see that type's own doc comment.
+  Reused for all eight renders (four full-size in the zero-state welcome
+  panel, four condensed in the returning-author "Design your own adventure"
+  card) — sizing comes from each context's own `.gallery-slots` CSS, not a
+  prop, so this stays one snippet rather than growing a `compact` flag.
 -->
-{#snippet gallerySlot(label: string, set: GallerySet | null)}
+{#snippet gallerySlot(label: string, pick: GallerySlotPick | null)}
   <li class="slot">
-    {#if set}
-      <button type="button" class="slot-tile" onclick={() => navigation.openShared(set.slug)}>
+    {#if pick}
+      <button
+        type="button"
+        class="slot-tile"
+        onclick={() => navigation.openShared(pick.slug, pick.characterId)}
+      >
         <span
           class="slot-thumb"
           style:aspect-ratio={CARD_ASPECT}
           style:--trim-scale={TRIM_SCALE_TALL}
-          style:background={tint(set.id)}
+          style:background={tint(pick.id)}
         >
-          {#if galleryImage(set)}
-            <!-- `cover_bleeds` governs the thumbnail as well as the cover:
+          {#if pick.image}
+            <!-- `bleeds` governs the thumbnail as well as the cover:
                  both are the same artwork, and a plain downscale keeps the
                  bleed the same proportion of the frame. -->
-            <img src={galleryImage(set)} class:trimmed={set.cover_bleeds} alt="" loading="lazy" />
+            <img src={pick.image} class:trimmed={pick.bleeds} alt="" loading="lazy" />
           {:else}
-            <span class="initials">{initials(set.name)}</span>
+            <span class="initials">{initials(pick.name)}</span>
           {/if}
         </span>
         <span class="slot-label">{label}</span>
-        <span class="slot-name">{set.name || 'Untitled Adventure'}</span>
-        <span class="slot-author">by {set.author?.display_name || 'Anonymous'}</span>
+        <span class="slot-name">{pick.name}</span>
+        <span class="slot-author">{pick.byline}</span>
       </button>
     {:else}
       <div class="slot-tile">
@@ -893,17 +1126,17 @@
 {/snippet}
 
 <!-- A live gallery cover makes the value proposition visible before any copy is read. -->
-{#snippet montageCard(set: GallerySet | null, label: string, position: string)}
+{#snippet montageCard(pick: GallerySlotPick | null, label: string, position: string)}
   <span
     class="montage-card {position}"
     style:aspect-ratio={CARD_ASPECT}
     style:--trim-scale={TRIM_SCALE_TALL}
-    style:background={set ? tint(set.id) : 'var(--surface-raised)'}
+    style:background={pick ? tint(pick.id) : 'var(--surface-raised)'}
   >
-    {#if set && galleryImage(set)}
-      <img src={galleryImage(set)} class:trimmed={set.cover_bleeds} alt="" />
+    {#if pick && pick.image}
+      <img src={pick.image} class:trimmed={pick.bleeds} alt="" />
     {:else}
-      <span class="montage-mark">{set ? initials(set.name) : '+'}</span>
+      <span class="montage-mark">{pick ? initials(pick.name) : '+'}</span>
     {/if}
     <span class="montage-label">{label}</span>
   </span>
@@ -1391,26 +1624,22 @@
                     style:aspect-ratio={CARD_ASPECT}
                     style:--trim-scale={TRIM_SCALE_TALL}
                     style:background={tint(featured.id)}
-                    onclick={() => navigation.openShared(featured.slug)}
+                    onclick={() => navigation.openShared(featured.slug, featured.characterId)}
                     aria-label="View {featured.name || 'Untitled Adventure'}"
                   >
-                    {#if galleryImage(featured)}
-                      <img
-                        src={galleryImage(featured)}
-                        class:trimmed={featured.cover_bleeds}
-                        alt=""
-                      />
+                    {#if featured.image}
+                      <img src={featured.image} class:trimmed={featured.bleeds} alt="" />
                     {:else}
                       <span class="spotlight-initials">{initials(featured.name)}</span>
                     {/if}
                   </button>
 
                   <div class="spotlight-body">
-                    <span class="spotlight-kind">{galleryKindLabel(featured)}</span>
+                    <span class="spotlight-kind">{featured.kindLabel}</span>
                     <button
                       type="button"
                       class="spotlight-name"
-                      onclick={() => navigation.openShared(featured.slug)}
+                      onclick={() => navigation.openShared(featured.slug, featured.characterId)}
                     >
                       {featured.name || 'Untitled Adventure'}
                     </button>
@@ -1421,39 +1650,46 @@
                     <button
                       type="button"
                       class="spotlight-creator"
-                      onclick={() => navigation.openAuthor(featured.owner_id)}
+                      onclick={() => navigation.openAuthor(featured.ownerId)}
                     >
-                      <span class="creator-avatar" style:background={tint(featured.owner_id)}>
-                        {#if featured.author?.avatar_url}
-                          <img src={featured.author.avatar_url} alt="" loading="lazy" />
+                      <span class="creator-avatar" style:background={tint(featured.ownerId)}>
+                        {#if featured.authorAvatar}
+                          <img src={featured.authorAvatar} alt="" loading="lazy" />
                         {:else}
-                          {initials(featured.author?.display_name || 'Anonymous')}
+                          {initials(featured.authorName)}
                         {/if}
                       </span>
                       <span class="creator-copy">
                         <span>Created by</span>
-                        <strong>{featured.author?.display_name || 'Anonymous'}</strong>
+                        <strong>{featured.authorName}</strong>
                       </span>
                       <span class="creator-profile">View creator profile</span>
                     </button>
 
-                    <p class="spotlight-stats numeric">
-                      {featured.card_count} cards · {featured.character_count}
-                      {featured.character_count === 1 ? ' character' : ' characters'}
-                      {#if featured.view_count > 0} · {featured.view_count} views{/if}
-                    </p>
+                    {#if featured.stats}
+                      <p class="spotlight-stats numeric">
+                        {featured.stats.cardCount} cards · {featured.stats.characterCount}
+                        {featured.stats.characterCount === 1 ? ' character' : ' characters'}
+                        {#if featured.viewCount > 0} · {featured.viewCount} views{/if}
+                      </p>
+                    {:else if featured.viewCount > 0}
+                      <p class="spotlight-stats numeric">{featured.viewCount} views</p>
+                    {/if}
                     {#if featured.origin}
                       <p class="spotlight-lineage">
-                        Based on {featured.origin.name}{#if featured.origin.author?.display_name}
-                          by {featured.origin.author.display_name}{/if}
+                        Based on {featured.origin.name}{#if featured.origin.authorName}
+                          by {featured.origin.authorName}{/if}
                       </p>
                     {/if}
 
                     <div class="spotlight-actions">
-                      <Button variant="primary" onclick={() => navigation.openShared(featured.slug)}>
+                      <Button
+                        variant="primary"
+                        onclick={() => navigation.openShared(featured.slug, featured.characterId)}
+                      >
                         Explore this set
                       </Button>
-                      <Button variant="ghost" onclick={() => navigation.openAuthor(featured.owner_id)}>
+                      <Button variant="ghost" onclick={() => navigation.openAuthor(featured.ownerId)}>
                         More by this creator
                       </Button>
                     </div>
@@ -1466,8 +1702,8 @@
                     <button type="button" onclick={() => navigation.openGallery()}>Browse all sets</button>
                   </div>
                   <ul class="gallery-slots welcome-gallery-slots">
-                    {#each supportingGallery as pick (pick.set.id)}
-                      {@render gallerySlot(pick.label, pick.set)}
+                    {#each supportingGallery as entry (entry.pick.id)}
+                      {@render gallerySlot(entry.label, entry.pick)}
                     {/each}
                   </ul>
                 {/if}
@@ -1613,8 +1849,10 @@
     Unmatched Labs is a fan-made tool, not affiliated with Restoration Games.
   </p>
   <p class="support-note">
-    Enjoying Unmatched Labs? You can leave a one-time tip to help support its continued development.
-    <a href="https://ko-fi.com/tombadilbombadil" target="_blank" rel="noreferrer">Visit Ko-fi</a>
+    Enjoying Unmatched Labs? You can <a href="https://ko-fi.com/tombadilbombadil" target="_blank" rel="noreferrer">leave a one-time tip</a> to help support its continued development.
+  </p>
+  <p class="discord">
+    Join our <a href="https://discord.gg/7EhD5uwzt5" target="_blank" rel="noreferrer">Discord server</a> to share your creations, ask questions, and interact with the community!
   </p>
 </div>
 
@@ -3446,18 +3684,19 @@
 
   .support-note {
     margin: 0;
-    padding: 0 var(--space-5) var(--space-6);
+    padding: 0 var(--space-5) var(--space-2);
     text-align: center;
     font-size: var(--text-2xs);
     line-height: var(--leading-normal);
     color: var(--text-muted);
   }
 
-  .support-note a {
-    margin-left: var(--space-1);
-    font-weight: var(--weight-medium);
-    color: var(--accent);
-    text-decoration: underline;
-    text-underline-offset: 3px;
+  .discord {
+    margin: 0;
+    padding: 0 var(--space-5) var(--space-6);
+    text-align: center;
+    font-size: var(--text-2xs);
+    line-height: var(--leading-normal);
+    color: var(--text-muted)
   }
 </style>

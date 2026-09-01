@@ -663,6 +663,17 @@ export interface GalleryCharacter {
   published_at: string | null;
   view_count: number;
   /**
+   * Who published the row this character was read out of.
+   *
+   * The view (`0007_gallery_browse.sql`) has always selected this — `select
+   * s.owner_id` sits right beside `s.local_id` — it was simply never typed
+   * here because nothing yet needed to credit a character read out of a
+   * larger box on its own. `gallery_characters` carries no `profiles` join
+   * (kept lean for a page listing thirty characters at once), so this id is
+   * a lookup key, not a name — see `fetchProfile`.
+   */
+  owner_id: string;
+  /**
    * The whole set this character belongs to, when it is public too.
    *
    * Equal to `slug`/`listing_name` for a character reached *through* their
