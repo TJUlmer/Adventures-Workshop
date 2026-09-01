@@ -808,8 +808,19 @@ export interface TtsCollectionInput {
   members: readonly TtsCollectionMember[];
 }
 
-/** Clear of the deepest row a single member can produce, in inches. */
-const MEMBER_ROW_DEPTH = 6;
+/**
+ * How far apart two creators' rows sit, in inches.
+ *
+ * **It must exceed `COMPONENT_ROW_Z`, and that is the whole of why it is not
+ * 6.** A member's figures are placed by `componentFor` at `COMPONENT_ROW_Z`
+ * *in front of* that member's own decks — which, with rows receding by the
+ * same 6, put every creator's game pieces exactly on top of the next
+ * creator's deck row. Measured on a two-member box: gl4re's health dial
+ * landed at x=2, z=0, against tombadil_bombadil's Louhi deck at x=1.24,
+ * z=0. Invisible in a single-set export, where there is no row in front to
+ * collide with.
+ */
+const MEMBER_ROW_DEPTH = 12;
 
 /**
  * A whole collection, as one saved object.
