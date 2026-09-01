@@ -205,8 +205,24 @@ async function writeBytes(
   contentType: string,
   bytes: Uint8Array<ArrayBuffer>
 ): Promise<string> {
-  const path = `${base}-${await shortHash(bytes)}.${extension}`;
+  const hash = await shortHash(bytes);
+  const path = `${base}-${hash}.${extension}`;
   if (taken.has(path)) return path;
+
+  /* Deduped by *content*, not by name. The hash is already the last thing in
+     every path, so an identical picture written under a different base is
+     findable by its tail alone — no second index to keep in step with `taken`.
+     Matching on the whole path is what the first version did, which meant the
+     dedup only ever fired when two piles happened to share a base as well as
+     their bytes. Measured on a two-member box: three byte-identical
+     character-card backs written three times over, once per pile — and the
+     same fault, unnoticed, in the single-set export whenever two of one
+     author's piles shared a back. Safe to return the earlier path because the
+     bytes are the same bytes: the URL a card ends up pointing at addresses the
+     identical image. */
+  const tail = `-${hash}.${extension}`;
+  for (const existing of taken) if (existing.endsWith(tail)) return existing;
+
   taken.add(path);
   files.push({ path, contentType, bytes });
   return path;
