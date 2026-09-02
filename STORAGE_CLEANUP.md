@@ -49,8 +49,9 @@ The migration does not schedule the function and does not enable deletion.
    candidate ledger only through an administrator connection.
 5. Repeat after at least the grace period. Confirm an edited/recreated object and a newly
    referenced object are no longer due.
-6. Back up the affected objects and perform a small manually initiated canary only after
-   separately approving deletion and setting `STORAGE_CLEANUP_EXECUTE=enabled`.
+6. Create and verify a full database-and-Storage backup using `FULL_BACKUPS.md`, then perform a
+   small manually initiated canary only after separately approving deletion and setting
+   `STORAGE_CLEANUP_EXECUTE=enabled`.
 7. Verify active drafts, restored soft-deleted drafts, published sets, and open/resolved
    contributions still load on two browsers and two accounts.
 8. Only then schedule a weekly server-side run. Keep the 500-object hard cap and monitor the

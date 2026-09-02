@@ -1,5 +1,9 @@
 # Production PostgreSQL backup route
 
+> This database-only route remains useful for migration snapshots, but it does not contain
+> Supabase Storage bytes. Use `-IncludeStorage` and follow `FULL_BACKUPS.md` for a recoverable
+> production set backup.
+
 This route creates the Phase 0 logical backup without installing a local PostgreSQL
 server. It uses PostgreSQL 17 command-line tools against Supabase's session pooler and
 keeps the database password out of the command line, repository, dump log, and manifest.

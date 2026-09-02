@@ -13,14 +13,19 @@ param(
 
     [string] $TargetProjectRef = 'jtpifbkqkoitzjfrxhhn',
 
-    [string] $UserName = 'postgres.jtpifbkqkoitzjfrxhhn'
+    [string] $UserName = 'postgres.jtpifbkqkoitzjfrxhhn',
+
+    [Security.SecureString] $DatabasePassword
 )
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
+if ($PSVersionTable.PSVersion.Major -lt 7) {
+    throw 'This restore tool requires PowerShell 7 or newer. Run it with pwsh, not powershell.exe.'
+}
+
 $productionProjectRef = 'kyqcvbnxfmpnbwtikzxp'
-$expectedArchiveHash = 'D7AF9E2F9BC99540F12B9B831BE6DD400524D6513CEE6B950715FA912079A045'
 $archive = [System.IO.Path]::GetFullPath($ArchivePath)
 
 if ($TargetProjectRef -eq $productionProjectRef -or $UserName -match [regex]::Escape($productionProjectRef)) {
@@ -32,6 +37,17 @@ if ($TargetProjectRef -ne 'jtpifbkqkoitzjfrxhhn' -or $UserName -ne 'postgres.jtp
 if (-not (Test-Path -LiteralPath $archive -PathType Leaf)) {
     throw "Backup archive was not found: $archive"
 }
+$archiveDirectory = Split-Path -Parent $archive
+$backupManifestPath = Join-Path $archiveDirectory 'manifest.json'
+if (-not (Test-Path -LiteralPath $backupManifestPath -PathType Leaf)) {
+    throw 'The backup completion manifest was not found beside the archive.'
+}
+$backupManifest = Get-Content -LiteralPath $backupManifestPath -Raw | ConvertFrom-Json
+if ($backupManifest.project_ref -ne $productionProjectRef -or
+    $backupManifest.archive_file -ne (Split-Path -Leaf $archive)) {
+    throw 'The backup manifest does not describe this production archive.'
+}
+$expectedArchiveHash = [string] $backupManifest.archive_sha256
 if ((Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash -ne $expectedArchiveHash) {
     throw 'Backup archive hash does not match the independently verified production backup.'
 }
@@ -77,6 +93,31 @@ function Invoke-PgRestoreFile {
     }
 }
 
+function Get-CopyRowCounts {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string[]] $Paths
+    )
+
+    $counts = [ordered]@{}
+    foreach ($path in $Paths) {
+        $currentTable = $null
+        foreach ($line in [System.IO.File]::ReadLines($path)) {
+            if ($line -match '^COPY (?<table>[a-z_]+\.[a-z_]+) \(') {
+                $currentTable = $Matches.table
+                $counts[$currentTable] = 0
+            }
+            elseif ($null -ne $currentTable -and $line -eq '\.') {
+                $currentTable = $null
+            }
+            elseif ($null -ne $currentTable) {
+                $counts[$currentTable]++
+            }
+        }
+    }
+    return $counts
+}
+
 $expectedColumns = @{
     auth_users = @(
         'instance_id', 'id', 'aud', 'role', 'email', 'encrypted_password',
@@ -105,23 +146,12 @@ $expectedColumns = @{
     )
 }
 
-$expectedRows = [ordered]@{
-    'auth.identities' = 13
-    'auth.users' = 20
-    'public.collection_members' = 2
-    'public.collection_organizers' = 2
-    'public.collections' = 2
-    'public.profiles' = 20
-    'public.set_characters' = 27
-    'public.set_contributions' = 2
-    'public.set_reports' = 0
-    'public.sets' = 11
-    'storage.buckets' = 2
-    'storage.objects' = 332
-    'supabase_migrations.schema_migrations' = 42
+$password = if ($null -ne $DatabasePassword) {
+    $DatabasePassword
 }
-
-$password = Read-Host 'Recovery-project database password' -AsSecureString
+else {
+    Read-Host 'Recovery-project database password' -AsSecureString
+}
 $passwordPointer = [IntPtr]::Zero
 $previousPassword = $env:PGPASSWORD
 $previousSslMode = $env:PGSSLMODE
@@ -216,7 +246,6 @@ select json_build_object(
     Assert-ColumnsPresent -Table 'storage.objects' -Expected $expectedColumns.storage_objects -Actual $preflight.storage_objects_columns
 
     $timestamp = [DateTime]::UtcNow.ToString('yyyyMMddTHHmmssZ')
-    $archiveDirectory = Split-Path -Parent $archive
     $rehearsalPath = Join-Path $archiveDirectory "restore-rehearsal-$TargetProjectRef-$timestamp"
     $workPath = Join-Path $rehearsalPath 'private-work'
     New-Item -ItemType Directory -Path $workPath -Force | Out-Null
@@ -244,8 +273,11 @@ select json_build_object(
     if ($LASTEXITCODE -ne 0) {
         throw 'Could not read the archive table of contents.'
     }
+    $storagePolicyEntries = @($allEntries | Where-Object {
+        $_ -match ' POLICY storage objects (draft_assets|set_assets|tts_assets)_'
+    })
     $allEntries | ForEach-Object {
-        if ($_.StartsWith(';') -or $_ -match ' POLICY storage objects (set_assets|tts_assets)_') {
+        if ($_.StartsWith(';') -or $_ -match ' POLICY storage objects (draft_assets|set_assets|tts_assets)_') {
             $_
         }
         else {
@@ -301,6 +333,21 @@ select json_build_object(
         "--use-list=$policyList", '--no-owner', '--no-privileges', "--file=$policySql", $archive
     )
 
+    $copyCounts = Get-CopyRowCounts -Paths @($authSql, $publicSql, $storageSql, $migrationSql)
+    $expectedRows = [ordered]@{}
+    foreach ($table in @(
+        'auth.identities', 'auth.users',
+        'public.collection_members', 'public.collection_organizers', 'public.collections',
+        'public.profiles', 'public.set_characters', 'public.set_contributions',
+        'public.set_drafts', 'public.set_reports', 'public.sets',
+        'storage.buckets', 'storage.objects', 'supabase_migrations.schema_migrations'
+    )) {
+        if (-not $copyCounts.Contains($table)) {
+            throw "The backup did not contain a COPY section for required table: $table"
+        }
+        $expectedRows[$table] = [int] $copyCounts[$table]
+    }
+
     Write-Host "Restoring into isolated recovery project $TargetProjectRef"
     & $psql @connectionArguments `
         --no-psqlrc `
@@ -326,6 +373,7 @@ select json_build_object(
   'public.profiles', (select count(*) from public.profiles),
   'public.set_characters', (select count(*) from public.set_characters),
   'public.set_contributions', (select count(*) from public.set_contributions),
+  'public.set_drafts', (select count(*) from public.set_drafts),
   'public.set_reports', (select count(*) from public.set_reports),
   'public.sets', (select count(*) from public.sets),
   'storage.buckets', (select count(*) from storage.buckets),
@@ -342,7 +390,7 @@ select json_build_object(
   'storage_custom_policies', (
     select count(*) from pg_policies
     where schemaname = 'storage' and tablename = 'objects'
-      and (policyname like 'set_assets_%' or policyname like 'tts_assets_%')
+      and (policyname like 'draft_assets_%' or policyname like 'set_assets_%' or policyname like 'tts_assets_%')
   )
 )::text;
 "@
@@ -361,8 +409,8 @@ select json_build_object(
             throw "Recovery row-count mismatch for $($entry.Key): expected $($entry.Value), found $($verification.($entry.Key))"
         }
     }
-    if ([int] $verification.storage_custom_policies -ne 8) {
-        throw "Expected 8 custom Storage policies, found $($verification.storage_custom_policies)."
+    if ([int] $verification.storage_custom_policies -ne $storagePolicyEntries.Count) {
+        throw "Expected $($storagePolicyEntries.Count) custom Storage policies, found $($verification.storage_custom_policies)."
     }
 
     $manifest = [ordered]@{
