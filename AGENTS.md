@@ -9,10 +9,11 @@ Kiro's expanded steering lives in `.kiro/steering/`. Keep all three consistent.
 A local-first builder for custom **Unmatched Adventures** sets — heroes, villains,
 minions, initiative decks, rules and event cards, the adventure map, threat track,
 and the printable card art. Authors are Unmatched fans, not developers. Authoring
-works fully offline: the document lives in the browser (IndexedDB) and leaves the
-machine only on export. Signing in is optional, needed only to publish, share, or
-contribute back — the cloud (`src/lib/cloud/`, hand-rolled Supabase HTTP) is a
-publish target, never the source of truth.
+works fully offline: IndexedDB is always the crash/offline copy. A rollout-enabled
+permanent account may also use a private cloud-authoritative draft library; otherwise
+the device library remains authoritative. Signing in is optional. Publishing, sharing,
+and contributions still use explicit snapshots through the hand-rolled Supabase HTTP
+layer and never turn publication into the editable draft.
 
 Shell is three panes: set hierarchy (left), workspace editor (centre), live card
 preview (right). The card editor splits **Content** (per-card) from **Design** (set once).
@@ -75,7 +76,7 @@ TypeScript is pinned to `~6` because `svelte-check` does not run on 7 yet.
   (`{ entity: 'card', id }`) and mutate through store commands. Library commands are
   `async` (IndexedDB has no sync API).
 - **Any new persisted field needs a branch in `sets/normalize.ts`**, or existing
-  documents load without it. `SET_SCHEMA_VERSION` is 31; newer files are refused.
+  documents load without it. `SET_SCHEMA_VERSION` is 47; newer files are refused.
   `normalizeSet` must be idempotent.
 - **`src/styles/tokens.css` is the only source of colour.** No component hardcodes a hex.
 - **Comments explain *why*** — usually the failure that forced the code — and never
@@ -89,6 +90,10 @@ TypeScript is pinned to `~6` because `svelte-check` does not run on 7 yet.
   because `localStorage`'s ~5MB-per-origin ceiling was too small for embedded
   artwork. Migration from the old `localStorage` library is automatic and runs
   on every startup.
+- **Private cloud drafts are independently rollout-gated and default off.** When
+  enabled for a permanent account, cloud summaries are the library authority and
+  IndexedDB is the complete cache/offline outbox. Disabling the gate stops private
+  reads/writes without deleting either tier; publishing remains available.
 - **Deleting a set is a soft delete** (`deletedAt` on its index row); permanent
   removal is a separate, explicit "Delete forever" action.
 - **Cloud reads that are meant to be public must never carry a user's own access

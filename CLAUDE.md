@@ -1620,10 +1620,27 @@ A set with no villain and no minions is a **gap, not a blocker**
 and telling someone who has built one that it is not playable is simply wrong.
 
 `src/lib/cloud/` talks to Supabase over plain HTTP — no client library, same
-zero-dependency rule as everything else. The contract that shapes it: **the
-cloud is a publish target, never the source of truth.** A published row is a
-copy of a document that still lives in the author's browser, so losing the
-network loses sharing rather than the set.
+zero-dependency rule as everything else. Two cloud contracts deliberately do
+different jobs. A published `sets` row is still an explicit snapshot and never
+the editable document. A rollout-enabled permanent account may use private
+`set_drafts` rows as its library authority, with IndexedDB retaining the complete
+cache and offline outbox; when that independent gate is off, IndexedDB is the
+authority again and publishing continues unchanged.
+
+**Private drafts default off independently of sharing.** `cloud/config.ts`
+parses `VITE_CLOUD_DRAFTS_ROLLOUT`; `persistence/rollout.svelte.ts` combines
+that build policy with a permanent account, an IndexedDB opt-in, an internal-id
+allowlist, or a stable percentage cohort. Anonymous Auth users never pass the
+client gate and are rejected again by database and Storage policy. Turning the
+gate off pauses delivery and suppresses private reads without deleting cached,
+pending, or remote data. `CLOUD_DRAFTS_RUNBOOK.md` is the operational source for
+staging, rollback, recovery, pilot gates, and the remaining acceptance matrix.
+
+`persistence/diagnostics.svelte.ts` keeps at most 100 device-local structured
+save events. They carry stage, outcome, status, duration, byte count, revision,
+and retry count under an opaque draft key—never document data, names, account
+details, paths, request bodies, or tokens. Account can download this as an
+explicit support report; there is no remote telemetry path.
 
 Row level security is the boundary, not the client. Two policies that look
 alike and are not:

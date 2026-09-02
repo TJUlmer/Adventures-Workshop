@@ -651,6 +651,28 @@ before this phase is marked complete.
 **Exit:** the cloud library is the default for permanent accounts and can be disabled
 without making cached or exported sets unreadable.
 
+Phase 6's local hardening implementation was completed on 2 September 2026 without enabling
+or deploying the rollout. Private drafts now have a separate build-time policy with `off`,
+browser `opt-in`, stable `cohort`, and eventual `on` modes; `off` is the default. Anonymous
+sessions never qualify. Disabling authority stops new private reads and writes, pauses delivery,
+and leaves cloud rows, private assets, IndexedDB caches/outboxes, and exports intact.
+
+The coordinator records a device-local 100-event support ring covering local cache, asset,
+document, and acknowledgement stages with outcome, status code, duration, byte count, revision,
+and retry count. Reports use opaque draft keys and exclude document data, names, account data,
+paths, request bodies, and tokens. Account provides an explicit download action. Rollout,
+support, recovery, rollback, and provisional pilot gates are documented in
+`CLOUD_DRAFTS_RUNBOOK.md`.
+
+The default-off and opt-in production builds pass. The deterministic
+`tools/phase6-hardening.html` browser probe passes rollout/anonymous boundaries, account-scoped
+opt-in persistence, rollback without network I/O, structured success/failure diagnostics, and
+a self-contained document above 6 MB. Phase 4 library and Phase 5 conflict regression probes
+also pass, and `tools/phase6-rollout-ui.html` confirms JSON export remains visible with cloud
+authority disabled. No production draft, policy, cohort, deployment, or public branch was
+changed. The real multi-browser, failure-injection, two-owner security, Google-linking, and
+pilot-threshold evidence remains required before this phase or public rollout is complete.
+
 ## 11. Verification matrix
 
 The project has no test runner, so verification should drive the real app and database.
@@ -685,7 +707,7 @@ The project has no test runner, so verification should drive the real app and da
 
 - Open one set in two browser profiles at the same revision.
 - Save different edits from both; confirm the second gets a conflict.
-- Exercise **Use cloud**, **Keep this device**, and **Keep both**.
+- Exercise **Use cloud**, **Keep this device**, and **Save my changes as a separate copy**.
 - Confirm no autosave continues behind the conflict screen.
 
 ### Security
