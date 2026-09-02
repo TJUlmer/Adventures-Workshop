@@ -621,22 +621,62 @@ page — exactly what the production phase of the worked timeline already
 assumes. The box download is the only thing missing, and it is missing on
 purpose.
 
-### Phase 2 — the combined box export
+### Phase 2 — the combined box export — **done**
 
 The prize, and the reason *the finding that shapes the export* exists. No
 schema change and no new renderer: it is a bundle path over machinery that
 already works, joining finished object graphs rather than documents.
 
-1. **Fetch the box.** Every accepted member's published document, hydrated
-   through the same `fetchAndEmbedAssets` route a shared set already takes.
-2. **Tabletop Simulator.** `placeSavedObjects(states, index)` positions by a
-   running index already, and `writeAsset` names every file by a content hash
-   of its own bytes — so N bundles written into one folder dedupe their shared
-   assets and cannot collide on a name. The multi-source case comes free, on
-   machinery built to defeat TTS's texture cache and for no other reason.
-3. **Print sheets.** `print/sheet.ts` groups pages by printed size; N members
-   is more pages in the same buckets.
-4. **Card PNGs.** A folder per creator.
+1. **Fetch the box** — done. Every accepted member's published document,
+   hydrated through the same route a shared set already takes. A member that
+   cannot be read is skipped and *named*, never fatal.
+2. **Tabletop Simulator** — done. `buildCollectionSave` concatenates the
+   object graphs, a row per creator.
+3. **Print sheets** — done. `planCollectionPrintPages`.
+4. **Card PNGs** — done. `exportCollectionCardPngs`.
+
+**Two of the assumptions written above turned out to be wrong**, and both
+only showed up against real published decks. They are left here corrected
+rather than quietly edited out, because each was the kind of claim that reads
+as obviously true:
+
+- **"The multi-source case comes free."** It did not. `writeAsset` does name
+  every file by a content hash, but `writeBytes` keyed its dedup on the whole
+  path — `base-hash.ext` — so two identical pictures only ever collapsed into
+  one file when they had been written under the same *base* as well as having
+  the same bytes. Every pile supplies its own base, so the dedup almost never
+  fired: measured on a two-member box, three byte-identical character-card
+  backs written three times over. The same fault had been in the single-set
+  export the whole time, unnoticed. Matching on the hash alone is the fix.
+- **"N members is more pages in the same buckets."** True, and it does not buy
+  the paper it sounds like it does. Merging can only recover whole sheets out
+  of the members' *combined* leftovers, so the ceiling is one sheet per member
+  less one and the floor is zero. Measured at A4, nine to a sheet: 35 cards and
+  122 cards waste one cell and four separately, five together — both ways came
+  to 18 sheets, and merging saved nothing at all. Still worth doing for the
+  case where the leftovers do combine; not worth citing as the reason a box
+  prints more cheaply than its decks would apart.
+
+Three further things the first real run exposed, none of them visible with a
+single set:
+
+- **Components landed on the next creator's decks.** A member's figures are
+  placed six inches in front of that member's own decks, and the rows receded
+  by exactly six.
+- **Card ids are not unique across a box.** `sets/fork.ts` keeps every id
+  inside a document deliberately, so a collection holding two forks of one
+  published set holds two cards claiming the same id — and on the print sheets
+  those ids were the keys.
+- **A custom symbol id means something only inside its own set.** Both the
+  sheets and the PNGs had to carry each card's own registry rather than read
+  one off the page or the screen, which would have resolved a member's glyphs
+  against whichever set happened to be open. Two of eighteen sheets genuinely
+  mix creators.
+
+The heroes-only gate reads each member's **published row**, not its hydrated
+document: `AdventureSet.kind` only exists from schema v28 and `normalizeSet`
+opens a kind-less document as an adventure, so two real published heroes decks
+were refused as "full adventures" by the first version of that check.
 
 Gated as recorded above: **offered only when every member is a heroes-scope
 deck.** A collection of full adventures, each with its own map and threat
