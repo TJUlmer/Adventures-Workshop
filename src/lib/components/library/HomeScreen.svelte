@@ -25,14 +25,14 @@
   import { coverArtwork } from '$lib/cloud/thumbnail';
   import { asId } from '$lib/core/id';
   import { GUIDES } from '$lib/guides/content';
+  import type { DraftLibraryEntry, LibraryAvailability } from '$lib/persistence/types';
   import { CARD_FORMATS, trimBox } from '$lib/renderer/geometry';
   import { healthSummaryFromCounts } from '$lib/sets/health';
   import type { SetId, SetKind } from '$lib/sets/types';
   import { guides } from '$lib/state/guides.svelte';
   import { navigation } from '$lib/state/navigation.svelte';
   import { workshop } from '$lib/state/workshop.svelte';
-  import { loadSet, saveSet } from '$lib/storage/library';
-  import type { LibraryEntry } from '$lib/storage/library';
+  import { loadSet } from '$lib/storage/library';
   import { Button, Icon, SegmentedControl, Select } from '$lib/ui';
   import NewSetDialog from './NewSetDialog.svelte';
 
@@ -79,17 +79,17 @@
   let covers = $state<Map<SetId, string>>(new Map());
   const coversRequested = new Set<SetId>();
 
-  async function ensureCover(id: SetId): Promise<void> {
-    if (coversRequested.has(id)) return;
-    coversRequested.add(id);
-    const set = await loadSet(id);
+  async function ensureCover(entry: DraftLibraryEntry): Promise<void> {
+    if (!entry.cached || coversRequested.has(entry.id)) return;
+    coversRequested.add(entry.id);
+    const set = await loadSet(entry.id);
     const source = set ? coverArtwork(set)?.source : null;
-    if (source) covers = new Map(covers).set(id, source);
+    if (source) covers = new Map(covers).set(entry.id, source);
   }
 
   /** Every visible set gets its cover requested once, as the shelf renders. */
   $effect(() => {
-    for (const entry of entries) void ensureCover(entry.id);
+    for (const entry of entries) void ensureCover(entry);
   });
 
   /**
@@ -115,16 +115,16 @@
     });
   }
 
-  async function peekCard(id: SetId): Promise<void> {
-    if (peeksRequested.has(id)) return;
-    peeksRequested.add(id);
-    const set = await loadSet(id);
+  async function peekCard(entry: DraftLibraryEntry): Promise<void> {
+    if (!entry.cached || peeksRequested.has(entry.id)) return;
+    peeksRequested.add(entry.id);
+    const set = await loadSet(entry.id);
     if (!set) return;
     // First hero only, matching `coverArtwork`'s own "first hero" step — a
     // glance at who this set is, not a card per hero it happens to have.
     const rendered = await renderCharacterCards(set);
     const first = rendered.values().next().value;
-    if (first) cardPeeks = new Map(cardPeeks).set(id, await blobToDataUrl(first));
+    if (first) cardPeeks = new Map(cardPeeks).set(entry.id, await blobToDataUrl(first));
   }
 
   /**
@@ -236,7 +236,7 @@
       }
 
       const forked = current.filter(
-        (entry): entry is LibraryEntry & { originSlug: string; originRevision: number } =>
+        (entry): entry is DraftLibraryEntry & { originSlug: string; originRevision: number } =>
           entry.originSlug !== undefined && entry.originRevision !== undefined
       );
       const behindByLocalId = new Map<SetId, number>();
@@ -654,6 +654,39 @@
     return date.toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' });
   }
 
+  function formatSize(bytes: number): string {
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
+    return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+  }
+
+  const migrationBytes = $derived(
+    workshop.migrationCandidates.reduce((total, entry) => total + (entry.bytes ?? 0), 0)
+  );
+
+  function availabilityLabel(availability: LibraryAvailability): string {
+    switch (availability) {
+      case 'online':
+        return 'Online';
+      case 'pending':
+        return 'Waiting to upload';
+      case 'conflict':
+        return 'Conflict';
+      default:
+        return 'On this device';
+    }
+  }
+
+  async function openEntry(entry: DraftLibraryEntry): Promise<void> {
+    if (!(await workshop.openSet(entry.id))) {
+      flash(
+        entry.cached
+          ? 'Could not open this set.'
+          : 'Connect to the internet to download this set on this device.'
+      );
+    }
+  }
+
   async function importSet(event: Event & { currentTarget: HTMLInputElement }): Promise<void> {
     const file = event.currentTarget.files?.[0];
     event.currentTarget.value = '';
@@ -664,20 +697,19 @@
       flash(result.error);
       return;
     }
-    await saveSet(result.set);
-    await workshop.refreshLibrary();
-    flash(`Imported “${result.set.name}”.`);
+    if (await workshop.addSet(result.set)) flash(`Imported “${result.set.name}”.`);
+    else flash(workshop.libraryActionError ?? 'Could not import that set.');
   }
 </script>
 
-{#snippet setCard(entry: LibraryEntry)}
+{#snippet setCard(entry: DraftLibraryEntry)}
   <li class="card">
     <button
       type="button"
       class="open"
-      onclick={() => void workshop.openSet(entry.id)}
-      onpointerenter={() => void peekCard(entry.id)}
-      onfocusin={() => void peekCard(entry.id)}
+      onclick={() => void openEntry(entry)}
+      onpointerenter={() => void peekCard(entry)}
+      onfocusin={() => void peekCard(entry)}
     >
       <span class="thumb" style:background={tint(entry.id)} aria-hidden="true">
         {#if covers.get(entry.id)}
@@ -699,6 +731,9 @@
       <span class="card-body">
         <span class="card-title-row">
           <span class="card-title">{entry.name || 'Untitled Adventure'}</span>
+          <span class="pill availability" data-availability={entry.availability}>
+            {availabilityLabel(entry.availability)}
+          </span>
           {#if (attention.get(entry.id)?.waiting ?? 0) > 0}
             <span class="pill waiting">{attention.get(entry.id)?.waiting} pending</span>
           {/if}
@@ -808,7 +843,7 @@
   </li>
 {/snippet}
 
-{#snippet deletedRow(entry: LibraryEntry)}
+{#snippet deletedRow(entry: DraftLibraryEntry)}
   <li class="deleted-row">
     <div class="deleted-info">
       <span class="deleted-name">{entry.name || 'Untitled Adventure'}</span>
@@ -937,6 +972,117 @@
 
   {#if message}
     <p class="message">{message}</p>
+  {/if}
+
+  {#if workshop.libraryLoading}
+    <div class="library-notice" data-tone="neutral" role="status">
+      <Icon name="hourglass" size={15} />
+      <span>Refreshing your library…</span>
+    </div>
+  {/if}
+
+  {#if workshop.libraryError}
+    <div class="library-notice" data-tone="warning" role="alert">
+      <Icon name="rotate" size={15} />
+      <span>
+        Could not reach your online library. These are the copies available on this device.
+        <button type="button" onclick={() => void workshop.refreshLibrary()}>Try again</button>
+      </span>
+    </div>
+  {/if}
+
+  {#if workshop.libraryActionError}
+    <div class="library-notice" data-tone="warning" role="alert">
+      <Icon name="hourglass" size={15} />
+      <span>{workshop.libraryActionError}</span>
+    </div>
+  {/if}
+
+  {#if !auth.signedIn}
+    <div class="library-notice" data-tone="local">
+      <Icon name="save" size={15} />
+      <span>
+        Sets are saved only on this device while signed out. Sign in with Google to use them in
+        other browsers; you will choose which existing sets to copy online.
+      </span>
+    </div>
+  {:else if auth.isAnonymous}
+    <div class="library-notice" data-tone="local">
+      <Icon name="save" size={15} />
+      <span>
+        This anonymous sharing session belongs to this browser. Drafts remain device-only, and an
+        ownership-preserving account upgrade is not available yet.
+      </span>
+    </div>
+  {/if}
+
+  {#if
+    auth.signedIn &&
+    !auth.isAnonymous &&
+    workshop.libraryAuthority === 'cloud' &&
+    workshop.migrationCandidates.length > 0 &&
+    !workshop.migrationDismissed
+  }
+    <section class="migration" aria-labelledby="migration-title">
+      <div class="migration-copy">
+        <span class="migration-icon"><Icon name="upload" size={18} /></span>
+        <div>
+          <h2 id="migration-title">Move your sets online</h2>
+          <p>
+            {workshop.migrationCandidates.length}
+            {workshop.migrationCandidates.length === 1 ? 'set is' : 'sets are'} saved only on this
+            device ({formatSize(migrationBytes)}). Each set is copied safely; its local copy stays
+            here.
+          </p>
+          {#if workshop.migrationRunning}
+            <p class="migration-progress" role="status">
+              Uploading {Math.min(workshop.migrationDone + 1, workshop.migrationTotal)} of
+              {workshop.migrationTotal}…
+            </p>
+          {/if}
+        </div>
+      </div>
+
+      <div class="migration-actions">
+        <Button
+          variant="primary"
+          size="sm"
+          disabled={workshop.migrationRunning}
+          onclick={() => void workshop.migrateAll()}
+        >
+          {workshop.migrationRunning ? 'Uploading…' : 'Upload all'}
+        </Button>
+        <Button
+          variant="ghost"
+          size="sm"
+          disabled={workshop.migrationRunning}
+          onclick={() => workshop.dismissMigration()}
+        >Not now</Button>
+      </div>
+
+      <ul class="migration-list">
+        {#each workshop.migrationCandidates as entry (entry.id)}
+          {@const status = workshop.migrationStatus.get(entry.id)}
+          <li>
+            <span>
+              <strong>{entry.name || 'Untitled Adventure'}</strong>
+              <small>
+                {entry.bytes === null ? 'Size unavailable' : formatSize(entry.bytes)}
+                {#if status?.message} · {status.message}{/if}
+              </small>
+            </span>
+            <Button
+              size="sm"
+              variant="ghost"
+              disabled={workshop.migrationRunning || status?.kind === 'uploading'}
+              onclick={() => void workshop.migrateSet(entry.id)}
+            >
+              {status?.kind === 'uploading' ? 'Uploading…' : status?.kind === 'error' ? 'Retry' : 'Upload'}
+            </Button>
+          </li>
+        {/each}
+      </ul>
+    </section>
   {/if}
 
   {#if entries.length > 0 && !welcome}
@@ -1184,8 +1330,8 @@
                 </button>
               </div>
               <ul class="welcome-promises" aria-label="How Unmatched Labs works">
-                <li>Saves locally</li>
-                <li>Sign-in optional</li>
+                <li>Works offline</li>
+                <li>Private cloud drafts with sign-in</li>
                 <li>Print and TTS exports</li>
               </ul>
             </div>
@@ -1352,10 +1498,10 @@
               <article class="principle">
                 <span class="principle-index numeric">04</span>
                 <div>
-                  <h3>Local until you choose otherwise</h3>
+                  <h3>Private by default</h3>
                   <p>
-                    Authoring works without an account. A project leaves the browser only when you
-                    publish, share, or export it for online play.
+                    Author locally without an account, or sign in to keep private drafts available
+                    across browsers. Publishing remains a separate choice.
                   </p>
                 </div>
               </article>
@@ -1524,7 +1670,11 @@
             </li>
           </ol>
           <div class="journey-foot">
-            <span>Your work stays in this browser until you choose otherwise.</span>
+            <span>
+              {auth.signedIn && !auth.isAnonymous
+                ? 'Private drafts save online and remain cached on this device.'
+                : 'Without a permanent sign-in, drafts stay on this device.'}
+            </span>
             <Button variant="primary" onclick={() => (choosingKind = true)}>
               {entries.length > 0 ? 'Create another set' : 'Create your first set'}
             </Button>
@@ -1680,6 +1830,133 @@
     font-size: var(--text-xs);
     color: var(--text-tertiary);
     background: var(--surface-sunken);
+  }
+
+  .library-notice {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    margin: var(--space-3) var(--space-9) 0;
+    padding: var(--space-3) var(--space-4);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-md);
+    background: var(--surface-raised);
+    color: var(--text-secondary);
+    font-size: var(--text-sm);
+  }
+
+  .library-notice[data-tone='warning'] {
+    border-color: color-mix(in oklab, var(--warning) 45%, var(--border-subtle));
+    color: var(--warning);
+  }
+
+  .library-notice[data-tone='local'] {
+    background: color-mix(in oklab, var(--accent) 7%, var(--surface-raised));
+  }
+
+  .library-notice button {
+    margin-left: var(--space-2);
+    color: inherit;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
+
+  .migration {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: var(--space-4);
+    margin: var(--space-4) var(--space-9) 0;
+    padding: var(--space-5);
+    border: 1px solid color-mix(in oklab, var(--accent) 45%, var(--border-subtle));
+    border-radius: var(--radius-lg);
+    background: color-mix(in oklab, var(--accent) 8%, var(--surface-raised));
+  }
+
+  .migration-copy {
+    display: flex;
+    gap: var(--space-3);
+    min-width: 0;
+  }
+
+  .migration-icon {
+    display: grid;
+    place-items: center;
+    flex: none;
+    width: 34px;
+    height: 34px;
+    border-radius: var(--radius-full);
+    background: color-mix(in oklab, var(--accent) 16%, transparent);
+    color: var(--accent);
+  }
+
+  .migration h2,
+  .migration p {
+    margin: 0;
+  }
+
+  .migration h2 {
+    font-family: var(--font-display);
+    font-size: var(--text-md);
+    color: var(--text-primary);
+  }
+
+  .migration p {
+    margin-top: var(--space-1);
+    max-width: 72ch;
+    font-size: var(--text-sm);
+    line-height: var(--leading-normal);
+    color: var(--text-tertiary);
+  }
+
+  .migration .migration-progress {
+    color: var(--accent);
+  }
+
+  .migration-actions {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-2);
+  }
+
+  .migration-list {
+    grid-column: 1 / -1;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: var(--space-2);
+  }
+
+  .migration-list li {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
+    min-width: 0;
+    padding: var(--space-2) var(--space-3);
+    border-radius: var(--radius-sm);
+    background: var(--surface-base);
+  }
+
+  .migration-list li > span {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+  }
+
+  .migration-list strong,
+  .migration-list small {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .migration-list strong {
+    font-size: var(--text-sm);
+    color: var(--text-secondary);
+  }
+
+  .migration-list small {
+    font-size: var(--text-2xs);
+    color: var(--text-muted);
   }
 
   .controls {
@@ -2297,6 +2574,27 @@
 
   .pill.waiting {
     background: color-mix(in oklab, var(--warning) 16%, transparent);
+    color: var(--warning);
+  }
+
+  .pill.availability {
+    border: 1px solid var(--border-subtle);
+    background: var(--surface-sunken);
+    color: var(--text-muted);
+  }
+
+  .pill.availability[data-availability='online'] {
+    border-color: color-mix(in oklab, var(--success) 45%, var(--border-subtle));
+    color: var(--success);
+  }
+
+  .pill.availability[data-availability='pending'] {
+    border-color: color-mix(in oklab, var(--accent) 45%, var(--border-subtle));
+    color: var(--accent);
+  }
+
+  .pill.availability[data-availability='conflict'] {
+    border-color: color-mix(in oklab, var(--warning) 45%, var(--border-subtle));
     color: var(--warning);
   }
 

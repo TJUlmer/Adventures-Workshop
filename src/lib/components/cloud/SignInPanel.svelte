@@ -23,7 +23,6 @@
   let email = $state('');
   let code = $state('');
   let error = $state<string | null>(null);
-  let linking = $state(false);
 
   const stage = $derived(
     auth.signedIn ? 'in' : auth.pendingEmail !== null ? 'code' : 'choose'
@@ -89,8 +88,8 @@
       {/each}
       {#if auth.providers.length > 0}
         <p class="fineprint">
-          Publishes under the name that account already has, and keeps your sets across browsers
-          and devices. Leaves this page and comes straight back.
+          Gives you a private online draft library across browsers and publishes under the name
+          that account already has. Leaves this page and comes straight back.
         </p>
       {/if}
 
@@ -108,7 +107,7 @@
           {auth.sending ? 'Sending…' : 'Email me a code'}
         </Button>
       </form>
-      <p class="fineprint">Keeps your sets across browsers and devices.</p>
+      <p class="fineprint">Keeps private drafts across browsers and devices.</p>
     {:else if stage === 'code'}
       <p class="sent">
         A six-digit code is on its way to <strong>{auth.pendingEmail}</strong>.
@@ -154,29 +153,11 @@
       </div>
 
       {#if auth.isAnonymous}
-        <!--
-          The upgrade, offered where the limitation was admitted. `owner_id`
-          never changes when an identity is linked, so everything already
-          published simply acquires a way back in — nothing is re-uploaded and
-          no share link changes.
-        -->
-        {#if linking}
-          <form
-            class="row"
-            onsubmit={(event) => {
-              event.preventDefault();
-              void run(() => auth.linkEmail(email), () => (linking = false));
-            }}
-          >
-            <TextInput bind:value={email} placeholder="you@example.com" inputmode="email" autocomplete="email" />
-            <Button type="submit" disabled={email.trim().length === 0}>Send code</Button>
-          </form>
-          <p class="fineprint">Everything you have already shared comes with you.</p>
-        {:else}
-          <button class="link" type="button" onclick={() => (linking = true)}>
-            Add an email so you can get back in from anywhere
-          </button>
-        {/if}
+        <p class="fineprint">
+          An ownership-preserving upgrade is not available yet. Ordinary Google sign-in would be
+          a different account, so this screen does not present it as an upgrade or move anything
+          you already published.
+        </p>
       {/if}
     {/if}
 
@@ -267,4 +248,5 @@
   .link:hover {
     color: var(--text-default);
   }
+
 </style>

@@ -1,8 +1,8 @@
 # Cloud-Authoritative Storage Transition Plan
 
-**Status:** Phases 0–3.5 complete; Phase 4 not started
+**Status:** Phases 0–3.5 complete; Phase 4 implemented locally, signed-in acceptance verification pending
 **Prepared:** 31 August 2026
-**Revised:** 1 September 2026 after Phase 3.5 implementation and production verification
+**Revised:** 2 September 2026 after Phase 4 local implementation and verification
 **Target branch/worktree:** `codex/cloud-drafts` / `Adventures_Workshop-cloud-drafts`
 
 ## 1. Outcome
@@ -585,6 +585,23 @@ the exact prefix, and the local probe were gone.
 
 **Exit:** an existing user can sign in, migrate all sets without losing the local copies,
 clear a second browser's cache, sign in there, and recover the same library.
+
+Phase 4's client implementation was completed on 2 September 2026. Home now composes a
+permanent account's shelf from cloud summaries and joins IndexedDB only as cache metadata,
+offline fallback, and an explicit migration source; uncached entries do not hydrate merely for
+cover art. Create/import/fork/duplicate, last-open hydration, and revision-safe
+delete/restore/purge all pass through the persistence coordinator. Existing local sets remain
+opted out until the author chooses per-set or sequential **Upload all** migration, and every
+successful copy is revision-verified while its local document remains intact. Signed-out and
+anonymous sessions are explicitly device-only, and the unavailable ownership-preserving
+anonymous upgrade is no longer presented as ordinary Google sign-in.
+
+`npm run check`, the production build, signed-out Home inspection, and the deterministic
+`tools/phase4-library.html` browser probe pass. The probe covers authoritative cloud summary
+composition, uncached drafts, migration retries, same-id conflicts, cross-browser purge hiding,
+Recently Deleted, and labelled offline fallback without document hydration. The exit criterion's
+real signed-in migration and cleared-second-browser recovery remain to be exercised before this
+phase is marked complete; this implementation pass did not create or mutate production drafts.
 
 ### Phase 5 — conflicts and collaboration integration (3–4 days)
 

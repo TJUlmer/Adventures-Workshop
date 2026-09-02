@@ -166,6 +166,7 @@ async function runVerification(): Promise<void> {
     }
   });
 
+  assert(await coordinator.enableCloud(set.id), 'The asset-efficiency probe could not opt in.');
   assert(await coordinator.flush(set, serializeSet(set)), 'Initial coordinator save failed.');
   const first = transfers[0];
   assert(first, 'Initial transfer was not observed.');
@@ -292,6 +293,7 @@ async function verifyRpcRetryManifest(): Promise<void> {
       };
     }
   });
+  assert(await coordinator.enableCloud(set.id), 'The retry probe could not opt in.');
   assert(await coordinator.flush(set), 'The retry probe local write failed.');
   assert(coordinator.status.kind === 'retrying', 'The synthetic RPC failure did not enter backoff.');
   assert(

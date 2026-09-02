@@ -12,7 +12,15 @@ import { serializeSet } from '$lib/export/json';
 import { canonicalJson } from '$lib/sets/fingerprint';
 import type { AdventureSet, SetId } from '$lib/sets/types';
 import { auth } from '$lib/cloud/auth.svelte';
-import { fetchDraft, fetchDraftSummary, saveDraft } from '$lib/cloud/drafts';
+import {
+  fetchDraft,
+  fetchDraftSummary,
+  purgeDraft,
+  restoreDraft,
+  saveDraft,
+  softDeleteDraft
+} from '$lib/cloud/drafts';
+import type { DraftMutationResult } from '$lib/cloud/drafts';
 import { CloudError } from '$lib/cloud/http';
 import {
   loadSet,
@@ -61,7 +69,8 @@ function blankState(localId: SetId): CachedDraftState {
     lastCloudSaveAt: null,
     // A never-uploaded draft has a known-empty prefix. Legacy records are
     // normalised to `null` by `readDraftState` and reconcile once instead.
-    assetPaths: []
+    assetPaths: [],
+    cloudDraft: false
   };
 }
 
@@ -69,6 +78,9 @@ export interface PersistenceServices {
   saveDraft: typeof saveDraft;
   fetchDraft: typeof fetchDraft;
   fetchDraftSummary: typeof fetchDraftSummary;
+  softDeleteDraft: typeof softDeleteDraft;
+  restoreDraft: typeof restoreDraft;
+  purgeDraft: typeof purgeDraft;
   hasPermanentSession: () => boolean;
   isOnline: () => boolean;
 }
@@ -77,6 +89,9 @@ const browserServices: PersistenceServices = {
   saveDraft,
   fetchDraft,
   fetchDraftSummary,
+  softDeleteDraft,
+  restoreDraft,
+  purgeDraft,
   hasPermanentSession: () => auth.signedIn && !auth.isAnonymous,
   isOnline: () => typeof navigator === 'undefined' || navigator.onLine
 };
@@ -172,6 +187,19 @@ export class PersistenceCoordinator {
     }
   }
 
+  /**
+   * Opt one document into cloud delivery.
+   *
+   * Existing local libraries remain opted out until the author accepts the
+   * copy-first migration. New/imported/forked sets call this before their
+   * first flush so permanent-account creation is online by construction.
+   */
+  async enableCloud(id: SetId): Promise<boolean> {
+    const current = (await readDraftState(id)) ?? blankState(id);
+    if (current.cloudDraft) return true;
+    return writeDraftState({ ...current, cloudDraft: true });
+  }
+
   #queue(id: SetId): SetQueue {
     let queue = this.#queues.get(id);
     if (!queue) {
@@ -239,12 +267,15 @@ export class PersistenceCoordinator {
       const hash = await draftContentHash(set);
       const current = (await readDraftState(set.id)) ?? blankState(set.id);
       const tracked =
-        current.cloudRevision !== null || current.syncedHash !== null || current.pending;
+        current.cloudDraft ||
+        current.cloudRevision !== null ||
+        current.syncedHash !== null ||
+        current.pending;
       const inFlightMayMoveCloud = queue.pumping !== null;
       const matchesAcknowledged = current.syncedHash === hash && !inFlightMayMoveCloud;
       const pending = matchesAcknowledged
         ? false
-        : this.#services.hasPermanentSession() || tracked;
+        : (this.#services.hasPermanentSession() && current.cloudDraft) || tracked;
       const next: CachedDraftState = { ...current, pending };
       const wrote = await saveSetWithDraftState(set, next, json);
       if (!wrote) return false;
@@ -259,7 +290,7 @@ export class PersistenceCoordinator {
           attempt: 0,
           message: 'Cloud changed in another browser; automatic saving is paused.'
         });
-      } else if (!this.#services.hasPermanentSession()) {
+      } else if (!this.#services.hasPermanentSession() || !current.cloudDraft) {
         this.#setStatus(set.id, { kind: 'local-only', attempt: 0, message: null });
       } else if (!pending) {
         this.#setStatus(set.id, {
@@ -439,23 +470,26 @@ export class PersistenceCoordinator {
    */
   async open(localId: SetId): Promise<OpenCachedDraft | null> {
     const cached = await loadSet(localId);
-    if (!cached) return null;
     this.activate(localId);
     const queue = this.#queue(localId);
     const state = (await readDraftState(localId)) ?? blankState(localId);
 
     if (!this.#services.hasPermanentSession()) {
       this.#setStatus(localId, { kind: 'local-only', attempt: 0, message: null });
-      return { set: cached, source: 'cache', conflict: null };
+      return cached ? { set: cached, source: 'cache', conflict: null } : null;
     }
     if (!this.#services.isOnline()) {
       this.#setStatus(localId, {
-        kind: state.pending ? 'offline' : 'synced',
+        kind: state.pending || !cached ? 'offline' : 'synced',
         attempt: 0,
-        message: state.pending ? 'Cloud save is waiting for a connection.' : null
+        message: !cached
+          ? 'This draft is not cached on this device. Connect to open it.'
+          : state.pending
+            ? 'Cloud save is waiting for a connection.'
+            : null
       });
-      if (state.pending) void this.save(cached, serializeSet(cached), 0);
-      return { set: cached, source: 'cache', conflict: null };
+      if (cached && state.pending) void this.save(cached, serializeSet(cached), 0);
+      return cached ? { set: cached, source: 'cache', conflict: null } : null;
     }
 
     let remote;
@@ -467,14 +501,23 @@ export class PersistenceCoordinator {
         attempt: 0,
         message: cause instanceof Error ? cause.message : 'Could not check the cloud draft.'
       });
-      if (state.pending) void this.save(cached, serializeSet(cached), 0);
-      return { set: cached, source: 'cache', conflict: null };
+      if (cached && state.pending) void this.save(cached, serializeSet(cached), 0);
+      return cached ? { set: cached, source: 'cache', conflict: null } : null;
     }
 
     if (!remote) {
+      if (!cached) return null;
       if (state.pending) void this.save(cached, serializeSet(cached), 0);
       else this.#setStatus(localId, { kind: 'local-only', attempt: 0, message: null });
       return { set: cached, source: 'cache', conflict: null };
+    }
+    if (remote.deletedAt !== null) return null;
+
+    if (!cached) {
+      const loaded = await this.#services.fetchDraft(localId);
+      if (!loaded) return null;
+      await this.acknowledgeHydrated(loaded.set, loaded.summary.revision, loaded.assetPaths);
+      return { set: loaded.set, source: 'cloud', conflict: null };
     }
 
     if (state.pending) {
@@ -521,7 +564,8 @@ export class PersistenceCoordinator {
       syncedHash: hash,
       pending: false,
       lastCloudSaveAt: now(),
-      assetPaths: [...assetPaths]
+      assetPaths: [...assetPaths],
+      cloudDraft: true
     };
     if (!(await saveSetWithDraftState(set, state, json))) {
       throw new Error('Could not cache the hydrated cloud draft on this device.');
@@ -549,6 +593,94 @@ export class PersistenceCoordinator {
       message: 'Cloud changed in another browser; automatic saving is paused.'
     });
     return { set: cached, source: 'cache', conflict };
+  }
+
+  async softDelete(localId: SetId, expectedRevision: number): Promise<DraftMutationResult> {
+    return this.#lifecycle(localId, expectedRevision, 'delete');
+  }
+
+  async restore(localId: SetId, expectedRevision: number): Promise<DraftMutationResult> {
+    return this.#lifecycle(localId, expectedRevision, 'restore');
+  }
+
+  async purge(localId: SetId, expectedRevision: number): Promise<DraftMutationResult> {
+    return this.#lifecycle(localId, expectedRevision, 'purge');
+  }
+
+  async #lifecycle(
+    localId: SetId,
+    expectedRevision: number,
+    operation: 'delete' | 'restore' | 'purge'
+  ): Promise<DraftMutationResult> {
+    const queue = this.#queue(localId);
+    queue.stopped = true;
+    this.#clearTimers(queue);
+    await queue.pumping;
+
+    let result: DraftMutationResult;
+    try {
+      result = await (operation === 'delete'
+        ? this.#services.softDeleteDraft(localId, expectedRevision)
+        : operation === 'restore'
+          ? this.#services.restoreDraft(localId, expectedRevision)
+          : this.#services.purgeDraft(localId, expectedRevision));
+    } catch (cause) {
+      // A failed delete changed nothing, so ordinary saving must resume. A
+      // failed restore/purge still refers to a deleted draft and stays paused.
+      if (operation === 'delete') {
+        queue.stopped = false;
+        if (!queue.conflict) this.#schedule(queue, 0);
+      }
+      throw cause;
+    }
+
+    if (result.outcome === 'conflict') {
+      queue.conflict = {
+        localId,
+        baseRevision: expectedRevision,
+        remoteRevision: result.revision
+      };
+      if (this.activeSetId === localId) this.conflict = queue.conflict;
+      this.#setStatus(localId, {
+        kind: 'conflict',
+        attempt: 0,
+        message: 'Cloud changed in another browser; the library action was not applied.'
+      });
+      return result;
+    }
+
+    const succeeded =
+      operation === 'delete'
+        ? result.outcome === 'deleted'
+        : operation === 'restore'
+          ? result.outcome === 'restored'
+          : result.outcome === 'purged' || result.outcome === 'not_found';
+    if (!succeeded) {
+      if (operation === 'delete') {
+        queue.stopped = false;
+        this.#schedule(queue, 0);
+      }
+      return result;
+    }
+
+    const state = await readDraftState(localId);
+    if (state && result.revision !== null) {
+      await writeDraftState({
+        ...state,
+        cloudRevision: result.revision,
+        pending: false,
+        lastCloudSaveAt: now(),
+        cloudDraft: true
+      });
+    }
+
+    if (operation === 'restore') {
+      queue.stopped = false;
+      queue.conflict = null;
+    } else if (operation === 'purge') {
+      this.forget(localId);
+    }
+    return result;
   }
 }
 

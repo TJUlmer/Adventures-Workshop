@@ -45,8 +45,8 @@
    * flight would show Home and then jump to whatever set was actually open —
    * `sessionReady` gates the first paint on it instead.
    *
-   * `openDeepLink` (below) now has to run inside this `.then` rather than
-   * straight after, for the same reason: it used to follow a *synchronous*
+   * `openDeepLink` (below) now has to run inside the async startup sequence
+   * rather than straight after, for the same reason: it used to follow a *synchronous*
    * `restoreSession` and so was guaranteed to run after it. Calling it
    * unconditionally here would race the restore instead, and could have the
    * restored "last open" set clobber the very share link it is meant to lose
@@ -55,8 +55,7 @@
   // Any session from a previous visit, before anything asks whether we have one.
   auth.restore();
 
-  /*
-   * And repair it now rather than at first use.
+  /* And repair it now rather than at first use.
    *
    * `restore` reads a session back from storage without checking the clock, so
    * a tab opened after a long absence shows "signed in" while holding a token
@@ -65,8 +64,6 @@
    * swallowed on purpose: offline must not sign anyone out, and the sign-in
    * panel is already the right answer to everything else.
    */
-  void auth.ensureFresh().catch(() => {});
-
   /*
    * A provider redirect, before the restored session and before the deep link.
    *
@@ -80,25 +77,30 @@
   // Which sign-in buttons to show. Fire and forget: the panel starts with none.
   void auth.loadProviders();
 
-  let sessionReady = $state(false);
-  void restoreSession(workshop).then(() => {
-    openDeepLink();
-    sessionReady = true;
-  });
-  useAutosave(workshop);
-
   /*
    * A share link wins over the restored session.
    *
    * Someone arriving on `#/shared/…` clicked a link to see a *particular* set,
    * and `restoreSession` has just reopened whatever they were last editing. The
-   * link is the more recent intent, so it is applied after — from inside
-   * `restoreSession`'s `.then`, above, rather than here.
+   * link is the more recent intent, so it is applied after.
    */
   const openDeepLink = (): void => {
     const slug = readSharedSlug();
     if (slug) navigation.openShared(slug);
   };
+
+  let sessionReady = $state(false);
+  void (async () => {
+    // Home's permanent-account library is cloud-authoritative, so session
+    // restoration must settle before its first summary request. Offline is
+    // still allowed through: `ensureFresh` preserves a session on network
+    // failure and the library then presents its labelled cache fallback.
+    await auth.ensureFresh().catch(() => {});
+    await restoreSession(workshop);
+    openDeepLink();
+    sessionReady = true;
+  })();
+  useAutosave(workshop);
 
   $effect(() => {
     /*

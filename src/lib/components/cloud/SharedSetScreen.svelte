@@ -47,7 +47,6 @@
   import type { AdventureSet } from '$lib/sets/types';
   import { navigation } from '$lib/state/navigation.svelte';
   import { workshop } from '$lib/state/workshop.svelte';
-  import { saveSet } from '$lib/storage/library';
   import { Button, Icon, Select } from '$lib/ui';
 
   interface Props {
@@ -209,9 +208,7 @@
       // `$state.snapshot` because `forkSet` clones, and `structuredClone`
       // throws on a reactive proxy.
       const copy = forkSet($state.snapshot(set), sourceOf(row, authorName));
-      await saveSet(copy);
-      await workshop.refreshLibrary();
-      forked = copy.name;
+      if (await workshop.addSet(copy)) forked = copy.name;
     } finally {
       forking = false;
     }

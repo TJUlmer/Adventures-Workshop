@@ -57,22 +57,27 @@ import {
 } from '$lib/core/artwork';
 import type { IsoDateTime } from '$lib/core/id';
 import { createId, now } from '$lib/core/id';
+import { auth } from '$lib/cloud/auth.svelte';
+import { fetchDraftSummary } from '$lib/cloud/drafts';
 import { serializeSet } from '$lib/export/json';
 import { persistenceCoordinator } from '$lib/persistence/coordinator.svelte';
+import { loadDraftLibrary } from '$lib/persistence/library';
+import type {
+  DraftLibraryEntry,
+  LibraryAuthority,
+  MigrationItemStatus
+} from '$lib/persistence/types';
 import { createActionDeck, createDeck } from '$lib/decks/factory';
 import type { Figure, FigureId, FigureKind } from '$lib/figures/types';
 import { createFigure } from '$lib/figures/types';
 import type { CustomSymbol, CustomSymbolId } from '$lib/symbols/types';
 import { createCustomSymbol } from '$lib/symbols/types';
 import { getLastWriteError, readStorageEstimate } from '$lib/storage/indexeddb';
-import type { LibraryEntry } from '$lib/storage/library';
 import {
-  activeEntries,
-  deletedEntries,
   deleteSet as deleteSetFromLibrary,
   loadSet as loadSetFromLibrary,
   purgeSet as purgeSetFromLibrary,
-  readIndex,
+  readDraftState,
   rememberLastOpen,
   restoreSet as restoreSetInLibrary,
   saveSet as saveSetToLibrary
@@ -235,17 +240,147 @@ export class WorkshopStore {
   // is what the title bar's flash message reads, so that one is worth
   // awaiting.
 
-  /** Index rows for the library screen. Refreshed on write, not derived. */
-  library = $state<LibraryEntry[]>([]);
+  /** Lightweight Home rows composed from cloud summaries and local cache metadata. */
+  library = $state<DraftLibraryEntry[]>([]);
   /** Recently Deleted — split out here rather than filtered per-reader, so
       Home's shelf and its Recently Deleted section can never disagree about
       which bucket a row is in. */
-  deletedLibrary = $state<LibraryEntry[]>([]);
+  deletedLibrary = $state<DraftLibraryEntry[]>([]);
+  libraryLoading = $state(true);
+  libraryReady = $state(false);
+  libraryAuthority = $state<LibraryAuthority>('local');
+  libraryError = $state<string | null>(null);
+  libraryActionError = $state<string | null>(null);
+  migrationDismissed = $state(false);
+  migrationRunning = $state(false);
+  migrationDone = $state(0);
+  migrationTotal = $state(0);
+  migrationStatus = $state<Map<SetId, MigrationItemStatus>>(new Map());
+  migrationCandidates = $derived(this.library.filter((entry) => entry.migrationCandidate));
+
+  #libraryRequest = 0;
+  #libraryOwnerId: string | null = null;
 
   async refreshLibrary(): Promise<void> {
-    const entries = await readIndex();
-    this.library = activeEntries(entries);
-    this.deletedLibrary = deletedEntries(entries);
+    const request = ++this.#libraryRequest;
+    this.libraryLoading = true;
+    const snapshot = await loadDraftLibrary();
+    if (request !== this.#libraryRequest) return;
+
+    if (snapshot.ownerId !== this.#libraryOwnerId) {
+      this.#libraryOwnerId = snapshot.ownerId;
+      this.migrationDismissed = false;
+      this.migrationStatus = new Map();
+    }
+    this.library = snapshot.active;
+    this.deletedLibrary = snapshot.deleted;
+    this.libraryAuthority = snapshot.authority;
+    this.libraryError = snapshot.error;
+    this.libraryLoading = false;
+    this.libraryReady = true;
+  }
+
+  dismissMigration(): void {
+    this.migrationDismissed = true;
+  }
+
+  #setMigrationStatus(id: SetId, status: MigrationItemStatus): void {
+    this.migrationStatus = new Map(this.migrationStatus).set(id, status);
+  }
+
+  /** Copy one existing local set online without removing its IndexedDB copy. */
+  async migrateSet(id: SetId): Promise<boolean> {
+    const entry = this.library.find((candidate) => candidate.id === id);
+    if (!entry?.migrationCandidate) return false;
+    if (!auth.signedIn || auth.isAnonymous || this.libraryAuthority !== 'cloud') {
+      this.#setMigrationStatus(id, {
+        kind: 'error',
+        message: 'Connect with a permanent account before moving this set online.'
+      });
+      return false;
+    }
+
+    this.#setMigrationStatus(id, { kind: 'uploading', message: null });
+    try {
+      // Re-check immediately before opting the local document into cloud.
+      // A browser opened since the shelf loaded may have created this id.
+      const existing = await fetchDraftSummary(id);
+      if (existing) {
+        this.#setMigrationStatus(id, {
+          kind: 'conflict',
+          message: 'A different online draft already uses this set id.'
+        });
+        await this.refreshLibrary();
+        return false;
+      }
+
+      const set = await loadSetFromLibrary(id);
+      if (!set) throw new Error('The local set could not be read.');
+      if (!(await persistenceCoordinator.enableCloud(id))) {
+        throw new Error('This device could not record the migration safely.');
+      }
+      if (!(await persistenceCoordinator.flush(set, serializeSet(set)))) {
+        throw new Error('The local copy could not be saved before upload.');
+      }
+
+      const [state, summary] = await Promise.all([readDraftState(id), fetchDraftSummary(id)]);
+      if (
+        !state ||
+        state.pending ||
+        state.cloudRevision === null ||
+        !summary ||
+        summary.revision !== state.cloudRevision
+      ) {
+        throw new Error('The set is safe on this device, but its online save is still pending.');
+      }
+
+      this.#setMigrationStatus(id, { kind: 'saved', message: null });
+      await this.refreshLibrary();
+      return true;
+    } catch (cause) {
+      this.#setMigrationStatus(id, {
+        kind: persistenceCoordinator.status.kind === 'conflict' ? 'conflict' : 'error',
+        message: cause instanceof Error ? cause.message : 'Could not move this set online.'
+      });
+      await this.refreshLibrary();
+      return false;
+    }
+  }
+
+  async migrateAll(): Promise<void> {
+    if (this.migrationRunning) return;
+    const ids = this.migrationCandidates.map((entry) => entry.id);
+    this.migrationRunning = true;
+    this.migrationDone = 0;
+    this.migrationTotal = ids.length;
+    try {
+      for (const id of ids) {
+        await this.migrateSet(id);
+        this.migrationDone += 1;
+      }
+    } finally {
+      this.migrationRunning = false;
+      await this.refreshLibrary();
+    }
+  }
+
+  async #storeNewSet(set: AdventureSet): Promise<boolean> {
+    if (auth.signedIn && !auth.isAnonymous) {
+      if (!(await persistenceCoordinator.enableCloud(set.id))) return false;
+      return persistenceCoordinator.flush(set, serializeSet(set));
+    }
+    return saveSetToLibrary(set);
+  }
+
+  /** Add an imported or forked document without opening it. */
+  async addSet(set: AdventureSet): Promise<boolean> {
+    this.libraryActionError = null;
+    if (!(await this.#storeNewSet(set))) {
+      this.libraryActionError = 'Could not save this set. Export it to keep a copy.';
+      return false;
+    }
+    await this.refreshLibrary();
+    return true;
   }
 
   /**
@@ -258,8 +393,7 @@ export class WorkshopStore {
    */
   async createSet(name?: string, kind: SetKind = 'adventure'): Promise<AdventureSet> {
     const set = createEmptySet({ ...(name === undefined ? {} : { name }), kind });
-    await saveSetToLibrary(set);
-    await this.refreshLibrary();
+    await this.addSet(set);
     this.load(set);
     await rememberLastOpen(set.id);
     navigation.openSet('home');
@@ -310,29 +444,103 @@ export class WorkshopStore {
   }
 
   async removeSet(id: SetId): Promise<void> {
+    this.libraryActionError = null;
     if (this.adventure.id === id && navigation.inSet && !(await this.saveNow())) return;
-    persistenceCoordinator.pause(id);
-    await deleteSetFromLibrary(id);
-    await this.refreshLibrary();
-    if (this.adventure.id === id) await this.closeSet();
+    const entry = this.library.find((candidate) => candidate.id === id);
+    if (!entry) return;
+    try {
+      if (entry.availability === 'conflict') {
+        throw new Error('Resolve this set’s cloud conflict before deleting it.');
+      }
+      let revision = entry.cloudRevision;
+      if (entry.availability === 'pending' && entry.cached) {
+        const set = await loadSetFromLibrary(id);
+        if (set) await persistenceCoordinator.flush(set, serializeSet(set));
+        const state = await readDraftState(id);
+        if (state?.pending) throw new Error('Wait for the pending cloud save before deleting.');
+        revision = state?.cloudRevision ?? revision;
+      }
+      if (revision !== null) {
+        const result = await persistenceCoordinator.softDelete(id, revision);
+        if (result.outcome !== 'deleted') {
+          throw new Error(
+            result.outcome === 'conflict'
+              ? 'The cloud draft changed in another browser. Nothing was deleted.'
+              : 'The cloud draft could not be deleted.'
+          );
+        }
+      } else {
+        persistenceCoordinator.pause(id);
+      }
+      if (entry.cached) await deleteSetFromLibrary(id);
+      await this.refreshLibrary();
+      if (this.adventure.id === id) await this.closeSet();
+    } catch (cause) {
+      this.libraryActionError = cause instanceof Error ? cause.message : 'Could not delete this set.';
+    }
   }
 
   /** Bring a soft-deleted set back onto the shelf. */
   async restoreSet(id: SetId): Promise<void> {
-    await restoreSetInLibrary(id);
-    await this.refreshLibrary();
+    this.libraryActionError = null;
+    const entry = this.deletedLibrary.find((candidate) => candidate.id === id);
+    if (!entry) return;
+    try {
+      if (entry.availability === 'conflict') {
+        throw new Error('Resolve this set’s cloud conflict before restoring it.');
+      }
+      if (entry.cloudRevision !== null) {
+        const result = await persistenceCoordinator.restore(id, entry.cloudRevision);
+        if (result.outcome !== 'restored') {
+          throw new Error(
+            result.outcome === 'conflict'
+              ? 'The cloud draft changed in another browser. Nothing was restored.'
+              : 'The cloud draft could not be restored.'
+          );
+        }
+      }
+      if (entry.cached) await restoreSetInLibrary(id);
+      await this.refreshLibrary();
+    } catch (cause) {
+      this.libraryActionError = cause instanceof Error ? cause.message : 'Could not restore this set.';
+    }
   }
 
   /** The point of no return — actually erases the set and its row. */
   async purgeSet(id: SetId): Promise<void> {
-    persistenceCoordinator.forget(id);
-    await purgeSetFromLibrary(id);
-    await this.refreshLibrary();
+    this.libraryActionError = null;
+    const entry = this.deletedLibrary.find((candidate) => candidate.id === id);
+    if (!entry) return;
+    try {
+      if (entry.availability === 'conflict') {
+        throw new Error('Resolve this set’s cloud conflict before deleting it forever.');
+      }
+      if (entry.cloudRevision !== null) {
+        const result = await persistenceCoordinator.purge(id, entry.cloudRevision);
+        if (result.outcome !== 'purged' && result.outcome !== 'not_found') {
+          throw new Error(
+            result.outcome === 'conflict'
+              ? 'The cloud draft changed in another browser. Nothing was deleted.'
+              : 'The cloud draft could not be deleted forever.'
+          );
+        }
+      } else {
+        persistenceCoordinator.forget(id);
+      }
+      if (entry.cached) await purgeSetFromLibrary(id);
+      await this.refreshLibrary();
+    } catch (cause) {
+      this.libraryActionError =
+        cause instanceof Error ? cause.message : 'Could not delete this set forever.';
+    }
   }
 
   /** Copy a set under a new identity — the Save As of a local-first tool. */
   async duplicateSet(id: SetId): Promise<void> {
-    const source = id === this.adventure.id ? this.adventure : await loadSetFromLibrary(id);
+    const source =
+      id === this.adventure.id
+        ? this.adventure
+        : (await persistenceCoordinator.open(id))?.set ?? null;
     if (!source) return;
 
     const copy: AdventureSet = {
@@ -341,8 +549,7 @@ export class WorkshopStore {
       name: `${source.name} (copy)`
     };
     copy.meta.updatedAt = now();
-    await saveSetToLibrary(copy);
-    await this.refreshLibrary();
+    await this.addSet(copy);
   }
 
   // -- Document ---------------------------------------------------------
@@ -374,7 +581,7 @@ export class WorkshopStore {
     const json = serializeSet(this.adventure);
     if (await persistenceCoordinator.flush(set, json)) {
       this.markSaved();
-      this.library = await readIndex();
+      await this.refreshLibrary();
       return true;
     }
 

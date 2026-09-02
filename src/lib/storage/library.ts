@@ -239,7 +239,14 @@ export async function readDraftState(id: SetId): Promise<CachedDraftState | null
     // reference to an object that was only assumed to be present.
     assetPaths: Array.isArray(stored.assetPaths)
       ? stored.assetPaths.filter((path): path is string => typeof path === 'string')
-      : null
+      : null,
+    // Phase 3 records predate explicit migration consent. A record that has
+    // already talked to cloud is enrolled; a plain old local row is not.
+    cloudDraft:
+      stored.cloudDraft === true ||
+      typeof stored.cloudRevision === 'number' ||
+      typeof stored.syncedHash === 'string' ||
+      stored.pending === true
   };
 }
 

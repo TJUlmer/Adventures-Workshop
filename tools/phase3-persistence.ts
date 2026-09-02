@@ -140,6 +140,7 @@ async function verifyProductionCoordinator(): Promise<void> {
     saveState({ localId: probe.id, revision: 0, verified: false });
   }
 
+  assert(await persistenceCoordinator.enableCloud(probe.id), 'The production probe could not opt in.');
   const wrote = await persistenceCoordinator.flush(probe, serializeSet(probe));
   assert(wrote, 'The production coordinator could not write the local cache.');
   const summary = await fetchDraftSummary(probe.id);
@@ -182,6 +183,7 @@ async function verifyGenerationGuard(): Promise<void> {
     }
   });
   const first = createProbeSet(undefined, 'generation one');
+  assert(await coordinator.enableCloud(first.id), 'The generation probe could not opt in.');
   const firstFlush = coordinator.flush(first, serializeSet(first));
   await waitFor(() => calls.length === 1, 'The first controlled cloud request did not start.');
 
@@ -220,6 +222,7 @@ async function verifyOfflineAndRetry(): Promise<void> {
     }
   });
   const offlineSet = createProbeSet(undefined, 'offline outbox');
+  assert(await offline.enableCloud(offlineSet.id), 'The offline probe could not opt in.');
   assert(await offline.flush(offlineSet), 'The offline local write failed.');
   assert(offline.status.kind === 'offline', 'Offline work was not reported as offline.');
   assert((await readDraftState(offlineSet.id))?.pending, 'Offline work was not durable in the outbox.');
@@ -246,6 +249,7 @@ async function verifyOfflineAndRetry(): Promise<void> {
     }
   });
   const retrySet = createProbeSet(undefined, 'retry outbox');
+  assert(await retrying.enableCloud(retrySet.id), 'The retry probe could not opt in.');
   assert(await retrying.flush(retrySet), 'The retry probe local write failed.');
   assert(retrying.status.kind === 'retrying', 'A retryable HTTP 503 did not enter backoff.');
   assert((await readDraftState(retrySet.id))?.pending, 'Retryable work was not kept pending.');
@@ -270,6 +274,7 @@ async function verifyConflictStop(): Promise<void> {
     }
   });
   const first = createProbeSet(undefined, 'conflict generation');
+  assert(await coordinator.enableCloud(first.id), 'The conflict probe could not opt in.');
   assert(await coordinator.flush(first), 'The conflict probe local write failed.');
   assert(coordinator.status.kind === 'conflict', 'A stale revision did not stop the queue.');
   const second = { ...first, name: 'still local after conflict' };

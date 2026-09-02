@@ -127,7 +127,7 @@
     {#if open}
       <div class="menu" role="menu">
         {#if !auth.signedIn}
-          <SignInPanel reason="Sign in to publish and share sets from anywhere." />
+          <SignInPanel reason="Sign in to keep private drafts across browsers and publish when you choose." />
         {:else}
           <p class="who">
             {#if auth.isAnonymous}

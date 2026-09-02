@@ -52,7 +52,10 @@ export async function restoreSession(store: WorkshopStore): Promise<void> {
   await store.refreshLibrary();
 
   const lastOpen = await readLastOpen();
-  if (lastOpen) {
+  // A successful cloud listing is authoritative. If another browser purged
+  // the remembered draft, its deliberately retained cache must not reopen it
+  // behind a shelf that correctly no longer lists it.
+  if (lastOpen && store.library.some((entry) => entry.id === lastOpen)) {
     const opened = await persistenceCoordinator.open(lastOpen);
     if (opened) {
       store.load(opened.set);
@@ -60,6 +63,8 @@ export async function restoreSession(store: WorkshopStore): Promise<void> {
       navigation.openSet('home');
       return;
     }
+    await rememberLastOpen(null);
+  } else if (lastOpen) {
     await rememberLastOpen(null);
   }
 
@@ -69,15 +74,19 @@ export async function restoreSession(store: WorkshopStore): Promise<void> {
 export function useAutosave(store: WorkshopStore, delayMs = 500): void {
   let latest: { set: AdventureSet; json: string } | null = null;
   let leavingFlush: Promise<boolean> | null = null;
+  let sessionKey = `${auth.user?.id ?? ''}:${auth.isAnonymous}`;
 
   persistenceCoordinator.start();
 
   $effect(() => {
     // These reads make sign-in, sign-out and anonymous-account promotion
     // restart or pause the durable outbox without coupling auth to storage.
-    auth.signedIn;
-    auth.isAnonymous;
+    const nextSessionKey = `${auth.user?.id ?? ''}:${auth.isAnonymous}`;
     persistenceCoordinator.sessionChanged();
+    if (nextSessionKey !== sessionKey) {
+      sessionKey = nextSessionKey;
+      void store.refreshLibrary();
+    }
   });
 
   $effect(() => {
@@ -104,7 +113,6 @@ export function useAutosave(store: WorkshopStore, delayMs = 500): void {
       void (async () => {
         if (await persistenceCoordinator.save(snapshot, json)) {
           store.markSaved();
-          await store.refreshLibrary();
         } else {
           store.markSaveFailed('Autosave failed — export the set to keep your work.');
         }
