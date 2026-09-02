@@ -41,14 +41,30 @@ from, and it is worth doing before phase 2: the combined export rests on
 assumptions about how a box gets assembled, and one actual Winter Extravaganza
 will correct more of them than any further design will.
 
-One thing is implemented but **not verified**, and the distinction matters
-because it looks finished from inside the repository:
+- ~~**The unfurl.**~~ **Verified against production data.** `vite dev` has no
+  Edge Runtime, but the middleware is a plain function of a `Request` and
+  imports nothing, so it can be called directly under Node — which exercises
+  the real matcher, the real bot detection, the real `collection_by_slug`
+  call and the real markup, without a deploy. Measured:
 
-- **The unfurl.** `middleware.ts` matches `/collection/:slug*` and renders a
-  preview from `collection_by_slug`, but `vite dev` has no Edge Runtime to run
-  it in. Confirming it means a real deploy plus either a spoofed bot
-  User-Agent or a paste into Discord — whose per-URL unfurl cache is
-  aggressive enough that a second attempt needs a throwaway slug.
+  - A Discordbot User-Agent on `/collection/{slug}` returns the collection's
+    own `og:title`; Slackbot likewise.
+  - **An ordinary browser User-Agent returns `undefined`** and falls through
+    to the SPA, which is the property the whole design rests on.
+  - `/shared/{slug}` returns the set's title, its character and card counts,
+    and a real `og:image` from Storage.
+  - An unknown slug returns the generic page rather than failing.
+  - **A private collection leaks neither its name nor its subtitle**, and
+    neither does an unlisted one that has been hidden. Both were checked
+    against a positive control — the same slug, unlisted and not hidden,
+    which does unfurl in full — so the silence is the filter working rather
+    than the request failing.
+
+  What this cannot cover is Vercel's own routing: that `config.matcher`
+  actually attaches the function to those two paths in the deployed project.
+  That is deployment configuration rather than code, and the only way to see
+  it is a real paste into Discord — whose per-URL unfurl cache is aggressive
+  enough that a second attempt needs a throwaway slug.
 - ~~**The migration as a source of truth.**~~ **Replayed, and it holds.**
   `0015_collections.sql` and `0016_public_collections.sql` were run against an
   empty slate — every collections table and function dropped inside a
