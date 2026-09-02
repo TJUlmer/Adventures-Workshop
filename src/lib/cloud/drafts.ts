@@ -14,6 +14,7 @@ import { normalizeSet } from '$lib/sets/normalize';
 import type { AdventureSet, SetKind } from '$lib/sets/types';
 import { SET_SCHEMA_VERSION } from '$lib/sets/types';
 import { auth } from './auth.svelte';
+import { draftRollout } from '$lib/persistence/rollout.svelte';
 import {
   deleteDraftAssets,
   hydrateDraftAssetsWithManifest,
@@ -141,6 +142,9 @@ const SUMMARY_COLUMNS =
 function requirePermanentUser(): void {
   if (!auth.user || auth.isAnonymous) {
     throw new CloudError('A permanent sign-in is required for cloud drafts.', 401);
+  }
+  if (!draftRollout.enabled) {
+    throw new CloudError('Private cloud drafts are not enabled for this account.', 403);
   }
 }
 

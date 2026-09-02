@@ -21,6 +21,7 @@ import type {
   DraftLibrarySnapshot,
   LibraryAvailability
 } from './types';
+import { draftRollout } from './rollout.svelte';
 
 function byUpdated(a: DraftLibraryEntry, b: DraftLibraryEntry): number {
   return b.updatedAt.localeCompare(a.updatedAt);
@@ -191,7 +192,7 @@ export function composeDraftLibrary(options: ComposeDraftLibraryOptions): DraftL
 /** Load summary-only Home data, retaining an honest cache fallback on failure. */
 export async function loadDraftLibrary(): Promise<DraftLibrarySnapshot> {
   const { entries: local, states } = await localRows();
-  const permanent = auth.signedIn && !auth.isAnonymous;
+  const permanent = auth.signedIn && !auth.isAnonymous && draftRollout.enabled;
   if (!permanent) {
     return composeDraftLibrary({
       local,

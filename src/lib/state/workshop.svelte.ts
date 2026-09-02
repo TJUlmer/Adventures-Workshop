@@ -62,6 +62,7 @@ import { fetchDraftSummary } from '$lib/cloud/drafts';
 import { serializeSet } from '$lib/export/json';
 import { createConflictCopy } from '$lib/persistence/conflicts';
 import { persistenceCoordinator } from '$lib/persistence/coordinator.svelte';
+import { draftRollout } from '$lib/persistence/rollout.svelte';
 import { loadDraftLibrary } from '$lib/persistence/library';
 import type {
   DraftLibraryEntry,
@@ -296,7 +297,7 @@ export class WorkshopStore {
   async migrateSet(id: SetId): Promise<boolean> {
     const entry = this.library.find((candidate) => candidate.id === id);
     if (!entry?.migrationCandidate) return false;
-    if (!auth.signedIn || auth.isAnonymous || this.libraryAuthority !== 'cloud') {
+    if (!auth.signedIn || auth.isAnonymous || !draftRollout.enabled || this.libraryAuthority !== 'cloud') {
       this.#setMigrationStatus(id, {
         kind: 'error',
         message: 'Connect with a permanent account before moving this set online.'
@@ -485,7 +486,7 @@ export class WorkshopStore {
   }
 
   async #storeNewSet(set: AdventureSet, makeActive = true): Promise<boolean> {
-    if (auth.signedIn && !auth.isAnonymous) {
+    if (auth.signedIn && !auth.isAnonymous && draftRollout.enabled) {
       if (!(await persistenceCoordinator.enableCloud(set.id))) return false;
       return persistenceCoordinator.flush(set, serializeSet(set), makeActive);
     }

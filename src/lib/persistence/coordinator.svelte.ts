@@ -34,6 +34,9 @@ import type {
   OpenCachedDraft,
   SyncStatus
 } from './types';
+import { draftDiagnostics } from './diagnostics.svelte';
+import type { DraftDiagnosticInput } from './diagnostics.svelte';
+import { draftRollout } from './rollout.svelte';
 
 const CLOUD_DEBOUNCE_MS = 1750;
 const RETRY_BASE_MS = 2000;
@@ -83,6 +86,8 @@ export interface PersistenceServices {
   purgeDraft: typeof purgeDraft;
   hasPermanentSession: () => boolean;
   isOnline: () => boolean;
+  recordDiagnostic: (event: DraftDiagnosticInput) => void;
+  monotonicNow: () => number;
 }
 
 const browserServices: PersistenceServices = {
@@ -92,8 +97,10 @@ const browserServices: PersistenceServices = {
   softDeleteDraft,
   restoreDraft,
   purgeDraft,
-  hasPermanentSession: () => auth.signedIn && !auth.isAnonymous,
-  isOnline: () => typeof navigator === 'undefined' || navigator.onLine
+  hasPermanentSession: () => auth.signedIn && !auth.isAnonymous && draftRollout.enabled,
+  isOnline: () => typeof navigator === 'undefined' || navigator.onLine,
+  recordDiagnostic: (event) => draftDiagnostics.record(event),
+  monotonicNow: () => (typeof performance === 'undefined' ? Date.now() : performance.now())
 };
 
 /** Stable over repeated serialisation, including objects whose key insertion order differs. */
@@ -112,6 +119,12 @@ export class PersistenceCoordinator {
 
   constructor(services: Partial<PersistenceServices> = {}) {
     this.#services = { ...browserServices, ...services };
+    // A constructed coordinator is a deterministic verifier unless it uses
+    // the untouched browser service set. Synthetic saves must not enter the
+    // author's real support report merely because a harness omitted a sink.
+    if (Object.keys(services).length > 0 && services.recordDiagnostic === undefined) {
+      this.#services.recordDiagnostic = () => undefined;
+    }
   }
 
   activate(id: SetId): void {
@@ -183,7 +196,10 @@ export class PersistenceCoordinator {
 
   sessionChanged(): void {
     if (!this.#services.hasPermanentSession()) {
-      for (const queue of this.#queues.values()) this.#clearTimers(queue);
+      for (const queue of this.#queues.values()) {
+        queue.stopped = true;
+        this.#clearTimers(queue);
+      }
       if (this.activeSetId) {
         this.#setStatus(this.activeSetId, { kind: 'local-only', attempt: 0, message: null });
       }
@@ -191,7 +207,10 @@ export class PersistenceCoordinator {
     }
 
     for (const queue of this.#queues.values()) {
-      if (!queue.conflict && !queue.stopped) this.#schedule(queue, 0);
+      if (!queue.conflict) {
+        queue.stopped = false;
+        this.#schedule(queue, 0);
+      }
     }
   }
 
@@ -273,6 +292,8 @@ export class PersistenceCoordinator {
     const generation = ++queue.generation;
 
     return this.#serial(queue, async () => {
+      const started = this.#services.monotonicNow();
+      const byteCount = encoder.encode(json).byteLength;
       const hash = await draftContentHash(set);
       const current = (await readDraftState(set.id)) ?? blankState(set.id);
       const tracked =
@@ -287,6 +308,18 @@ export class PersistenceCoordinator {
         : (this.#services.hasPermanentSession() && current.cloudDraft) || tracked;
       const next: CachedDraftState = { ...current, pending };
       const wrote = await saveSetWithDraftState(set, next, json);
+      if (tracked || this.#services.hasPermanentSession()) {
+        this.#services.recordDiagnostic({
+          localId: set.id,
+          stage: 'local-cache',
+          outcome: wrote ? 'succeeded' : 'failed',
+          statusCode: null,
+          durationMs: this.#services.monotonicNow() - started,
+          byteCount,
+          revision: current.cloudRevision,
+          retryCount: queue.retryAttempt
+        });
+      }
       if (!wrote) return false;
 
       if (!queue.latest || generation >= queue.latest.number) {
@@ -372,9 +405,16 @@ export class PersistenceCoordinator {
       }
 
       this.#setStatus(queue.id, { kind: 'saving', attempt: queue.retryAttempt, message: null });
+      const attemptStarted = this.#services.monotonicNow();
+      let documentStarted: number | null = null;
       try {
         const result = await this.#services.saveDraft(job.set, state.cloudRevision, {
           knownAssetPaths: state.assetPaths,
+          onProgress: (progress) => {
+            if (progress.stage === 'document' && documentStarted === null) {
+              documentStarted = this.#services.monotonicNow();
+            }
+          },
           onAssetsReady: async (assetPaths) => {
             const persisted = await this.#serial(queue, async () => {
               const current = (await readDraftState(queue.id)) ?? state;
@@ -387,6 +427,35 @@ export class PersistenceCoordinator {
               );
             }
           }
+        });
+        if (
+          result.outcome !== 'conflict' &&
+          (result.outcome !== 'saved' || result.revision === null)
+        ) {
+          throw new CloudError(`Unexpected draft save outcome: ${result.outcome}.`, 0);
+        }
+        const resultAt = this.#services.monotonicNow();
+        if (documentStarted !== null) {
+          this.#services.recordDiagnostic({
+            localId: queue.id,
+            stage: 'assets',
+            outcome: 'succeeded',
+            statusCode: null,
+            durationMs: documentStarted - attemptStarted,
+            byteCount: result.uploadedBytes ?? 0,
+            revision: state.cloudRevision,
+            retryCount: queue.retryAttempt
+          });
+        }
+        this.#services.recordDiagnostic({
+          localId: queue.id,
+          stage: 'document',
+          outcome: result.outcome === 'conflict' ? 'conflict' : 'succeeded',
+          statusCode: null,
+          durationMs: resultAt - (documentStarted ?? attemptStarted),
+          byteCount: encoder.encode(job.json).byteLength,
+          revision: result.revision,
+          retryCount: queue.retryAttempt
         });
         // A soft/permanent delete can happen while the request is in flight.
         // The server may already have accepted it, but a stopped queue must
@@ -408,11 +477,9 @@ export class PersistenceCoordinator {
           });
           return;
         }
-        if (result.outcome !== 'saved' || result.revision === null) {
-          throw new CloudError(`Unexpected draft save outcome: ${result.outcome}.`, 0);
-        }
 
         const acknowledgedAt = now();
+        const acknowledgementStarted = this.#services.monotonicNow();
         const persisted = await this.#serial(queue, async () => {
           const current = (await readDraftState(queue.id)) ?? state;
           const latest = queue.latest;
@@ -425,6 +492,16 @@ export class PersistenceCoordinator {
             lastCloudSaveAt: acknowledgedAt,
             assetPaths: result.assetPaths ?? current.assetPaths
           });
+        });
+        this.#services.recordDiagnostic({
+          localId: queue.id,
+          stage: 'acknowledgement',
+          outcome: persisted ? 'succeeded' : 'failed',
+          statusCode: null,
+          durationMs: this.#services.monotonicNow() - acknowledgementStarted,
+          byteCount: 0,
+          revision: result.revision,
+          retryCount: queue.retryAttempt
         });
         if (!persisted) {
           this.#setStatus(queue.id, {
@@ -447,6 +524,17 @@ export class PersistenceCoordinator {
         // Loop immediately with the newly acknowledged revision as its base.
       } catch (cause) {
         const status = cause instanceof CloudError ? cause.status : 0;
+        this.#services.recordDiagnostic({
+          localId: queue.id,
+          stage: documentStarted === null ? 'assets' : 'document',
+          outcome: 'failed',
+          statusCode: status,
+          durationMs:
+            this.#services.monotonicNow() - (documentStarted ?? attemptStarted),
+          byteCount: documentStarted === null ? 0 : encoder.encode(job.json).byteLength,
+          revision: state.cloudRevision,
+          retryCount: queue.retryAttempt
+        });
         const retryable = status === 0 || status === 408 || status === 429 || status >= 500;
         if (!retryable) {
           this.#setStatus(queue.id, {

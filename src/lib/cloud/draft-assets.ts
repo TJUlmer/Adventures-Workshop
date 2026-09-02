@@ -16,6 +16,7 @@ import {
 } from './assets';
 import type { EmbeddedAsset } from './assets';
 import { auth } from './auth.svelte';
+import { draftRollout } from '$lib/persistence/rollout.svelte';
 import { CloudError, endpoint, headers } from './http';
 
 export const DRAFT_ASSET_BUCKET = 'draft-assets';
@@ -63,6 +64,9 @@ function requirePermanentUser(): { id: string } {
   const user = auth.user;
   if (!user || auth.isAnonymous) {
     throw new CloudError('A permanent sign-in is required for cloud drafts.', 401);
+  }
+  if (!draftRollout.enabled) {
+    throw new CloudError('Private cloud drafts are not enabled for this account.', 403);
   }
   return user;
 }

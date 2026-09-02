@@ -10,6 +10,7 @@
    */
   import { auth } from '$lib/cloud/auth.svelte';
   import { cloudEnabled } from '$lib/cloud/config';
+  import { draftRollout } from '$lib/persistence/rollout.svelte';
   import { Button, Icon, TextInput } from '$lib/ui';
 
   interface Props {
@@ -88,8 +89,11 @@
       {/each}
       {#if auth.providers.length > 0}
         <p class="fineprint">
-          Gives you a private online draft library across browsers and publishes under the name
-          that account already has. Leaves this page and comes straight back.
+          Signs you in permanently and publishes under the name that account already has.
+          {draftRollout.mode === 'off'
+            ? 'Private cloud drafts are not enabled in this build.'
+            : 'Private cloud drafts remain a limited preview.'}
+          Leaves this page and comes straight back.
         </p>
       {/if}
 
@@ -107,7 +111,12 @@
           {auth.sending ? 'Sending…' : 'Email me a code'}
         </Button>
       </form>
-      <p class="fineprint">Keeps private drafts across browsers and devices.</p>
+      <p class="fineprint">
+        Creates a permanent account for publishing.
+        {draftRollout.mode === 'off'
+          ? 'Private cloud drafts are not enabled in this build.'
+          : 'Private cloud drafts remain a limited preview.'}
+      </p>
     {:else if stage === 'code'}
       <p class="sent">
         A six-digit code is on its way to <strong>{auth.pendingEmail}</strong>.

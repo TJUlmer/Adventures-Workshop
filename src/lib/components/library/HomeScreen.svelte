@@ -25,6 +25,7 @@
   import { coverArtwork } from '$lib/cloud/thumbnail';
   import { asId } from '$lib/core/id';
   import { GUIDES } from '$lib/guides/content';
+  import { draftRollout } from '$lib/persistence/rollout.svelte';
   import type { DraftLibraryEntry, LibraryAvailability } from '$lib/persistence/types';
   import { CARD_FORMATS, trimBox } from '$lib/renderer/geometry';
   import { healthSummaryFromCounts } from '$lib/sets/health';
@@ -1002,8 +1003,10 @@
     <div class="library-notice" data-tone="local">
       <Icon name="save" size={15} />
       <span>
-        Sets are saved only on this device while signed out. Sign in with Google to use them in
-        other browsers; you will choose which existing sets to copy online.
+        Sets are saved only on this device while signed out. Sign in to publish;
+        {draftRollout.mode === 'off'
+          ? 'private cloud drafts are not enabled in this build.'
+          : 'private cloud drafts are still a limited preview.'}
       </span>
     </div>
   {:else if auth.isAnonymous}
@@ -1012,6 +1015,15 @@
       <span>
         This anonymous sharing session belongs to this browser. Drafts remain device-only, and an
         ownership-preserving account upgrade is not available yet.
+      </span>
+    </div>
+  {:else if !draftRollout.enabled}
+    <div class="library-notice" data-tone="local">
+      <Icon name="save" size={15} />
+      <span>
+        {draftRollout.canOptIn
+          ? 'Cloud drafts are off on this browser. Turn on the preview from Account when you are ready; until then, this library uses device copies.'
+          : 'This account is outside the private cloud-draft preview. Sets continue to use device storage, and publishing remains available.'}
       </span>
     </div>
   {/if}
