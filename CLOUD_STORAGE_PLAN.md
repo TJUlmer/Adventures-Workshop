@@ -673,6 +673,38 @@ authority disabled. No production draft, policy, cohort, deployment, or public b
 changed. The real multi-browser, failure-injection, two-owner security, Google-linking, and
 pilot-threshold evidence remains required before this phase or public rollout is complete.
 
+### Phase 7 — reference-aware storage cleanup (2–3 days plus observation window)
+
+Goal: bound abandoned Storage growth without weakening draft recovery, publication, or
+contribution workflows.
+
+Deliverables:
+
+- A service-role-only candidate ledger and planner for `draft-assets` and `set-assets`.
+- Whole-prefix private cleanup only when the corresponding `set_drafts` row no longer exists;
+  soft-deleted drafts continue to retain their complete private asset history.
+- Object-level public cleanup only after checking references in both publications and
+  contributions.
+- A mandatory thirty-day observation window that resets when an object is
+  changed or becomes live again.
+- A server-only Edge Function that defaults to dry run, revalidates each candidate immediately
+  before deletion, uses the Storage API, and reports only aggregate counts and bytes.
+- `tts-assets` excluded because external Tabletop Simulator saves cannot be proven unused from
+  database state.
+
+Rollout:
+
+1. Apply and rollback-test the migration in the recovery project.
+2. Deploy without enabling destructive execution and collect at least two dry-run observations
+   separated by the full grace period.
+3. Review candidate rows and back up a small canary batch.
+4. Enable deletion only through a separate operational approval, then verify two-browser,
+   two-owner, restore, publication, and contribution flows.
+5. Schedule a capped weekly run only after the canary passes and monitored growth is understood.
+
+Status: implemented locally as inert, dry-run-first infrastructure. It is not deployed,
+scheduled, or authorised to delete production data. See `STORAGE_CLEANUP.md`.
+
 ## 11. Verification matrix
 
 The project has no test runner, so verification should drive the real app and database.
