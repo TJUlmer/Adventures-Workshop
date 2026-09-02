@@ -57,6 +57,8 @@ import {
 } from '$lib/core/artwork';
 import type { IsoDateTime } from '$lib/core/id';
 import { createId, now } from '$lib/core/id';
+import { serializeSet } from '$lib/export/json';
+import { persistenceCoordinator } from '$lib/persistence/coordinator.svelte';
 import { createActionDeck, createDeck } from '$lib/decks/factory';
 import type { Figure, FigureId, FigureKind } from '$lib/figures/types';
 import { createFigure } from '$lib/figures/types';
@@ -265,10 +267,11 @@ export class WorkshopStore {
   }
 
   async openSet(id: SetId): Promise<boolean> {
-    const set = await loadSetFromLibrary(id);
-    if (!set) return false;
-    this.load(set);
-    this.markSaved(set.meta.updatedAt);
+    if (navigation.inSet && this.adventure.id !== id && !(await this.saveNow())) return false;
+    const opened = await persistenceCoordinator.open(id);
+    if (!opened) return false;
+    this.load(opened.set);
+    this.markSaved(opened.set.meta.updatedAt);
     await rememberLastOpen(id);
     navigation.openSet('home');
     return true;
@@ -307,6 +310,8 @@ export class WorkshopStore {
   }
 
   async removeSet(id: SetId): Promise<void> {
+    if (this.adventure.id === id && navigation.inSet && !(await this.saveNow())) return;
+    persistenceCoordinator.pause(id);
     await deleteSetFromLibrary(id);
     await this.refreshLibrary();
     if (this.adventure.id === id) await this.closeSet();
@@ -320,6 +325,7 @@ export class WorkshopStore {
 
   /** The point of no return — actually erases the set and its row. */
   async purgeSet(id: SetId): Promise<void> {
+    persistenceCoordinator.forget(id);
     await purgeSetFromLibrary(id);
     await this.refreshLibrary();
   }
@@ -344,6 +350,7 @@ export class WorkshopStore {
   load(set: AdventureSet): void {
     this.adventure = set;
     this.selection = SET_SELECTION;
+    persistenceCoordinator.activate(set.id);
   }
 
   markSaved(at: IsoDateTime = now()): void {
@@ -363,7 +370,9 @@ export class WorkshopStore {
    * not much use without a way to try again, which is what this is.
    */
   async saveNow(): Promise<boolean> {
-    if (await saveSetToLibrary(this.adventure)) {
+    const set = structuredClone($state.snapshot(this.adventure));
+    const json = serializeSet(this.adventure);
+    if (await persistenceCoordinator.flush(set, json)) {
       this.markSaved();
       this.library = await readIndex();
       return true;

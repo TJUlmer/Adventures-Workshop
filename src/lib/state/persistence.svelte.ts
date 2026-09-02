@@ -3,15 +3,15 @@
  * component's setup — it registers an effect and cleans up with it.
  */
 import { serializeSet } from '$lib/export/json';
+import { auth } from '$lib/cloud/auth.svelte';
+import { persistenceCoordinator } from '$lib/persistence/coordinator.svelte';
+import type { AdventureSet } from '$lib/sets/types';
 import { navigation } from './navigation.svelte';
 import {
-  loadSet,
   migrateLegacyDocument,
   migrateLibraryFromLocalStorage,
-  readIndex,
   readLastOpen,
-  rememberLastOpen,
-  saveSet
+  rememberLastOpen
 } from '$lib/storage/library';
 import { requestPersistentStorage } from '$lib/storage/indexeddb';
 import type { WorkshopStore } from './workshop.svelte';
@@ -53,10 +53,10 @@ export async function restoreSession(store: WorkshopStore): Promise<void> {
 
   const lastOpen = await readLastOpen();
   if (lastOpen) {
-    const set = await loadSet(lastOpen);
-    if (set) {
-      store.load(set);
-      store.markSaved(set.meta.updatedAt);
+    const opened = await persistenceCoordinator.open(lastOpen);
+    if (opened) {
+      store.load(opened.set);
+      store.markSaved(opened.set.meta.updatedAt);
       navigation.openSet('home');
       return;
     }
@@ -67,6 +67,19 @@ export async function restoreSession(store: WorkshopStore): Promise<void> {
 }
 
 export function useAutosave(store: WorkshopStore, delayMs = 500): void {
+  let latest: { set: AdventureSet; json: string } | null = null;
+  let leavingFlush: Promise<boolean> | null = null;
+
+  persistenceCoordinator.start();
+
+  $effect(() => {
+    // These reads make sign-in, sign-out and anonymous-account promotion
+    // restart or pause the durable outbox without coupling auth to storage.
+    auth.signedIn;
+    auth.isAnonymous;
+    persistenceCoordinator.sessionChanged();
+  });
+
   $effect(() => {
     const inSet = navigation.inSet;
 
@@ -78,6 +91,8 @@ export function useAutosave(store: WorkshopStore, delayMs = 500): void {
      */
     const set = store.adventure;
     const json = serializeSet(set);
+    const snapshot = structuredClone($state.snapshot(set));
+    latest = { set: snapshot, json };
 
     // Nothing to save while Home is on screen.
     if (!inSet) return;
@@ -87,9 +102,9 @@ export function useAutosave(store: WorkshopStore, delayMs = 500): void {
       // plain callback instead, same as everywhere else in the app that
       // starts an async task from a synchronous handler.
       void (async () => {
-        if (await saveSet(set, json)) {
+        if (await persistenceCoordinator.save(snapshot, json)) {
           store.markSaved();
-          store.library = await readIndex();
+          await store.refreshLibrary();
         } else {
           store.markSaveFailed('Autosave failed — export the set to keep your work.');
         }
@@ -97,5 +112,24 @@ export function useAutosave(store: WorkshopStore, delayMs = 500): void {
     }, delayMs);
 
     return () => clearTimeout(handle);
+  });
+
+  $effect(() => {
+    const flushLatest = (): void => {
+      if (!navigation.inSet || !latest || leavingFlush) return;
+      leavingFlush = persistenceCoordinator.flush(latest.set, latest.json).finally(() => {
+        leavingFlush = null;
+      });
+    };
+    const onVisibilityChange = (): void => {
+      if (document.visibilityState === 'hidden') flushLatest();
+    };
+    window.addEventListener('pagehide', flushLatest);
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    return () => {
+      window.removeEventListener('pagehide', flushLatest);
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+      persistenceCoordinator.stop();
+    };
   });
 }

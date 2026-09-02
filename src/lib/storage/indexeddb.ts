@@ -138,6 +138,46 @@ export async function idbPut(store: string, key: string, value: unknown): Promis
   });
 }
 
+export interface IndexedDbWrite {
+  store: string;
+  key: string;
+  value: unknown;
+}
+
+/** Commit related records in one transaction, including across object stores. */
+export async function idbPutMany(writes: readonly IndexedDbWrite[]): Promise<boolean> {
+  if (writes.length === 0) return true;
+  const db = await open();
+  if (!db) {
+    lastWriteError = { name: 'NoDatabase', message: 'IndexedDB is unavailable or failed to open.' };
+    return false;
+  }
+
+  const stores = [...new Set(writes.map((write) => write.store))];
+  return new Promise((resolve) => {
+    const tx = db.transaction(stores, 'readwrite');
+    for (const write of writes) tx.objectStore(write.store).put(write.value, write.key);
+    tx.oncomplete = () => {
+      lastWriteError = null;
+      resolve(true);
+    };
+    tx.onerror = () => {
+      const error = tx.error;
+      lastWriteError = error
+        ? { name: error.name, message: error.message }
+        : { name: 'UnknownError', message: 'Transaction failed with no reported error.' };
+      resolve(false);
+    };
+    tx.onabort = () => {
+      const error = tx.error;
+      lastWriteError = error
+        ? { name: error.name, message: error.message }
+        : { name: 'AbortError', message: 'Transaction aborted with no reported error.' };
+      resolve(false);
+    };
+  });
+}
+
 export async function idbDelete(store: string, key: string): Promise<void> {
   const db = await open();
   if (!db) return;

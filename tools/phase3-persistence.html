@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Phase 3 persistence verifier</title>
+  </head>
+  <body>
+    <main>
+      <h1>Phase 3 persistence verifier</h1>
+      <p>
+        This local-only screen exercises the IndexedDB cache/outbox and revision-safe cloud
+        coordinator. It displays no account identifiers, credentials, tokens, or document
+        contents.
+      </p>
+      <p id="session">Checking the current session…</p>
+      <p id="instruction"></p>
+      <p id="status" role="status" aria-live="polite"></p>
+      <div id="actions"></div>
+      <h2>Checks</h2>
+      <ol id="checks"></ol>
+    </main>
+    <script type="module" src="./phase3-persistence.ts"></script>
+  </body>
+</html>

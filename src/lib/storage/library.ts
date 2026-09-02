@@ -28,7 +28,8 @@ import { assessSet } from '$lib/sets/health';
 import type { AdventureSet, SetId } from '$lib/sets/types';
 import type { IsoDateTime } from '$lib/core/id';
 import { now } from '$lib/core/id';
-import { idbDelete, idbGet, idbPut, META_STORE, SETS_STORE } from './indexeddb';
+import type { CachedDraftState } from '$lib/persistence/types';
+import { idbDelete, idbGet, idbPut, idbPutMany, META_STORE, SETS_STORE } from './indexeddb';
 
 /** The pre-IndexedDB keys, read once each to migrate whatever they hold. */
 const OLD_INDEX_KEY = 'adventures-workshop:library:v1';
@@ -39,6 +40,7 @@ const LEGACY_KEY = 'adventures-workshop:document:v1';
 
 const INDEX_KEY = 'library-index';
 const LAST_OPEN_KEY = 'last-open';
+const DRAFT_SYNC_PREFIX = 'draft-sync:';
 
 /** What the Home screen needs, without loading a whole document. */
 export interface LibraryEntry {
@@ -189,10 +191,11 @@ function toEntry(set: AdventureSet, bytes: number): LibraryEntry {
  * the autosave effect does, because serialising is also how it establishes a
  * deep read on every field of the document.
  */
-export async function saveSet(set: AdventureSet, json = serializeSet(set)): Promise<boolean> {
-  const wrote = await idbPut(SETS_STORE, set.id, json);
-  if (!wrote) return false;
-
+async function setWrites(
+  set: AdventureSet,
+  json: string,
+  syncState?: CachedDraftState
+): Promise<boolean> {
   const existing = await readIndex();
   // Carried forward explicitly: `toEntry` builds a fresh row with no notion
   // of Recently Deleted, so without this an autosave landing on a set that
@@ -201,8 +204,47 @@ export async function saveSet(set: AdventureSet, json = serializeSet(set)): Prom
   const deletedAt = existing.find((entry) => entry.id === set.id)?.deletedAt;
   const entries = existing.filter((entry) => entry.id !== set.id);
   entries.unshift({ ...toEntry(set, json.length), ...(deletedAt ? { deletedAt } : {}) });
-  await writeIndex(entries);
-  return true;
+  return idbPutMany([
+    { store: SETS_STORE, key: set.id, value: json },
+    { store: META_STORE, key: INDEX_KEY, value: entries },
+    ...(syncState
+      ? [{ store: META_STORE, key: `${DRAFT_SYNC_PREFIX}${set.id}`, value: syncState }]
+      : [])
+  ]);
+}
+
+export async function saveSet(set: AdventureSet, json = serializeSet(set)): Promise<boolean> {
+  return setWrites(set, json);
+}
+
+/** Atomically cache one document, its shelf row, and cloud outbox metadata. */
+export async function saveSetWithDraftState(
+  set: AdventureSet,
+  syncState: CachedDraftState,
+  json = serializeSet(set)
+): Promise<boolean> {
+  return setWrites(set, json, syncState);
+}
+
+export async function readDraftState(id: SetId): Promise<CachedDraftState | null> {
+  const stored = await idbGet<CachedDraftState & { assetPaths?: unknown }>(
+    META_STORE,
+    `${DRAFT_SYNC_PREFIX}${id}`
+  );
+  if (!stored) return null;
+  return {
+    ...stored,
+    // Existing Phase 3 records predate the manifest. `null` forces one
+    // authenticated prefix listing; treating absence as `[]` could write a
+    // reference to an object that was only assumed to be present.
+    assetPaths: Array.isArray(stored.assetPaths)
+      ? stored.assetPaths.filter((path): path is string => typeof path === 'string')
+      : null
+  };
+}
+
+export async function writeDraftState(state: CachedDraftState): Promise<boolean> {
+  return idbPut(META_STORE, `${DRAFT_SYNC_PREFIX}${state.localId}`, state);
 }
 
 export async function loadSet(id: SetId): Promise<AdventureSet | null> {
@@ -258,6 +300,7 @@ export async function restoreSet(id: SetId): Promise<void> {
  */
 export async function purgeSet(id: SetId): Promise<void> {
   await idbDelete(SETS_STORE, id);
+  await idbDelete(META_STORE, `${DRAFT_SYNC_PREFIX}${id}`);
   await writeIndex((await readIndex()).filter((entry) => entry.id !== id));
 }
 

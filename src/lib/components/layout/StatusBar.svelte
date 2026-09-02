@@ -1,12 +1,31 @@
 <script lang="ts">
   import { workshop } from '$lib/state/workshop.svelte';
+  import { persistenceCoordinator } from '$lib/persistence/coordinator.svelte';
 
   const stats = $derived(workshop.stats);
 
   const savedLabel = $derived.by(() => {
     if (workshop.savedAt === null) return 'Not saved yet';
     const time = new Date(workshop.savedAt);
-    return `Saved locally · ${time.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+    const localTime = time.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    switch (persistenceCoordinator.status.kind) {
+      case 'synced':
+        return `Saved locally and to cloud · ${localTime}`;
+      case 'pending':
+        return `Saved locally · Cloud save pending`;
+      case 'saving':
+        return `Saved locally · Saving to cloud…`;
+      case 'offline':
+        return `Saved locally · Offline — cloud save pending`;
+      case 'retrying':
+        return `Saved locally · Cloud retry queued`;
+      case 'conflict':
+        return 'Saved locally · Cloud conflict — autosave paused';
+      case 'error':
+        return 'Saved locally · Cloud save paused';
+      default:
+        return `Saved locally · ${localTime}`;
+    }
   });
 </script>
 
@@ -23,7 +42,12 @@
     {#if workshop.saveError}
       <span class="stat failed">{workshop.saveError}</span>
     {:else}
-      <span class="stat saved" class:pending={workshop.savedAt === null}>{savedLabel}</span>
+      <span
+        class="stat saved"
+        class:pending={workshop.savedAt === null || persistenceCoordinator.status.kind !== 'synced'}
+        class:attention={persistenceCoordinator.status.kind === 'conflict' || persistenceCoordinator.status.kind === 'error'}
+        title={persistenceCoordinator.status.message ?? undefined}
+      >{savedLabel}</span>
     {/if}
   </div>
 </div>
@@ -71,6 +95,14 @@
 
   .saved.pending::before {
     background: var(--grey-600);
+  }
+
+  .saved.attention {
+    color: var(--warning);
+  }
+
+  .saved.attention::before {
+    background: var(--warning);
   }
 
   .failed {

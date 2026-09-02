@@ -71,6 +71,7 @@
     /* `closeSet` refreshes the library and clears last-open state. A shared
        path also needs `leaveShared` or its URL would reopen itself on reload. */
     const sharedPathOpen = readSharedSlug() !== null;
+    if (navigation.inSet && !(await workshop.saveNow())) return;
     await workshop.closeSet();
     if (sharedPathOpen) navigation.leaveShared({ kind: 'home' });
   }
@@ -99,7 +100,8 @@
     await workshop.openSet(entry.id);
   }
 
-  function openGallery(): void {
+  async function openGallery(): Promise<void> {
+    if (navigation.inSet && !(await workshop.saveNow())) return;
     if (readSharedSlug() !== null) navigation.leaveShared({ kind: 'gallery' });
     else navigation.openGallery();
   }

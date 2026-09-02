@@ -52,13 +52,6 @@
    * restored "last open" set clobber the very share link it is meant to lose
    * to.
    */
-  let sessionReady = $state(false);
-  void restoreSession(workshop).then(() => {
-    openDeepLink();
-    sessionReady = true;
-  });
-  useAutosave(workshop);
-
   // Any session from a previous visit, before anything asks whether we have one.
   auth.restore();
 
@@ -87,6 +80,13 @@
   // Which sign-in buttons to show. Fire and forget: the panel starts with none.
   void auth.loadProviders();
 
+  let sessionReady = $state(false);
+  void restoreSession(workshop).then(() => {
+    openDeepLink();
+    sessionReady = true;
+  });
+  useAutosave(workshop);
+
   /*
    * A share link wins over the restored session.
    *
@@ -106,9 +106,12 @@
      * Leaving the hash entirely means leaving the shared view too, or Back out
      * of a set would clear the URL and leave the set still on screen.
      */
-    const onHashChange = (): void => {
+    const onHashChange = async (): Promise<void> => {
       const slug = readSharedSlug();
-      if (slug) navigation.openShared(slug);
+      if (slug) {
+        if (navigation.inSet && !(await workshop.saveNow())) return;
+        navigation.openShared(slug);
+      }
       else if (navigation.view.kind === 'shared') navigation.leaveShared();
     };
     window.addEventListener('hashchange', onHashChange);
