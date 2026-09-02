@@ -53,7 +53,7 @@
   import type { PrintMember } from '$lib/print/sheet';
   import { createTtsAssetHost } from '$lib/cloud/tts-assets';
   import { exportCollectionBundle } from '$lib/export/tts-bundle';
-  import { saveExport } from '$lib/export';
+  import { exportCollectionCardPngs, saveExport } from '$lib/export';
   import { readTtsSavedObjectsPath, writeTtsSavedObjectsPath } from '$lib/storage/settings';
   import { initials, tint } from '$lib/core/swatch';
   import { CARD_FORMATS, trimBox } from '$lib/renderer/geometry';
@@ -537,6 +537,42 @@
       }));
     } catch (error) {
       notice = error instanceof Error ? error.message : 'Those decks could not be fetched.';
+    } finally {
+      boxProgress = null;
+    }
+  }
+
+  /**
+   * The same decks as loose PNGs, one folder per creator.
+   *
+   * Bleed is off by default here, matching `ExportPanel`: somebody taking a
+   * whole box is far more often printing it at home than sending it to a
+   * shop, and the trimmed images are the ones that can be cut on the line.
+   */
+  let pngBleed = $state(false);
+
+  async function downloadImages(): Promise<void> {
+    if (!collection || boxProgress !== null) return;
+    boxProgress = 'Fetching decks…';
+    boxProblem = null;
+    boxSkipped = [];
+    notice = null;
+    try {
+      const decks = await loadBox();
+      if (!decks) return;
+
+      const result = await exportCollectionCardPngs(
+        decks.map((deck) => ({ author: deck.tile.author_name || 'Anonymous', set: deck.set })),
+        collection.name || 'Collection',
+        {
+          bleed: pngBleed,
+          onProgress: (done, total) => (boxProgress = `Rendering ${done} of ${total}…`)
+        }
+      );
+      saveExport(result);
+      notice = `Downloaded ${result.filename}.`;
+    } catch (error) {
+      notice = error instanceof Error ? error.message : 'That export did not finish.';
     } finally {
       boxProgress = null;
     }
@@ -1157,7 +1193,20 @@
             >
               Print sheets
             </button>
+            <button
+              type="button"
+              class="btn"
+              disabled={boxProgress !== null}
+              onclick={downloadImages}
+            >
+              Card images
+            </button>
           </div>
+
+          <label class="toggle">
+            <input type="checkbox" bind:checked={pngBleed} disabled={boxProgress !== null} />
+            <span>Card images include the printer's bleed</span>
+          </label>
 
           <h3 class="sub">Tabletop Simulator</h3>
 

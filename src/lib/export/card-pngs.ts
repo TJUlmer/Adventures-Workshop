@@ -212,7 +212,11 @@ async function toBytes(blob: Blob): Promise<Uint8Array<ArrayBuffer>> {
  * Figures and tokens are the author's own reference images rather than
  * rendered cards, so they travel as they were supplied.
  */
-async function figureEntries(set: AdventureSet, taken: Set<string>): Promise<ZipEntry[]> {
+async function figureEntries(
+  set: AdventureSet,
+  taken: Set<string>,
+  prefix: string
+): Promise<ZipEntry[]> {
   const entries: ZipEntry[] = [];
 
   for (const figure of set.figures) {
@@ -221,7 +225,7 @@ async function figureEntries(set: AdventureSet, taken: Set<string>): Promise<Zip
 
     const blob = await (await fetch(source)).blob();
     const extension = blob.type === 'image/jpeg' ? 'jpg' : blob.type === 'image/webp' ? 'webp' : 'png';
-    const base = `${FOLDERS.components}/${slugify(figure.name, 'figure')}`;
+    const base = `${prefix}${FOLDERS.components}/${slugify(figure.name, 'figure')}`;
     let path = `${base}.${extension}`;
     let suffix = 2;
     while (taken.has(path)) {
@@ -248,9 +252,9 @@ async function figureEntries(set: AdventureSet, taken: Set<string>): Promise<Zip
  * Only lists folders the export actually wrote, so a box of heroes is not told
  * about a threat track it does not have.
  */
-function readme(set: AdventureSet, options: CardPngOptions, folders: Set<string>): string {
+function readme(title: string, options: CardPngOptions, folders: Set<string>): string {
   const lines = [
-    `${set.name || 'Untitled Adventure'} — card images`,
+    `${title || 'Untitled Adventure'} — card images`,
     '',
     options.bleed
       ? 'These images INCLUDE the printer’s bleed: about 3mm of extra artwork'
@@ -290,20 +294,40 @@ function readme(set: AdventureSet, options: CardPngOptions, folders: Set<string>
   return `${lines.join('\n')}\n`;
 }
 
-export async function exportCardPngs(
-  set: AdventureSet,
-  options: CardPngOptions
-): Promise<ExportResult> {
-  const jobs = planJobs(set);
-  const root = slugify(set.name, 'adventure-set');
-  const taken = new Set<string>();
-  const entries: ZipEntry[] = [];
+/**
+ * What one pass of photographing writes into, shared across every member of a
+ * box so that names cannot collide and progress counts once.
+ */
+interface PngRun {
+  entries: ZipEntry[];
+  taken: Set<string>;
   /* Collected as the export runs rather than predicted, so the guide can only
-     ever describe folders that were actually written. */
-  const folders = new Set<string>();
+     ever describe folders that were actually written. Bare folder names, never
+     the prefixed ones — the guide explains what a `Heroes/` folder is once,
+     however many creators have one. */
+  folders: Set<string>;
+  done: number;
+  total: number;
+}
 
-  await withCardStage(async (photograph) => {
-    for (const [index, job] of jobs.entries()) {
+/**
+ * Photograph one set's jobs into the run.
+ *
+ * `prefix` is what makes a box possible: empty for a single set, and one
+ * creator's folder for a member of a collection. Everything else — the format
+ * trap below, the theme, the symbols — is per set either way, which is the
+ * point of passing the set rather than reaching for one.
+ */
+async function photographJobs(
+  set: AdventureSet,
+  jobs: readonly CardJob[],
+  prefix: string,
+  options: CardPngOptions,
+  photograph: Parameters<Parameters<typeof withCardStage>[0]>[0],
+  run: PngRun
+): Promise<void> {
+  {
+    for (const job of jobs) {
       /*
        * Which canvas to photograph on, and it has to agree with `CardRenderer`
        * exactly — the renderer picks the format, and asking for a different
@@ -344,35 +368,56 @@ export async function exportCardPngs(
       );
 
       if (blob) {
-        folders.add(job.folder);
-        entries.push({
-          path: uniquePath(taken, job.folder, job.name),
+        run.folders.add(job.folder);
+        run.entries.push({
+          path: uniquePath(run.taken, `${prefix}${job.folder}`, job.name),
           bytes: await toBytes(blob)
         });
       }
 
-      options.onProgress?.(index + 1, jobs.length);
+      run.done += 1;
+      options.onProgress?.(run.done, run.total);
     }
-  });
+  }
 
   if (set.threat.enabled) {
     const board = await photographThreatBoard(set);
     if (board) {
-      folders.add(FOLDERS.threat);
-      entries.push({
-        path: `${FOLDERS.threat}/${slugify(set.name, 'adventure-set')}-threat-track.png`,
+      run.folders.add(FOLDERS.threat);
+      run.entries.push({
+        path: `${prefix}${FOLDERS.threat}/${slugify(set.name, 'adventure-set')}-threat-track.png`,
         bytes: await toBytes(board)
       });
     }
   }
 
-  const figures = await figureEntries(set, taken);
-  if (figures.length > 0) folders.add(FOLDERS.components);
-  entries.push(...figures);
+  const figures = await figureEntries(set, run.taken, prefix);
+  if (figures.length > 0) run.folders.add(FOLDERS.components);
+  run.entries.push(...figures);
+}
 
+export async function exportCardPngs(
+  set: AdventureSet,
+  options: CardPngOptions
+): Promise<ExportResult> {
+  const jobs = planJobs(set);
+  const root = slugify(set.name, 'adventure-set');
+  const run: PngRun = {
+    entries: [],
+    taken: new Set<string>(),
+    folders: new Set<string>(),
+    done: 0,
+    total: jobs.length
+  };
+
+  await withCardStage(async (photograph) => {
+    await photographJobs(set, jobs, '', options, photograph, run);
+  });
+
+  const entries = run.entries;
   entries.push({
     path: 'README.txt',
-    bytes: new TextEncoder().encode(readme(set, options, folders))
+    bytes: new TextEncoder().encode(readme(set.name, options, run.folders))
   });
 
   return {
@@ -392,4 +437,127 @@ export async function exportCardPngs(
      */
     blob: createZip(entries)
   };
+}
+
+// -- A whole collection ----------------------------------------------------
+
+/** One creator's deck in a collection. */
+export interface PngMember {
+  author: string;
+  set: AdventureSet;
+}
+
+/**
+ * A creator's own top-level folder, readable rather than slugged.
+ *
+ * The folders beside it are prose — "Villain and minions", not
+ * "villain-and-minions" — so a creator's name is written the same way, with
+ * only the characters a path cannot carry taken out.
+ *
+ * **Two creators sharing a display name share a folder**, and that is left
+ * alone deliberately: `uniquePath` already guarantees nothing is overwritten,
+ * so the cost is a merged folder rather than a lost card, and inventing
+ * "gl4re (2)" for what is far more often one person contributing two decks
+ * would be worse for the common case.
+ */
+function creatorFolder(author: string): string {
+  const cleaned = author.replace(/[\\/:*?"<>|]/g, '').trim();
+  return cleaned || 'Anonymous';
+}
+
+/**
+ * Every deck in a collection, as PNGs, one folder per creator.
+ *
+ * Each member is photographed against **its own document** — the theme comes
+ * from `resolveStyleForCard(set, …)` and the glyphs from that set's own
+ * `customSymbols`, both of which mean something only inside the set they came
+ * from. That is why `photographJobs` takes a set rather than closing over one,
+ * and it is the same rule the Tabletop Simulator box and the print sheets
+ * follow: nothing here merges documents.
+ *
+ * One card stage for the whole box, and one `taken` across it, so the run pays
+ * the stage's setup once and no two files can land on one path.
+ */
+export async function exportCollectionCardPngs(
+  members: readonly PngMember[],
+  name: string,
+  options: CardPngOptions
+): Promise<ExportResult> {
+  const planned = members.map((member) => ({ member, jobs: planJobs(member.set) }));
+  const run: PngRun = {
+    entries: [],
+    taken: new Set<string>(),
+    folders: new Set<string>(),
+    done: 0,
+    total: planned.reduce((count, entry) => count + entry.jobs.length, 0)
+  };
+
+  await withCardStage(async (photograph) => {
+    for (const { member, jobs } of planned) {
+      await photographJobs(
+        member.set,
+        jobs,
+        `${creatorFolder(member.author)}/`,
+        options,
+        photograph,
+        run
+      );
+    }
+  });
+
+  run.entries.push({
+    path: 'README.txt',
+    bytes: new TextEncoder().encode(boxReadme(members, name, options, run.folders))
+  });
+
+  return {
+    filename: `${slugify(name, 'collection')}-cards.zip`,
+    mimeType: 'application/zip',
+    // Entries at the zip's own root — see `exportCardPngs` for why.
+    blob: createZip(run.entries)
+  };
+}
+
+/**
+ * The box's guide.
+ *
+ * Reuses `readme`'s body wholesale rather than restating it, so the one thing
+ * that actually matters — whether these images carry bleed — cannot come to be
+ * worded two ways. What is added is the part only a box has: who is in it, and
+ * that each creator's folder is laid out the same way inside.
+ */
+function boxReadme(
+  members: readonly PngMember[],
+  name: string,
+  options: CardPngOptions,
+  folders: Set<string>
+): string {
+  const creators = [...new Set(members.map((member) => creatorFolder(member.author)))];
+  const roster = members
+    .map((member) => `  ${creatorFolder(member.author)}/  —  ${member.set.name || 'Untitled'}`)
+    .join('\n');
+
+  const head = [
+    `${name || 'Untitled collection'} — card images`,
+    '',
+    `${members.length} ${members.length === 1 ? 'deck' : 'decks'} by ${creators.length} ${
+      creators.length === 1 ? 'creator' : 'creators'
+    }, each in its own folder:`,
+    '',
+    roster,
+    '',
+    'Every creator’s folder is laid out the same way inside, and each deck was',
+    'drawn under its own author’s styling — nothing here is re-themed to match',
+    'anything else.',
+    ''
+  ].join('\n');
+
+  /* The shared half, with its own title line dropped: this archive is the
+     collection's, not any one set's. */
+  const body = readme(name, options, folders)
+    .split('\n')
+    .slice(2)
+    .join('\n');
+
+  return `${head}\n${body}`;
 }

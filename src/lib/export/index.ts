@@ -18,7 +18,8 @@ export {
 export { photographMapBoard } from './card-stage';
 
 export type { CardPngOptions } from './card-pngs';
-export { exportCardPngs } from './card-pngs';
+export { exportCardPngs, exportCollectionCardPngs } from './card-pngs';
+export type { PngMember } from './card-pngs';
 
 export type {
   TtsBundleOptions,
