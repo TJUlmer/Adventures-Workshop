@@ -492,12 +492,25 @@ export async function publishSize(
 
 // -- Reading ------------------------------------------------------------
 
-/** The signed-in author's own published sets, newest first. */
+/**
+ * The signed-in author's own published sets, newest first.
+ *
+ * **Filtered by `owner_id` explicitly, not left to RLS.** Leaning on the
+ * policies looks safe and is not: `sets_public_read` exposes every public set
+ * to everyone, so an unfiltered read returned this author's rows *plus the
+ * whole public gallery* — the function quietly disagreed with its own name.
+ * Latent where the caller matched rows against the local library by
+ * `local_id` (a stranger's id never matches), and immediately wrong the first
+ * time something asked "which of my decks could I offer?" and was handed six
+ * other people's.
+ */
 export async function listMyPublishedSets(): Promise<PublishedSet[]> {
   await auth.ensureFresh();
-  if (!auth.user) return [];
+  const user = auth.user;
+  if (!user) return [];
   return request<PublishedSet[]>(
-    `/rest/v1/sets?select=${SUMMARY_COLUMNS}&order=updated_at.desc`
+    `/rest/v1/sets?select=${SUMMARY_COLUMNS}` +
+      `&owner_id=eq.${encodeURIComponent(user.id)}&order=updated_at.desc`
   );
 }
 

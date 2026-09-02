@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Phase 1 draft policy verifier</title>
+  </head>
+  <body>
+    <main>
+      <h1>Phase 1 draft policy verifier</h1>
+      <p>
+        This local-only screen exercises the production draft RPC and private Storage policies.
+        It displays no account identifiers, credentials, tokens, or response bodies.
+      </p>
+
+      <p id="session">Checking the current session…</p>
+      <p id="instruction"></p>
+      <p id="result" role="status" aria-live="polite"></p>
+
+      <section aria-labelledby="actions-heading">
+        <h2 id="actions-heading">Next action</h2>
+        <div id="actions"></div>
+      </section>
+
+      <section aria-labelledby="progress-heading">
+        <h2 id="progress-heading">Progress</h2>
+        <ol>
+          <li id="anonymous-progress">Anonymous-authenticated boundary: pending</li>
+          <li id="owner-a-progress">Owner A create/read/update/conflict checks: pending</li>
+          <li id="owner-b-progress">Owner B isolation checks: pending</li>
+          <li id="cleanup-progress">Owner A lifecycle and cleanup checks: pending</li>
+        </ol>
+      </section>
+    </main>
+
+    <script type="module" src="./phase1-draft-policy.ts"></script>
+  </body>
+</html>

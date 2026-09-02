@@ -552,6 +552,9 @@ select distinct on (s.owner_id, s.local_id, sc.character_id)
           (s.scope <> 'full' and s.character_id = sc.character_id) desc,
           s.published_at desc nulls last;
 
+-- Supabase's creation defaults include writes. This view is an explicitly
+-- read-only API surface, so `grant select` must be preceded by a revoke.
+revoke all on public.gallery_characters from anon, authenticated;
 grant select on public.gallery_characters to anon, authenticated;
 
 -- ---------------------------------------------------------------------------

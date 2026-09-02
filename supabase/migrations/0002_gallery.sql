@@ -214,17 +214,22 @@ grant execute on function public.record_set_view(text) to anon, authenticated;
 /*
  * Anyone may report; only a moderator may read the reports.
  *
- * `reporter_id` is nullable and set null on delete, so a report survives the
- * account that raised it — the thing being judged is the set, not the reporter.
+ * `reporter_id` comes from the token rather than the request, so one account
+ * cannot file a report in another's name. It stays nullable and is set null on
+ * delete, so a report survives the account that raised it — the thing being
+ * judged is the set, not the reporter.
  */
 create table if not exists public.set_reports (
   id uuid primary key default gen_random_uuid(),
   set_id uuid not null references public.sets (id) on delete cascade,
-  reporter_id uuid references auth.users (id) on delete set null,
+  reporter_id uuid default auth.uid() references auth.users (id) on delete set null,
   reason text not null default '',
   created_at timestamptz not null default now(),
   resolved boolean not null default false
 );
+
+-- `if not exists` preserves an older table, so bring its default forward too.
+alter table public.set_reports alter column reporter_id set default auth.uid();
 
 alter table public.set_reports enable row level security;
 
@@ -245,7 +250,7 @@ create policy reports_admin_update on public.set_reports
   with check (exists (select 1 from public.profiles p where p.id = auth.uid() and p.is_admin));
 
 revoke all on public.set_reports from anon, authenticated;
-grant insert (set_id, reporter_id, reason) on public.set_reports to anon, authenticated;
+grant insert (set_id, reason) on public.set_reports to anon, authenticated;
 grant select, update (resolved) on public.set_reports to authenticated;
 
 /*
