@@ -19,6 +19,9 @@
   import ReplacementPanel from '../workspace/ReplacementPanel.svelte';
 
   const set = $derived(workshop.adventure);
+  const usesHeroIdentity = $derived(
+    set.singleHero && set.characters.filter((character) => character.role === 'hero').length <= 1
+  );
 
   /**
    * The whole-set publish's own revision, read from the published row rather
@@ -144,26 +147,32 @@
       {/if}
     </EditorSection>
 
-    <EditorSection title="Identity">
-      <label class="stack">
-        <span class="field-label">Name</span>
-        <TextInput bind:value={set.name} placeholder="Name this adventure" prominent />
-      </label>
+    <!-- A standalone hero already has an identity: the hero's own. A second
+         name here would invite two labels for the same deck and no rule for
+         which one wins; `syncSingleHeroName` therefore keeps the document
+         title aligned with the character editor instead. -->
+    {#if !usesHeroIdentity}
+      <EditorSection title="Identity">
+        <label class="stack">
+          <span class="field-label">Name</span>
+          <TextInput bind:value={set.name} placeholder="Name this adventure" prominent />
+        </label>
 
-      <label class="stack">
-        <span class="field-label">Subtitle</span>
-        <TextInput bind:value={set.subtitle} placeholder="e.g. A three-act descent" />
-      </label>
+        <label class="stack">
+          <span class="field-label">Subtitle</span>
+          <TextInput bind:value={set.subtitle} placeholder="e.g. A three-act descent" />
+        </label>
 
-      <label class="stack">
-        <span class="field-label">Description</span>
-        <TextArea
-          bind:value={set.meta.description}
-          rows={3}
-          placeholder="What happens in this adventure?"
-        />
-      </label>
-    </EditorSection>
+        <label class="stack">
+          <span class="field-label">Description</span>
+          <TextArea
+            bind:value={set.meta.description}
+            rows={3}
+            placeholder="What happens in this adventure?"
+          />
+        </label>
+      </EditorSection>
+    {/if}
 
     <EditorSection title="Publication" columns={2}>
       <label class="stack">

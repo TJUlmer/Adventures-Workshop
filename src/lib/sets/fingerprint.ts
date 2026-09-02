@@ -183,7 +183,11 @@ export const SET_KEYS = {
  */
 export function fingerprintSet(set: AdventureSet): Record<string, string> {
   const marks: Record<string, string> = {
-    [SET_KEYS.identity]: hashEntity({ name: set.name, subtitle: set.subtitle }),
+    [SET_KEYS.identity]: hashEntity({
+      name: set.name,
+      subtitle: set.subtitle,
+      singleHero: set.singleHero
+    }),
     [SET_KEYS.style]: hashEntity(set.style),
     [SET_KEYS.threat]: hashEntity(set.threat),
     [SET_KEYS.map]: hashEntity(set.map),

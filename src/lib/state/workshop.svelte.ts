@@ -32,7 +32,7 @@ import type {
   InitiativeBandStyle,
   InitiativeVariant
 } from '$lib/cards/types';
-import { createCharacter } from '$lib/characters/factory';
+import { characterLabel, createCharacter } from '$lib/characters/factory';
 import type {
   CardbackDesign,
   Character,
@@ -264,6 +264,26 @@ export class WorkshopStore {
     return set;
   }
 
+  /**
+   * Start at the thing the author asked to build, not at an empty box around
+   * it. The document is still a heroes set underneath, so every existing
+   * antagonist-free workspace rule applies without a parallel code path.
+   */
+  async createSingleHero(): Promise<AdventureSet> {
+    const set = createEmptySet({ singleHero: true });
+    const hero = createCharacter('hero');
+    set.characters.push(hero);
+    set.decks.push(createActionDeck(hero.id));
+    set.name = characterLabel(hero);
+
+    await saveSetToLibrary(set);
+    await this.refreshLibrary();
+    this.load(set);
+    await rememberLastOpen(set.id);
+    this.selectCharacter(hero.id);
+    return set;
+  }
+
   async openSet(id: SetId): Promise<boolean> {
     const set = await loadSetFromLibrary(id);
     if (!set) return false;
@@ -363,6 +383,7 @@ export class WorkshopStore {
    * not much use without a way to try again, which is what this is.
    */
   async saveNow(): Promise<boolean> {
+    this.syncSingleHeroName();
     if (await saveSetToLibrary(this.adventure)) {
       this.markSaved();
       this.library = await readIndex();
@@ -397,6 +418,25 @@ export class WorkshopStore {
 
   private touch(): void {
     this.adventure.meta.updatedAt = now();
+  }
+
+  /**
+   * A standalone hero has no second identity to keep in sync. This runs before
+   * every autosave (and explicit save), so direct field bindings and accepted
+   * contributions both converge on the same document title.
+   */
+  syncSingleHeroName(): void {
+    if (!this.adventure.singleHero) return;
+    const heroes = this.adventure.characters.filter((character) => character.role === 'hero');
+
+    /* Keep the creation mode while a second hero is present. Settings exposes
+       the box identity for that interval, but deleting back to one hero must
+       be able to recover the standalone behaviour without guessing whether an
+       ordinary Heroes Set merely happens to contain one hero. */
+    if (heroes.length > 1) return;
+
+    const name = heroes[0] ? characterLabel(heroes[0]) : 'Untitled hero';
+    if (this.adventure.name !== name) this.adventure.name = name;
   }
 
   // -- Selection --------------------------------------------------------
@@ -611,6 +651,7 @@ export class WorkshopStore {
     if (kind === 'heroes' && this.heroesSetBlockedBy() !== null) return false;
 
     this.adventure.kind = kind;
+    if (kind === 'adventure') this.adventure.singleHero = false;
     /*
      * A hidden page must not stay open under it — `SetNav` drops the tab, but
      * dropping a tab does not move whoever is standing on it, and they would

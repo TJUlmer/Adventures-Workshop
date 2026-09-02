@@ -77,6 +77,7 @@ export function useAutosave(store: WorkshopStore, delayMs = 500): void {
      * a save. Walking every field is what makes the dependency deep.
      */
     const set = store.adventure;
+    store.syncSingleHeroName();
     const json = serializeSet(set);
 
     // Nothing to save while Home is on screen.

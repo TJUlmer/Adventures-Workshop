@@ -103,7 +103,7 @@ export function kindOf(key: string): EntityKind | null {
 export function readEntity(set: AdventureSet, key: string): unknown {
   switch (key) {
     case SET_KEYS.identity:
-      return { name: set.name, subtitle: set.subtitle };
+      return { name: set.name, subtitle: set.subtitle, singleHero: set.singleHero };
     case SET_KEYS.style:
       return set.style;
     case SET_KEYS.threat:
@@ -372,7 +372,9 @@ function applySetPart(
       return {
         ...set,
         name: typeof value['name'] === 'string' ? value['name'] : set.name,
-        subtitle: typeof value['subtitle'] === 'string' ? value['subtitle'] : set.subtitle
+        subtitle: typeof value['subtitle'] === 'string' ? value['subtitle'] : set.subtitle,
+        singleHero:
+          typeof value['singleHero'] === 'boolean' ? value['singleHero'] : set.singleHero
       };
     case SET_KEYS.style:
       return { ...set, style: value as AdventureSet['style'] };

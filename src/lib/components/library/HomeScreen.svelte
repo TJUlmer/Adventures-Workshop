@@ -1161,6 +1161,10 @@
         <Icon name="upload" size={14} />
         Import
       </Button>
+      <Button variant="primary" onclick={() => void workshop.createSingleHero()}>
+        <Icon name="plus" size={14} />
+        New hero
+      </Button>
       <Button variant="primary" onclick={() => (choosingKind = true)}>
         <Icon name="plus" size={14} />
         New set

@@ -375,10 +375,16 @@ export type SetId = Id<'Set'>;
  *      choice at all: it has no label masks and its own ink pictures still
  *      carry the words, so a chosen colour would be silently dropped.
  *
+ * v48 — a set gained `singleHero`, marking the direct “New Hero” authoring
+ *      path. Its document identity follows its one hero instead of carrying a
+ *      separate set name, subtitle and description. Older documents default
+ *      false, so every existing adventure and heroes box keeps its own
+ *      identity exactly as before.
+ *
  * Older documents are *repaired*, not rejected — see `sets/normalize.ts`. Only
  * a version newer than this build understands is refused.
  */
-export const SET_SCHEMA_VERSION = 47;
+export const SET_SCHEMA_VERSION = 48;
 
 /**
  * What a set is for.
@@ -491,6 +497,8 @@ export interface AdventureSet {
    * lossless: everything a hidden section held is still in the document.
    */
   kind: SetKind;
+  /** A standalone hero whose document identity is the hero's own identity. */
+  singleHero: boolean;
   name: string;
   subtitle: string;
   meta: SetMeta;
