@@ -186,6 +186,42 @@ export async function fetchCollectionTiles(slug: string): Promise<CollectionTile
  * shared set page must draw whether or not this answers, because the set is
  * what the visitor came for and the credit line is a bonus on top of it.
  */
+/** A public collection, as the gallery lists it. */
+export interface PublicCollection {
+  id: string;
+  slug: string;
+  name: string;
+  subtitle: string;
+  blurb: string;
+  banner_url: string;
+  deck_count: number;
+  creator_count: number;
+  published_at: string | null;
+}
+
+/**
+ * The public collections, newest first.
+ *
+ * Anonymous, like every other gallery read here and for the reason recorded
+ * at the head of this file: a user token changes nothing about what comes
+ * back, and a *stale* one empties the shelf for its owner while strangers
+ * see it fine.
+ *
+ * `list_public_collections` is `security definer` only for the deck and
+ * creator counts — `collection_members` is not a stranger's to read. It
+ * restates `collections_public_read`'s own condition rather than leaning on
+ * it, so the rows it can return are exactly the rows already public: not
+ * unlisted ones, whose slug is a share token, and not hidden ones, since a
+ * takedown must clear the listing as well as the link.
+ */
+export async function listPublicCollections(limit = 24): Promise<PublicCollection[]> {
+  return request<PublicCollection[]>('/rest/v1/rpc/list_public_collections', {
+    method: 'POST',
+    body: { want: limit },
+    anonymous: true
+  });
+}
+
 export async function collectionsForSet(
   setId: string
 ): Promise<{ slug: string; name: string }[]> {

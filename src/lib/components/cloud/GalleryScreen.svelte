@@ -23,6 +23,8 @@
    */
   import { cloudEnabled } from '$lib/cloud/config';
   import { listPublicCharacters, listPublicSets } from '$lib/cloud/sets';
+  import { listPublicCollections } from '$lib/cloud/collections';
+  import type { PublicCollection } from '$lib/cloud/collections';
   import type {
     GalleryCharacter,
     GallerySet,
@@ -78,7 +80,7 @@
    */
   const CARD_ASPECT = `${CARD_FORMATS.action.mm.width} / ${CARD_FORMATS.action.mm.height}`;
 
-  type Mode = 'sets' | 'characters';
+  type Mode = 'sets' | 'characters' | 'collections';
 
   /*
    * Characters first. The gallery is browsed to find someone to play, and a
@@ -87,6 +89,7 @@
    */
   let mode = $state<Mode>('characters');
   let sets = $state<GallerySet[]>([]);
+  let collections = $state<PublicCollection[]>([]);
   let characters = $state<GalleryCharacter[]>([]);
   let loading = $state(true);
   let error = $state<string | null>(null);
@@ -121,7 +124,8 @@
 
   const MODES = [
     { value: 'sets' as const, label: 'Sets' },
-    { value: 'characters' as const, label: 'Characters' }
+    { value: 'characters' as const, label: 'Characters' },
+    { value: 'collections' as const, label: 'Collections' }
   ];
 
   const SORTS = [
@@ -168,7 +172,14 @@
     error = null;
     try {
       const { search: term, sort: order, offset: skip } = query;
-      if (query.mode === 'sets') {
+      if (query.mode === 'collections') {
+        /* No search, sort or paging: `list_public_collections` takes a limit
+           and nothing else, and the controls that would drive them are hidden
+           in this mode rather than left to do nothing. There are not enough
+           public collections for any of it to earn its keep yet. */
+        collections = await listPublicCollections();
+        maybeMore = false;
+      } else if (query.mode === 'sets') {
         const page = await listPublicSets({
           search: term,
           sort: order,
@@ -280,7 +291,13 @@
   }
 
   /** A stable colour per tile, for one with no picture. */
-  const empty = $derived(mode === 'sets' ? sets.length === 0 : characters.length === 0);
+  const empty = $derived(
+    mode === 'sets'
+      ? sets.length === 0
+      : mode === 'collections'
+        ? collections.length === 0
+        : characters.length === 0
+  );
 
   /**
    * Why the grid is empty — and the distinction is the whole point of writing
@@ -290,6 +307,9 @@
    * control.
    */
   const emptyMessage = $derived.by(() => {
+    if (mode === 'collections') {
+      return 'No collections have been published yet. A collection is a themed box of decks by several creators.';
+    }
     if (search.trim()) return `Nothing matches “${search.trim()}”.`;
     if (mode === 'characters') {
       if (role) {
@@ -321,30 +341,39 @@
     <div class="controls">
       <SegmentedControl bind:value={mode} segments={MODES} label="Browse" />
 
-      <input
-        class="search"
-        type="search"
-        placeholder={mode === 'sets' ? 'Search sets and characters…' : 'Search characters…'}
-        bind:value={search}
-        aria-label="Search the gallery"
-      />
+      <!--
+        Search, filter and sort are hidden for collections rather than shown
+        doing nothing: `list_public_collections` takes a limit and nothing
+        else. A control that is present and inert reads as broken, which is
+        the same rule `StylePanel` follows for surfaces a template does not
+        draw.
+      -->
+      {#if mode !== 'collections'}
+        <input
+          class="search"
+          type="search"
+          placeholder={mode === 'sets' ? 'Search sets and characters…' : 'Search characters…'}
+          bind:value={search}
+          aria-label="Search the gallery"
+        />
 
-      {#if mode === 'sets'}
+        {#if mode === 'sets'}
+          <label class="filter">
+            <span class="field-label">Show</span>
+            <Select bind:value={scope} options={SCOPES} />
+          </label>
+        {:else}
+          <label class="filter">
+            <span class="field-label">Role</span>
+            <Select bind:value={role} options={ROLES} />
+          </label>
+        {/if}
+
         <label class="filter">
-          <span class="field-label">Show</span>
-          <Select bind:value={scope} options={SCOPES} />
-        </label>
-      {:else}
-        <label class="filter">
-          <span class="field-label">Role</span>
-          <Select bind:value={role} options={ROLES} />
+          <span class="field-label">Sort</span>
+          <Select bind:value={sort} options={SORTS} />
         </label>
       {/if}
-
-      <label class="filter">
-        <span class="field-label">Sort</span>
-        <Select bind:value={sort} options={SORTS} />
-      </label>
     </div>
 
     {#if error}
@@ -353,6 +382,47 @@
       <p class="message">Loading…</p>
     {:else if empty}
       <p class="message">{emptyMessage}</p>
+    {:else if mode === 'collections'}
+      <ul class="grid collections">
+        {#each collections as collection (collection.id)}
+          <li>
+            <button
+              type="button"
+              class="tile"
+              onclick={() => navigation.openCollection(collection.slug)}
+            >
+              <!--
+                The banner if organizers uploaded one, and a tint of the
+                collection's own id otherwise — the same `tint(seed)` stand-in
+                the shelf and the character tiles use for a picture that does
+                not exist. A collection composes no picture of its own: see
+                the reasoning in `middleware.ts`, which makes the same choice
+                for the link preview rather than borrowing a member's art and
+                implying it speaks for the whole box.
+              -->
+              <span class="cover" style:background={tint(collection.id)}>
+                {#if collection.banner_url}
+                  <img src={collection.banner_url} alt="" loading="lazy" />
+                {:else}
+                  <span class="cover-initials">{initials(collection.name || 'Collection')}</span>
+                {/if}
+              </span>
+
+              <span class="body">
+                <span class="name">{collection.name || 'Untitled collection'}</span>
+                {#if collection.subtitle}<span class="subtitle">{collection.subtitle}</span>{/if}
+                <span class="meta">
+                  {collection.deck_count}
+                  {collection.deck_count === 1 ? 'deck' : 'decks'}
+                  ·
+                  {collection.creator_count}
+                  {collection.creator_count === 1 ? 'creator' : 'creators'}
+                </span>
+              </span>
+            </button>
+          </li>
+        {/each}
+      </ul>
     {:else if mode === 'sets'}
       <ul class="grid">
         {#each sets as set (set.id)}
