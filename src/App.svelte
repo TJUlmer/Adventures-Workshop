@@ -16,13 +16,12 @@
   import GuideModal from '$lib/components/guides/GuideModal.svelte';
   import ContributionsScreen from '$lib/components/cloud/ContributionsScreen.svelte';
   import AuthorProfileScreen from '$lib/components/cloud/AuthorProfileScreen.svelte';
-  import CollectionScreen from '$lib/components/cloud/CollectionScreen.svelte';
   import GalleryScreen from '$lib/components/cloud/GalleryScreen.svelte';
   import SharedSetScreen from '$lib/components/cloud/SharedSetScreen.svelte';
   import HomeScreen from '$lib/components/library/HomeScreen.svelte';
   import PrintScreen from '$lib/print/PrintScreen.svelte';
   import { auth } from '$lib/cloud/auth.svelte';
-  import { readCollectionSlug, readSharedSlug } from '$lib/state/navigation.svelte';
+  import { readSharedSlug } from '$lib/state/navigation.svelte';
   import PreviewPanel from '$lib/components/preview/PreviewPanel.svelte';
   import SetSidebar from '$lib/components/sidebar/SetSidebar.svelte';
   import FiguresPanel from '$lib/components/tools/FiguresPanel.svelte';
@@ -97,61 +96,23 @@
    * `restoreSession`'s `.then`, above, rather than here.
    */
   const openDeepLink = (): void => {
-    /* A collection link is checked first only because the two patterns cannot
-       both match one URL — either order works, and this one reads in the
-       order the paths were added. */
-    const collection = readCollectionSlug();
-    if (collection) {
-      navigation.openCollection(collection);
-      return;
-    }
     const slug = readSharedSlug();
     if (slug) navigation.openShared(slug);
   };
 
-  /**
-   * Put the view back in step with whatever the address bar now says.
-   *
-   * Shared by the two listeners below because they are the same question
-   * asked after two different events, and answering it twice is how they
-   * would drift.
-   */
-  const syncFromUrl = (): void => {
-    const collection = readCollectionSlug();
-    if (collection) {
-      navigation.openCollection(collection);
-      return;
-    }
-    const slug = readSharedSlug();
-    if (slug) {
-      navigation.openShared(slug);
-      return;
-    }
-    // The URL no longer names either, so neither view may stay on screen.
-    if (navigation.view.kind === 'shared') navigation.leaveShared();
-    else if (navigation.view.kind === 'collection') navigation.leaveCollection();
-  };
-
   $effect(() => {
     /*
-     * Back and forward, and paste-into-bar.
-     *
-     * **Two events, not one.** `hashchange` covers the hash forms and an
-     * in-app `#/shared/…` link; it does *not* fire for the two real paths,
-     * which move through `pushState` and come back through `popstate`. Until
-     * this listener existed, Back out of a shared set restored the URL to `/`
-     * and left the set itself on screen — a pre-existing gap, invisible while
-     * `/shared/` was the only real path and nobody had reason to test Back on
-     * it, and confirmed here by driving the shared route rather than assumed
-     * from reading. Adding the collection route is what made it worth fixing:
-     * one broken Back is a curiosity, two is the routing being wrong.
+     * Back and forward between a share link and the app, and paste-into-bar.
+     * Leaving the hash entirely means leaving the shared view too, or Back out
+     * of a set would clear the URL and leave the set still on screen.
      */
-    window.addEventListener('hashchange', syncFromUrl);
-    window.addEventListener('popstate', syncFromUrl);
-    return () => {
-      window.removeEventListener('hashchange', syncFromUrl);
-      window.removeEventListener('popstate', syncFromUrl);
+    const onHashChange = (): void => {
+      const slug = readSharedSlug();
+      if (slug) navigation.openShared(slug);
+      else if (navigation.view.kind === 'shared') navigation.leaveShared();
     };
+    window.addEventListener('hashchange', onHashChange);
+    return () => window.removeEventListener('hashchange', onHashChange);
   });
 
   const currentPage = $derived(navigation.page);
@@ -169,14 +130,6 @@
     <div class="app-view">
       {#if navigation.view.kind === 'shared'}
         <SharedSetScreen slug={navigation.view.slug} characterHint={navigation.view.characterHint} />
-      {:else if navigation.view.kind === 'collection'}
-        <!--
-          Outside `AppShell`, like a shared set and for the same reason: this
-          is very often somebody's first sight of the app, and chrome for a set
-          they do not have would answer a question they have not asked. It
-          keeps the global banner above it, which every view now does.
-        -->
-        <CollectionScreen slug={navigation.view.slug} />
       {:else if navigation.view.kind === 'gallery'}
         <GalleryScreen />
       {:else if navigation.view.kind === 'author'}

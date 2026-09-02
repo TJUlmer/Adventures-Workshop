@@ -40,11 +40,7 @@
   import { loadSet, saveSet } from '$lib/storage/library';
   import type { LibraryEntry } from '$lib/storage/library';
   import { Button, Icon, SegmentedControl, Select } from '$lib/ui';
-  import NewCollectionDialog from './NewCollectionDialog.svelte';
   import NewSetDialog from './NewSetDialog.svelte';
-  import { initials, tint } from '$lib/core/swatch';
-  import { createCollection, listMyCollections, listPendingMemberships } from '$lib/cloud/collections';
-  import type { CollectionMembership, MyCollection } from '$lib/cloud/collections';
 
   interface Props {
     /** Keep the full introduction visible even after the library has sets. */
@@ -72,97 +68,6 @@
   function startSet(kind: SetKind): void {
     choosingKind = false;
     void workshop.createSet(undefined, kind);
-  }
-
-  let makingCollection = $state(false);
-  let choosingCollection = $state(false);
-
-  /**
-   * Collection decisions waiting on this person, in either direction.
-   *
-   * The attention strip already answers "is anything waiting on me?" for
-   * contributions, and an invitation is the same question — so it belongs
-   * here rather than on a screen somebody has to think to visit. Silent on
-   * failure, like every other cloud read on this page: Home has to draw.
-   */
-  let pendingMemberships = $state<CollectionMembership[]>([]);
-
-  /**
-   * Collections this person is part of, either way in.
-   *
-   * A collection is reachable only by an unguessable link or an invitation,
-   * so without this there is no way back to one after the link leaves your
-   * clipboard — which in practice meant making another, and another. The
-   * shelf is the address book for something that otherwise has no address.
-   */
-  let myCollections = $state<MyCollection[]>([]);
-
-  $effect(() => {
-    void auth.signedIn;
-    if (!cloudEnabled() || !auth.signedIn) {
-      myCollections = [];
-      return;
-    }
-    void listMyCollections()
-      .then((rows) => (myCollections = rows))
-      .catch(() => (myCollections = []));
-  });
-
-  $effect(() => {
-    void auth.signedIn;
-    if (!cloudEnabled() || !auth.signedIn) {
-      pendingMemberships = [];
-      return;
-    }
-    void listPendingMemberships()
-      .then((rows) => (pendingMemberships = rows))
-      .catch(() => (pendingMemberships = []));
-  });
-
-  /*
-   * Grouped by collection, because the decision is per collection even when
-   * several of your decks are involved, and a strip listing the same project
-   * three times reads as three problems.
-   */
-  const pendingByCollection = $derived.by(() => {
-    const grouped = new Map<string, { slug: string; name: string; count: number }>();
-    for (const row of pendingMemberships) {
-      const slug = row.collection?.slug;
-      if (!slug) continue;
-      const found = grouped.get(slug);
-      if (found) found.count += 1;
-      else grouped.set(slug, { slug, name: row.collection?.name || 'a collection', count: 1 });
-    }
-    return [...grouped.values()];
-  });
-
-  /**
-   * Start a collection and go straight to it.
-   *
-   *
-   * Unlisted by default, which is where a project lives for the whole of its
-   * production phase; going public is a deliberate, later act.
-   *
-   * The explaining is `NewCollectionDialog`'s job — see its own note on why a
-   * bare button was the wrong shape for a noun nobody has met before.
-   */
-  async function newCollection(name: string): Promise<void> {
-    if (makingCollection) return;
-    makingCollection = true;
-    try {
-      const created = await createCollection({ name });
-      choosingCollection = false;
-      /* Refreshed rather than pushed onto the list by hand: the row this
-         renders carries counts and a role the server works out, and guessing
-         them here is how a shelf starts disagreeing with the page it links
-         to. */
-      void listMyCollections().then((rows) => (myCollections = rows));
-      navigation.openCollection(created.slug);
-    } catch (error) {
-      message = error instanceof Error ? error.message : 'Could not create the collection.';
-    } finally {
-      makingCollection = false;
-    }
   }
 
   const entries = $derived(workshop.library);
@@ -889,12 +794,28 @@
     return `var(--role-${value}, var(--text-muted))`;
   }
 
+  function initials(name: string): string {
+    const words = name.trim().split(/\s+/).filter(Boolean);
+    if (words.length === 0) return '?';
+    return words
+      .slice(0, 2)
+      .map((word) => word[0]?.toUpperCase() ?? '')
+      .join('');
+  }
+
   /** A stable colour per character or set, for a tile with no picture — same
       formula the gallery's own tiles use, so something reads the same shade
       whether found here or there. Doubles as the set-grid thumbnail swatch:
       `LibraryEntry` deliberately carries no picture of its own (see
       `storage/library.ts` — the index is kept light on purpose), so a
       generated tint is the set grid's only affordable "picture" today. */
+  function tint(seed: string): string {
+    let hash = 0;
+    for (let index = 0; index < seed.length; index += 1) {
+      hash = (hash * 31 + seed.charCodeAt(index)) | 0;
+    }
+    return `hsl(${Math.abs(hash) % 360} 30% 26%)`;
+  }
 
   /** The picture for a gallery-slot tile — same fallback `GalleryScreen`'s
       own `setImage` uses. */
@@ -1236,22 +1157,6 @@
         accept=".json,application/json"
         onchange={importSet}
       />
-      <!--
-        Theme, account and the gallery link all live in `GlobalHeader` now —
-        they are app-wide chrome, and Home stopped being their only home when
-        the banner arrived. What stays here is what acts on *this* screen.
-
-        Signed-in only, and not because of a policy — an anonymous visitor
-        could create one — but because a collection nobody can find again is
-        worse than no collection. It is reached solely by its link, and the
-        only place that link is listed is the Collections shelf below.
-      -->
-      {#if cloudEnabled() && auth.signedIn}
-        <Button variant="ghost" onclick={() => (choosingCollection = true)}>
-          <Icon name="users" size={14} />
-          New collection
-        </Button>
-      {/if}
       <Button variant="ghost" onclick={() => fileInput?.click()}>
         <Icon name="upload" size={14} />
         Import
@@ -1265,58 +1170,6 @@
 
   {#if message}
     <p class="message">{message}</p>
-  {/if}
-
-  <!--
-    Gated on `welcome` but deliberately *not* on `entries.length`: a deliberate
-    welcome view is a pitch and should not carry somebody's shelves, but a
-    collection points at *published* rows and has nothing to do with how many
-    sets happen to be in this browser's library. Someone can be in a
-    collection with no local sets at all.
-  -->
-  {#if myCollections.length > 0 && !welcome}
-    <section class="collections">
-      <h2 class="section-title">Collections</h2>
-      <p class="section-hint">
-        Themed boxes you organize, or that a deck of yours is part of.
-      </p>
-      <ul class="collection-grid">
-        {#each myCollections as entry (entry.id)}
-          <li>
-            <button
-              type="button"
-              class="collection-tile"
-              onclick={() => navigation.openCollection(entry.slug)}
-            >
-              <span class="collection-banner" style:background={tint(entry.id)}>
-                {#if entry.banner_url}
-                  <img src={entry.banner_url} alt="" loading="lazy" />
-                {/if}
-              </span>
-              <span class="collection-body">
-                <span class="collection-name">{entry.name || 'Untitled collection'}</span>
-                {#if entry.subtitle}
-                  <span class="collection-subtitle">{entry.subtitle}</span>
-                {/if}
-                <span class="collection-meta">
-                  <!--
-                    The role first, because it is the thing that decides what
-                    this page is *for* on the other side of the click.
-                  -->
-                  <span class="role" class:organizer={entry.is_organizer}>
-                    {entry.is_organizer ? 'Organizer' : 'Your deck is in this'}
-                  </span>
-                  <span>{entry.deck_count} {entry.deck_count === 1 ? 'deck' : 'decks'}</span>
-                  {#if entry.visibility !== 'public'}
-                    <span>{entry.visibility}</span>
-                  {/if}
-                </span>
-              </span>
-            </button>
-          </li>
-        {/each}
-      </ul>
-    </section>
   {/if}
 
   {#if entries.length > 0 && !welcome}
@@ -1469,32 +1322,8 @@
     </div>
   {/if}
 
-  {#if waitingSets.length > 0 || behindSets.length > 0 || pendingByCollection.length > 0}
+  {#if waitingSets.length > 0 || behindSets.length > 0}
     <div class="attention">
-      {#if pendingByCollection.length > 0}
-        {@const total = pendingMemberships.length}
-        <div class="attention-card waiting">
-          <Icon name="users" size={15} />
-          <div class="attention-body">
-            <span class="attention-title">
-              {total} collection {total === 1 ? 'decision' : 'decisions'} waiting
-            </span>
-            <span class="attention-detail">
-              {#each pendingByCollection as row, index (row.slug)}
-                {#if index > 0}<span aria-hidden="true"> · </span>{/if}
-                <button
-                  type="button"
-                  class="attention-link"
-                  onclick={() => navigation.openCollection(row.slug)}
-                >
-                  {row.name} ({row.count})
-                </button>
-              {/each}
-            </span>
-          </div>
-        </div>
-      {/if}
-
       {#if waitingSets.length > 0}
         {@const total = waitingSets.reduce((sum, row) => sum + row.count, 0)}
         <div class="attention-card waiting">
@@ -2027,13 +1856,6 @@
   </p>
 </div>
 
-<NewCollectionDialog
-  open={choosingCollection}
-  busy={makingCollection}
-  oncreate={(name) => void newCollection(name)}
-  oncancel={() => (choosingCollection = false)}
-/>
-
 <NewSetDialog
   open={choosingKind}
   onchoose={startSet}
@@ -2463,110 +2285,6 @@
     border: 1px solid color-mix(in oklab, var(--warning) 40%, transparent);
     color: var(--warning);
     font-size: var(--text-2xs);
-  }
-
-  .collections {
-    margin-bottom: var(--space-6);
-  }
-
-  .section-title {
-    margin: 0 0 var(--space-1);
-    font-size: var(--text-base);
-    color: var(--text-primary);
-  }
-
-  .section-hint {
-    margin: 0 0 var(--space-3);
-    font-size: var(--text-sm);
-    color: var(--text-tertiary);
-  }
-
-  .collection-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr));
-    gap: var(--space-3);
-    list-style: none;
-    margin: 0;
-    padding: 0;
-  }
-
-  .collection-tile {
-    display: flex;
-    width: 100%;
-    gap: var(--space-3);
-    padding: var(--space-3);
-    text-align: left;
-    font: inherit;
-    color: inherit;
-    cursor: pointer;
-    background: var(--surface-raised);
-    border: 1px solid var(--border-subtle);
-    border-radius: var(--radius-md);
-    transition: border-color var(--duration-fast) var(--ease-out);
-  }
-  .collection-tile:hover {
-    border-color: var(--border-strong);
-  }
-  .collection-tile:focus-visible {
-    outline: none;
-    box-shadow: var(--focus-ring);
-  }
-
-  .collection-banner {
-    flex: none;
-    width: 3.25rem;
-    height: 3.25rem;
-    border-radius: var(--radius-sm);
-    overflow: hidden;
-  }
-  .collection-banner img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-  }
-
-  .collection-body {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-    min-width: 0;
-  }
-
-  .collection-name {
-    font-weight: 600;
-    color: var(--text-primary);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-
-  .collection-subtitle {
-    font-size: var(--text-sm);
-    color: var(--text-tertiary);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-
-  .collection-meta {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 0 var(--space-2);
-    margin-top: var(--space-1);
-    font-size: var(--text-xs);
-    color: var(--text-muted);
-  }
-
-  .role {
-    padding: 0 var(--space-2);
-    border-radius: var(--radius-sm);
-    background: var(--surface-inset);
-    color: var(--text-secondary);
-  }
-  .role.organizer {
-    background: var(--accent-soft);
-    color: var(--text-accent);
   }
 
   .attention {
@@ -3815,6 +3533,7 @@
     letter-spacing: var(--tracking-wide);
     color: rgb(255 255 255 / 0.75);
   }
+
 
   .guides-list {
     display: flex;

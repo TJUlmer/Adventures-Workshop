@@ -2621,10 +2621,3 @@ comment precisely so it is not reintroduced. Follow that.
 
 British spelling in prose and comments; `colour` in user-facing copy, `color`
 only where a CSS or DOM API demands it.
-
-**`-ize`, not `-ise`**, which is Oxford spelling and so not a departure from
-the above: `organizer`, `organizing`, `recognize`. The collections feature is
-written that way throughout — table names, policies, functions and copy — so
-a well-meant "fix" to `organiser` would break the schema as well as the
-prose. The true British/American splits (`colour`, `centre`, `licence`) are
-unaffected and stay as they are.
