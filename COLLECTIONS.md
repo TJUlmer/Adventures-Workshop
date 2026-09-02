@@ -41,21 +41,43 @@ from, and it is worth doing before phase 2: the combined export rests on
 assumptions about how a box gets assembled, and one actual Winter Extravaganza
 will correct more of them than any further design will.
 
-Two things are implemented but **not verified**, and the distinction matters
-because both look finished from inside the repository:
+One thing is implemented but **not verified**, and the distinction matters
+because it looks finished from inside the repository:
 
 - **The unfurl.** `middleware.ts` matches `/collection/:slug*` and renders a
   preview from `collection_by_slug`, but `vite dev` has no Edge Runtime to run
   it in. Confirming it means a real deploy plus either a spoofed bot
   User-Agent or a paste into Discord — whose per-URL unfurl cache is
   aggressive enough that a second attempt needs a throwaway slug.
-- **The migration as a source of truth.** Production reached its state through
-  seventeen incremental migrations, including three attempts at `created_by`
-  and a table rename. This file is their hand-reconciliation and has **never
-  been replayed against an empty database**, so today it is a faithful
-  description of production rather than a proven recipe for it. A throwaway
-  Supabase project settles that cheaply, and settling it is what makes the
-  file trustworthy for anyone who is not the person who wrote it.
+- ~~**The migration as a source of truth.**~~ **Replayed, and it holds.**
+  `0015_collections.sql` and `0016_public_collections.sql` were run against an
+  empty slate — every collections table and function dropped inside a
+  transaction, the two files replayed verbatim onto nothing, the result
+  counted, and the whole thing rolled back. They built exactly what production
+  has: 3 tables, 13 functions, 19 policies, 7 triggers, 13 columns on
+  `collections`. Afterwards production's own objects *and* rows were confirmed
+  intact, and the client's four readers were driven against the restored
+  schema.
+
+  Done that way because a true empty database was not available: a Supabase
+  branch is a paid resource whose project ref this tooling cannot address, and
+  there is no way to create a throwaway project from here. A transaction that
+  drops and rolls back is the same test on borrowed ground — it proves the
+  files are valid, correctly ordered and self-consistent when nothing
+  pre-exists, which is the whole of what a hand-reconciliation can get wrong.
+  What it cannot prove is behaviour that depends on a genuinely fresh cluster:
+  role creation, extensions installed by earlier migrations, and anything
+  `0001`–`0012` leave behind that these two files silently rely on
+  (`public.sets`, `public.profiles`, `public.touch_updated_at`).
+
+**A separate gap the replay turned up, and a worse one.** `0013_grant_reconciliation`
+and `0014_set_drafts` are in production's migration history and in **no branch
+of this repository**. They were applied directly and never written to files, so
+the repo cannot rebuild the database whatever `0015` does. Nothing about
+collections depends on them, but a rebuild from `supabase/migrations` would
+produce a database that is missing whatever they did — and nobody would know
+until something failed. Writing those two files is the next thing worth doing
+for this, and it is not a collections task.
 
 ---
 
