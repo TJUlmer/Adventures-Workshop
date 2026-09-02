@@ -111,6 +111,15 @@ export interface CollectionMembership {
     subtitle: string;
     thumbnail_url: string;
     owner_id: string;
+    /**
+     * The deck's own visibility, which the collection never changes.
+     *
+     * Carried so the launch flow can ask its author about it — see
+     * *The launch flow* in `COLLECTIONS.md`. A deck being in a public
+     * collection does not publish the deck; the two are separate decisions
+     * and only the deck's owner may make the second one.
+     */
+    visibility: string;
     author: { display_name: string; avatar_url: string } | null;
   } | null;
   collection: { slug: string; name: string; subtitle: string } | null;
@@ -138,7 +147,8 @@ const COLLECTION_COLUMNS =
  */
 const MEMBERSHIP_COLUMNS =
   'collection_id,set_id,status,ready,sort_order,invited_by,created_at,updated_at,' +
-  'set:sets(slug,name,subtitle,thumbnail_url,owner_id,author:profiles(display_name,avatar_url)),' +
+  'set:sets(slug,name,subtitle,thumbnail_url,owner_id,visibility,' +
+  'author:profiles(display_name,avatar_url)),' +
   'collection:collections(slug,name,subtitle)';
 
 /** Both halves of the composite key, as a PostgREST filter. */

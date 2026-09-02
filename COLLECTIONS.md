@@ -501,10 +501,19 @@ boundary* above.
   not be able to freeze a project indefinitely — so the control names who is
   not ready and lets an organizer go anyway, rather than sitting disabled with
   nothing to be done about it.
-- **Should members be pushed to publish publicly at launch?** Staying unlisted
-  and reachable only through the box is a legitimate creative choice ("these
-  decks exist only as part of this project"). Per-member, not forced either
-  way — but the launch flow should ask rather than leave it to chance.
+- ~~**Should members be pushed to publish publicly at launch?**~~ **Decided
+  and built: asked, never pushed.** A public collection changes nobody's deck,
+  and cannot — `sets.visibility` belongs to its author and RLS keeps it there.
+  So once a collection goes public, each member sees the question under their
+  own deck, with both outcomes stated: list it in the gallery, or leave it
+  reachable only through the box. The organizer sees a count of how many decks
+  are still unlisted and a sentence saying plainly that publishing the
+  collection will not change them — said at the visibility control, because an
+  organizer could otherwise reasonably assume a box publishes what is in it.
+
+  The ask waits for launch rather than appearing at acceptance: before the
+  collection is public, an unlisted deck and a public one are reachable the
+  same way, so there is nothing yet to decide.
 - **Does the collection get its own social image**, or reuse the first
   member's? `cloud/social-image.ts` composes from cards and would need a
   collection-shaped variant. A banner the organizers upload is the cheap

@@ -58,6 +58,7 @@
   import { createTtsAssetHost } from '$lib/cloud/tts-assets';
   import { exportCollectionBundle } from '$lib/export/tts-bundle';
   import { exportCollectionCardPngs, saveExport } from '$lib/export';
+  import { setVisibility as setDeckVisibility } from '$lib/cloud/sets';
   import { readTtsSavedObjectsPath, writeTtsSavedObjectsPath } from '$lib/storage/settings';
   import { initials, tint } from '$lib/core/swatch';
   import { CARD_FORMATS, trimBox } from '$lib/renderer/geometry';
@@ -262,8 +263,33 @@
       await updateCollection(collection.id, { visibility: next });
     } catch (error) {
       collection = { ...collection, visibility: previous };
-      notice = error instanceof Error ? error.message : 'Could not change who can see this.';
+      notice = publishRefusalMessage(error, 'collection');
     }
+  }
+
+  /**
+   * Say what an author can act on, not what the database said.
+   *
+   * Two restrictive policies refuse a temporary identity making something
+   * public — `collections_anon_no_public_update` for a collection and
+   * `sets_anon_no_public_update` for a deck — correctly, since a public
+   * listing outlives the browser that made it. But PostgREST reports both as
+   * "new row violates row-level security policy", naming a policy an author
+   * has never heard of and suggesting nothing to do about it.
+   *
+   * Both were found by clicking the buttons while signed in anonymously. The
+   * failures were surfaced, just not in a language anybody could use — and
+   * they read as bugs rather than as the deliberate rule they are. One helper
+   * for both, because the rule is one rule.
+   */
+  function publishRefusalMessage(error: unknown, what: 'collection' | 'deck'): string {
+    const raw = error instanceof Error ? error.message : '';
+    if (/anon_no_public/.test(raw)) {
+      return what === 'collection'
+        ? 'Publishing a collection needs a permanent account. You are signed in temporarily on this browser — sign in properly and the collection keeps everything it already has.'
+        : 'Listing a deck in the gallery needs a permanent account. You are signed in temporarily on this browser; the deck stays in this collection either way.';
+    }
+    return raw || `Could not change who can see this ${what}.`;
   }
 
   async function setOpenSubmissions(next: boolean): Promise<void> {
@@ -527,6 +553,52 @@
       (row) => row.status === 'accepted' && row.set?.owner_id === auth.user?.id
     )
   );
+
+  /**
+   * My accepted decks here that are still unlisted, once the collection is
+   * public.
+   *
+   * **A public collection does not publish anybody's deck**, and it must not:
+   * `sets.visibility` is the author's, guarded by RLS, and an organizer has
+   * no route to it. Staying unlisted is also a legitimate choice — "this deck
+   * exists only as part of this project" — so the flow asks rather than
+   * nudging either way, and asks only the person who can answer.
+   *
+   * The ask appears at launch rather than at acceptance because that is when
+   * it becomes a real question: before the collection is public, an unlisted
+   * deck and a public one are reachable the same way.
+   */
+  const myUnlistedHere = $derived(
+    collection?.visibility === 'public'
+      ? myAccepted.filter((row) => row.set?.visibility === 'unlisted')
+      : []
+  );
+
+  /**
+   * How many accepted decks here are unlisted, for the organizer's benefit.
+   *
+   * Counted from `memberships`, which an organizer can read in full, rather
+   * than from `tiles` — a tile is the public projection and carries no
+   * visibility. Zero for a visitor, who sees none of this.
+   */
+  const unlistedMemberCount = $derived(
+    memberships.filter((row) => row.status === 'accepted' && row.set?.visibility === 'unlisted')
+      .length
+  );
+
+  async function publishMyDeck(setId: string): Promise<void> {
+    if (busy) return;
+    busy = `publish-deck-${setId}`;
+    notice = null;
+    try {
+      await setDeckVisibility(setId, 'public');
+      await refreshAfterDecision();
+    } catch (error) {
+      notice = publishRefusalMessage(error, 'deck');
+    } finally {
+      busy = null;
+    }
+  }
 
   /**
    * Set when Public was asked for while somebody is still not ready.
@@ -863,6 +935,22 @@
             <span class="hint">
               {VISIBILITIES.find((entry) => entry.value === collection?.visibility)?.hint}
             </span>
+
+            <!--
+              Said at the control rather than left to be discovered. An
+              organizer publishing a box could reasonably assume it publishes
+              the decks in it; it does not, and cannot — `sets.visibility`
+              belongs to each author and RLS keeps it there. Each of them is
+              asked on this page instead, under their own deck.
+            -->
+            {#if unlistedMemberCount > 0}
+              <span class="hint">
+                {unlistedMemberCount}
+                {unlistedMemberCount === 1 ? 'deck here is' : 'decks here are'} unlisted.
+                Publishing the collection does not change that — a deck's own listing is
+                its author's to decide, and each of them is asked here.
+              </span>
+            {/if}
           </div>
 
           {#if publishGate}
@@ -1321,6 +1409,43 @@
               </li>
             {/each}
           </ul>
+
+          {#if myUnlistedHere.length > 0}
+            <!--
+              Shown only to the deck's own author, and only once the collection
+              is public. Both outcomes are stated because neither is the
+              default-correct one: a deck can belong to a box without wanting a
+              listing of its own.
+            -->
+            <div class="launch-ask">
+              <p class="hint">
+                This collection is public.
+                {myUnlistedHere.length === 1 ? 'Your deck is' : 'Your decks are'}
+                still unlisted — reachable through the box and its own link, but not
+                shown in the gallery. Publishing is yours to decide; the collection
+                never changes it.
+              </p>
+              {#each myUnlistedHere as row (row.set_id)}
+                <div class="row-actions">
+                  <span class="row-name">{row.set?.name || 'Untitled'}</span>
+                  <button
+                    type="button"
+                    class="btn"
+                    disabled={busy !== null}
+                    onclick={() => void publishMyDeck(row.set_id)}
+                  >
+                    {busy === `publish-deck-${row.set_id}`
+                      ? 'Publishing…'
+                      : 'List it in the gallery'}
+                  </button>
+                </div>
+              {/each}
+              <p class="hint">
+                Leaving it unlisted is a real choice — some decks are meant to exist
+                only as part of their collection.
+              </p>
+            </div>
+          {/if}
         </section>
       {/if}
 
@@ -1739,6 +1864,19 @@
     font-size: var(--text-base);
     color: var(--text-primary);
   }
+  .launch-ask {
+    margin-top: var(--space-4);
+    padding-top: var(--space-4);
+    border-top: 1px solid var(--border-subtle, var(--border-default));
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+  }
+  .launch-ask .row-actions {
+    align-items: center;
+    gap: var(--space-3);
+  }
+
   .organizers {
     list-style: none;
     margin: 0 0 var(--space-3);
