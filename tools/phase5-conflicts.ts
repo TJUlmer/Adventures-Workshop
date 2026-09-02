@@ -235,7 +235,7 @@ try {
       copy.cards.map((entry) => entry.id).join() === copySource.cards.map((entry) => entry.id).join(),
     'Keep both rewrote internal entity identities.'
   );
-  addCheck('Keep both changes only the set identity and preserves internal references.');
+  addCheck('The separate-copy choice changes only the set identity and preserves internal references.');
 
   const published = createEmptySet({ name: 'Published source', kind: 'heroes' });
   const hero = createCharacter('hero', { name: 'Identity Keeper' });

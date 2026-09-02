@@ -39,7 +39,7 @@
   function confirmationTitle(choice: Choice): string {
     if (choice === 'cloud') return 'Replace this device’s pending changes?';
     if (choice === 'local') return 'Replace the online version?';
-    return 'Keep both complete versions?';
+    return 'Save this device’s changes as a copy?';
   }
 
   function confirmationText(choice: Choice): string {
@@ -49,7 +49,7 @@
     if (choice === 'local') {
       return 'This device’s complete version will be saved as the next online revision. If the cloud changes again first, nothing will be overwritten and you will be asked again.';
     }
-    return 'This device’s version will become a new online draft named “(conflict copy)”, while the original draft returns to the current online version.';
+    return 'A new draft named “(conflict copy)” will preserve this device’s complete version. The original draft will then reopen with the current online version.';
   }
 
   async function resolve(choice: Choice): Promise<void> {
@@ -139,8 +139,8 @@
           <button type="button" onclick={() => (confirming = 'both')}>
             <span class="choice-icon"><Icon name="copy" size={17} /></span>
             <span>
-              <strong>Keep both</strong>
-              <small>Create a separate “conflict copy”, then reopen the online original.</small>
+              <strong>Save my changes as a separate copy</strong>
+              <small>Preserve this device’s complete version, then reopen the online original.</small>
             </span>
           </button>
         </div>

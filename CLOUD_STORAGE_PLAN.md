@@ -618,7 +618,8 @@ collaboration semantics remain intact.
 Phase 5's client implementation was completed on 2 September 2026. A whole-document
 conflict now stops autosave and presents three confirmed choices: hydrate and use the
 complete cloud version, advance exactly the known cloud revision with the device version,
-or upload the device version under a new set id before reopening the cloud original. A
+or save the device version as a clearly labelled separate copy under a new set id before
+reopening the cloud original. A
 second remote advance returns to conflict instead of overwriting it. The choice can be
 deferred without restarting the stopped queue.
 
