@@ -1528,6 +1528,7 @@
       -->
       <text
         class="note"
+        data-map-note={note.id}
         x={note.x}
         y={note.y}
         font-size={note.size / 100}

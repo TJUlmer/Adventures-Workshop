@@ -110,6 +110,7 @@ export function useAutosave(store: WorkshopStore, delayMs = 500): void {
      * a save. Walking every field is what makes the dependency deep.
      */
     const set = store.adventure;
+    store.syncSingleHeroName();
     const json = serializeSet(set);
     const snapshot = structuredClone($state.snapshot(set));
     latest = { set: snapshot, json };
