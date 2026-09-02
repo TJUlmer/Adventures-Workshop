@@ -66,13 +66,67 @@ export type Photograph = (
   options: CardImageOptions
 ) => Promise<Blob | null>;
 
+/**
+ * Make every card face genuinely usable before anything is measured.
+ *
+ * **`document.fonts.ready` is not enough, and this cost a real bug.** It
+ * resolves once the document's *pending* loads have settled, which does not
+ * mean a given face has been fetched at all — a face nothing has yet asked for
+ * is never pending, so `ready` resolves and `status` reads `'loaded'` while the
+ * first thing to actually use it still measures the fallback. The stage awaited
+ * only `ready`, so the **first** card photographed after a page load laid out
+ * against fallback metrics and every one after it did not.
+ *
+ * It showed up where measured text drives layout: the hero character card,
+ * whose `fitScale` reads real text sizes. Measured on one hero, same document,
+ * same options — 231,179 bytes cold against 233,924 warm, the warm hash
+ * reproducing exactly across separate stage sessions while the cold one stood
+ * alone. `document.fonts.status` said `'loaded'` for both. Downstream it also
+ * defeated the Tabletop Simulator export's content-hash reuse, re-uploading a
+ * character card on every export and orphaning the one it replaced.
+ *
+ * `document.fonts.load()` is the call that actually fetches, so this asks for
+ * each family by name. Read off the live `@font-face` rules rather than a list
+ * kept here, exactly as `card-image.ts`'s `fontFaceCss` does and for the same
+ * reason: adding a face to `card-fonts.css` stays enough.
+ */
+async function loadCardFaces(): Promise<void> {
+  const families = new Set<string>();
+
+  for (const sheet of Array.from(document.styleSheets)) {
+    let rules: CSSRuleList;
+    try {
+      rules = sheet.cssRules;
+    } catch {
+      // Cross-origin sheet; nothing of ours lives there.
+      continue;
+    }
+    for (const rule of Array.from(rules)) {
+      if (rule.constructor.name !== 'CSSFontFaceRule' && !(rule instanceof CSSFontFaceRule)) {
+        continue;
+      }
+      const family = (rule as CSSFontFaceRule).style.getPropertyValue('font-family').trim();
+      if (family) families.add(family.replace(/^["']|["']$/g, ''));
+    }
+  }
+
+  /* A size is required by the shorthand this parses and is irrelevant to what
+     gets fetched. A face that fails to load must not take the export with it —
+     the card still draws in its fallback, which is what happened before this
+     function existed at all. */
+  await Promise.all(
+    Array.from(families, (family) => document.fonts.load(`100px '${family}'`).catch(() => []))
+  );
+  await document.fonts.ready;
+}
+
 export async function withCardStage<T>(run: (photograph: Photograph) => Promise<T>): Promise<T> {
   const host = document.createElement('div');
   host.style.cssText = 'position:fixed;left:-99999px;top:0;width:420px;pointer-events:none';
   document.body.append(host);
 
   // Text is placed from the loaded faces; a fallback would misplace every line.
-  await document.fonts.ready;
+  await loadCardFaces();
 
   const photograph: Photograph = async (job, format, options) => {
     const slot = document.createElement('div');
