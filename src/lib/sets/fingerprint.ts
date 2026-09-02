@@ -54,11 +54,11 @@ import type { AdventureSet } from './types';
  * Written out rather than using a `replacer`, because a replacer is handed
  * each value *after* the parent has already fixed its key order.
  */
-function canonical(value: unknown): string {
+export function canonicalJson(value: unknown): string {
   if (value === null || typeof value !== 'object') return JSON.stringify(value) ?? 'null';
 
   if (Array.isArray(value)) {
-    return `[${value.map(canonical).join(',')}]`;
+    return `[${value.map(canonicalJson).join(',')}]`;
   }
 
   const entries = Object.entries(value as Record<string, unknown>)
@@ -67,7 +67,7 @@ function canonical(value: unknown): string {
     .filter(([, entry]) => entry !== undefined)
     .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
 
-  return `{${entries.map(([key, entry]) => `${JSON.stringify(key)}:${canonical(entry)}`).join(',')}}`;
+  return `{${entries.map(([key, entry]) => `${JSON.stringify(key)}:${canonicalJson(entry)}`).join(',')}}`;
 }
 
 /**
@@ -146,7 +146,7 @@ const encoder = new TextEncoder();
 
 /** The hash of any one thing, on its own. */
 export function hashEntity(value: unknown): string {
-  return fnv1a(encoder.encode(canonical(value)));
+  return fnv1a(encoder.encode(canonicalJson(value)));
 }
 
 /** Exposed so the hash can be checked against FNV's published test vectors. */

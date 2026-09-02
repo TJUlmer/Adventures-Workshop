@@ -108,7 +108,7 @@ export function toDataUrl(contentType: string, bytes: Uint8Array): string {
  * looked at and left alone. A `Set` because the same picture appearing on four
  * cards is one upload, not four.
  */
-function collectStrings(value: unknown, matches: (text: string) => boolean): Set<string> {
+export function collectStrings(value: unknown, matches: (text: string) => boolean): Set<string> {
   const found = new Set<string>();
 
   const walk = (node: unknown): void => {
