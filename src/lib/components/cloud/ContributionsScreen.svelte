@@ -155,7 +155,16 @@
     error = null;
     try {
       const taking = reviewed.filter((entry) => chosen.has(entry.key));
-      if (taking.length > 0) workshop.applyContribution(taking);
+      if (taking.length > 0) {
+        workshop.applyContribution(taking);
+        // The proposal row is only marked accepted after the owner's own
+        // document reaches its normal persistence boundary. A contribution
+        // remains a proposal; it never writes a published snapshot or draft
+        // row directly on the contributor's authority.
+        if (!(await workshop.saveNow())) {
+          throw new Error('The changes are safe in the editor, but the set could not be saved yet.');
+        }
+      }
       await resolveContribution(open.id, 'accepted', [...chosen]);
       done =
         taking.length > 0

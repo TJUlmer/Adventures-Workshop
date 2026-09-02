@@ -20,7 +20,7 @@ import {
   saveDraft,
   softDeleteDraft
 } from '$lib/cloud/drafts';
-import type { DraftMutationResult } from '$lib/cloud/drafts';
+import type { DraftMutationResult, LoadedDraft } from '$lib/cloud/drafts';
 import { CloudError } from '$lib/cloud/http';
 import {
   loadSet,
@@ -119,6 +119,14 @@ export class PersistenceCoordinator {
     const queue = this.#queues.get(id);
     if (queue) queue.stopped = false;
     this.conflict = queue?.conflict ?? null;
+  }
+
+  /** Leave a conflicted document unopened while its stopped queue stays intact. */
+  deactivate(id: SetId): void {
+    if (this.activeSetId !== id) return;
+    this.activeSetId = null;
+    this.conflict = null;
+    this.status = { kind: 'local-only', attempt: 0, message: null };
   }
 
   /** Stop background delivery without discarding the durable outbox state. */
@@ -257,10 +265,11 @@ export class PersistenceCoordinator {
   async save(
     set: AdventureSet,
     json = serializeSet(set),
-    cloudDelay = CLOUD_DEBOUNCE_MS
+    cloudDelay = CLOUD_DEBOUNCE_MS,
+    makeActive = true
   ): Promise<boolean> {
     const queue = this.#queue(set.id);
-    this.activate(set.id);
+    if (makeActive) this.activate(set.id);
     const generation = ++queue.generation;
 
     return this.#serial(queue, async () => {
@@ -313,8 +322,12 @@ export class PersistenceCoordinator {
   }
 
   /** Local durability plus one immediate cloud attempt; offline remains safely pending. */
-  async flush(set: AdventureSet, json = serializeSet(set)): Promise<boolean> {
-    const wrote = await this.save(set, json, 0);
+  async flush(
+    set: AdventureSet,
+    json = serializeSet(set),
+    makeActive = true
+  ): Promise<boolean> {
+    const wrote = await this.save(set, json, 0, makeActive);
     if (!wrote) return false;
     const queue = this.#queue(set.id);
     if (queue.cloudTimer) {
@@ -573,8 +586,72 @@ export class PersistenceCoordinator {
     const generation = ++queue.generation;
     queue.latest = { number: generation, set, json, hash };
     queue.conflict = null;
-    this.conflict = null;
+    queue.stopped = false;
+    this.#clearTimers(queue);
+    if (this.activeSetId === set.id) this.conflict = null;
     this.#setStatus(set.id, { kind: 'synced', attempt: 0, message: null });
+  }
+
+  /** Download the complete remote side while leaving both versions untouched. */
+  async fetchConflictCloud(localId: SetId): Promise<LoadedDraft> {
+    const queue = this.#queue(localId);
+    await queue.pumping;
+    if (!queue.conflict) throw new Error('This draft no longer has a cloud conflict.');
+    const loaded = await this.#services.fetchDraft(localId);
+    if (!loaded || loaded.summary.deletedAt !== null) {
+      throw new Error('The online version is no longer available.');
+    }
+    if (loaded.summary.localId !== localId || loaded.set.id !== localId) {
+      throw new Error('The online version does not match this draft identity.');
+    }
+    return loaded;
+  }
+
+  /** Replace the pending cache only after its complete remote replacement is ready. */
+  async acceptConflictCloud(loaded: LoadedDraft): Promise<void> {
+    const localId = loaded.set.id;
+    const queue = this.#queue(localId);
+    await queue.pumping;
+    if (!queue.conflict) throw new Error('This draft no longer has a cloud conflict.');
+    await this.acknowledgeHydrated(loaded.set, loaded.summary.revision, loaded.assetPaths);
+  }
+
+  async resolveConflictWithCloud(localId: SetId): Promise<LoadedDraft> {
+    const loaded = await this.fetchConflictCloud(localId);
+    await this.acceptConflictCloud(loaded);
+    return loaded;
+  }
+
+  /**
+   * Make the author's confirmed local choice the next revision.
+   *
+   * The known remote revision becomes the optimistic base; if it advances
+   * again before this save arrives, the RPC returns another conflict and the
+   * queue stops again instead of silently overwriting that newer version.
+   */
+  async resolveConflictWithLocal(set: AdventureSet): Promise<boolean> {
+    const queue = this.#queue(set.id);
+    await queue.pumping;
+    const conflict = queue.conflict;
+    if (!conflict || conflict.remoteRevision === null) {
+      throw new Error('The online revision needed to keep this device’s version is unavailable.');
+    }
+
+    this.#clearTimers(queue);
+    const current = (await readDraftState(set.id)) ?? blankState(set.id);
+    const prepared = await writeDraftState({
+      ...current,
+      cloudRevision: conflict.remoteRevision,
+      pending: true,
+      cloudDraft: true
+    });
+    if (!prepared) throw new Error('This device could not record the conflict decision safely.');
+
+    queue.conflict = null;
+    queue.stopped = false;
+    if (this.activeSetId === set.id) this.conflict = null;
+    this.#setStatus(set.id, { kind: 'pending', attempt: 0, message: null });
+    return this.flush(set, serializeSet(set));
   }
 
   #recordConflict(

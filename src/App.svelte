@@ -15,6 +15,7 @@
   import TitleBar from '$lib/components/layout/TitleBar.svelte';
   import GuideModal from '$lib/components/guides/GuideModal.svelte';
   import ContributionsScreen from '$lib/components/cloud/ContributionsScreen.svelte';
+  import DraftConflictDialog from '$lib/components/cloud/DraftConflictDialog.svelte';
   import AuthorProfileScreen from '$lib/components/cloud/AuthorProfileScreen.svelte';
   import GalleryScreen from '$lib/components/cloud/GalleryScreen.svelte';
   import SharedSetScreen from '$lib/components/cloud/SharedSetScreen.svelte';
@@ -205,6 +206,7 @@
     closed `<dialog>` element.
   -->
   <GuideModal />
+  <DraftConflictDialog />
 {/if}
 
 <style>

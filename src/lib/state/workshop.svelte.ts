@@ -60,6 +60,7 @@ import { createId, now } from '$lib/core/id';
 import { auth } from '$lib/cloud/auth.svelte';
 import { fetchDraftSummary } from '$lib/cloud/drafts';
 import { serializeSet } from '$lib/export/json';
+import { createConflictCopy } from '$lib/persistence/conflicts';
 import { persistenceCoordinator } from '$lib/persistence/coordinator.svelte';
 import { loadDraftLibrary } from '$lib/persistence/library';
 import type {
@@ -257,9 +258,12 @@ export class WorkshopStore {
   migrationTotal = $state(0);
   migrationStatus = $state<Map<SetId, MigrationItemStatus>>(new Map());
   migrationCandidates = $derived(this.library.filter((entry) => entry.migrationCandidate));
+  conflictResolutionBusy = $state(false);
+  conflictResolutionError = $state<string | null>(null);
 
   #libraryRequest = 0;
   #libraryOwnerId: string | null = null;
+  #conflictCopyIds = new Map<SetId, SetId>();
 
   async refreshLibrary(): Promise<void> {
     const request = ++this.#libraryRequest;
@@ -364,10 +368,126 @@ export class WorkshopStore {
     }
   }
 
-  async #storeNewSet(set: AdventureSet): Promise<boolean> {
+  async resolveConflictWithCloud(): Promise<boolean> {
+    const conflict = persistenceCoordinator.conflict;
+    if (!conflict || conflict.localId !== this.adventure.id || this.conflictResolutionBusy) {
+      return false;
+    }
+
+    this.conflictResolutionBusy = true;
+    this.conflictResolutionError = null;
+    try {
+      const loaded = await persistenceCoordinator.resolveConflictWithCloud(conflict.localId);
+      this.load(loaded.set);
+      this.markSaved(loaded.set.meta.updatedAt);
+      this.#conflictCopyIds.delete(conflict.localId);
+      await this.refreshLibrary();
+      return true;
+    } catch (cause) {
+      this.conflictResolutionError =
+        cause instanceof Error ? cause.message : 'Could not use the online version.';
+      return false;
+    } finally {
+      this.conflictResolutionBusy = false;
+    }
+  }
+
+  async resolveConflictWithLocal(): Promise<boolean> {
+    const conflict = persistenceCoordinator.conflict;
+    if (!conflict || conflict.localId !== this.adventure.id || this.conflictResolutionBusy) {
+      return false;
+    }
+
+    this.conflictResolutionBusy = true;
+    this.conflictResolutionError = null;
+    try {
+      const local = structuredClone($state.snapshot(this.adventure));
+      if (!(await persistenceCoordinator.resolveConflictWithLocal(local))) {
+        throw new Error('This device could not save the conflict decision.');
+      }
+      if (persistenceCoordinator.conflict?.localId === conflict.localId) {
+        throw new Error('The online draft changed again. Review the newer conflict before saving.');
+      }
+      this.markSaved();
+      this.#conflictCopyIds.delete(conflict.localId);
+      await this.refreshLibrary();
+      return true;
+    } catch (cause) {
+      this.conflictResolutionError =
+        cause instanceof Error ? cause.message : 'Could not keep this device’s version.';
+      return false;
+    } finally {
+      this.conflictResolutionBusy = false;
+    }
+  }
+
+  async resolveConflictKeepBoth(): Promise<boolean> {
+    const conflict = persistenceCoordinator.conflict;
+    if (!conflict || conflict.localId !== this.adventure.id || this.conflictResolutionBusy) {
+      return false;
+    }
+
+    this.conflictResolutionBusy = true;
+    this.conflictResolutionError = null;
+    let copyStored = false;
+    try {
+      // Fetch first while both originals are still untouched. Once the local
+      // copy is safely online, this complete version can replace the cache
+      // without a second network gap between the two halves of the choice.
+      const remote = await persistenceCoordinator.fetchConflictCloud(conflict.localId);
+      const rememberedId = this.#conflictCopyIds.get(conflict.localId);
+      let copy = rememberedId ? await loadSetFromLibrary(rememberedId) : null;
+      if (!copy) {
+        copy = createConflictCopy(structuredClone($state.snapshot(this.adventure)));
+      }
+
+      // Upload the copy in the background without making its queue the active
+      // editor queue. The original conflict must stay visible and stopped
+      // until both halves of this decision are safely complete.
+      if (!(await this.#storeNewSet(copy, false))) {
+        throw new Error('The device version could not be saved as a separate copy.');
+      }
+      copyStored = true;
+      this.#conflictCopyIds.set(conflict.localId, copy.id);
+
+      const copyState = await readDraftState(copy.id);
+      if (!copyState || copyState.pending || copyState.cloudRevision === null) {
+        throw new Error(
+          'The conflict copy is safe on this device and still uploading. The original is unchanged.'
+        );
+      }
+
+      await persistenceCoordinator.acceptConflictCloud(remote);
+      this.#conflictCopyIds.delete(conflict.localId);
+      this.load(remote.set);
+      this.markSaved(remote.set.meta.updatedAt);
+      await this.refreshLibrary();
+      return true;
+    } catch (cause) {
+      this.conflictResolutionError =
+        cause instanceof Error ? cause.message : 'Could not preserve both versions.';
+      if (copyStored) await this.refreshLibrary();
+      return false;
+    } finally {
+      this.conflictResolutionBusy = false;
+    }
+  }
+
+  /** Return to the shelf without restarting the conflicted save queue. */
+  async deferConflict(): Promise<void> {
+    const conflict = persistenceCoordinator.conflict;
+    if (!conflict || this.conflictResolutionBusy) return;
+    persistenceCoordinator.deactivate(conflict.localId);
+    this.conflictResolutionError = null;
+    await rememberLastOpen(null);
+    await this.refreshLibrary();
+    navigation.openHome();
+  }
+
+  async #storeNewSet(set: AdventureSet, makeActive = true): Promise<boolean> {
     if (auth.signedIn && !auth.isAnonymous) {
       if (!(await persistenceCoordinator.enableCloud(set.id))) return false;
-      return persistenceCoordinator.flush(set, serializeSet(set));
+      return persistenceCoordinator.flush(set, serializeSet(set), makeActive);
     }
     return saveSetToLibrary(set);
   }

@@ -615,6 +615,26 @@ phase is marked complete; this implementation pass did not create or mutate prod
 **Exit:** two-browser edits cannot silently overwrite one another, and existing cloud
 collaboration semantics remain intact.
 
+Phase 5's client implementation was completed on 2 September 2026. A whole-document
+conflict now stops autosave and presents three confirmed choices: hydrate and use the
+complete cloud version, advance exactly the known cloud revision with the device version,
+or upload the device version under a new set id before reopening the cloud original. A
+second remote advance returns to conflict instead of overwriting it. The choice can be
+deferred without restarting the stopped queue.
+
+Publishing and unpublishing still use the separate published-snapshot API. Forks still mint
+only a new set id while preserving entity ids and recorded origin. Accepting contribution
+entries now crosses the owner's normal draft persistence boundary before the proposal row is
+marked accepted; the contributor never gains a direct draft or published-row write path.
+Collections remain outside this implementation's scope, as recorded in Phase 0, and no draft
+collection reference path was introduced.
+
+`npm run check`, the production build, visual inspection of the real conflict dialog, and the
+deterministic `tools/phase5-conflicts.html` browser probe pass. The probe covers all three
+decisions, a second concurrent advance, and fork identity/origin preservation without touching
+production drafts. The exit criterion's real two-browser acceptance remains to be exercised
+before this phase is marked complete.
+
 ### Phase 6 — hardening and rollout (4–6 days)
 
 - Drive the verification matrix below with realistic large documents.
