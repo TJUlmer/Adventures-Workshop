@@ -667,6 +667,33 @@ export async function listOrganizers(collectionId: string): Promise<CollectionOr
   );
 }
 
+/**
+ * Who an organizer may hand curation to.
+ *
+ * The people who already have a deck here, minus those who already curate,
+ * one entry per person however many decks they contributed. Drawn from the
+ * members rather than from a search over every profile: a tile already
+ * carries its `owner_id`, so this needs no server function, and it is the
+ * right pool on its own terms — a co-organizer is one of the creators, and a
+ * display-name search would offer strangers and could not tell two identical
+ * names apart.
+ *
+ * Pure, and exported for the same reason `readinessOf` and `liveMemberCount`
+ * are: the rule is worth checking directly rather than only through the
+ * screen that draws it.
+ */
+export function promotableFrom(
+  tiles: readonly CollectionTile[],
+  organizerIds: ReadonlySet<string>
+): CollectionTile[] {
+  const byOwner = new Map<string, CollectionTile>();
+  for (const tile of tiles) {
+    if (organizerIds.has(tile.owner_id)) continue;
+    if (!byOwner.has(tile.owner_id)) byOwner.set(tile.owner_id, tile);
+  }
+  return [...byOwner.values()];
+}
+
 /** Hand curation to somebody else. Only an existing organizer may. */
 export async function promoteOrganizer(collectionId: string, userId: string): Promise<void> {
   await auth.ensureFresh();

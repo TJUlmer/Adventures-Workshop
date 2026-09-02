@@ -31,7 +31,11 @@
     addOwnDeckDirectly,
     inviteDeck,
     listMemberships,
+    listOrganizers,
+    promotableFrom,
+    promoteOrganizer,
     removeMember,
+    removeOrganizer,
     resolveSubmission,
     respondToInvitation,
     setMemberReady,
@@ -48,7 +52,7 @@
     CollectionVisibility
   } from '$lib/cloud/collections';
   import { cloudEnabled } from '$lib/cloud/config';
-  import type { CollectionDeck } from '$lib/cloud/collections';
+  import type { CollectionDeck, CollectionOrganizer } from '$lib/cloud/collections';
   import PrintScreen from '$lib/print/PrintScreen.svelte';
   import type { PrintMember } from '$lib/print/sheet';
   import { createTtsAssetHost } from '$lib/cloud/tts-assets';
@@ -143,6 +147,76 @@
       if (collection?.id === id) organizer = yes;
     })();
   });
+
+  // -- Co-organizers ------------------------------------------------------
+
+  /**
+   * Who else can curate this collection.
+   *
+   * The governance model is several organizers rather than one owner — see
+   * *Governance* in `COLLECTIONS.md` — but until this existed only the
+   * creator was ever one, because `seed_collection_organizer` is what writes
+   * the first row and nothing wrote a second. A founder who went quiet took
+   * the collection with them.
+   */
+  let organizers = $state<CollectionOrganizer[]>([]);
+  let promoteTarget = $state('');
+
+  $effect(() => {
+    const id = collection?.id;
+    if (!id || !organizer) {
+      organizers = [];
+      return;
+    }
+    void (async () => {
+      const rows = await listOrganizers(id).catch(() => []);
+      if (collection?.id === id) organizers = rows;
+    })();
+  });
+
+  const organizerIds = $derived(new Set(organizers.map((row) => row.user_id)));
+
+  const promotable = $derived(promotableFrom(tiles, organizerIds));
+
+  const iAmOnlyOrganizer = $derived(
+    organizers.length === 1 && organizers[0]?.user_id === auth.user?.id
+  );
+
+  /**
+   * Re-ask whether *I* still curate, rather than assume.
+   *
+   * Standing down is the one action here that removes the caller's own
+   * access, and the effect that first set `organizer` depends on the
+   * collection id and sign-in state — neither of which changed. Without this
+   * the settings stay on screen until a reload, offering controls the
+   * database will now refuse.
+   */
+  async function refreshOrganizers(): Promise<void> {
+    const id = collection?.id;
+    if (!id) {
+      organizers = [];
+      return;
+    }
+    organizer = await amOrganizer(id).catch(() => false);
+    organizers = organizer ? await listOrganizers(id).catch(() => []) : [];
+  }
+
+  function promote(userId: string): void {
+    if (!collection || !userId) return;
+    void run('promote', async () => {
+      await promoteOrganizer(collection!.id, userId);
+      promoteTarget = '';
+      await refreshOrganizers();
+    });
+  }
+
+  function demote(userId: string): void {
+    if (!collection) return;
+    void run(`demote-${userId}`, async () => {
+      await removeOrganizer(collection!.id, userId);
+      await refreshOrganizers();
+    });
+  }
 
   function startEditing(): void {
     if (!collection) return;
@@ -841,6 +915,80 @@
                 ? 'You still decide what is added — an offer is only a request.'
                 : 'Visitors are told the collection is invitation-only and asked to send you a link.'}
             </span>
+          </div>
+
+          <div class="admin-row">
+            <span class="field-label">Organizers</span>
+
+            <ul class="organizers">
+              {#each organizers as row (row.user_id)}
+                <li>
+                  <span class="who">
+                    {row.profile?.display_name || 'Anonymous'}
+                    {#if row.user_id === auth.user?.id}<span class="you">you</span>{/if}
+                  </span>
+                  {#if row.user_id === auth.user?.id}
+                    <!--
+                      Standing down is offered only when somebody else curates.
+                      The database refuses the last one either way — the button
+                      is hidden rather than left to fail, and the reason is
+                      said, because a control that only ever errors is worse
+                      than one that explains itself.
+                    -->
+                    {#if iAmOnlyOrganizer}
+                      <span class="hint">Promote somebody before you can stand down.</span>
+                    {:else}
+                      <button
+                        type="button"
+                        class="btn"
+                        disabled={busy !== null}
+                        onclick={() => demote(row.user_id)}
+                      >
+                        {busy === `demote-${row.user_id}` ? 'Standing down…' : 'Stand down'}
+                      </button>
+                    {/if}
+                  {:else}
+                    <button
+                      type="button"
+                      class="btn"
+                      disabled={busy !== null}
+                      onclick={() => demote(row.user_id)}
+                    >
+                      {busy === `demote-${row.user_id}` ? 'Removing…' : 'Remove'}
+                    </button>
+                  {/if}
+                </li>
+              {/each}
+            </ul>
+
+            {#if promotable.length > 0}
+              <div class="row-actions">
+                <select bind:value={promoteTarget} disabled={busy !== null}>
+                  <option value="">Choose a creator…</option>
+                  {#each promotable as tile (tile.owner_id)}
+                    <option value={tile.owner_id}>{tile.author_name || 'Anonymous'}</option>
+                  {/each}
+                </select>
+                <button
+                  type="button"
+                  class="btn"
+                  disabled={busy !== null || !promoteTarget}
+                  onclick={() => promote(promoteTarget)}
+                >
+                  {busy === 'promote' ? 'Adding…' : 'Make organizer'}
+                </button>
+              </div>
+              <span class="hint">
+                An organizer can invite decks, decide on offers, edit this page and publish it.
+                Anyone with a deck here can be one.
+              </span>
+            {:else if tiles.length === 0}
+              <span class="hint">
+                Once a deck is in the collection, its creator can be made an organizer too.
+              </span>
+            {:else}
+              <span class="hint">Everyone with a deck here is already an organizer.</span>
+            {/if}
           </div>
 
           <div class="admin-row">
@@ -1591,6 +1739,33 @@
     font-size: var(--text-base);
     color: var(--text-primary);
   }
+  .organizers {
+    list-style: none;
+    margin: 0 0 var(--space-3);
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+  }
+  .organizers li {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+  }
+  .organizers .who {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    min-width: 12rem;
+  }
+  .organizers .you {
+    font-size: var(--text-xs);
+    color: var(--text-secondary);
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-sm);
+    padding: 0 var(--space-2);
+  }
+
   .panel.box .field {
     max-width: 44rem;
     margin-bottom: var(--space-3);
