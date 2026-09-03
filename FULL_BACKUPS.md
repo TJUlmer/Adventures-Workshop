@@ -123,9 +123,10 @@ Storage objects are deleted through the S3 API before their recovery metadata is
 the database restore it force-uploads every saved object, downloads each one for comparison,
 and checks bucket, object, and byte counts against the backup manifests.
 
-Until off-site replication is configured, keep every verified full backup. Do not enable the
-Storage cleanup deletion switch merely because a local archive exists. The intended steady
-state is:
+Encrypted, deduplicated off-site replication and its unattended credential design are described
+in `BACKUP_AUTOMATION.md`. Keep every verified full backup until that setup has completed a
+successful off-site restore test. Do not enable the Storage cleanup deletion switch merely
+because a local archive exists. The intended steady state is:
 
 - up to 48 hourly database recovery points;
 - 30 daily full recovery points;
@@ -133,6 +134,6 @@ state is:
 - one local copy and one encrypted off-site copy; and
 - a monthly restore rehearsal.
 
-Retention deletion and unattended credential storage are intentionally not implemented in the
-first pass. They require the off-site copy and a reviewed Windows credential/scheduler design
-so that automation cannot silently delete the only good backup.
+The automation's first version intentionally performs no retention deletion. A successful
+upload is not enough evidence: retention remains disabled until an off-site snapshot has been
+downloaded, decrypted, and passed through the independent full-backup verifier.

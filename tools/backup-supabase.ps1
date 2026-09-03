@@ -19,7 +19,13 @@ param(
 
     [string] $StorageEndpoint = 'https://kyqcvbnxfmpnbwtikzxp.storage.supabase.co/storage/v1/s3',
 
-    [string] $StorageRegion = 'us-east-1'
+    [string] $StorageRegion = 'us-east-1',
+
+    [Security.SecureString] $DatabasePassword,
+
+    [Security.SecureString] $StorageAccessKey,
+
+    [Security.SecureString] $StorageSecretKey
 )
 
 Set-StrictMode -Version Latest
@@ -58,10 +64,15 @@ if ($LASTEXITCODE -ne 0 -or $clientVersion -notmatch 'PostgreSQL\) 17\.') {
     throw "Expected PostgreSQL 17 pg_dump, found: $clientVersion"
 }
 
-$password = Read-Host 'Supabase database password' -AsSecureString
+$password = if ($null -ne $DatabasePassword) {
+    $DatabasePassword.Copy()
+}
+else {
+    Read-Host 'Supabase database password' -AsSecureString
+}
 $passwordPointer = [IntPtr]::Zero
-$storageAccessKey = $null
-$storageSecretKey = $null
+$resolvedStorageAccessKey = $null
+$resolvedStorageSecretKey = $null
 $storageAccessKeyPointer = [IntPtr]::Zero
 $storageSecretKeyPointer = [IntPtr]::Zero
 $previousPassword = $env:PGPASSWORD
@@ -182,10 +193,24 @@ select json_build_object(
     $manifest | ConvertTo-Json -Depth 3 | Set-Content -LiteralPath $manifestPath -Encoding utf8
 
     if ($IncludeStorage) {
-        $storageAccessKey = Read-Host 'Supabase Storage S3 access key ID' -AsSecureString
-        $storageSecretKey = Read-Host 'Supabase Storage S3 secret access key' -AsSecureString
-        $storageAccessKeyPointer = [System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($storageAccessKey)
-        $storageSecretKeyPointer = [System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($storageSecretKey)
+        $resolvedStorageAccessKey = if ($null -ne $StorageAccessKey) {
+            $StorageAccessKey.Copy()
+        }
+        else {
+            Read-Host 'Supabase Storage S3 access key ID' -AsSecureString
+        }
+        $resolvedStorageSecretKey = if ($null -ne $StorageSecretKey) {
+            $StorageSecretKey.Copy()
+        }
+        else {
+            Read-Host 'Supabase Storage S3 secret access key' -AsSecureString
+        }
+        $storageAccessKeyPointer = [System.Runtime.InteropServices.Marshal]::SecureStringToBSTR(
+            $resolvedStorageAccessKey
+        )
+        $storageSecretKeyPointer = [System.Runtime.InteropServices.Marshal]::SecureStringToBSTR(
+            $resolvedStorageSecretKey
+        )
 
         $env:RCLONE_CONFIG_AWBACKUP_TYPE = 's3'
         $env:RCLONE_CONFIG_AWBACKUP_PROVIDER = 'Other'
@@ -366,6 +391,6 @@ finally {
     if ($storageSecretKeyPointer -ne [IntPtr]::Zero) {
         [System.Runtime.InteropServices.Marshal]::ZeroFreeBSTR($storageSecretKeyPointer)
     }
-    $storageAccessKey = $null
-    $storageSecretKey = $null
+    $resolvedStorageAccessKey = $null
+    $resolvedStorageSecretKey = $null
 }
