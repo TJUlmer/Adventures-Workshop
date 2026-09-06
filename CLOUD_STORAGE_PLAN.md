@@ -718,8 +718,17 @@ all 20 deliberately stale generations stopped in conflict without changing accep
 200, reference-save p95 was 128 ms, the maximum was 290 ms, and the complete run took 24,289 ms.
 The verifier confirmed its synthetic cloud row and local cache were removed. This closes the
 reference-only volume, success-rate, stopped-conflict, and timing gates for an owner-operated
-opt-in beta. The separate near-10 MB new-asset performance gate and real-user diversity remain
-outstanding before any default-on rollout.
+opt-in beta.
+
+The deployed large-asset verifier also passed on 6 September 2026. It processed five independent
+9.5 MB synthetic assets through the real IndexedDB-first coordinator, private Storage upload,
+draft save, authenticated hydration, and exact source-byte comparison. All five succeeded, for
+47.5 MB uploaded in total. Save p95 and maximum were 2,907 ms against the 15,000 ms ceiling;
+hydration p95 and maximum were 2,331 ms, and the full run took 28,943 ms. Each sample was purged
+before the next began, and the final report confirmed all synthetic cloud rows, Storage objects,
+and local caches were removed. This closes the near-10 MB new-asset performance gate for an
+owner-operated opt-in beta. Real-user connection, device, and author diversity remains required
+before any default-on rollout.
 
 ### Phase 7 — reference-aware storage cleanup (2–3 days plus observation window)
 

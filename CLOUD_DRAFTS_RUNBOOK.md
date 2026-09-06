@@ -126,8 +126,14 @@ On 6 September 2026, the deployed single-operator soak passed 200 of 200 ordinar
 20 stopped stale conflicts without intervention. The accepted row stayed at revision 200 through
 all stale attempts. Reference-save p95 was 128 ms, the maximum was 290 ms, and the complete run
 took 24,289 ms. The verifier confirmed that its synthetic cloud row and local cache were removed.
-This satisfies the reference-only save-volume, success-rate, conflict, and timing gates. A
-near-10 MB new-asset performance sample is still required for the separate large-asset gate.
+This satisfies the reference-only save-volume, success-rate, conflict, and timing gates.
+
+The deployed large-asset verifier also passed on 6 September 2026. Five independent 9.5 MB
+synthetic assets (47.5 MB uploaded in total) each completed the real IndexedDB, private Storage,
+draft-save, authenticated-hydration, and exact-byte verification path. Save p95 and maximum were
+2,907 ms against the 15,000 ms ceiling; hydration p95 and maximum were 2,331 ms. The complete run
+took 28,943 ms and confirmed that every synthetic cloud row, Storage object, and local cache was
+removed. This satisfies the separate near-10 MB new-asset performance gate.
 
 ## Acceptance evidence recorded
 
@@ -155,13 +161,14 @@ asset. Account A verified that both remained unchanged before the verifier purge
 synthetic data.
 The single-operator soak results above then supplied the required 200 reference-only saves and 20
 stopped conflicts at 100% success, with a 128 ms p95 and confirmed synthetic cleanup.
+The large-asset verifier supplied five successful 9.5 MB new-asset saves and exact hydrations, with
+a 2,907 ms save p95 and confirmed per-sample cleanup.
 Details and the remaining gaps are recorded under Phase 6 in `CLOUD_STORAGE_PLAN.md`.
 
 ## Verification still required before public rollout
 
-- a near-10 MB new-asset performance sample, followed by explicit approval to merge and expose
-  the feature as an opt-in beta. Connection, device, and author diversity remains required before
-  changing the feature to default-on.
+- explicit approval to merge and expose the feature as an opt-in beta. Connection, device, and
+  author diversity remains required before changing the feature to default-on.
 
 Google identity linking and its identity-already-linked recovery case remain required before
 anonymous accounts can enter cloud drafts. They do not block a permanent-account rollout while
