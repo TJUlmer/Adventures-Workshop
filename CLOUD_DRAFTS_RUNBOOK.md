@@ -106,12 +106,53 @@ Local diagnostics are evidence for a pilot, not aggregate telemetry. Record samp
 browser, connection conditions, and the anonymised reports outside the app. Do not add remote
 diagnostic collection as a rollout shortcut without a separate privacy decision.
 
+### Single-operator soak fallback
+
+When a reliable multi-person pilot is unavailable, the deployed preview verifier at
+`/tools/phase6-pilot-soak.html` provides a narrower service soak. It sends 200 distinct revisions
+through the real IndexedDB-first persistence coordinator, requires a complete cloud
+acknowledgement for every revision, and then submits 20 deliberately stale generations. Every
+stale generation must leave the coordinator stopped in its conflict state and leave the accepted
+server revision unchanged. The verifier reports p95 and maximum reference-save duration, verifies
+the final row, and permanently removes only its uniquely prefixed synthetic cloud row and local
+cache.
+
+This is useful backend and client-path evidence, but it is not evidence from different devices,
+connections, or authors. Passing it supports an owner-operated **opt-in beta**, not an immediate
+default-on rollout. Keep the IndexedDB safety copy and backup regime in place, and assess the
+first real opt-in users before changing the default.
+
+## Acceptance evidence recorded
+
+On 6 September 2026, the opt-in preview passed same-account clean-browser library and document
+recovery, ordinary cross-browser revision propagation, all three stopped-conflict decisions,
+private asset upload and hydration, offline edit delivery, interrupted document RPC recovery,
+and interrupted required-asset upload recovery. The two interruption tests proved that pending
+work remained locally durable and that the UI did not claim a cloud save before every required
+stage succeeded. Soft delete, cross-browser restore, permanent purge of only the synthetic
+conflict copy, self-contained JSON export/import, private publication denial to a signed-out
+browser, explicit publication revision updates, and future-schema refusal also passed.
+
+The downloaded support report contained the latest 100 events and no document content, account
+identifiers, URLs, tokens, or asset paths. Its 18 deliberately failed network stages all had
+status `0` and each was followed by a success for the same opaque draft and stage. Successful
+local-cache, asset, and document stages had p95 durations of 3 ms, 535 ms, and 601 ms respectively.
+An isolated unavailable-IndexedDB browser probe also passed: the failed local safety write was
+reported, no cloud request was attempted, and the ordinary workshop database was untouched.
+The real preview also renewed an expired access token with an HTTP 200 refresh while preserving
+the signed-in session.
+The deployed HTTP policy verifier then passed with an authenticated-anonymous session and two
+different permanent OAuth accounts. The anonymous session could not use the draft backend;
+Account B could not list or overwrite Account A's synthetic draft, or read or replace its private
+asset. Account A verified that both remained unchanged before the verifier purged only its
+synthetic data.
+Details and the remaining gaps are recorded under Phase 6 in `CLOUD_STORAGE_PLAN.md`.
+
 ## Verification still required before public rollout
 
-- the complete two-browser core, offline/failure, concurrency, and existing-feature matrix in
-  `CLOUD_STORAGE_PLAN.md` against an isolated project or explicitly authorised synthetic rows;
-- two-owner and public-anon policy checks after the final deployed migration fingerprint;
-- interrupted asset upload, interrupted document RPC, expired-token, IndexedDB failure, and
-  future-schema refusal with network evidence;
-- successful Google linking and the identity-already-linked recovery case;
-- the pilot gates above, followed by explicit approval to merge and enable the feature.
+- the pilot gates above, followed by explicit approval to merge and enable the feature. The
+  completed same-account acceptance run counts as evidence, but not as the required pilot volume.
+
+Google identity linking and its identity-already-linked recovery case remain required before
+anonymous accounts can enter cloud drafts. They do not block a permanent-account rollout while
+anonymous authors remain clearly device-only.

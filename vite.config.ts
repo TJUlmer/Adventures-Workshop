@@ -269,6 +269,9 @@ export default defineConfig({
         app: fileURLToPath(new URL('./index.html', import.meta.url)),
         draftPolicyVerifier: fileURLToPath(
           new URL('./tools/phase1-draft-policy.html', import.meta.url)
+        ),
+        cloudPilotSoakVerifier: fileURLToPath(
+          new URL('./tools/phase6-pilot-soak.html', import.meta.url)
         )
       }
     }

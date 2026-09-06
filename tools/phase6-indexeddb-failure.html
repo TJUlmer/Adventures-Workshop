@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Phase 6 IndexedDB failure verification</title>
+    <style>
+      body { max-width: 760px; margin: 48px auto; padding: 0 24px; font: 16px/1.5 system-ui; color: #202124; }
+      h1 { margin-bottom: 8px; }
+      #status { padding: 12px 16px; border-radius: 8px; background: #eef3f8; font-weight: 650; }
+      li { margin: 8px 0; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Phase 6 IndexedDB failure verification</h1>
+      <p>
+        This isolated page disables IndexedDB before loading persistence code. It does not open,
+        alter, or delete the normal workshop library.
+      </p>
+      <p id="status">Running…</p>
+      <ul id="checks"></ul>
+    </main>
+    <script type="module" src="/tools/phase6-indexeddb-failure.ts"></script>
+  </body>
+</html>

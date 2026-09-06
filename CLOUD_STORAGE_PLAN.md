@@ -670,8 +670,48 @@ opt-in persistence, rollback without network I/O, structured success/failure dia
 a self-contained document above 6 MB. Phase 4 library and Phase 5 conflict regression probes
 also pass, and `tools/phase6-rollout-ui.html` confirms JSON export remains visible with cloud
 authority disabled. No production draft, policy, cohort, deployment, or public branch was
-changed. The real multi-browser, failure-injection, two-owner security, Google-linking, and
-pilot-threshold evidence remains required before this phase or public rollout is complete.
+changed. Real-browser acceptance evidence is recorded below. Identity linking remains deferred
+while anonymous authors are explicitly device-only; it must be implemented and tested before any
+anonymous account is admitted to cloud drafts. Pilot-threshold evidence remains required before
+public rollout is complete.
+
+On 6 September 2026, two independent browser contexts signed into the same permanent Google
+account exercised the opt-in preview with a synthetic set. Browser A created and cloud-saved the
+set; a clean Browser B recovered its summary and complete document without a pre-existing
+IndexedDB copy. Ordinary A-to-B revision propagation passed. Deliberately stale saves exercised
+all three choices: use the cloud version, keep this device's version, and save local changes as a
+new `(conflict copy)` that then appeared in both browsers. A private box-art object uploaded in A
+and hydrated in B. Offline editing retained a pending IndexedDB generation and delivered it after
+reconnection. DevTools request conditions separately interrupted `save_set_draft` and a required
+`draft-assets` upload: neither interruption produced a false cloud acknowledgement or partial
+document update, and both retried successfully after unblocking. Soft delete, cross-browser
+restore, and permanent purge behaved correctly while leaving the original set intact. A
+self-contained JSON export restored into a clean signed-out browser with its embedded artwork;
+private publication remained unavailable to that anonymous browser, and the published snapshot
+advanced from revision 1 to revision 2 only after an explicit update. A schema-version-999 probe
+was refused without changing the valid local library.
+
+The redacted support report downloaded after these tests contained exactly the capped 100 events
+and no set content, account identifiers, URLs, tokens, or asset paths. All 18 deliberately failed
+network stages had status `0` and were followed by a success for the same opaque draft and stage.
+Successful local-cache writes had a 3 ms p95, required-asset work a 535 ms p95, and document saves
+a 601 ms p95. The isolated `tools/phase6-indexeddb-failure.html` browser probe then disabled
+IndexedDB before the persistence modules loaded. It recorded a failed local-cache stage, returned
+failure to the caller, made no cloud request, and never opened or modified the normal workshop
+database. The same preview session then remained open through access-token expiry with Network
+preservation enabled. Its next authentication refresh completed with HTTP 200, after which the
+signed-in session remained usable. The deployed policy verifier subsequently passed direct
+anonymous-authenticated and
+two-permanent-owner checks: Account B could neither list nor overwrite Account A's synthetic draft,
+nor read or replace its private asset. Account A then confirmed its data was unchanged and purged
+the synthetic draft and asset. Only pilot-volume evidence remains outstanding for Phase 6.
+
+Because a reliable external test cohort is not currently available, the preview now includes a
+single-operator soak verifier. It is designed to send 200 distinct revisions through the real
+IndexedDB-first coordinator, require 200 complete cloud acknowledgements, exercise 20 stopped
+stale conflicts, verify the accepted server document did not move, report reference-save timing,
+and purge only its uniquely prefixed synthetic data. A pass supports a public opt-in beta but does
+not replace the connection, device, and author diversity needed before default-on rollout.
 
 ### Phase 7 — reference-aware storage cleanup (2–3 days plus observation window)
 
@@ -702,8 +742,12 @@ Rollout:
    two-owner, restore, publication, and contribution flows.
 5. Schedule a capped weekly run only after the canary passes and monitored growth is understood.
 
-Status: implemented locally as inert, dry-run-first infrastructure. It is not deployed,
-scheduled, or authorised to delete production data. See `STORAGE_CLEANUP.md`.
+Status: the migration passed complete rollback validation and was then applied to the isolated
+recovery project on 6 September 2026. The Edge Function is deployed there without the execution
+secret. Its first dry run marked 43 `set-assets` candidates (7,380,471 bytes), found zero due
+objects, and deleted nothing; a deliberate destructive request was rejected with HTTP 409. The
+second recovery observation is not due before 6 October 2026. Nothing is deployed, scheduled, or
+authorised to delete in production. See `STORAGE_CLEANUP.md`.
 
 ## 11. Verification matrix
 
