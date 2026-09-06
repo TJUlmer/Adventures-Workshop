@@ -123,17 +123,79 @@ verifier rejects any missing, extra, or altered backup file.
 ## Schedule and monitor
 
 Create the daily schedule only after both commands above pass. The intended starting schedule
-is once per day at 2:00 AM Central time. The computer must be awake, online, signed in to the
-same Windows account, and able to access the local backup drive.
+is once per day at 2:00 AM local time. Install the ordinary Microsoft PowerShell 7 package
+first; do not point the task at a PowerShell executable bundled inside an editor or AI tool.
+Then register the native Windows task:
+
+```powershell
+pwsh -NoProfile -File .\tools\install-windows-backup-task.ps1
+```
+
+The task uses the same Windows account that configured the DPAPI-protected credentials. It
+does not save the Windows account password, so that account must be logged on. Task Scheduler
+wakes a sleeping computer, starts a missed run when the computer next becomes available,
+waits for network availability, retries a failed start up to three times, and refuses to start
+a second copy while one is running. A powered-off computer cannot be woken. The computer must
+also be online and able to access the local backup drive.
+
+To prove the scheduler itself can read the credentials and reach both destinations, start the
+task once from Task Scheduler or register it with `-RunNow`. Do not disable an earlier scheduler
+until this task completes successfully and updates `last-success.json`.
 
 Every run writes a private transcript under
 `%LOCALAPPDATA%\UnmatchedLabs\backup-automation\logs` and replaces `last-success.json` only
 after both local verification and the off-site repository check pass. Check that file at least
 weekly and run `test-offsite-backup.ps1` monthly.
 
-Retention remains disabled in format version 1. No automatic job deletes local backups or
-off-site snapshots. After at least one scheduled run and one off-site restore proof, add and
-test the documented 30-daily/12-monthly retention policy as a separate change.
+The daily full-backup task still has no automatic retention deletion. Its local backups and
+off-site snapshots remain until the separate 30-daily/12-monthly full-backup policy is built
+and restore-tested.
+
+The daily task remains the only task that downloads Supabase Storage object bytes. The hourly
+runner creates a complete logical PostgreSQL archive, verifies its size, SHA-256, and table-of-
+contents readability, then sends an encrypted, deduplicated snapshot to the same private restic
+repository:
+
+```powershell
+pwsh -NoProfile -File .\tools\run-hourly-database-backup.ps1
+```
+
+After that manual proof passes, register the native hourly task:
+
+```powershell
+pwsh -NoProfile -File .\tools\install-windows-hourly-backup-task.ps1
+```
+
+It runs at 15 minutes past each hour, leaving a buffer after the daily full backup starts at
+2:00 AM. Both runners share `backup.lock`, so an hourly run cannot overlap a daily run even
+though Windows sees them as different tasks. A collision returns a failure and the task retries
+after 15 minutes. Hourly archives live under the local `hourly-database` folder, use the restic
+tag `unmatched-labs-hourly-database`, write private `hourly-database-*.log` transcripts, and
+replace `last-hourly-success.json` only after local verification, off-site verification, and
+hourly retention pass.
+
+Hourly recovery points include tables, authentication records, draft documents, published-set
+rows, and Storage metadata. They deliberately omit the actual artwork and other object bytes;
+those remain protected by the daily full backup.
+
+After each successful hourly upload, the runner previews restic's deletion plan and rejects it
+unless every proposed removal has the production host, both hourly/project tags, and exactly one
+path inside `hourly-database`. It then keeps the newest recovery point in each of the latest 48
+hours, prunes unreferenced encrypted chunks, and checks the repository again. A local hourly
+directory is removable only when it has an atomic `offsite-snapshot.json` success marker and that
+snapshot is no longer among the retained off-site points. Unmarked, incomplete, unexpected, and
+daily full-backup directories are never removed by the hourly policy.
+
+The destructive logic is exercised independently with:
+
+```powershell
+pwsh -NoProfile -File .\tools\test-hourly-backup-retention.ps1
+```
+
+That test uses a uniquely named temporary local restic repository. It proves that two old hourly
+points are removed while newer hourly points, a daily snapshot, and an unmarked incomplete local
+directory remain. The test never connects to Backblaze or Supabase. The separate planned
+30-daily/12-monthly full-backup policy is still not implemented.
 
 ## First production result
 
