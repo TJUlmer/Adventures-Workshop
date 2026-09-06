@@ -136,6 +136,17 @@
     flex: none;
     background: #fff;
     overflow: hidden;
+    /*
+     * Printer-friendly cards remove their picture artwork, so their remaining
+     * structure — template masks, panel fills and symbol silhouettes — is
+     * almost entirely CSS backgrounds. Chromium otherwise treats those as
+     * optional ink and can drop them from the print dialogue while leaving
+     * only text and crop marks, producing an apparently blank sheet. The
+     * prefixed property is still the one Chrome's print pipeline reads; the
+     * standard property covers browsers that have caught up.
+     */
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
     /* Screen only: the shadow is how a sheet reads as paper in the preview. */
     box-shadow: var(--shadow-card);
   }
