@@ -122,6 +122,13 @@ connections, or authors. Passing it supports an owner-operated **opt-in beta**, 
 default-on rollout. Keep the IndexedDB safety copy and backup regime in place, and assess the
 first real opt-in users before changing the default.
 
+On 6 September 2026, the deployed single-operator soak passed 200 of 200 ordinary saves and 20 of
+20 stopped stale conflicts without intervention. The accepted row stayed at revision 200 through
+all stale attempts. Reference-save p95 was 128 ms, the maximum was 290 ms, and the complete run
+took 24,289 ms. The verifier confirmed that its synthetic cloud row and local cache were removed.
+This satisfies the reference-only save-volume, success-rate, conflict, and timing gates. A
+near-10 MB new-asset performance sample is still required for the separate large-asset gate.
+
 ## Acceptance evidence recorded
 
 On 6 September 2026, the opt-in preview passed same-account clean-browser library and document
@@ -146,12 +153,15 @@ different permanent OAuth accounts. The anonymous session could not use the draf
 Account B could not list or overwrite Account A's synthetic draft, or read or replace its private
 asset. Account A verified that both remained unchanged before the verifier purged only its
 synthetic data.
+The single-operator soak results above then supplied the required 200 reference-only saves and 20
+stopped conflicts at 100% success, with a 128 ms p95 and confirmed synthetic cleanup.
 Details and the remaining gaps are recorded under Phase 6 in `CLOUD_STORAGE_PLAN.md`.
 
 ## Verification still required before public rollout
 
-- the pilot gates above, followed by explicit approval to merge and enable the feature. The
-  completed same-account acceptance run counts as evidence, but not as the required pilot volume.
+- a near-10 MB new-asset performance sample, followed by explicit approval to merge and expose
+  the feature as an opt-in beta. Connection, device, and author diversity remains required before
+  changing the feature to default-on.
 
 Google identity linking and its identity-already-linked recovery case remain required before
 anonymous accounts can enter cloud drafts. They do not block a permanent-account rollout while

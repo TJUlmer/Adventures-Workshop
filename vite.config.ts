@@ -272,6 +272,9 @@ export default defineConfig({
         ),
         cloudPilotSoakVerifier: fileURLToPath(
           new URL('./tools/phase6-pilot-soak.html', import.meta.url)
+        ),
+        cloudLargeAssetVerifier: fileURLToPath(
+          new URL('./tools/phase6-large-asset.html', import.meta.url)
         )
       }
     }

@@ -704,7 +704,7 @@ signed-in session remained usable. The deployed policy verifier subsequently pas
 anonymous-authenticated and
 two-permanent-owner checks: Account B could neither list nor overwrite Account A's synthetic draft,
 nor read or replace its private asset. Account A then confirmed its data was unchanged and purged
-the synthetic draft and asset. Only pilot-volume evidence remains outstanding for Phase 6.
+the synthetic draft and asset.
 
 Because a reliable external test cohort is not currently available, the preview now includes a
 single-operator soak verifier. It is designed to send 200 distinct revisions through the real
@@ -712,6 +712,14 @@ IndexedDB-first coordinator, require 200 complete cloud acknowledgements, exerci
 stale conflicts, verify the accepted server document did not move, report reference-save timing,
 and purge only its uniquely prefixed synthetic data. A pass supports a public opt-in beta but does
 not replace the connection, device, and author diversity needed before default-on rollout.
+
+The deployed soak passed on 6 September 2026: 200 of 200 reference-only cloud saves succeeded,
+all 20 deliberately stale generations stopped in conflict without changing accepted revision
+200, reference-save p95 was 128 ms, the maximum was 290 ms, and the complete run took 24,289 ms.
+The verifier confirmed its synthetic cloud row and local cache were removed. This closes the
+reference-only volume, success-rate, stopped-conflict, and timing gates for an owner-operated
+opt-in beta. The separate near-10 MB new-asset performance gate and real-user diversity remain
+outstanding before any default-on rollout.
 
 ### Phase 7 — reference-aware storage cleanup (2–3 days plus observation window)
 
