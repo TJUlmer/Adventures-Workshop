@@ -17,12 +17,9 @@ Nothing to configure. Vercel detects Vite and gets all three right:
 | Output directory | `dist` |
 | Install command | `npm install` |
 
-There is deliberately **no `vercel.json`**. A file that only restates what is
-already detected is a second copy of the truth to keep correct, and the usual
-reason for one — an SPA rewrite so deep links reach `index.html` — does not
-apply here: the app routes on the **hash** (`#/shared/<slug>`), which the server
-never sees. That was chosen so the build could be dropped anywhere, including
-`file://`, and it is why hosting needs no rewrite rules.
+`vercel.json` contains the one rewrite needed by the real `/shared/{slug}` route.
+That path exists so link-unfurling clients can reach share metadata without running
+the hash router. Other in-app routes continue to use the hash and need no server rewrite.
 
 ## Environment variables
 
@@ -30,6 +27,18 @@ Set both, for **Production, Preview and Development**:
 
     VITE_SUPABASE_URL
     VITE_SUPABASE_PUBLISHABLE_KEY
+
+Private cloud drafts use a separate build-time control:
+
+    VITE_CLOUD_DRAFTS_ROLLOUT
+    VITE_CLOUD_DRAFTS_INTERNAL_USER_IDS
+    VITE_CLOUD_DRAFTS_COHORT_PERCENT
+
+Keep Production at `off` until the public-beta activation checklist in
+`CLOUD_DRAFTS_RUNBOOK.md` is explicitly approved. For the public opt-in beta, set the first
+variable to `opt-in` for **Production only**, leave the internal-id list empty, and keep the
+cohort percentage at `0`. Preview can remain `opt-in` for acceptance work. Changing a Vite
+variable requires a new deployment because its value is compiled into the browser bundle.
 
 Ticking Preview is the part that gets missed, and the failure is quiet:
 `cloud/config.ts` returns `null` when either is absent and the whole app
@@ -41,6 +50,11 @@ The publishable key ships inside the bundle. That is expected: it identifies
 the project and authorises nothing. Row level security is the boundary. A key
 beginning `sb_secret_` would be a full compromise sitting in a JavaScript file,
 which is why `config.ts` refuses to start on one.
+
+Vercel's `VERCEL_ENV` is intentionally read only by the build configuration. Local and Preview
+builds include the synthetic policy/soak/large-asset verifier pages; Production builds omit them
+so an unlinked URL cannot be used to generate test writes or large transfers against the live
+service.
 
 ## Supabase, for preview URLs
 

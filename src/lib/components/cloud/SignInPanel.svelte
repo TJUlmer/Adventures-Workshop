@@ -42,6 +42,13 @@
       fail(cause);
     }
   }
+
+  function draftRolloutMessage(): string {
+    if (draftRollout.mode === 'off') return 'Private cloud drafts are not enabled in this build.';
+    if (draftRollout.mode === 'opt-in') return 'Private cloud drafts are available as an opt-in beta.';
+    if (draftRollout.mode === 'cohort') return 'Private cloud drafts remain in a limited rollout.';
+    return 'Private cloud drafts are enabled for permanent accounts.';
+  }
 </script>
 
 {#if cloudEnabled()}
@@ -90,9 +97,7 @@
       {#if auth.providers.length > 0}
         <p class="fineprint">
           Signs you in permanently and publishes under the name that account already has.
-          {draftRollout.mode === 'off'
-            ? 'Private cloud drafts are not enabled in this build.'
-            : 'Private cloud drafts remain a limited preview.'}
+          {draftRolloutMessage()}
           Leaves this page and comes straight back.
         </p>
       {/if}
@@ -113,9 +118,7 @@
       </form>
       <p class="fineprint">
         Creates a permanent account for publishing.
-        {draftRollout.mode === 'off'
-          ? 'Private cloud drafts are not enabled in this build.'
-          : 'Private cloud drafts remain a limited preview.'}
+        {draftRolloutMessage()}
       </p>
     {:else if stage === 'code'}
       <p class="sent">

@@ -1,9 +1,11 @@
 # Private cloud drafts rollout and recovery
 
 This runbook covers the private `set_drafts`/`draft-assets` system. Publishing remains a
-separate explicit snapshot workflow. The private-draft client is still pre-rollout: keep it
-on `codex/cloud-drafts`, do not merge it to `main`, and do not build a public deployment with
-the rollout mode set to `on` until every launch gate below has evidence.
+separate explicit snapshot workflow. The private-draft client has passed the owner-operated
+gates for a public opt-in beta, but is not active on `main` yet. Keep it on
+`codex/cloud-drafts` until the activation checklist below is complete and the user explicitly
+approves the merge. Do not build a public deployment with rollout mode `on` until real-user,
+device, and connection diversity supplies the remaining default-on evidence.
 
 ## Rollout controls
 
@@ -24,13 +26,44 @@ not in `localStorage`, and is ignored when the build flag is `off`.
 
 Recommended progression:
 
-1. Keep production at `off` while deterministic and isolated-project checks run.
-2. Use `opt-in` only on an internal preview deployment. This is an honest
-   cloud-authoritative preview, not an invisible shadow upload; local copies are retained.
-3. On a shared deployment, use `cohort` with internal ids and `0` percent, then increase the
-   percentage only after the previous cohort meets the gates below.
-4. Set `on` only after the user explicitly approves public rollout and every launch
-   acceptance item in `CLOUD_STORAGE_PLAN.md` is evidenced.
+1. Keep production at `off` while deterministic, recovery-project, and preview checks run.
+2. Use `opt-in` on the internal preview. This is an honest cloud-authoritative preview, not
+   an invisible shadow upload; local copies are retained.
+3. After the owner-operated gates pass, use `opt-in` for the public beta. Every permanent
+   account remains device-only until that person deliberately chooses **Try cloud drafts** in
+   Account on that browser.
+4. Observe real opt-in authors before testing automatic enrolment. If automatic enrolment is
+   tested, use `cohort` with internal ids and a small stable percentage first.
+5. Set `on` only after the user explicitly approves default-on rollout and the real-user,
+   device, connection, error, conflict, and latency evidence remains within the gates below.
+
+## Public opt-in beta activation checklist
+
+Preparation does not itself activate the beta. Before merging or changing Production:
+
+1. Bring the rollout branch up to date with `main`, review the complete branch diff, and run
+   `npm run build`.
+2. Run a Vercel-production-shaped build with `VERCEL_ENV=production` and confirm the synthetic
+   policy, soak, and large-asset verifier pages are absent from `dist/tools`.
+3. Confirm the latest native hourly backup and encrypted off-site backup completed, and retain
+   the verified full-recovery evidence.
+4. In Vercel, prepare `VITE_CLOUD_DRAFTS_ROLLOUT=opt-in` for **Production only**. Keep
+   `VITE_CLOUD_DRAFTS_INTERNAL_USER_IDS` empty and `VITE_CLOUD_DRAFTS_COHORT_PERCENT=0`.
+   Do not put a Supabase secret or service-role key in any `VITE_` variable.
+5. Confirm Supabase's production Site URL and redirect allowlist cover the production hostname.
+6. Obtain explicit approval, merge `codex/cloud-drafts` into `main`, and let Vercel deploy the
+   production build. The merge/deployment is the activation point.
+
+Immediately after deployment:
+
+1. In a signed-out browser, confirm existing device sets open and the gallery still loads.
+2. Sign in with a permanent account. Account must show **Cloud drafts beta**, initially off for
+   that browser, and Home must remain device-authoritative until **Try cloud drafts** is chosen.
+3. Opt in, upload one disposable set, confirm **Saved locally and to cloud**, then recover it in
+   a clean second browser. Delete the disposable set permanently after verification.
+4. Publish or update one disposable snapshot and confirm the public gallery path is unchanged.
+5. Confirm the latest backup tasks still report success. If any cloud-authoritative safety check
+   fails, set Production back to `off` and redeploy; do not delete cloud rows or private assets.
 
 ## What disabling the gate does
 

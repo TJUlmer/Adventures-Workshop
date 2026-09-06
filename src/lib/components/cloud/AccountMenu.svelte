@@ -169,11 +169,11 @@
           {#if !auth.isAnonymous}
             <section class="draft-rollout" data-enabled={draftRollout.enabled}>
               <div>
-                <strong>Cloud drafts preview</strong>
+                <strong>{draftRollout.mode === 'opt-in' ? 'Cloud drafts beta' : 'Cloud drafts'}</strong>
                 {#if draftRollout.mode === 'off'}
                   <small>Off in this build. Drafts stay on this device; publishing still works.</small>
                 {:else if draftRollout.mode === 'opt-in' && draftRollout.loadedForUserId !== auth.user?.id}
-                  <small>Checking this browser’s preview choice…</small>
+                  <small>Checking this browser’s beta choice…</small>
                 {:else if draftRollout.canOptIn}
                   <small>
                     {draftRollout.enabled

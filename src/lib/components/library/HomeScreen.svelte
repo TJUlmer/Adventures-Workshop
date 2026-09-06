@@ -1243,7 +1243,11 @@
         Sets are saved only on this device while signed out. Sign in to publish;
         {draftRollout.mode === 'off'
           ? 'private cloud drafts are not enabled in this build.'
-          : 'private cloud drafts are still a limited preview.'}
+          : draftRollout.mode === 'opt-in'
+            ? 'private cloud drafts are available as an opt-in beta.'
+            : draftRollout.mode === 'cohort'
+              ? 'private cloud drafts remain in a limited rollout.'
+              : 'private cloud drafts are enabled for permanent accounts.'}
       </span>
     </div>
   {:else if auth.isAnonymous}
