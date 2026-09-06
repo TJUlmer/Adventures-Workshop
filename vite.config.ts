@@ -261,6 +261,16 @@ export default defineConfig({
   },
   build: {
     target: 'esnext',
-    sourcemap: true
+    sourcemap: true,
+    rollupOptions: {
+      // This one browser-driven verifier must run on the deployed preview so two
+      // genuinely different OAuth accounts can exercise production RLS and Storage.
+      input: {
+        app: fileURLToPath(new URL('./index.html', import.meta.url)),
+        draftPolicyVerifier: fileURLToPath(
+          new URL('./tools/phase1-draft-policy.html', import.meta.url)
+        )
+      }
+    }
   }
 });
