@@ -44,7 +44,13 @@
   import NewCollectionDialog from './NewCollectionDialog.svelte';
   import NewSetDialog from './NewSetDialog.svelte';
   import { initials, tint } from '$lib/core/swatch';
-  import { createCollection, listMyCollections, listPendingMemberships } from '$lib/cloud/collections';
+  import {
+    createCollection,
+    listMyCollections,
+    listPendingMemberships,
+    myPendingInvites,
+    respondToInvite
+  } from '$lib/cloud/collections';
   import type { CollectionMembership, MyCollection } from '$lib/cloud/collections';
 
   interface Props {
@@ -119,6 +125,42 @@
       .then((rows) => (pendingMemberships = rows))
       .catch(() => (pendingMemberships = []));
   });
+
+  /**
+   * Invitations addressed to me personally, as against decisions about a deck
+   * of mine that is already in a collection.
+   *
+   * Kept apart from `pendingMemberships` because they are different
+   * questions: one asks whether a deck of yours should join a box, the other
+   * asks whether *you* want a place in a project before you have built
+   * anything for it. Folding them into one count would make "3 decisions
+   * waiting" mean two unrelated things.
+   */
+  let personalInvites = $state<Awaited<ReturnType<typeof myPendingInvites>>>([]);
+
+  $effect(() => {
+    void auth.signedIn;
+    if (!cloudEnabled() || !auth.signedIn) {
+      personalInvites = [];
+      return;
+    }
+    void myPendingInvites()
+      .then((rows) => (personalInvites = rows))
+      .catch(() => (personalInvites = []));
+  });
+
+  async function answerInvite(inviteId: string, accept: boolean, slug: string): Promise<void> {
+    try {
+      await respondToInvite(inviteId, accept);
+      personalInvites = personalInvites.filter((row) => row.id !== inviteId);
+      /* Accepting takes you there: the next thing to do is offer a deck, and
+         that control lives on the collection. Declining leaves you here. */
+      if (accept && slug) navigation.openCollection(slug);
+      else void listMyCollections().then((rows) => (myCollections = rows));
+    } catch {
+      message = 'That invitation could not be answered. It may have been withdrawn.';
+    }
+  }
 
   /*
    * Grouped by collection, because the decision is per collection even when
@@ -1644,8 +1686,44 @@
     </div>
   {/if}
 
-  {#if waitingSets.length > 0 || behindSets.length > 0 || pendingByCollection.length > 0}
+  {#if waitingSets.length > 0 || behindSets.length > 0 || pendingByCollection.length > 0 || personalInvites.length > 0}
     <div class="attention">
+      {#each personalInvites as invite (invite.id)}
+        <!--
+          Answered in place rather than by sending somebody to a page to find
+          the buttons: an invitation is a yes-or-no, and the whole question
+          fits on the card asking it.
+        -->
+        <div class="attention-card waiting">
+          <Icon name="users" size={15} />
+          <div class="attention-body">
+            <span class="attention-title">
+              You are invited to {invite.collection?.name || 'a collection'}
+            </span>
+            <span class="attention-detail">
+              Accepting gives you a place in the project — you can offer a deck whenever one
+              is ready.
+              <button
+                type="button"
+                class="attention-link"
+                onclick={() =>
+                  void answerInvite(invite.id, true, invite.collection?.slug ?? '')}
+              >
+                Accept
+              </button>
+              <span aria-hidden="true"> · </span>
+              <button
+                type="button"
+                class="attention-link"
+                onclick={() => void answerInvite(invite.id, false, '')}
+              >
+                No thanks
+              </button>
+            </span>
+          </div>
+        </div>
+      {/each}
+
       {#if pendingByCollection.length > 0}
         {@const total = pendingMemberships.length}
         <div class="attention-card waiting">

@@ -864,6 +864,165 @@ export function isOwnAsset(url: string): boolean {
  * is the second such path in the app and wants the same specific
  * justification — see `middleware.ts`.
  */
+// -- Invitations -----------------------------------------------------------
+
+/** A pending or settled invitation, as its organizer sees it. */
+export interface CollectionInvite {
+  id: string;
+  collection_id: string;
+  invited_user: string | null;
+  label: string;
+  token: string;
+  status: 'open' | 'accepted' | 'declined' | 'revoked';
+  created_at: string;
+  invited: { display_name: string; avatar_url: string } | null;
+  collection: { slug: string; name: string; subtitle: string } | null;
+  claims: { user_id: string; created_at: string; who: { display_name: string } | null }[];
+}
+
+const INVITE_COLUMNS =
+  'id,collection_id,invited_user,label,token,status,created_at,' +
+  'invited:profiles!collection_invites_invited_user_fkey(display_name,avatar_url),' +
+  'collection:collections(slug,name,subtitle),' +
+  'claims:collection_invite_claims(user_id,created_at,who:profiles(display_name))';
+
+/**
+ * Invite one person, picked from their published work.
+ *
+ * Takes a user id, never a name — see `0019`. The organizer reaches a real
+ * profile and invites *that*, so a rename cannot redirect an invitation and
+ * two people sharing a display name is not a question anyone has to answer.
+ */
+export async function inviteUserToCollection(collectionId: string, userId: string): Promise<void> {
+  await auth.ensureFresh();
+  const me = auth.user;
+  if (!me) throw new CloudError('Sign in to invite somebody.', 401);
+  await request('/rest/v1/collection_invites', {
+    method: 'POST',
+    body: { collection_id: collectionId, invited_user: userId, invited_by: me.id },
+    headers: { Prefer: 'return=minimal' }
+  });
+}
+
+/**
+ * Make a link that admits anybody who opens it.
+ *
+ * `label` is the organizer's own note and is never shown to the people
+ * joining — it is there so a list of outstanding links reads as something
+ * other than a column of tokens.
+ */
+export async function createInviteLink(
+  collectionId: string,
+  label = ''
+): Promise<CollectionInvite> {
+  await auth.ensureFresh();
+  const me = auth.user;
+  if (!me) throw new CloudError('Sign in to invite somebody.', 401);
+  const rows = await request<CollectionInvite[]>(
+    `/rest/v1/collection_invites?select=${INVITE_COLUMNS}`,
+    {
+      method: 'POST',
+      body: { collection_id: collectionId, label: label.trim().slice(0, 200), invited_by: me.id },
+      headers: { Prefer: 'return=representation' }
+    }
+  );
+  const created = rows[0];
+  if (!created) throw new CloudError('That invitation was not created.', 500);
+  return created;
+}
+
+/** Every invitation on a collection. Organizers only, by policy. */
+export async function listCollectionInvites(collectionId: string): Promise<CollectionInvite[]> {
+  await auth.ensureFresh();
+  return request<CollectionInvite[]>(
+    `/rest/v1/collection_invites?select=${INVITE_COLUMNS}` +
+      `&collection_id=eq.${encodeURIComponent(collectionId)}&order=created_at.desc`
+  );
+}
+
+/** The invitations addressed to me and still waiting on an answer. */
+export async function myPendingInvites(): Promise<CollectionInvite[]> {
+  if (!auth.signedIn) return [];
+  await auth.ensureFresh();
+  const me = auth.user;
+  if (!me) return [];
+  return request<CollectionInvite[]>(
+    `/rest/v1/collection_invites?select=${INVITE_COLUMNS}` +
+      `&invited_user=eq.${encodeURIComponent(me.id)}&status=eq.open&order=created_at.desc`
+  );
+}
+
+/** Accept or decline an invitation addressed to me. */
+export async function respondToInvite(inviteId: string, accept: boolean): Promise<void> {
+  await auth.ensureFresh();
+  await request(`/rest/v1/collection_invites?id=eq.${encodeURIComponent(inviteId)}`, {
+    method: 'PATCH',
+    body: { status: accept ? 'accepted' : 'declined' },
+    headers: { Prefer: 'return=minimal' }
+  });
+}
+
+/**
+ * Stop a link admitting anybody new.
+ *
+ * The people already through it keep their place — see `0021`. Removing one
+ * of them is `removeInviteClaim`, deliberately a separate act.
+ */
+export async function revokeInvite(inviteId: string): Promise<void> {
+  await auth.ensureFresh();
+  await request(`/rest/v1/collection_invites?id=eq.${encodeURIComponent(inviteId)}`, {
+    method: 'PATCH',
+    body: { status: 'revoked' },
+    headers: { Prefer: 'return=minimal' }
+  });
+}
+
+/** Withdraw an invitation entirely, as though it had never been sent. */
+export async function deleteInvite(inviteId: string): Promise<void> {
+  await auth.ensureFresh();
+  await request(`/rest/v1/collection_invites?id=eq.${encodeURIComponent(inviteId)}`, {
+    method: 'DELETE'
+  });
+}
+
+/** Remove one person who joined through a link. */
+export async function removeInviteClaim(inviteId: string, userId: string): Promise<void> {
+  await auth.ensureFresh();
+  await request(
+    `/rest/v1/collection_invite_claims?invite_id=eq.${encodeURIComponent(inviteId)}` +
+      `&user_id=eq.${encodeURIComponent(userId)}`,
+    { method: 'DELETE' }
+  );
+}
+
+export interface InviteClaimResult {
+  collection_slug: string;
+  collection_name: string;
+  outcome: 'accepted' | 'revoked' | 'not_found';
+}
+
+/** Take a link invitation. Idempotent — opening it twice is not an error. */
+export async function claimInviteLink(token: string): Promise<InviteClaimResult> {
+  await auth.ensureFresh();
+  const rows = await request<InviteClaimResult[]>('/rest/v1/rpc/claim_collection_invite', {
+    method: 'POST',
+    body: { invite_token: token }
+  });
+  return rows[0] ?? { collection_slug: '', collection_name: '', outcome: 'not_found' };
+}
+
+/**
+ * The address of a join link.
+ *
+ * Hung on the collection's own path with a `join` parameter rather than given
+ * a route of its own: whoever opens it should land on the collection they
+ * have just joined, and that page already exists. `CollectionScreen` claims
+ * the token and strips the parameter, so a reload is not a second claim.
+ */
+export function inviteLinkUrl(slug: string, token: string): string {
+  return `${collectionUrl(slug)}?join=${encodeURIComponent(token)}`;
+}
+
 export function collectionUrl(slug: string): string {
   return `${window.location.origin}${window.location.pathname}collection/${slug}`;
 }

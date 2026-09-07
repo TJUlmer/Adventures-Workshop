@@ -25,12 +25,71 @@
   import { navigation } from '$lib/state/navigation.svelte';
   import { Button, Icon } from '$lib/ui';
   import { initials, tint } from '$lib/core/swatch';
+  import { auth } from '$lib/cloud/auth.svelte';
+  import { inviteUserToCollection, listMyCollections } from '$lib/cloud/collections';
+  import type { MyCollection } from '$lib/cloud/collections';
 
   interface Props {
     id: string;
   }
 
   let { id }: Props = $props();
+
+  /**
+   * Invite this person to a collection I organize.
+   *
+   * **This is the whole reason invitations take a user id rather than a
+   * name.** An organizer arrives here by following a credit line from a deck
+   * this person actually published, so the identity is already in hand and
+   * settled: nothing was typed, nothing was matched, and a later rename
+   * cannot redirect what gets sent. See `0019_collection_invites.sql`.
+   */
+  let organizing = $state<MyCollection[]>([]);
+  let chosen = $state('');
+  let inviteBusy = $state(false);
+  let inviteNote = $state<string | null>(null);
+  let invited = $state(new Set<string>());
+
+  $effect(() => {
+    /* Read synchronously so signing in while the page is open is a tracked
+       dependency — the same reason every other screen here does it. */
+    void auth.signedIn;
+    const me = auth.user?.id;
+    if (!me) {
+      organizing = [];
+      return;
+    }
+    void (async () => {
+      const rows = await listMyCollections().catch(() => []);
+      organizing = rows.filter((row) => row.is_organizer);
+    })();
+  });
+
+  /** Never offer to invite somebody to their own collection, or mine to me. */
+  const canInvite = $derived(organizing.length > 0 && !!auth.user && auth.user.id !== id);
+
+  async function sendInvite(): Promise<void> {
+    if (!chosen || inviteBusy) return;
+    inviteBusy = true;
+    inviteNote = null;
+    try {
+      await inviteUserToCollection(chosen, id);
+      const where = organizing.find((row) => row.id === chosen);
+      invited = new Set(invited).add(chosen);
+      inviteNote = `Invited to ${where?.name || 'that collection'}. They will see it on their Home.`;
+      chosen = '';
+    } catch (error) {
+      const raw = error instanceof Error ? error.message : '';
+      /* The one conflict worth translating: a partial unique index keeps one
+         open invitation per person per collection, so a second click is not a
+         failure so much as an answer. */
+      inviteNote = /duplicate key|collection_invites_one_open_per_user/.test(raw)
+        ? 'They already have an open invitation to that collection.'
+        : raw || 'That invitation did not send.';
+    } finally {
+      inviteBusy = false;
+    }
+  }
 
   let profile = $state<PublicProfile | null>(null);
   let sets = $state<GallerySet[]>([]);
@@ -132,6 +191,24 @@
     </Button>
   </header>
 
+  {#if canInvite}
+    <section class="invite">
+      <span class="invite-label">Invite to a collection</span>
+      <select bind:value={chosen} disabled={inviteBusy}>
+        <option value="">Choose one you organize…</option>
+        {#each organizing as row (row.id)}
+          <option value={row.id} disabled={invited.has(row.id)}>
+            {row.name || 'Untitled collection'}{invited.has(row.id) ? ' — invited' : ''}
+          </option>
+        {/each}
+      </select>
+      <Button variant="ghost" disabled={!chosen || inviteBusy} onclick={() => void sendInvite()}>
+        {inviteBusy ? 'Inviting…' : 'Invite'}
+      </Button>
+      {#if inviteNote}<span class="invite-note">{inviteNote}</span>{/if}
+    </section>
+  {/if}
+
   {#if !cloudEnabled()}
     <p class="message">Sharing is not set up in this build.</p>
   {:else if loading}
@@ -171,6 +248,23 @@
 </div>
 
 <style>
+  .invite {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-3);
+    padding: var(--space-3) 0;
+    border-bottom: 1px solid var(--border-subtle, var(--border-default));
+  }
+  .invite-label {
+    font-size: var(--text-sm);
+    color: var(--text-secondary);
+  }
+  .invite-note {
+    font-size: var(--text-sm);
+    color: var(--text-secondary);
+  }
+
   /* Owns its own scrolling — see the identical note in `GalleryScreen.svelte`. */
   .screen {
     height: 100%;

@@ -31,11 +31,18 @@
     addOwnDeckDirectly,
     inviteDeck,
     listMemberships,
+    claimInviteLink,
+    createInviteLink,
+    deleteInvite,
+    inviteLinkUrl,
+    listCollectionInvites,
     listOrganizers,
     promotableFrom,
     promoteOrganizer,
+    removeInviteClaim,
     removeMember,
     removeOrganizer,
+    revokeInvite,
     resolveSubmission,
     respondToInvitation,
     setMemberReady,
@@ -52,7 +59,11 @@
     CollectionVisibility
   } from '$lib/cloud/collections';
   import { cloudEnabled } from '$lib/cloud/config';
-  import type { CollectionDeck, CollectionOrganizer } from '$lib/cloud/collections';
+  import type {
+    CollectionDeck,
+    CollectionInvite,
+    CollectionOrganizer
+  } from '$lib/cloud/collections';
   import PrintScreen from '$lib/print/PrintScreen.svelte';
   import type { PrintMember } from '$lib/print/sheet';
   import { createTtsAssetHost } from '$lib/cloud/tts-assets';
@@ -146,6 +157,118 @@
     void (async () => {
       const yes = await amOrganizer(id).catch(() => false);
       if (collection?.id === id) organizer = yes;
+    })();
+  });
+
+  // -- Invitations ---------------------------------------------------------
+
+  /**
+   * Who has been asked to take part, as against whose deck is already in.
+   *
+   * Membership is a deck (`collection_members` is keyed on one), so until
+   * somebody has published something there is nothing to be a member *of*.
+   * An invitation is how a project gets its people before anybody has built
+   * anything — see `0019`.
+   */
+  let invites = $state<CollectionInvite[]>([]);
+  let linkLabel = $state('');
+  let copiedLink = $state<string | null>(null);
+
+  $effect(() => {
+    const id = collection?.id;
+    if (!id || !organizer) {
+      invites = [];
+      return;
+    }
+    void (async () => {
+      const rows = await listCollectionInvites(id).catch(() => []);
+      if (collection?.id === id) invites = rows;
+    })();
+  });
+
+  async function refreshInvites(): Promise<void> {
+    if (!collection || !organizer) return;
+    invites = await listCollectionInvites(collection.id).catch(() => invites);
+  }
+
+  const pendingInvites = $derived(invites.filter((row) => row.invited_user && row.status === 'open'));
+  const linkInvites = $derived(invites.filter((row) => !row.invited_user));
+
+  function makeLink(): void {
+    if (!collection) return;
+    void run('make-link', async () => {
+      await createInviteLink(collection!.id, linkLabel);
+      linkLabel = '';
+      await refreshInvites();
+    });
+  }
+
+  function stopLink(inviteId: string): void {
+    void run(`revoke-${inviteId}`, async () => {
+      await revokeInvite(inviteId);
+      await refreshInvites();
+    });
+  }
+
+  function dropInvite(inviteId: string): void {
+    void run(`drop-${inviteId}`, async () => {
+      await deleteInvite(inviteId);
+      await refreshInvites();
+    });
+  }
+
+  function dropClaim(inviteId: string, userId: string): void {
+    void run(`claim-${inviteId}-${userId}`, async () => {
+      await removeInviteClaim(inviteId, userId);
+      await refreshInvites();
+    });
+  }
+
+  async function copyInviteLink(token: string): Promise<void> {
+    if (!collection) return;
+    try {
+      await navigator.clipboard.writeText(inviteLinkUrl(collection.slug, token));
+      copiedLink = token;
+      setTimeout(() => (copiedLink = copiedLink === token ? null : copiedLink), 2000);
+    } catch {
+      notice = 'Could not reach the clipboard. Select the link and copy it by hand.';
+    }
+  }
+
+  /**
+   * Take a join link on arrival.
+   *
+   * The token rides on the collection's own path as `?join=`, so whoever
+   * opens it lands on the collection they have just joined rather than on a
+   * page of its own. Stripped from the address bar afterwards with
+   * `replaceState`: a reload should not read as a second claim, and the token
+   * has no business staying in a URL somebody might screenshot.
+   */
+  let claimNotice = $state<string | null>(null);
+  let claimAttempted = $state('');
+
+  $effect(() => {
+    const token = new URLSearchParams(window.location.search).get('join') ?? '';
+    if (!token || claimAttempted === token) return;
+    claimAttempted = token;
+    void auth.signedIn;
+    void (async () => {
+      if (!auth.signedIn) {
+        claimNotice = 'Sign in to accept this invitation, then open the link again.';
+        return;
+      }
+      const result = await claimInviteLink(token).catch(() => null);
+      const url = new URL(window.location.href);
+      url.searchParams.delete('join');
+      window.history.replaceState({}, '', url.toString());
+      if (!result || result.outcome === 'not_found') {
+        claimNotice = 'That invitation link is not valid.';
+      } else if (result.outcome === 'revoked') {
+        claimNotice = 'That invitation link has been turned off. Ask the organizers for a new one.';
+      } else {
+        claimNotice = `You have joined ${result.collection_name || 'this collection'}. Offer a deck whenever one is ready.`;
+        await refreshAfterDecision();
+      }
     })();
   });
 
@@ -1126,6 +1249,10 @@
         </section>
       {/if}
 
+      {#if claimNotice}
+        <p class="notice claim">{claimNotice}</p>
+      {/if}
+
       {#if notice}<p class="notice">{notice}</p>{/if}
 
       {#if myPending.length > 0}
@@ -1446,6 +1573,123 @@
               </p>
             </div>
           {/if}
+        </section>
+      {/if}
+
+      {#if organizer}
+        <section class="panel invites">
+          <h2>Invite people</h2>
+          <p class="hint">
+            For creators who have not published a deck here yet. Membership is a deck, so
+            somebody with nothing published cannot be added — an invitation is how they get
+            a place before they have built anything.
+          </p>
+
+          {#if pendingInvites.length > 0}
+            <h3 class="sub">Waiting on an answer</h3>
+            <ul class="rows">
+              {#each pendingInvites as row (row.id)}
+                <li>
+                  <span class="row-name">{row.invited?.display_name || 'Anonymous'}</span>
+                  <button
+                    type="button"
+                    class="btn"
+                    disabled={busy !== null}
+                    onclick={() => dropInvite(row.id)}
+                  >
+                    {busy === `drop-${row.id}` ? 'Withdrawing…' : 'Withdraw'}
+                  </button>
+                </li>
+              {/each}
+            </ul>
+          {/if}
+
+          <h3 class="sub">A link anyone can join with</h3>
+          <!--
+            Said before the link is made, not after. One link admits everybody
+            it reaches, which is the point and also the risk — an organizer who
+            learns that from the consequences has learnt it too late.
+          -->
+          <p class="hint warn">
+            Anyone who opens the link can join this collection. Send it to the people you
+            mean to invite — do not post it publicly.
+          </p>
+
+          {#each linkInvites as row (row.id)}
+            <div class="link-row" class:off={row.status === 'revoked'}>
+              <span class="row-name">{row.label || 'Invitation link'}</span>
+              <span class="link-state">
+                {row.status === 'revoked' ? 'turned off' : 'active'}
+                · {row.claims.length}
+                {row.claims.length === 1 ? 'person joined' : 'people joined'}
+              </span>
+              <span class="row-actions">
+                {#if row.status !== 'revoked'}
+                  <button type="button" class="btn" onclick={() => void copyInviteLink(row.token)}>
+                    {copiedLink === row.token ? 'Copied' : 'Copy link'}
+                  </button>
+                  <button
+                    type="button"
+                    class="btn"
+                    disabled={busy !== null}
+                    onclick={() => stopLink(row.id)}
+                  >
+                    {busy === `revoke-${row.id}` ? 'Turning off…' : 'Turn off'}
+                  </button>
+                {/if}
+                <button
+                  type="button"
+                  class="btn"
+                  disabled={busy !== null}
+                  onclick={() => dropInvite(row.id)}
+                >
+                  Delete
+                </button>
+              </span>
+
+              {#if row.claims.length > 0}
+                <!--
+                  Turning a link off stops it admitting anybody new; it does not
+                  put out the people already through. Removing one of them is
+                  this, deliberately separate.
+                -->
+                <ul class="claims">
+                  {#each row.claims as claim (claim.user_id)}
+                    <li>
+                      <span>{claim.who?.display_name || 'Anonymous'}</span>
+                      <button
+                        type="button"
+                        class="btn tiny"
+                        disabled={busy !== null}
+                        onclick={() => dropClaim(row.id, claim.user_id)}
+                      >
+                        Remove
+                      </button>
+                    </li>
+                  {/each}
+                </ul>
+              {/if}
+            </div>
+          {/each}
+
+          <div class="row-actions">
+            <input
+              type="text"
+              class="label-input"
+              placeholder="What this link is for — your note, nobody else sees it"
+              bind:value={linkLabel}
+              disabled={busy !== null}
+            />
+            <button type="button" class="btn" disabled={busy !== null} onclick={makeLink}>
+              {busy === 'make-link' ? 'Making…' : 'New link'}
+            </button>
+          </div>
+
+          <p class="hint">
+            To invite one particular person, open a deck they published, follow their name to
+            their profile, and invite them from there — that way the invitation is addressed
+            to them rather than to a name somebody else could take.
+          </p>
         </section>
       {/if}
 
@@ -1875,6 +2119,53 @@
   .launch-ask .row-actions {
     align-items: center;
     gap: var(--space-3);
+  }
+
+  .notice.claim {
+    border-left: 3px solid var(--accent);
+  }
+  .hint.warn {
+    color: var(--warning);
+  }
+  .link-row {
+    display: grid;
+    grid-template-columns: 1fr auto auto;
+    align-items: center;
+    gap: var(--space-3);
+    padding: var(--space-3) 0;
+    border-top: 1px solid var(--border-subtle, var(--border-default));
+  }
+  .link-row.off {
+    opacity: 0.6;
+  }
+  .link-state {
+    font-size: var(--text-xs);
+    color: var(--text-secondary);
+  }
+  .link-row .claims {
+    grid-column: 1 / -1;
+    list-style: none;
+    margin: 0;
+    padding: 0 0 0 var(--space-4);
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-3);
+  }
+  .link-row .claims li {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    font-size: var(--text-sm);
+  }
+  .label-input {
+    flex: 1;
+    min-width: 16rem;
+    font: inherit;
+    color: var(--text-primary);
+    background: var(--surface-inset);
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-sm);
+    padding: var(--space-2) var(--space-3);
   }
 
   .organizers {
