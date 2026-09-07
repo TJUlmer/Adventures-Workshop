@@ -1552,10 +1552,17 @@
       {#if organizer}
         <section class="panel invites">
           <h2>Invite people</h2>
+          <!--
+            Says what an invitation does, not how membership is stored. The
+            first draft explained that `collection_members` is keyed on a deck
+            and concluded "somebody with nothing published cannot be added",
+            which is true of a *member* and flatly wrong about the panel it
+            introduces — the whole point here is that they can.
+          -->
           <p class="hint">
-            For creators who have not published a deck here yet. Membership is a deck, so
-            somebody with nothing published cannot be added — an invitation is how they get
-            a place before they have built anything.
+            For anyone who does not have a deck here yet, including creators who have not
+            published anything at all. An invitation gives them a place in the project now;
+            they can offer a deck whenever one is ready.
           </p>
 
           {#if pendingInvites.length > 0}
