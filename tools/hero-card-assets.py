@@ -153,13 +153,21 @@ def spans(mask: np.ndarray) -> list[tuple[int, int] | None]:
     return out
 
 
-def squeeze(layer: np.ndarray, x0: int, x1: int, to_x0: int, to_x1: int) -> np.ndarray:
-    """Resample a mask's columns from one span onto another, rows untouched."""
+def squeeze_right_of(
+    layer: np.ndarray, x0: int, x1: int, to_x1: int, axis: int
+) -> np.ndarray:
+    """Narrow a mask on the right while preserving its measured axis.
+
+    The supplied head includes the width later occupied by the ribbon's
+    right-hand stroke. Compressing the whole head moved its chevron point left
+    of the guide; only the side losing that stroke width should be resampled.
+    """
     out = np.zeros_like(layer)
-    piece = Image.fromarray(layer[:, x0 : x1 + 1]).resize(
-        (to_x1 - to_x0 + 1, layer.shape[0]), Image.LANCZOS
+    out[:, x0 : axis + 1] = layer[:, x0 : axis + 1]
+    right = Image.fromarray(layer[:, axis + 1 : x1 + 1]).resize(
+        (to_x1 - axis, layer.shape[0]), Image.LANCZOS
     )
-    out[:, to_x0 : to_x1 + 1] = np.array(piece)
+    out[:, axis + 1 : to_x1 + 1] = np.array(right)
     return out
 
 
@@ -167,13 +175,15 @@ def square_edges(alpha_layer: np.ndarray, x0: int, x1: int) -> None:
     """Restore the ribbon's vertical sides, which the resample softens away.
 
     Only the taper is a slanted edge; everywhere else the ribbon is a hard
-    rectangle, and the filter's ringing costs those rows their last column.
-    A row already reaching both sides is filled solid; the taper is left alone.
+    rectangle, and the filter's ringing can soften those rows without making
+    them narrower. Only a row that still reaches both sides is filled solid:
+    accepting a percentage of the full width used to swallow the chevron's
+    shallow first rows, then jump 13px inward and leave a visible notch.
     """
     span = x1 - x0 + 1
     for row in alpha_layer:
         lit = np.flatnonzero(row[x0 : x1 + 1] > 32)
-        if lit.size >= span * 0.95:
+        if lit.size == span:
             row[x0 : x1 + 1] = 255
 
 
@@ -193,6 +203,7 @@ def check_geometry(expected: dict[str, int]) -> None:
     block = block[: block.index("} as const;")]
     patterns = {
         "HERO_RIBBON.width": (block, r"width: (\d+)"),
+        "HERO_RIBBON.centerX": (block, r"centerX: (\d+)"),
         "HERO_RIBBON.edgeWidth": (block, r"edgeWidth: (\d+)"),
         "HERO_RIBBON.pointHeight": (block, r"pointHeight: (\d+)"),
         "HERO_POINT_BELOW": (source, r"HERO_POINT_BELOW = BLEED\.height - (\d+)")
@@ -434,6 +445,9 @@ def main() -> None:
     head_rows = np.flatnonzero(head.any(1))
     head_top, head_bottom = int(head_rows[0]), int(head_rows[-1])
     head_spans = spans(head)
+    head_tip = head_spans[head_bottom]
+    assert head_tip is not None
+    head_axis = (head_tip[0] + head_tip[1]) // 2
     # The taper is the first row narrower than the run above it.
     run_width = max(span[1] - span[0] for span in head_spans if span)
     # Searched from the foot, not the head: the ribbon's top-left corner is
@@ -559,7 +573,7 @@ def main() -> None:
     head_scaled[:, :head_x0] = 0
     head_scaled[:, head_x1 + 1 :] = 0
     square_edges(head_scaled, head_x0, head_x1)
-    head_scaled = squeeze(head_scaled, head_x0, head_x1, WINDOW.x0, body_x1)
+    head_scaled = squeeze_right_of(head_scaled, head_x0, head_x1, body_x1, head_axis)
 
     # -- the foot's fill ----------------------------------------------------
     #
@@ -760,6 +774,7 @@ def main() -> None:
     print(f"ribbon top        {head_top * scale:.1f}")
     print(f"head taper top    {taper_top * scale:.1f}")
     print(f"head point        {head_bottom * scale:.1f}")
+    print(f"head centre x     {head_axis}")
     print(f"foot top          {foot_top}")
     print(f"foot bottom       {foot_bottom}")
     print(f"foot height       {foot_bottom - foot_top + 1}")
@@ -770,6 +785,7 @@ def main() -> None:
     check_geometry(
         {
             "HERO_RIBBON.width": bar_x1 - WINDOW.x0 + 1,
+            "HERO_RIBBON.centerX": head_axis,
             "HERO_RIBBON.edgeWidth": bar_x1 - bar_x0 + 1,
             "HERO_RIBBON.pointHeight": foot_bottom - foot_top + 1,
             "HERO_POINT_BELOW": BLEED[1] - foot_bottom - 1
