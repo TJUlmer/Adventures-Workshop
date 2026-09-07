@@ -14,14 +14,16 @@ Private drafts have a separate build-time gate from Supabase sharing:
 |---|---|
 | `VITE_CLOUD_DRAFTS_ROLLOUT=off` | Default. No private-draft reads or writes; IndexedDB remains authoritative. Publishing still works. |
 | `VITE_CLOUD_DRAFTS_ROLLOUT=opt-in` | A permanent account may explicitly enable the beta in Account on this browser. |
-| `VITE_CLOUD_DRAFTS_ROLLOUT=cohort` | Allowlisted permanent accounts plus a stable percentage receive cloud-authoritative drafts. |
-| `VITE_CLOUD_DRAFTS_ROLLOUT=on` | Every permanent account receives cloud-authoritative drafts. This is a launch action, not a development default. |
+| `VITE_CLOUD_DRAFTS_ROLLOUT=cohort` | Allowlisted permanent accounts plus a stable percentage receive cloud-authoritative drafts automatically. An explicit browser choice still wins. |
+| `VITE_CLOUD_DRAFTS_ROLLOUT=on` | Every permanent account receives cloud-authoritative drafts by default. An explicit browser opt-out still wins. This is a launch action, not a development default. |
 | `VITE_CLOUD_DRAFTS_INTERNAL_USER_IDS` | Comma-separated permanent Supabase user ids admitted in `cohort` mode. It grants no database permission. |
 | `VITE_CLOUD_DRAFTS_COHORT_PERCENT` | Integer `0..100`; stable hashing assigns non-internal permanent accounts in `cohort` mode. |
 
 The gate never admits an anonymous Auth user. Database and Storage policies independently
-enforce the same rule. A browser opt-in is stored in IndexedDB under that permanent account,
-not in `localStorage`, and is ignored when the build flag is `off`.
+enforce the same rule. A browser choice is stored in IndexedDB under that permanent account,
+not in `localStorage`, and is ignored when the build flag is `off`. The stored value is
+deliberately three-state: absent means the automatic policy may decide, `true` preserves an
+earlier opt-in, and `false` is an opt-out that overrides `cohort` and `on` on that browser.
 
 Recommended progression:
 
@@ -32,7 +34,9 @@ Recommended progression:
    account remains device-only until that person deliberately chooses **Try cloud drafts** in
    Account on that browser.
 4. Observe real opt-in authors before testing automatic enrolment. If automatic enrolment is
-   tested, use `cohort` with internal ids and a small stable percentage first.
+   tested, use `cohort` with internal ids and a small stable percentage first. Keep the Account
+   choice available so early adopters outside the percentage retain access and automatically
+   enrolled authors can return that browser to device copies.
 5. Set `on` only after the user explicitly approves default-on rollout and the real-user,
    device, connection, error, conflict, and latency evidence remains within the gates below.
 
@@ -73,6 +77,27 @@ no browser errors. A permanent account then opted in independently in two browse
 clean context recovered an existing cloud draft, a new production revision propagated back to
 the first context, and the harmless smoke-test change was removed and saved successfully. No
 existing local-only set was uploaded automatically.
+
+## Automatic-cohort activation checklist
+
+Changing the policy to `cohort` is a separate production launch action. Before changing Vercel:
+
+1. Confirm real opt-in use covers more than the owner's own accounts and record the browsers,
+   devices, connection conditions, save/conflict outcomes, and any support reports available.
+2. Verify a recent hourly database backup, daily full backup, encrypted off-site snapshot, and the
+   retained full-recovery evidence. Do not make cleanup deletion part of this rollout.
+3. Build and exercise the hardening probe with cohort settings. It must prove that an earlier
+   explicit opt-in survives, an explicit opt-out overrides cohort and default-on, automatic
+   membership is stable, and anonymous sessions remain excluded.
+4. In preview, switch an already opted-in browser to a small cohort and confirm its cloud library
+   remains available. In a second permanent account, exercise both automatic enrolment and the
+   **Use device copies** escape hatch. Existing local-only sets must still require **Upload**.
+5. Prepare Production with `VITE_CLOUD_DRAFTS_ROLLOUT=cohort` and
+   `VITE_CLOUD_DRAFTS_COHORT_PERCENT=5`. Keep the public `VITE_` variables at Config visibility,
+   use Production scope without `gitBranch`, and do not place secrets in them.
+6. Obtain explicit approval, redeploy, repeat the signed-out and two-account smoke tests, and hold
+   the cohort while evidence accumulates. Expand the stable percentage only through separately
+   approved stages. A safety failure rolls back to `off` without deleting either storage tier.
 
 ## What disabling the gate does
 
