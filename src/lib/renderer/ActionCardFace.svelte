@@ -22,6 +22,7 @@
   import { primaryCardName, resolvedHeroName } from '$lib/characters/factory';
   import type { Character } from '$lib/characters/types';
   import type { CustomSymbol } from '$lib/symbols/types';
+  import { actionTextIsEmpty, renderActionText } from '$lib/text/action-text';
   import { parseAbilityText } from '$lib/text/tokens';
   import AbilityText from './AbilityText.svelte';
   import { CARD_SYMBOL_COLORS, CARD_SYMBOL_SIZES, CARD_SYMBOLS, patternAspect } from './assets';
@@ -133,7 +134,7 @@
   );
 
   const ribbonName = $derived(card.name.trim() || shortName || 'Villain Name');
-  const title = $derived(card.title.trim() || 'Card Title');
+  const title = $derived(actionTextIsEmpty(card.title) ? 'Card Title' : card.title);
 
   /**
    * Who may play this card: the primary identity's own name, an additional
@@ -484,6 +485,8 @@
       style:scale="{TITLE.condense} 1"
       style:max-height={pu(TITLE.size * TITLE.lineHeight * TITLE_MAX_LINES)}
       style:color={theme.bodyInk}
+      style:--title-symbol-height={pu(TITLE.size * NAME_METRICS.cap)}
+      style:--title-symbol-scale={1 / TITLE.condense}
     >
       <!--
         Tokens, same as ability copy — the editor offers the palette here, so
@@ -497,28 +500,8 @@
         through an `em` and a custom property, so there is one mechanism to be
         wrong about instead of three.
       -->
-      <!--
-        Written without a break between the tags on purpose. This is inline
-        content now, so any newline Svelte keeps between a symbol and the text
-        beside it collapses to a real space — `Hit{{attack}}` would print as
-        "HIT ⚔". Legibility is bought back by the comment above rather than by
-        indentation.
-      -->
-      {#each parseAbilityText(title) as segment, index (index)}{#if segment.kind === 'symbol'}<img
-            class="title-symbol"
-            src={CARD_SYMBOLS[segment.name]}
-            alt={segment.name}
-            style:height={pu(TITLE.size * NAME_METRICS.cap)}
-            style:scale="{1 / TITLE.condense} 1"
-          />{:else if segment.kind === 'customSymbol'}{@const custom = customSymbols.find(
-          (s) => s.id === segment.id
-        )}{#if custom?.source}<img
-              class="title-symbol"
-              src={custom.source}
-              alt={custom.name}
-              style:height={pu(TITLE.size * NAME_METRICS.cap)}
-              style:scale="{1 / TITLE.condense} 1"
-            />{/if}{:else if segment.kind === 'subject'}{ribbonName}{:else}{segment.value}{/if}{/each}
+      <!-- Sanitised first; the helper also resolves tokens inside bold/italic runs. -->
+      {@html renderActionText(title, ribbonName, customSymbols, 'title-symbol')}
     </div>
 
     <div class="panel-lead" style:height={pu(TITLE_RULE_GAP)}></div>
@@ -1444,11 +1427,10 @@
    * Height alone is enough to place it: an image sits its bottom edge on the
    * baseline by default, which is where a capital's foot is too.
    *
-   * Both the height and the counter-scale are set **inline**, in `pu()`, like
-   * every other measured thing on this face — not through an inherited custom
-   * property and a `calc()` in `em`, which is what they were while this was
-   * still being debugged and which added two more things that could be wrong
-   * about a symbol's size.
+   * Both the height and the counter-scale are computed **inline** on the title
+   * in `pu()`, like every other measured thing on this face. The generated
+   * token image reads those values through custom properties because markup
+   * inserted by `{@html}` cannot carry Svelte style directives of its own.
    *
    * The counter-scale undoes `.title`'s own 4% horizontal squeeze. That
    * squeeze is a type correction — the stand-in face sets wider than Knockout
@@ -1456,7 +1438,7 @@
    * transform does not affect layout, so the glyph's advance stays squeezed
    * with the type around it while its ink comes out circular.
    */
-  .title-symbol {
+  .title :global(.title-symbol) {
     /*
      * `inline-block`, and it is not optional: `base.css` resets every `img`
      * to `display: block`, so a symbol in the title came out block-level and
@@ -1470,8 +1452,22 @@
      * `.ability-symbol` already carry the same override for the same reason.
      */
     display: inline-block;
+    height: var(--title-symbol-height);
     width: auto;
     object-fit: contain;
+    scale: var(--title-symbol-scale) 1;
+  }
+
+  /* Bebas ships as one weight; bold title runs deliberately permit synthesis. */
+  .title :global(b),
+  .title :global(strong) {
+    font-weight: 700;
+    font-synthesis-weight: auto;
+  }
+
+  .title :global(i),
+  .title :global(em) {
+    font-style: italic;
   }
 
   /* Now a flow sibling of `.title`, so it rides down when the title wraps. */

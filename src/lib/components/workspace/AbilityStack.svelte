@@ -70,6 +70,7 @@
           label="Ability text"
           value={ability.plain}
           rows={3}
+          formatted
           placeholder="Plain ability text, printed with no label…"
           onchange={(value) => onchange({ plain: value })}
           {customSymbols}
@@ -87,6 +88,7 @@
       label="Ability text"
       value={ability.plain}
       rows={3}
+      formatted
       placeholder="Plain ability text, printed with no label…"
       onchange={(value) => onchange({ plain: value })}
       {customSymbols}
@@ -99,6 +101,7 @@
         label={ABILITY_TIMING_LABELS[timing]}
         value={ability[timing]}
         rows={2}
+        formatted
         placeholder="What happens {ABILITY_TIMING_LABELS[timing].toLowerCase()}…"
         onchange={(value) => onchange({ [timing]: value })}
         {customSymbols}
@@ -111,6 +114,7 @@
     label="Bonus ability"
     value={ability.bonusAbility}
     rows={2}
+    formatted
     placeholder="An extra ability, printed below After Combat…"
     onchange={(value) => onchange({ bonusAbility: value })}
     {customSymbols}

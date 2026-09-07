@@ -34,7 +34,7 @@
     TextInput
   } from '$lib/ui';
   import AbilityStack from './AbilityStack.svelte';
-  import TokenInput from './TokenInput.svelte';
+  import FormattedTextField from './FormattedTextField.svelte';
   import ValueControl from './ValueControl.svelte';
 
   interface Props {
@@ -125,11 +125,12 @@
       what prints and what an author actually fills in; the override is the
       edge case, blank on nearly every card (see its own placeholder).
     -->
-    <TokenInput
+    <FormattedTextField
       label="Card title"
       value={card.title}
       placeholder="Card title"
       prominent
+      multiline={false}
       onchange={(title) => edit((target) => (target.title = title))}
       customSymbols={workshop.adventure.customSymbols}
     />
@@ -142,10 +143,11 @@
       <TextInput bind:value={card.name} placeholder="Villain name" prominent />
     </Field>
 
-    <TokenInput
+    <FormattedTextField
       label="Card title"
       value={card.title}
       placeholder="Card title"
+      multiline={false}
       onchange={(title) => edit((target) => (target.title = title))}
       customSymbols={workshop.adventure.customSymbols}
     />

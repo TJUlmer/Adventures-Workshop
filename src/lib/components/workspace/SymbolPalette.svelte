@@ -15,7 +15,7 @@
    * `namedSymbols`). That is what the author reads in the field, and it is
    * *not* what gets stored, so the second half of the rule above is: the
    * field must put its value through `toStoredTokens` before it writes.
-   * `AbilityField` and `TokenInput` both do; a new one that forgets would
+   * `AbilityField` and `FormattedTextField` both do; a new one that forgets would
    * store a name the renderer does not resolve, and it would print as
    * literal braces.
    */
@@ -25,24 +25,53 @@
   import { customSymbolLabel } from '$lib/symbols/types';
   import { displaySymbolToken, SUBJECT_TOKEN, symbolToken } from '$lib/text/tokens';
 
+  type InlineFormat = 'bold' | 'italic';
+
   interface Props {
     /** Called with the token to splice in at the caret. */
     oninsert: (token: string) => void;
+    /** When present, puts compact formatting controls in this same row. */
+    onformat?: (format: InlineFormat) => void;
     /** Author-uploaded glyphs, offered alongside the four built-in symbols. */
     customSymbols?: CustomSymbol[];
   }
 
-  let { oninsert, customSymbols = [] }: Props = $props();
+  let { oninsert, onformat, customSymbols = [] }: Props = $props();
 
   const SYMBOL_NAMES = Object.keys(CARD_SYMBOLS) as CardSymbolName[];
 </script>
 
-<div class="symbols" role="group" aria-label="Insert symbol">
+<div
+  class="symbols"
+  class:formatted={onformat !== undefined}
+  role="group"
+  aria-label={onformat ? 'Text tools' : 'Insert symbol'}
+>
+  {#if onformat}
+    <button
+      type="button"
+      class="symbol format"
+      title="Bold selected text"
+      aria-label="Bold selected text"
+      onmousedown={(event) => event.preventDefault()}
+      onclick={() => onformat('bold')}
+    ><span class="format-glyph bold" aria-hidden="true">B</span></button>
+    <button
+      type="button"
+      class="symbol format"
+      title="Italicise selected text"
+      aria-label="Italicise selected text"
+      onmousedown={(event) => event.preventDefault()}
+      onclick={() => onformat('italic')}
+    ><span class="format-glyph italic" aria-hidden="true">I</span></button>
+  {/if}
+
   {#each SYMBOL_NAMES as name (name)}
     <button
       type="button"
       class="symbol"
       title="Insert {CARD_SYMBOL_LABELS[name]} symbol"
+      onmousedown={(event) => event.preventDefault()}
       onclick={() => oninsert(symbolToken(name))}
     >
       <img src={CARD_SYMBOLS[name]} alt={CARD_SYMBOL_LABELS[name]} />
@@ -57,6 +86,7 @@
     type="button"
     class="symbol token"
     title="Insert the figure’s name"
+    onmousedown={(event) => event.preventDefault()}
     onclick={() => oninsert(SUBJECT_TOKEN)}
   >
     Name
@@ -67,6 +97,7 @@
       type="button"
       class="symbol"
       title="Insert {customSymbolLabel(symbol)} symbol"
+      onmousedown={(event) => event.preventDefault()}
       onclick={() => oninsert(displaySymbolToken(symbol, customSymbols))}
     >
       <img src={symbol.source} alt={customSymbolLabel(symbol)} />
@@ -90,9 +121,18 @@
    */
   .symbols {
     display: flex;
+    flex: 1 1 auto;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    min-width: 0;
     gap: 1px;
     opacity: var(--palette-opacity, 0.55);
     transition: opacity var(--duration-fast) var(--ease-out);
+  }
+
+  .symbols.formatted {
+    /* B/I are controls, not decorative glyphs, so they remain easy to find. */
+    opacity: var(--palette-opacity, 0.82);
   }
 
   .symbol {
@@ -106,6 +146,28 @@
 
   .symbol:hover {
     background: var(--surface-hover);
+  }
+
+  .symbol.format {
+    color: var(--text-muted);
+  }
+
+  .symbol.format:hover {
+    color: var(--text-primary);
+  }
+
+  .format-glyph {
+    font-family: var(--font-ui);
+    font-size: var(--text-xs);
+    line-height: 1;
+  }
+
+  .format-glyph.bold {
+    font-weight: var(--weight-bold);
+  }
+
+  .format-glyph.italic {
+    font-style: italic;
   }
 
   .symbol img {
