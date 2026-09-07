@@ -185,15 +185,40 @@ class Navigation {
   readonly inSet = $derived(this.view.kind === 'set');
   readonly page = $derived(this.view.kind === 'set' ? this.view.page : null);
 
+  /**
+   * Drop a `/shared/…` or `/collection/…` tail from the address bar.
+   *
+   * **Every view that is not one of those two clears it, rather than trusting
+   * callers to route through `leaveShared`/`leaveCollection`.** Those two
+   * still exist for what they alone do — remembering where to go back to —
+   * but they can no longer be the only thing standing between a viewer and a
+   * stranded URL.
+   *
+   * That distinction failed the moment there was a second place to leave
+   * from. `GlobalHeader`'s Home button calls `openHome()` like any other
+   * screen's, so a collection page showed Home while the path still named the
+   * collection, and the next reload put it straight back — the trap
+   * `leaveCollection`'s own comment describes, arriving by the one route the
+   * comment did not cover.
+   */
+  #clearRealPath(): void {
+    if (readSharedSlug() === null && readCollectionSlug() === null) return;
+    const base = window.location.pathname.replace(ROUTE_TAIL_PATTERN, '');
+    history.replaceState(null, '', base + window.location.search);
+  }
+
   openHome(): void {
+    this.#clearRealPath();
     this.view = { kind: 'home' };
   }
 
   openWelcome(): void {
+    this.#clearRealPath();
     this.view = { kind: 'welcome' };
   }
 
   openGallery(): void {
+    this.#clearRealPath();
     this.view = { kind: 'gallery' };
   }
 
@@ -207,6 +232,7 @@ class Navigation {
    * kind of link nobody requested yet.
    */
   openAuthor(id: string): void {
+    this.#clearRealPath();
     // Same "remember where this came from" as `openShared`, so the profile
     // page's own back button has somewhere real to go — the gallery for a
     // browsing visitor, the shared set they came from for anyone who followed
@@ -216,6 +242,7 @@ class Navigation {
   }
 
   openSet(page: SetPage = 'home'): void {
+    this.#clearRealPath();
     this.view = { kind: 'set', page };
   }
 

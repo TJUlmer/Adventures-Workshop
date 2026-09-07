@@ -1703,22 +1703,28 @@
             <span class="attention-detail">
               Accepting gives you a place in the project — you can offer a deck whenever one
               is ready.
-              <button
-                type="button"
-                class="attention-link"
+            </span>
+            <!--
+              Real buttons, not the text links the other cards use. Those go
+              somewhere and can be taken back by going back; these two *answer*
+              something, and an answer that reads as prose is one people give
+              by accident or miss entirely.
+            -->
+            <span class="attention-actions">
+              <Button
+                size="sm"
                 onclick={() =>
                   void answerInvite(invite.id, true, invite.collection?.slug ?? '')}
               >
                 Accept
-              </button>
-              <span aria-hidden="true"> · </span>
-              <button
-                type="button"
-                class="attention-link"
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
                 onclick={() => void answerInvite(invite.id, false, '')}
               >
                 No thanks
-              </button>
+              </Button>
             </span>
           </div>
         </div>
@@ -2997,6 +3003,13 @@
   .attention-detail {
     font-size: var(--text-xs);
     color: var(--text-secondary);
+  }
+
+  .attention-actions {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    margin-top: var(--space-2);
   }
 
   .attention-link {

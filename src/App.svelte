@@ -86,17 +86,28 @@
    * and `restoreSession` has just reopened whatever they were last editing. The
    * link is the more recent intent, so it is applied after.
    */
+  /*
+   * Read where we arrived *before* anything else can rewrite the address bar.
+   *
+   * `restoreSession` reopens whatever was last being edited, and every view
+   * that is not a shared set or a collection now clears the real-path tail on
+   * the way in — so by the time the deep link was read, the URL naming it had
+   * already been tidied away and the link silently did nothing. Captured at
+   * the top instead, which makes boot order irrelevant rather than a thing to
+   * keep in the right sequence.
+   */
+  const arrivedAtCollection = readCollectionSlug();
+  const arrivedAtShared = readSharedSlug();
+
   const openDeepLink = (): void => {
     /* A collection link is checked first only because the two patterns cannot
        both match one URL — either order works, and this one reads in the
        order the paths were added. */
-    const collection = readCollectionSlug();
-    if (collection) {
-      navigation.openCollection(collection);
+    if (arrivedAtCollection) {
+      navigation.openCollection(arrivedAtCollection);
       return;
     }
-    const slug = readSharedSlug();
-    if (slug) navigation.openShared(slug);
+    if (arrivedAtShared) navigation.openShared(arrivedAtShared);
   };
 
   let sessionReady = $state(false);

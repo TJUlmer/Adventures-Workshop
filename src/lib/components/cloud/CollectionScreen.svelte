@@ -75,8 +75,6 @@
   import { CARD_FORMATS, trimBox } from '$lib/renderer/geometry';
   import { auth } from '$lib/cloud/auth.svelte';
   import { navigation } from '$lib/state/navigation.svelte';
-  import { ThemeToggle } from '$lib/ui';
-  import AccountMenu from './AccountMenu.svelte';
 
   interface Props {
     slug: string;
@@ -942,31 +940,6 @@
   <PrintScreen members={printMembers} onback={() => (printMembers = null)} />
 {:else}
   <div class="screen">
-  <header class="head">
-    <div class="head-left">
-      <button
-        type="button"
-        class="link"
-        onclick={() => navigation.leaveCollection({ kind: 'home' })}
-      >
-        Home
-      </button>
-      {#if cloudEnabled()}
-        <button
-          type="button"
-          class="link"
-          onclick={() => navigation.leaveCollection({ kind: 'gallery' })}
-        >
-          Gallery
-        </button>
-      {/if}
-    </div>
-    <div class="head-right">
-      <ThemeToggle />
-      <AccountMenu />
-    </div>
-  </header>
-
   <main class="body">
     {#if loading}
       <p class="message">Loading…</p>
@@ -1857,44 +1830,6 @@
     height: 100vh;
     overflow-y: auto;
     background: var(--surface-canvas);
-  }
-
-  .head {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: var(--space-4);
-    padding: var(--space-4) var(--space-6);
-    border-bottom: 1px solid var(--border-subtle);
-    background: var(--surface-base);
-    position: sticky;
-    top: 0;
-    z-index: 1;
-  }
-
-  .head-left,
-  .head-right {
-    display: flex;
-    align-items: center;
-    gap: var(--space-2);
-  }
-
-  .link {
-    border: 0;
-    background: none;
-    color: var(--text-secondary);
-    font: inherit;
-    cursor: pointer;
-    padding: var(--space-1) var(--space-2);
-    border-radius: var(--radius-sm);
-  }
-  .link:hover {
-    background: var(--surface-hover);
-    color: var(--text-primary);
-  }
-  .link:focus-visible {
-    outline: none;
-    box-shadow: var(--focus-ring);
   }
 
   .body {
