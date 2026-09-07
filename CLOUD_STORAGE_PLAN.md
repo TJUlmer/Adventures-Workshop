@@ -1,9 +1,9 @@
 # Cloud-Authoritative Storage Transition Plan
 
-**Status:** Phases 0–3.5 complete; Phase 4 implemented locally, signed-in acceptance verification pending
+**Status:** Phases 0–6 implemented; public permanent-account opt-in beta active; Phase 7 observation in progress
 **Prepared:** 31 August 2026
-**Revised:** 2 September 2026 after Phase 4 local implementation and verification
-**Target branch/worktree:** `codex/cloud-drafts` / `Adventures_Workshop-cloud-drafts`
+**Revised:** 7 September 2026 after the public opt-in deployment and production smoke test
+**Target:** `main`; development history remains on `codex/cloud-drafts`
 
 ## 1. Outcome
 
@@ -729,6 +729,16 @@ before the next began, and the final report confirmed all synthetic cloud rows, 
 and local caches were removed. This closes the near-10 MB new-asset performance gate for an
 owner-operated opt-in beta. Real-user connection, device, and author diversity remains required
 before any default-on rollout.
+
+The user explicitly approved the public opt-in launch on 7 September 2026. Merge commit `e4c17c7`
+deployed from `main` with Production set to `opt-in`. The production-shaped build passed with zero
+diagnostics and omitted all synthetic verifier pages. The live signed-out library, gallery, and
+Account sign-in surface loaded without browser errors; all three verifier URLs returned 404. A
+permanent account opted in separately in two browser contexts, the clean context recovered an
+existing cloud draft, a new revision propagated to the first context, and the smoke-test edit was
+then removed and saved. No existing local-only set was uploaded automatically. This completes the
+public opt-in launch; connection, device, and author diversity remains the gate before automatic
+cohort or default-on enrolment.
 
 ### Phase 7 — reference-aware storage cleanup (2–3 days plus observation window)
 
