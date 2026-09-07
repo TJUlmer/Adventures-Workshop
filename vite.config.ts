@@ -261,6 +261,27 @@ export default defineConfig({
   },
   build: {
     target: 'esnext',
-    sourcemap: true
+    sourcemap: true,
+    rollupOptions: {
+      // These probes deliberately create synthetic writes and large transfers. They
+      // belong on local/preview builds where rollout evidence is collected, never on
+      // the public production deployment where an unlinked URL could be abused.
+      input: {
+        app: fileURLToPath(new URL('./index.html', import.meta.url)),
+        ...(process.env['VERCEL_ENV'] === 'production'
+          ? {}
+          : {
+              draftPolicyVerifier: fileURLToPath(
+                new URL('./tools/phase1-draft-policy.html', import.meta.url)
+              ),
+              cloudPilotSoakVerifier: fileURLToPath(
+                new URL('./tools/phase6-pilot-soak.html', import.meta.url)
+              ),
+              cloudLargeAssetVerifier: fileURLToPath(
+                new URL('./tools/phase6-large-asset.html', import.meta.url)
+              )
+            })
+      }
+    }
   }
 });

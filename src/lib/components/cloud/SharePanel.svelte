@@ -4,8 +4,8 @@
    *
    * Sits inside Export because that is what it is: one more thing to do with a
    * finished set. It is not a sync toggle and must not read like one — the
-   * document is local, publishing copies it, and nothing here ever writes back
-   * into the set the author is editing.
+   * working draft is private, publishing copies it into a separate snapshot,
+   * and nothing here ever writes back into the set the author is editing.
    */
   import { characterLabel } from '$lib/characters/factory';
   import { auth } from '$lib/cloud/auth.svelte';

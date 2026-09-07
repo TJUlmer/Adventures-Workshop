@@ -12,9 +12,7 @@
 alter table public.set_reports alter column reporter_id set default auth.uid();
 
 revoke all on public.set_reports from anon, authenticated;
-
 grant insert (set_id, reason) on public.set_reports to anon, authenticated;
-
 grant select, update (resolved) on public.set_reports to authenticated;
 
 -- ---------------------------------------------------------------------------
@@ -121,7 +119,6 @@ $$;
 
 revoke execute on function public.moderate_set(uuid, boolean, text)
   from public, anon, authenticated;
-
 grant execute on function public.moderate_set(uuid, boolean, text) to authenticated;
 
 drop policy if exists sets_admin_moderate on public.sets;
@@ -131,7 +128,6 @@ drop policy if exists sets_admin_moderate on public.sets;
 -- ---------------------------------------------------------------------------
 
 revoke all on public.gallery_characters from anon, authenticated;
-
 grant select on public.gallery_characters to anon, authenticated;
 
 /*
@@ -142,22 +138,16 @@ grant select on public.gallery_characters to anon, authenticated;
  */
 revoke execute on function public.touch_updated_at()
   from public, anon, authenticated;
-
 revoke execute on function public.bump_revision()
   from public, anon, authenticated;
-
 revoke execute on function public.stamp_published_at()
   from public, anon, authenticated;
-
 revoke execute on function public.handle_new_user()
   from public, anon, authenticated;
-
 revoke execute on function public.stamp_contribution_resolved()
   from public, anon, authenticated;
-
 revoke execute on function public.index_set_search()
   from public, anon, authenticated;
-
 revoke execute on function public.index_set_characters()
   from public, anon, authenticated;
 

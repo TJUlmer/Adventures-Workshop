@@ -78,7 +78,6 @@ alter table public.set_drafts enable row level security;
  * a newly-added column into client-owned state by accident.
  */
 drop policy if exists set_drafts_owner_read on public.set_drafts;
-
 create policy set_drafts_owner_read on public.set_drafts
   for select to authenticated
   using (
@@ -87,7 +86,6 @@ create policy set_drafts_owner_read on public.set_drafts
   );
 
 revoke all on public.set_drafts from anon, authenticated;
-
 grant select on public.set_drafts to authenticated;
 
 -- ---------------------------------------------------------------------------
@@ -255,7 +253,6 @@ revoke execute on function public.save_set_draft(
   text, text, text, text, integer, integer, jsonb, integer, integer, integer,
   text, bigint, text, timestamptz, integer, jsonb, bigint
 ) from public, anon, authenticated;
-
 grant execute on function public.save_set_draft(
   text, text, text, text, integer, integer, jsonb, integer, integer, integer,
   text, bigint, text, timestamptz, integer, jsonb, bigint
@@ -340,7 +337,6 @@ $$;
 
 revoke execute on function public.soft_delete_set_draft(text, bigint)
   from public, anon, authenticated;
-
 grant execute on function public.soft_delete_set_draft(text, bigint) to authenticated;
 
 create or replace function public.restore_set_draft(
@@ -417,7 +413,6 @@ $$;
 
 revoke execute on function public.restore_set_draft(text, bigint)
   from public, anon, authenticated;
-
 grant execute on function public.restore_set_draft(text, bigint) to authenticated;
 
 /* Delete forever is only reachable for a row already in Recently Deleted. */
@@ -492,7 +487,6 @@ $$;
 
 revoke execute on function public.purge_set_draft(text, bigint)
   from public, anon, authenticated;
-
 grant execute on function public.purge_set_draft(text, bigint) to authenticated;
 
 -- ---------------------------------------------------------------------------
@@ -509,7 +503,6 @@ on conflict (id) do update set public = false;
  * exists; the permanent caller's owner prefix is the security boundary.
  */
 drop policy if exists draft_assets_read on storage.objects;
-
 create policy draft_assets_read on storage.objects
   for select to authenticated
   using (
@@ -520,7 +513,6 @@ create policy draft_assets_read on storage.objects
   );
 
 drop policy if exists draft_assets_write on storage.objects;
-
 create policy draft_assets_write on storage.objects
   for insert to authenticated
   with check (
@@ -531,7 +523,6 @@ create policy draft_assets_write on storage.objects
   );
 
 drop policy if exists draft_assets_update on storage.objects;
-
 create policy draft_assets_update on storage.objects
   for update to authenticated
   using (
@@ -548,7 +539,6 @@ create policy draft_assets_update on storage.objects
   );
 
 drop policy if exists draft_assets_delete on storage.objects;
-
 create policy draft_assets_delete on storage.objects
   for delete to authenticated
   using (
