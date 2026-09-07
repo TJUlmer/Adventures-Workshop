@@ -108,7 +108,7 @@ matter most never ran at all in a heroes set.
 | --- | --- |
 | Plain deck backs | A character's deck back has neither inset artwork nor a replacement image. |
 | No figures or tokens | The set lists no components at all. |
-| No box art | `boxArt` has no image. |
+| No box art | `boxArt` has no image. Standalone one-hero documents use the hero's portrait instead and are exempt. |
 | No author credited | `meta.author` is blank. |
 
 ## Changing any of this
