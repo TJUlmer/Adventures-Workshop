@@ -1,11 +1,10 @@
 # Private cloud drafts rollout and recovery
 
 This runbook covers the private `set_drafts`/`draft-assets` system. Publishing remains a
-separate explicit snapshot workflow. The private-draft client has passed the owner-operated
-gates for a public opt-in beta, but is not active on `main` yet. Keep it on
-`codex/cloud-drafts` until the activation checklist below is complete and the user explicitly
-approves the merge. Do not build a public deployment with rollout mode `on` until real-user,
-device, and connection diversity supplies the remaining default-on evidence.
+separate explicit snapshot workflow. The public opt-in beta was activated from `main` on
+7 September 2026 with rollout mode `opt-in`. Do not change Production to `cohort` or `on`
+until real-user, device, and connection diversity supplies the remaining automatic-enrolment
+evidence and the user explicitly approves that broader rollout.
 
 ## Rollout controls
 
@@ -14,7 +13,7 @@ Private drafts have a separate build-time gate from Supabase sharing:
 | Variable | Meaning |
 |---|---|
 | `VITE_CLOUD_DRAFTS_ROLLOUT=off` | Default. No private-draft reads or writes; IndexedDB remains authoritative. Publishing still works. |
-| `VITE_CLOUD_DRAFTS_ROLLOUT=opt-in` | A permanent account may explicitly enable the preview in Account on this browser. |
+| `VITE_CLOUD_DRAFTS_ROLLOUT=opt-in` | A permanent account may explicitly enable the beta in Account on this browser. |
 | `VITE_CLOUD_DRAFTS_ROLLOUT=cohort` | Allowlisted permanent accounts plus a stable percentage receive cloud-authoritative drafts. |
 | `VITE_CLOUD_DRAFTS_ROLLOUT=on` | Every permanent account receives cloud-authoritative drafts. This is a launch action, not a development default. |
 | `VITE_CLOUD_DRAFTS_INTERNAL_USER_IDS` | Comma-separated permanent Supabase user ids admitted in `cohort` mode. It grants no database permission. |
@@ -64,6 +63,16 @@ Immediately after deployment:
 4. Publish or update one disposable snapshot and confirm the public gallery path is unchanged.
 5. Confirm the latest backup tasks still report success. If any cloud-authoritative safety check
    fails, set Production back to `off` and redeploy; do not delete cloud rows or private assets.
+
+Launch record: the user explicitly approved the merge and Production deployment on 7 September
+2026. Merge commit `e4c17c7` passed the exact `VERCEL_ENV=production` and
+`VITE_CLOUD_DRAFTS_ROLLOUT=opt-in` build with zero diagnostics. The deployed bundle exposed the
+beta choice while omitting every synthetic verifier entry; the three verifier URLs returned 404.
+Signed-out device-only behaviour, the public gallery, and the Account sign-in surface loaded with
+no browser errors. A permanent account then opted in independently in two browser contexts, the
+clean context recovered an existing cloud draft, a new production revision propagated back to
+the first context, and the harmless smoke-test change was removed and saved successfully. No
+existing local-only set was uploaded automatically.
 
 ## What disabling the gate does
 
@@ -198,10 +207,11 @@ The large-asset verifier supplied five successful 9.5 MB new-asset saves and exa
 a 2,907 ms save p95 and confirmed per-sample cleanup.
 Details and the remaining gaps are recorded under Phase 6 in `CLOUD_STORAGE_PLAN.md`.
 
-## Verification still required before public rollout
+## Verification still required before automatic enrolment
 
-- explicit approval to merge and expose the feature as an opt-in beta. Connection, device, and
-  author diversity remains required before changing the feature to default-on.
+- collect real-user connection, device, author, error, conflict, and latency evidence before
+  changing Production from `opt-in` to `cohort` or `on`;
+- explicitly approve each expansion and retain `off` as the no-deletion rollback.
 
 Google identity linking and its identity-already-linked recovery case remain required before
 anonymous accounts can enter cloud drafts. They do not block a permanent-account rollout while
