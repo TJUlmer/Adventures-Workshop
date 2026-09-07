@@ -14,6 +14,7 @@ import type { AdventureSet, SetId } from '../src/lib/sets/types';
 import { purgeSet, readDraftState, readIndex } from '../src/lib/storage/library';
 import {
   clearCloudDraftOptIn,
+  readCloudDraftPreference,
   readCloudDraftOptIn,
   writeCloudDraftOptIn
 } from '../src/lib/storage/settings';
@@ -70,7 +71,7 @@ try {
     configured: true,
     userId: 'permanent-account',
     anonymous: false,
-    optedIn: false,
+    preference: null as boolean | null,
     internalUserIds: [] as string[],
     cohortPercent: 0
   };
@@ -80,8 +81,22 @@ try {
     'An anonymous account entered the draft rollout.'
   );
   assert(
-    evaluateDraftRollout({ ...baseDecision, mode: 'opt-in', optedIn: true }),
+    evaluateDraftRollout({ ...baseDecision, mode: 'opt-in', preference: true }),
     'An explicit permanent-account opt-in was not honoured.'
+  );
+  assert(
+    !evaluateDraftRollout({ ...baseDecision, mode: 'opt-in' }) &&
+      evaluateDraftRollout({ ...baseDecision, mode: 'on' }),
+    'The unchosen opt-in/default-on boundaries are wrong.'
+  );
+  assert(
+    evaluateDraftRollout({ ...baseDecision, mode: 'cohort', preference: true }),
+    'A previous opt-in was lost when cohort mode began.'
+  );
+  assert(
+    !evaluateDraftRollout({ ...baseDecision, mode: 'cohort', preference: false, cohortPercent: 100 }) &&
+      !evaluateDraftRollout({ ...baseDecision, mode: 'on', preference: false }),
+    'An explicit browser opt-out was overridden by automatic enrolment.'
   );
   assert(
     evaluateDraftRollout({
@@ -96,16 +111,33 @@ try {
       !evaluateDraftRollout({ ...baseDecision, mode: 'cohort', cohortPercent: 0 }),
     'The stable cohort percentage boundaries are wrong.'
   );
-  addCheck('The default-off, opt-in, internal, cohort, and anonymous rollout boundaries hold.');
+  addCheck(
+    'Default-off, opt-in preservation, opt-out, internal, cohort, default-on, and anonymous boundaries hold.'
+  );
 
   assert(
     await writeCloudDraftOptIn(preferenceUser, true),
     'The browser could not persist an account-scoped opt-in.'
   );
   assert(await readCloudDraftOptIn(preferenceUser), 'The account-scoped opt-in did not round-trip.');
+  assert(
+    (await readCloudDraftPreference(preferenceUser)) === true,
+    'The explicit enabled preference was not distinguishable.'
+  );
+  assert(
+    await writeCloudDraftOptIn(preferenceUser, false),
+    'The browser could not persist an account-scoped opt-out.'
+  );
+  assert(
+    (await readCloudDraftPreference(preferenceUser)) === false,
+    'The explicit opt-out was not distinguishable from no choice.'
+  );
   await clearCloudDraftOptIn(preferenceUser);
-  assert(!(await readCloudDraftOptIn(preferenceUser)), 'The scoped opt-in cleanup did not hold.');
-  addCheck('A preview opt-in is stored per account in IndexedDB and can be removed independently.');
+  assert(
+    (await readCloudDraftPreference(preferenceUser)) === null,
+    'The scoped preference cleanup did not restore the unchosen state.'
+  );
+  addCheck('Enabled, disabled, and unchosen preferences remain distinct per account in IndexedDB.');
 
   const disabled = fixture('disabled');
   created.push(disabled.id);

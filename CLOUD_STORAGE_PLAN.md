@@ -740,6 +740,19 @@ then removed and saved. No existing local-only set was uploaded automatically. T
 public opt-in launch; connection, device, and author diversity remains the gate before automatic
 cohort or default-on enrolment.
 
+After additional users exercised the public opt-in beta successfully, automatic-enrolment
+preparation began on 7 September 2026 without changing Production. The local gate now treats the
+browser preference as three-state: an earlier explicit opt-in survives a move to `cohort`, an
+explicit opt-out overrides automatic `cohort` or `on` assignment, and only an unchosen preference
+is decided by the stable rollout policy. Accounts outside a cohort may still opt in manually, so
+changing the build mode cannot strand an early adopter's cloud library. The migration prompt also
+identifies the signed-in account whose private library will receive chosen device-only sets.
+The deterministic real-browser hardening probe passed the preference, stable-cohort, default-on,
+anonymous-exclusion, durable-outbox, diagnostics, retry, and large-local-document checks. Both a
+5% cohort build and the unchanged Production-shaped opt-in build passed with zero diagnostics;
+the latter contained no synthetic verifier pages. A signed-in preview transition test and explicit
+deployment approval remain required before Production can move from `opt-in` to a small cohort.
+
 ### Phase 7 — reference-aware storage cleanup (2–3 days plus observation window)
 
 Goal: bound abandoned Storage growth without weakening draft recovery, publication, or

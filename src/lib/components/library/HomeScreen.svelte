@@ -1262,9 +1262,15 @@
     <div class="library-notice" data-tone="local">
       <Icon name="save" size={15} />
       <span>
-        {draftRollout.canOptIn
-          ? 'Cloud drafts are off on this browser. Turn on the preview from Account when you are ready; until then, this library uses device copies.'
-          : 'This account is outside the private cloud-draft preview. Sets continue to use device storage, and publishing remains available.'}
+        {!draftRollout.preferenceLoaded && draftRollout.mode !== 'off'
+          ? 'Checking this browser’s cloud-draft choice; device copies remain available.'
+          : draftRollout.canChoose
+            ? draftRollout.preference === false
+              ? 'Cloud drafts are off by your choice on this browser. Online drafts remain intact, and this library uses downloaded device copies.'
+              : draftRollout.mode === 'cohort'
+                ? 'This account is not automatically enrolled yet. Turn on cloud drafts from Account whenever you are ready; until then, this library uses device copies.'
+                : 'Cloud drafts are off on this browser. Turn them on from Account when you are ready; until then, this library uses device copies.'
+            : 'This account is outside the private cloud-draft preview. Sets continue to use device storage, and publishing remains available.'}
       </span>
     </div>
   {/if}
@@ -1284,8 +1290,10 @@
           <p>
             {workshop.migrationCandidates.length}
             {workshop.migrationCandidates.length === 1 ? 'set is' : 'sets are'} saved only on this
-            device ({formatSize(migrationBytes)}). Each set is copied safely; its local copy stays
-            here.
+            device ({formatSize(migrationBytes)}). Uploading adds
+            {workshop.migrationCandidates.length === 1 ? ' it' : ' them'} to the private cloud
+            library belonging to <strong>{auth.user?.email || 'the signed-in account'}</strong>.
+            Each local copy stays here.
           </p>
           {#if workshop.migrationRunning}
             <p class="migration-progress" role="status">

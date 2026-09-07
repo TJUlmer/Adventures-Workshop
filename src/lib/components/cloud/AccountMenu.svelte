@@ -95,7 +95,7 @@
   }
 
   async function toggleDraftPreview(): Promise<void> {
-    await draftRollout.setOptedIn(!draftRollout.enabled);
+    await draftRollout.setEnabled(!draftRollout.enabled);
   }
 
   function downloadDiagnostics(): void {
@@ -172,21 +172,25 @@
                 <strong>{draftRollout.mode === 'opt-in' ? 'Cloud drafts beta' : 'Cloud drafts'}</strong>
                 {#if draftRollout.mode === 'off'}
                   <small>Off in this build. Drafts stay on this device; publishing still works.</small>
-                {:else if draftRollout.mode === 'opt-in' && draftRollout.loadedForUserId !== auth.user?.id}
-                  <small>Checking this browser’s beta choice…</small>
-                {:else if draftRollout.canOptIn}
-                  <small>
-                    {draftRollout.enabled
-                      ? 'On for this browser. Turning it off keeps online drafts intact and uses downloaded device copies.'
-                      : 'Off for this browser. Turn it on to copy chosen sets into your private account library.'}
-                  </small>
+                {:else if !draftRollout.preferenceLoaded}
+                  <small>Checking this browser’s cloud-draft choice…</small>
                 {:else if draftRollout.enabled}
-                  <small>Enabled for this account’s limited rollout group.</small>
+                  <small>
+                    {draftRollout.preference === true
+                      ? 'On for this browser by your choice. Turning it off keeps online drafts intact and uses downloaded device copies.'
+                      : draftRollout.mode === 'cohort'
+                        ? 'Automatically enabled for this account’s limited rollout group. You can still use device copies on this browser.'
+                        : 'Automatically enabled for permanent accounts. You can still use device copies on this browser.'}
+                  </small>
+                {:else if draftRollout.preference === false}
+                  <small>Off on this browser by your choice. Online drafts remain intact.</small>
                 {:else}
-                  <small>This account is not in the current limited rollout group.</small>
+                  <small>
+                    This account is not automatically enrolled yet. You can still turn on cloud drafts for this browser.
+                  </small>
                 {/if}
               </div>
-              {#if draftRollout.canOptIn}
+              {#if draftRollout.canChoose}
                 <Button
                   size="sm"
                   variant="ghost"
