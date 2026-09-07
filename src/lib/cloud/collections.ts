@@ -803,6 +803,36 @@ export async function amOrganizer(collectionId: string): Promise<boolean> {
  * and the content-hash name means re-uploading the same picture writes the
  * same object rather than accumulating copies.
  */
+/**
+ * Take a collection down, or put it back.
+ *
+ * Moderators only, checked inside the function against `profiles.is_admin` —
+ * `hidden` and `hidden_reason` are outside the client's column grants, so this
+ * RPC is the only route to them and an organizer cannot unhide themselves.
+ * The same shape as `moderate_set`, and for the reason recorded there: grants
+ * are checked before policies and cannot tell an owner from a moderator.
+ *
+ * **It hides the collection and nothing inside it.** The member decks belong
+ * to other people, are separately published and separately linkable, and a
+ * moderator who wants one of those gone wants `moderate_set` instead.
+ *
+ * Hiding kills the gallery listing *and* the link, which is deliberate: a
+ * takedown that left every held URL working would be a listing change rather
+ * than a takedown.
+ */
+export async function moderateCollection(
+  collectionId: string,
+  hide: boolean,
+  reason = ''
+): Promise<void> {
+  await auth.ensureFresh();
+  await request('/rest/v1/rpc/moderate_collection', {
+    method: 'POST',
+    body: { target: collectionId, should_hide: hide, moderation_reason: reason },
+    headers: { Prefer: 'return=minimal' }
+  });
+}
+
 export async function uploadCollectionBanner(
   collectionId: string,
   file: File
