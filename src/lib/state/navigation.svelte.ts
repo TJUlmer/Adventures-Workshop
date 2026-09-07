@@ -88,14 +88,7 @@ export type View =
    */
   | { kind: 'shared'; slug: string; characterHint?: string }
   /** Someone's public profile — what they have published, and helped build. */
-  | { kind: 'author'; id: string }
-  /**
-   * A themed box of decks several people each own, reached by its own link.
-   *
-   * Like `shared`, and unlike everything above it, this one lives in the
-   * address bar — see the slug readers below for why it has to.
-   */
-  | { kind: 'collection'; slug: string };
+  | { kind: 'author'; id: string };
 
 /**
  * The one URL this app has.
@@ -132,49 +125,6 @@ export function readSharedSlug(): string | null {
   return (
     SHARED_PATH_PATTERN.exec(window.location.pathname)?.[1] ??
     SHARED_HASH_PATTERN.exec(window.location.hash)?.[1] ??
-    null
-  );
-}
-
-/**
- * A collection's link — the **second** real path in this app, and the only
- * other one that will ever be justified the same way.
- *
- * It earns the exception for exactly the reason a shared set's does and for
- * no other: a collection link is the thing an organizer pastes into a Discord
- * to announce a project, so it has to unfurl, and an unfurler reads a plain
- * HTTP request in which a fragment never appears. Everything else in this app
- * stays a hash on purpose. **Do not read this as a precedent for a third**
- * without the same argument.
- *
- * Matched unanchored at the front for the same reason as the shared pattern:
- * a sub-path deploy's base path sits ahead of the tail and is not known here.
- */
-const COLLECTION_PATH_PATTERN = /collection\/([A-Za-z0-9_-]+)\/?$/;
-const COLLECTION_HASH_PATTERN = /^#\/collection\/([A-Za-z0-9_-]+)$/;
-
-/**
- * **Either** real path's tail, and the only thing that may compute a `base`.
- *
- * `openShared` and `openCollection` both work out where the app's own base
- * path ends by stripping their tail off `location.pathname` — and while there
- * was only one real path, stripping *its own* tail was the same thing as
- * stripping whichever tail was there. With two, it stops being: going from
- * `/collection/abc` to a shared set stripped nothing (no `shared/` tail to
- * find) and concatenated, producing `/collection/abcshared/xyz`, and the same
- * in reverse. Measured, not reasoned about — a one-path app has no way to
- * show this and the code reads correct either way.
- *
- * So both directions strip through this instead. A third real path, if one
- * is ever justified, joins the alternation here rather than adding a third
- * private pattern.
- */
-const ROUTE_TAIL_PATTERN = /(?:shared|collection)\/([A-Za-z0-9_-]+)\/?$/;
-
-export function readCollectionSlug(): string | null {
-  return (
-    COLLECTION_PATH_PATTERN.exec(window.location.pathname)?.[1] ??
-    COLLECTION_HASH_PATTERN.exec(window.location.hash)?.[1] ??
     null
   );
 }
@@ -268,10 +218,9 @@ class Navigation {
     if (this.view.kind !== 'shared') this.#returnTo = this.view;
     this.view = { kind: 'shared', slug, characterHint };
 
-    // Strips a stale `/shared/{otherSlug}` *or* `/collection/{slug}` tail
-    // rather than assuming root, so a sub-path deploy's own base path
-    // survives — see `ROUTE_TAIL_PATTERN` for why it must be either.
-    const base = window.location.pathname.replace(ROUTE_TAIL_PATTERN, '');
+    // Strips a stale `/shared/{otherSlug}` tail rather than assuming root, so
+    // a sub-path deploy's own base path survives — same as `leaveShared`.
+    const base = window.location.pathname.replace(SHARED_PATH_PATTERN, '');
     const wanted = `${base}shared/${slug}${window.location.search}`;
 
     if (readSharedSlug() === slug) {
@@ -307,52 +256,7 @@ class Navigation {
    */
   leaveShared(to?: View): void {
     if (readSharedSlug() !== null) {
-      const base = window.location.pathname.replace(ROUTE_TAIL_PATTERN, '');
-      history.replaceState(null, '', base + window.location.search);
-    }
-    this.view = to ?? this.#returnTo;
-  }
-
-  /**
-   * Open a collection by its link.
-   *
-   * The same three-way decision `openShared` makes, for the same reasons:
-   * `replaceState` when the URL already names this collection (a first load,
-   * a reload, or a hash-form link upgraded to the path form in place), so a
-   * click the browser has already pushed its own entry for is not doubled up;
-   * `pushState` otherwise, because arriving from Home or the gallery *is* a
-   * fresh navigation and wants a back-button-reachable entry.
-   */
-  openCollection(slug: string): void {
-    if (this.view.kind !== 'collection') this.#returnTo = this.view;
-    this.view = { kind: 'collection', slug };
-
-    const base = window.location.pathname.replace(ROUTE_TAIL_PATTERN, '');
-    const wanted = `${base}collection/${slug}${window.location.search}`;
-
-    if (readCollectionSlug() === slug) {
-      if (window.location.pathname !== `${base}collection/${slug}` || window.location.hash !== '') {
-        history.replaceState(null, '', wanted);
-      }
-      return;
-    }
-
-    history.pushState(null, '', wanted);
-  }
-
-  /**
-   * Leave a collection.
-   *
-   * **This, not a bare `openHome()`.** Only this clears the
-   * `/collection/{slug}` tail, and a view change that leaves the path behind
-   * puts the link back in the address bar to reassert itself on the next
-   * reload — the viewer could never get out. Exactly the trap `leaveShared`
-   * already documents, and the reason every Home/Gallery button on a
-   * collection page has to come through here.
-   */
-  leaveCollection(to?: View): void {
-    if (readCollectionSlug() !== null) {
-      const base = window.location.pathname.replace(ROUTE_TAIL_PATTERN, '');
+      const base = window.location.pathname.replace(SHARED_PATH_PATTERN, '');
       history.replaceState(null, '', base + window.location.search);
     }
     this.view = to ?? this.#returnTo;

@@ -5,7 +5,7 @@ import { createThreatTrack } from '$lib/threat/types';
 import type { AdventureSet, SetId } from './types';
 import { SET_SCHEMA_VERSION } from './types';
 
-export type SetDraft = Partial<Pick<AdventureSet, 'name' | 'subtitle' | 'kind'>> & {
+export type SetDraft = Partial<Pick<AdventureSet, 'name' | 'subtitle' | 'kind' | 'singleHero'>> & {
   author?: string;
   description?: string;
 };
@@ -17,16 +17,20 @@ export type SetDraft = Partial<Pick<AdventureSet, 'name' | 'subtitle' | 'kind'>>
 export function createEmptySet(draft: SetDraft = {}): AdventureSet {
   const timestamp = now();
 
-  const kind = draft.kind ?? 'adventure';
+  const singleHero = draft.singleHero ?? false;
+  const kind = singleHero ? 'heroes' : (draft.kind ?? 'adventure');
 
   return {
     id: createId<SetId>('set'),
     schemaVersion: SET_SCHEMA_VERSION,
     kind,
+    singleHero,
     /* Named for what it is, so a fresh heroes set does not open calling itself
        an adventure — the one word on screen that tells its author which kind
        they picked, before they have added anything to tell them apart. */
-    name: draft.name ?? (kind === 'heroes' ? 'Untitled Heroes' : 'Untitled Adventure'),
+    name:
+      draft.name ??
+      (singleHero ? 'Untitled hero' : kind === 'heroes' ? 'Untitled Heroes' : 'Untitled Adventure'),
     subtitle: draft.subtitle ?? '',
     meta: {
       author: draft.author ?? '',
@@ -52,5 +56,9 @@ export function createEmptySet(draft: SetDraft = {}): AdventureSet {
 }
 
 export function setLabel(set: AdventureSet): string {
-  return set.name.trim().length > 0 ? set.name : 'Untitled Adventure';
+  return set.name.trim().length > 0
+    ? set.name
+    : set.singleHero
+      ? 'Untitled hero'
+      : 'Untitled Adventure';
 }

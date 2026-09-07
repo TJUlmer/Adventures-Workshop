@@ -66,16 +66,30 @@ export function createAbilityBlocks(init: Partial<AbilityBlocks> = {}): AbilityB
   };
 }
 
+/*
+ * Kept local to the dependency-root card model: importing the DOM-backed text
+ * sanitiser here would make cards depend on their own render stack. The editor
+ * stores only its small allowlist, so removing tags and non-breaking spaces is
+ * enough to distinguish formatting scaffolding from printable copy.
+ */
+function actionTextHasContent(value: string): boolean {
+  if (/<img\b/i.test(value)) return true;
+  return value
+    .replace(/<[^>]*>/g, '')
+    .replace(/&(?:nbsp|#160);/gi, ' ')
+    .trim().length > 0;
+}
+
 /** The blocks that actually carry text, in printed order. */
 export function usedTimings(ability: AbilityBlocks): AbilityTiming[] {
-  return ABILITY_TIMINGS.filter((timing) => ability[timing].trim().length > 0);
+  return ABILITY_TIMINGS.filter((timing) => actionTextHasContent(ability[timing]));
 }
 
 export function abilityIsEmpty(ability: AbilityBlocks): boolean {
   return (
-    ability.plain.trim().length === 0 &&
-    ability.bonusAbility.trim().length === 0 &&
-    ABILITY_TIMINGS.every((timing) => ability[timing].trim().length === 0)
+    !actionTextHasContent(ability.plain) &&
+    !actionTextHasContent(ability.bonusAbility) &&
+    ABILITY_TIMINGS.every((timing) => !actionTextHasContent(ability[timing]))
   );
 }
 
@@ -145,7 +159,7 @@ export type CardOwner = (typeof CARD_OWNERS)[number] | HeroCharacterCardId;
 /** A villain, minion or hero action card. */
 export interface ActionCard extends CardCommon {
   type: 'action';
-  /** Printed above the ability text. Distinct from the character name ribbon. */
+  /** Sanitised inline HTML, printed above the ability text. */
   title: string;
   /** `null` means the symbol is not printed at all. */
   attack: number | null;

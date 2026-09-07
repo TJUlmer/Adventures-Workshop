@@ -37,6 +37,8 @@ function wantsArtwork(card: Card): boolean {
 export function assessSet(set: AdventureSet): SetHealth {
   const issues: SetIssue[] = [];
   const heroesSet = set.kind === 'heroes';
+  const heroCount = set.characters.filter((character) => character.role === 'hero').length;
+  const standaloneHero = set.singleHero && heroCount <= 1;
 
   /*
    * Four checks an adventure owes and a heroes set does not.
@@ -88,7 +90,7 @@ export function assessSet(set: AdventureSet): SetHealth {
 
   /* A heroes set with nobody in it is as empty as an adventure with no cards,
      and saying so is more use than listing what is missing from a blank. */
-  if (heroesSet && set.characters.every((character) => character.role !== 'hero')) {
+  if (heroesSet && heroCount === 0) {
     issues.push({ severity: 'blocker', message: 'No heroes yet — a heroes set is its heroes.' });
   }
 
@@ -208,7 +210,11 @@ export function assessSet(set: AdventureSet): SetHealth {
     issues.push({ severity: 'polish', message: 'No figures or tokens listed.' });
   }
 
-  if (!hasArtwork(set.boxArt)) {
+  /* A standalone hero's own portrait represents it everywhere a box cover
+     normally would. The creation flag deliberately survives a temporary
+     second hero, so match the identity rule: while there are two heroes this
+     is a box again and its missing cover remains worth calling out. */
+  if (!standaloneHero && !hasArtwork(set.boxArt)) {
     issues.push({ severity: 'polish', message: 'No box art.' });
   }
 

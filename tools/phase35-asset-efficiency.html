@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Phase 3.5 asset efficiency verifier</title>
+  </head>
+  <body>
+    <main>
+      <h1>Phase 3.5 asset efficiency verifier</h1>
+      <p>
+        This local-only screen verifies missing-only private asset uploads, legacy-manifest
+        reconciliation, hydration seeding, and exact-prefix purge. It displays no account
+        identifiers, credentials, tokens, document contents, or private object paths.
+      </p>
+      <p id="session">Checking the current session…</p>
+      <p id="instruction"></p>
+      <p id="status" role="status" aria-live="polite"></p>
+      <div id="actions"></div>
+      <h2>Checks</h2>
+      <ol id="checks"></ol>
+    </main>
+    <script type="module" src="./phase35-asset-efficiency.ts"></script>
+  </body>
+</html>

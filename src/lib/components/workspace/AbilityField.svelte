@@ -10,6 +10,7 @@
   import type { CustomSymbol } from '$lib/symbols/types';
   import { insertToken, toDisplayTokens, toStoredTokens } from '$lib/text/tokens';
   import { Icon } from '$lib/ui';
+  import FormattedTextField from './FormattedTextField.svelte';
   import SymbolPalette from './SymbolPalette.svelte';
 
   interface Props {
@@ -19,6 +20,8 @@
     rows?: number;
     /** Shown when the block can be taken off the card. */
     onremove?: () => void;
+    /** Action-card copy supports bold and italic selected text. */
+    formatted?: boolean;
     onchange: (value: string) => void;
     /** Author-uploaded glyphs, offered alongside the four built-in symbols. */
     customSymbols?: CustomSymbol[];
@@ -30,6 +33,7 @@
     placeholder,
     rows = 3,
     onremove,
+    formatted = false,
     onchange,
     customSymbols = []
   }: Props = $props();
@@ -131,6 +135,17 @@
   }
 </script>
 
+{#if formatted}
+  <FormattedTextField
+    {label}
+    {value}
+    {placeholder}
+    {rows}
+    {onremove}
+    {onchange}
+    {customSymbols}
+  />
+{:else}
 <div class="block">
   <div class="head">
     <span class="label">{label}</span>
@@ -157,6 +172,7 @@
     onkeydown={handleKeydown}
   ></textarea>
 </div>
+{/if}
 
 <style>
   .block {

@@ -20,6 +20,14 @@ export interface CloudConfig {
   readonly key: string;
 }
 
+export type CloudDraftRolloutMode = 'off' | 'opt-in' | 'cohort' | 'on';
+
+export interface CloudDraftRolloutConfig {
+  readonly mode: CloudDraftRolloutMode;
+  readonly internalUserIds: readonly string[];
+  readonly cohortPercent: number;
+}
+
 /**
  * Bucket published artwork is lifted into.
  *
@@ -57,6 +65,26 @@ const CONFIG: CloudConfig | null = (() => {
   return { url: url.replace(/\/+$/, ''), key };
 })();
 
+function rolloutMode(value: unknown): CloudDraftRolloutMode {
+  return value === 'opt-in' || value === 'cohort' || value === 'on' ? value : 'off';
+}
+
+const DRAFT_ROLLOUT: CloudDraftRolloutConfig = (() => {
+  const rawPercent = Number(import.meta.env['VITE_CLOUD_DRAFTS_COHORT_PERCENT'] ?? '0');
+  const cohortPercent = Number.isFinite(rawPercent)
+    ? Math.min(100, Math.max(0, Math.floor(rawPercent)))
+    : 0;
+  const internalUserIds = (import.meta.env['VITE_CLOUD_DRAFTS_INTERNAL_USER_IDS'] ?? '')
+    .split(',')
+    .map((value) => value.trim())
+    .filter((value) => value.length > 0);
+  return {
+    mode: rolloutMode(import.meta.env['VITE_CLOUD_DRAFTS_ROLLOUT']),
+    internalUserIds: [...new Set(internalUserIds)],
+    cohortPercent
+  };
+})();
+
 /** The configured project, or `null` when sharing is not set up. */
 export function cloudConfig(): CloudConfig | null {
   return CONFIG;
@@ -65,4 +93,9 @@ export function cloudConfig(): CloudConfig | null {
 /** Whether anything in the app should offer to publish or fetch. */
 export function cloudEnabled(): boolean {
   return CONFIG !== null;
+}
+
+/** Private-draft rollout policy, deliberately separate from public sharing. */
+export function cloudDraftRolloutConfig(): CloudDraftRolloutConfig {
+  return DRAFT_ROLLOUT;
 }

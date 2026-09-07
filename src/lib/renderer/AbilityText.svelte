@@ -8,6 +8,7 @@
   import type { AbilityBlocks } from '$lib/cards/types';
   import { ABILITY_TIMING_LABELS, usedTimings } from '$lib/cards/types';
   import type { CustomSymbol } from '$lib/symbols/types';
+  import { actionTextIsEmpty, renderActionText } from '$lib/text/action-text';
   import { parseAbilityText } from '$lib/text/tokens';
   import { symbolUrl } from './assets';
 
@@ -35,8 +36,8 @@
   }: Props = $props();
 
   const timings = $derived(usedTimings(ability));
-  const hasPlain = $derived(ability.plain.trim().length > 0);
-  const hasBonus = $derived(ability.bonusAbility.trim().length > 0);
+  const hasPlain = $derived(!actionTextIsEmpty(ability.plain));
+  const hasBonus = $derived(!actionTextIsEmpty(ability.bonusAbility));
   const empty = $derived(!hasPlain && !hasBonus && timings.length === 0);
 
   /**
@@ -56,29 +57,7 @@
   });
 </script>
 
-<!--
-  Written without a line break anywhere inside the loop, and that is load
-  bearing rather than a style choice: `.line` below sets `white-space:
-  pre-wrap` so an author's own newlines print, which also means *this file's*
-  indentation prints. Laid out readably — one branch per line, the `<img>`
-  indented under it — every inserted symbol printed a line break before and
-  after itself, turning a one-line ability into three. `ActionCardFace`'s
-  title loop already carries the same warning for the same reason.
--->
-{#snippet run(text: string)}
-  {#each parseAbilityText(text) as segment, index (index)}{#if segment.kind === 'symbol'}<img
-        class="symbol"
-        src={symbolUrl(segment.name)}
-        alt={segment.name}
-      />{:else if segment.kind === 'customSymbol'}{@const custom = customSymbols.find(
-        (s) => s.id === segment.id
-      )}{#if custom?.source}<img
-          class="symbol"
-          src={custom.source}
-          alt={custom.name}
-        />{/if}{:else if segment.kind === 'subject'}{subject}{:else}{segment.value}{/if}{/each}
-{/snippet}
-
+<!-- `renderActionText` sanitises the stored inline HTML before this insertion. -->
 <div class="ability">
   {#if empty}
     {#if placeholder}
@@ -86,13 +65,13 @@
     {/if}
   {:else}
     {#if hasPlain}
-      <p class="line">{@render run(ability.plain)}</p>
+      <p class="line">{@html renderActionText(ability.plain, subject, customSymbols)}</p>
     {/if}
 
     {#each timings as timing (timing)}
       <p class="line">
         <span class="label">{ABILITY_TIMING_LABELS[timing]}:</span>
-        {@render run(ability[timing])}
+        {@html renderActionText(ability[timing], subject, customSymbols)}
       </p>
     {/each}
 
@@ -101,7 +80,7 @@
         {#if bonusIconSrc}
           <img class="bonus-icon" src={bonusIconSrc} alt="" style:height="{bonusIconSize}em" />
         {/if}
-        <span>{@render run(ability.bonusAbility)}</span>
+        <span>{@html renderActionText(ability.bonusAbility, subject, customSymbols)}</span>
       </p>
     {/if}
   {/if}
@@ -152,11 +131,23 @@
     white-space: nowrap;
   }
 
-  .symbol {
+  .line :global(.symbol) {
     display: inline-block;
     height: 0.82em;
     width: auto;
     vertical-align: -0.08em;
     margin-inline: 0.06em;
+  }
+
+  /* The bundled card cut has no bold file; opt in only for author-marked runs. */
+  .line :global(b),
+  .line :global(strong) {
+    font-weight: 700;
+    font-synthesis-weight: auto;
+  }
+
+  .line :global(i),
+  .line :global(em) {
+    font-style: italic;
   }
 </style>

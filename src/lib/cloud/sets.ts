@@ -1,10 +1,11 @@
 /**
  * Publishing a set, and fetching one back.
  *
- * The contract, which every function here keeps: **the cloud is a publish
- * target, never the source of truth.** A published row is a copy of a document
- * that still lives in the author's browser. Nothing in the app reads from here
- * in order to work, and losing the network loses sharing rather than the set.
+ * The contract, which every function here keeps: **the published-set API is a
+ * publish target, never the editable draft.** A published row is an explicit
+ * snapshot copied from the author's private working document. Nothing in the
+ * editor reads from this module in order to work, and publishing never changes
+ * the draft's identity or revision.
  *
  * That is what makes the artwork swap in `assets.ts` safe to do on the way out
  * and on the way back in: the local document keeps its data URLs throughout, so

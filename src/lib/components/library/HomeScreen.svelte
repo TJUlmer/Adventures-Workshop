@@ -31,20 +31,17 @@
   import { coverArtwork } from '$lib/cloud/thumbnail';
   import { asId } from '$lib/core/id';
   import { GUIDES } from '$lib/guides/content';
+  import { draftRollout } from '$lib/persistence/rollout.svelte';
+  import type { DraftLibraryEntry, LibraryAvailability } from '$lib/persistence/types';
   import { CARD_FORMATS, trimBox } from '$lib/renderer/geometry';
   import { healthSummaryFromCounts } from '$lib/sets/health';
   import type { SetId, SetKind } from '$lib/sets/types';
   import { guides } from '$lib/state/guides.svelte';
   import { navigation } from '$lib/state/navigation.svelte';
   import { workshop } from '$lib/state/workshop.svelte';
-  import { loadSet, saveSet } from '$lib/storage/library';
-  import type { LibraryEntry } from '$lib/storage/library';
+  import { loadSet } from '$lib/storage/library';
   import { Button, Icon, SegmentedControl, Select } from '$lib/ui';
-  import NewCollectionDialog from './NewCollectionDialog.svelte';
   import NewSetDialog from './NewSetDialog.svelte';
-  import { initials, tint } from '$lib/core/swatch';
-  import { createCollection, listMyCollections, listPendingMemberships } from '$lib/cloud/collections';
-  import type { CollectionMembership, MyCollection } from '$lib/cloud/collections';
 
   interface Props {
     /** Keep the full introduction visible even after the library has sets. */
@@ -74,97 +71,6 @@
     void workshop.createSet(undefined, kind);
   }
 
-  let makingCollection = $state(false);
-  let choosingCollection = $state(false);
-
-  /**
-   * Collection decisions waiting on this person, in either direction.
-   *
-   * The attention strip already answers "is anything waiting on me?" for
-   * contributions, and an invitation is the same question — so it belongs
-   * here rather than on a screen somebody has to think to visit. Silent on
-   * failure, like every other cloud read on this page: Home has to draw.
-   */
-  let pendingMemberships = $state<CollectionMembership[]>([]);
-
-  /**
-   * Collections this person is part of, either way in.
-   *
-   * A collection is reachable only by an unguessable link or an invitation,
-   * so without this there is no way back to one after the link leaves your
-   * clipboard — which in practice meant making another, and another. The
-   * shelf is the address book for something that otherwise has no address.
-   */
-  let myCollections = $state<MyCollection[]>([]);
-
-  $effect(() => {
-    void auth.signedIn;
-    if (!cloudEnabled() || !auth.signedIn) {
-      myCollections = [];
-      return;
-    }
-    void listMyCollections()
-      .then((rows) => (myCollections = rows))
-      .catch(() => (myCollections = []));
-  });
-
-  $effect(() => {
-    void auth.signedIn;
-    if (!cloudEnabled() || !auth.signedIn) {
-      pendingMemberships = [];
-      return;
-    }
-    void listPendingMemberships()
-      .then((rows) => (pendingMemberships = rows))
-      .catch(() => (pendingMemberships = []));
-  });
-
-  /*
-   * Grouped by collection, because the decision is per collection even when
-   * several of your decks are involved, and a strip listing the same project
-   * three times reads as three problems.
-   */
-  const pendingByCollection = $derived.by(() => {
-    const grouped = new Map<string, { slug: string; name: string; count: number }>();
-    for (const row of pendingMemberships) {
-      const slug = row.collection?.slug;
-      if (!slug) continue;
-      const found = grouped.get(slug);
-      if (found) found.count += 1;
-      else grouped.set(slug, { slug, name: row.collection?.name || 'a collection', count: 1 });
-    }
-    return [...grouped.values()];
-  });
-
-  /**
-   * Start a collection and go straight to it.
-   *
-   *
-   * Unlisted by default, which is where a project lives for the whole of its
-   * production phase; going public is a deliberate, later act.
-   *
-   * The explaining is `NewCollectionDialog`'s job — see its own note on why a
-   * bare button was the wrong shape for a noun nobody has met before.
-   */
-  async function newCollection(name: string): Promise<void> {
-    if (makingCollection) return;
-    makingCollection = true;
-    try {
-      const created = await createCollection({ name });
-      choosingCollection = false;
-      /* Refreshed rather than pushed onto the list by hand: the row this
-         renders carries counts and a role the server works out, and guessing
-         them here is how a shelf starts disagreeing with the page it links
-         to. */
-      void listMyCollections().then((rows) => (myCollections = rows));
-      navigation.openCollection(created.slug);
-    } catch (error) {
-      message = error instanceof Error ? error.message : 'Could not create the collection.';
-    } finally {
-      makingCollection = false;
-    }
-  }
-
   const entries = $derived(workshop.library);
   const deletedEntries = $derived(workshop.deletedLibrary);
   const welcomeMode = $derived(welcome || entries.length === 0);
@@ -180,17 +86,17 @@
   let covers = $state<Map<SetId, string>>(new Map());
   const coversRequested = new Set<SetId>();
 
-  async function ensureCover(id: SetId): Promise<void> {
-    if (coversRequested.has(id)) return;
-    coversRequested.add(id);
-    const set = await loadSet(id);
+  async function ensureCover(entry: DraftLibraryEntry): Promise<void> {
+    if (!entry.cached || coversRequested.has(entry.id)) return;
+    coversRequested.add(entry.id);
+    const set = await loadSet(entry.id);
     const source = set ? coverArtwork(set)?.source : null;
-    if (source) covers = new Map(covers).set(id, source);
+    if (source) covers = new Map(covers).set(entry.id, source);
   }
 
   /** Every visible set gets its cover requested once, as the shelf renders. */
   $effect(() => {
-    for (const entry of entries) void ensureCover(entry.id);
+    for (const entry of entries) void ensureCover(entry);
   });
 
   /**
@@ -216,16 +122,16 @@
     });
   }
 
-  async function peekCard(id: SetId): Promise<void> {
-    if (peeksRequested.has(id)) return;
-    peeksRequested.add(id);
-    const set = await loadSet(id);
+  async function peekCard(entry: DraftLibraryEntry): Promise<void> {
+    if (!entry.cached || peeksRequested.has(entry.id)) return;
+    peeksRequested.add(entry.id);
+    const set = await loadSet(entry.id);
     if (!set) return;
     // First hero only, matching `coverArtwork`'s own "first hero" step — a
     // glance at who this set is, not a card per hero it happens to have.
     const rendered = await renderCharacterCards(set);
     const first = rendered.values().next().value;
-    if (first) cardPeeks = new Map(cardPeeks).set(id, await blobToDataUrl(first));
+    if (first) cardPeeks = new Map(cardPeeks).set(entry.id, await blobToDataUrl(first));
   }
 
   /**
@@ -337,7 +243,7 @@
       }
 
       const forked = current.filter(
-        (entry): entry is LibraryEntry & { originSlug: string; originRevision: number } =>
+        (entry): entry is DraftLibraryEntry & { originSlug: string; originRevision: number } =>
           entry.originSlug !== undefined && entry.originRevision !== undefined
       );
       const behindByLocalId = new Map<SetId, number>();
@@ -889,12 +795,28 @@
     return `var(--role-${value}, var(--text-muted))`;
   }
 
+  function initials(name: string): string {
+    const words = name.trim().split(/\s+/).filter(Boolean);
+    if (words.length === 0) return '?';
+    return words
+      .slice(0, 2)
+      .map((word) => word[0]?.toUpperCase() ?? '')
+      .join('');
+  }
+
   /** A stable colour per character or set, for a tile with no picture — same
       formula the gallery's own tiles use, so something reads the same shade
       whether found here or there. Doubles as the set-grid thumbnail swatch:
       `LibraryEntry` deliberately carries no picture of its own (see
       `storage/library.ts` — the index is kept light on purpose), so a
       generated tint is the set grid's only affordable "picture" today. */
+  function tint(seed: string): string {
+    let hash = 0;
+    for (let index = 0; index < seed.length; index += 1) {
+      hash = (hash * 31 + seed.charCodeAt(index)) | 0;
+    }
+    return `hsl(${Math.abs(hash) % 360} 30% 26%)`;
+  }
 
   /** The picture for a gallery-slot tile — same fallback `GalleryScreen`'s
       own `setImage` uses. */
@@ -960,6 +882,39 @@
     return date.toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' });
   }
 
+  function formatSize(bytes: number): string {
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
+    return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+  }
+
+  const migrationBytes = $derived(
+    workshop.migrationCandidates.reduce((total, entry) => total + (entry.bytes ?? 0), 0)
+  );
+
+  function availabilityLabel(availability: LibraryAvailability): string {
+    switch (availability) {
+      case 'online':
+        return 'Online';
+      case 'pending':
+        return 'Waiting to upload';
+      case 'conflict':
+        return 'Conflict';
+      default:
+        return 'On this device';
+    }
+  }
+
+  async function openEntry(entry: DraftLibraryEntry): Promise<void> {
+    if (!(await workshop.openSet(entry.id))) {
+      flash(
+        entry.cached
+          ? 'Could not open this set.'
+          : 'Connect to the internet to download this set on this device.'
+      );
+    }
+  }
+
   async function importSet(event: Event & { currentTarget: HTMLInputElement }): Promise<void> {
     const file = event.currentTarget.files?.[0];
     event.currentTarget.value = '';
@@ -970,20 +925,19 @@
       flash(result.error);
       return;
     }
-    await saveSet(result.set);
-    await workshop.refreshLibrary();
-    flash(`Imported “${result.set.name}”.`);
+    if (await workshop.addSet(result.set)) flash(`Imported “${result.set.name}”.`);
+    else flash(workshop.libraryActionError ?? 'Could not import that set.');
   }
 </script>
 
-{#snippet setCard(entry: LibraryEntry)}
+{#snippet setCard(entry: DraftLibraryEntry)}
   <li class="card">
     <button
       type="button"
       class="open"
-      onclick={() => void workshop.openSet(entry.id)}
-      onpointerenter={() => void peekCard(entry.id)}
-      onfocusin={() => void peekCard(entry.id)}
+      onclick={() => void openEntry(entry)}
+      onpointerenter={() => void peekCard(entry)}
+      onfocusin={() => void peekCard(entry)}
     >
       <span class="thumb" style:background={tint(entry.id)} aria-hidden="true">
         {#if covers.get(entry.id)}
@@ -1005,6 +959,9 @@
       <span class="card-body">
         <span class="card-title-row">
           <span class="card-title">{entry.name || 'Untitled Adventure'}</span>
+          <span class="pill availability" data-availability={entry.availability}>
+            {availabilityLabel(entry.availability)}
+          </span>
           {#if (attention.get(entry.id)?.waiting ?? 0) > 0}
             <span class="pill waiting">{attention.get(entry.id)?.waiting} pending</span>
           {/if}
@@ -1114,7 +1071,7 @@
   </li>
 {/snippet}
 
-{#snippet deletedRow(entry: LibraryEntry)}
+{#snippet deletedRow(entry: DraftLibraryEntry)}
   <li class="deleted-row">
     <div class="deleted-info">
       <span class="deleted-name">{entry.name || 'Untitled Adventure'}</span>
@@ -1236,25 +1193,13 @@
         accept=".json,application/json"
         onchange={importSet}
       />
-      <!--
-        Theme, account and the gallery link all live in `GlobalHeader` now —
-        they are app-wide chrome, and Home stopped being their only home when
-        the banner arrived. What stays here is what acts on *this* screen.
-
-        Signed-in only, and not because of a policy — an anonymous visitor
-        could create one — but because a collection nobody can find again is
-        worse than no collection. It is reached solely by its link, and the
-        only place that link is listed is the Collections shelf below.
-      -->
-      {#if cloudEnabled() && auth.signedIn}
-        <Button variant="ghost" onclick={() => (choosingCollection = true)}>
-          <Icon name="users" size={14} />
-          New collection
-        </Button>
-      {/if}
       <Button variant="ghost" onclick={() => fileInput?.click()}>
         <Icon name="upload" size={14} />
         Import
+      </Button>
+      <Button variant="primary" onclick={() => void workshop.createSingleHero()}>
+        <Icon name="plus" size={14} />
+        New hero
       </Button>
       <Button variant="primary" onclick={() => (choosingKind = true)}>
         <Icon name="plus" size={14} />
@@ -1267,52 +1212,134 @@
     <p class="message">{message}</p>
   {/if}
 
-  <!--
-    Gated on `welcome` but deliberately *not* on `entries.length`: a deliberate
-    welcome view is a pitch and should not carry somebody's shelves, but a
-    collection points at *published* rows and has nothing to do with how many
-    sets happen to be in this browser's library. Someone can be in a
-    collection with no local sets at all.
-  -->
-  {#if myCollections.length > 0 && !welcome}
-    <section class="collections">
-      <h2 class="section-title">Collections</h2>
-      <p class="section-hint">
-        Themed boxes you organize, or that a deck of yours is part of.
-      </p>
-      <ul class="collection-grid">
-        {#each myCollections as entry (entry.id)}
+  {#if workshop.libraryLoading}
+    <div class="library-notice" data-tone="neutral" role="status">
+      <Icon name="hourglass" size={15} />
+      <span>Refreshing your library…</span>
+    </div>
+  {/if}
+
+  {#if workshop.libraryError}
+    <div class="library-notice" data-tone="warning" role="alert">
+      <Icon name="rotate" size={15} />
+      <span>
+        Could not reach your online library. These are the copies available on this device.
+        <button type="button" onclick={() => void workshop.refreshLibrary()}>Try again</button>
+      </span>
+    </div>
+  {/if}
+
+  {#if workshop.libraryActionError}
+    <div class="library-notice" data-tone="warning" role="alert">
+      <Icon name="hourglass" size={15} />
+      <span>{workshop.libraryActionError}</span>
+    </div>
+  {/if}
+
+  {#if !auth.signedIn}
+    <div class="library-notice" data-tone="local">
+      <Icon name="save" size={15} />
+      <span>
+        Sets are saved only on this device while signed out. Sign in to publish;
+        {draftRollout.mode === 'off'
+          ? 'private cloud drafts are not enabled in this build.'
+          : draftRollout.mode === 'opt-in'
+            ? 'private cloud drafts are available as an opt-in beta.'
+            : draftRollout.mode === 'cohort'
+              ? 'private cloud drafts remain in a limited rollout.'
+              : 'private cloud drafts are enabled for permanent accounts.'}
+      </span>
+    </div>
+  {:else if auth.isAnonymous}
+    <div class="library-notice" data-tone="local">
+      <Icon name="save" size={15} />
+      <span>
+        This anonymous sharing session belongs to this browser. Drafts remain device-only, and an
+        ownership-preserving account upgrade is not available yet.
+      </span>
+    </div>
+  {:else if !draftRollout.enabled}
+    <div class="library-notice" data-tone="local">
+      <Icon name="save" size={15} />
+      <span>
+        {!draftRollout.preferenceLoaded && draftRollout.mode !== 'off'
+          ? 'Checking this browser’s cloud-draft choice; device copies remain available.'
+          : draftRollout.canChoose
+            ? draftRollout.preference === false
+              ? 'Cloud drafts are off by your choice on this browser. Online drafts remain intact, and this library uses downloaded device copies.'
+              : draftRollout.mode === 'cohort'
+                ? 'This account is not automatically enrolled yet. Turn on cloud drafts from Account whenever you are ready; until then, this library uses device copies.'
+                : 'Cloud drafts are off on this browser. Turn them on from Account when you are ready; until then, this library uses device copies.'
+            : 'This account is outside the private cloud-draft preview. Sets continue to use device storage, and publishing remains available.'}
+      </span>
+    </div>
+  {/if}
+
+  {#if
+    auth.signedIn &&
+    !auth.isAnonymous &&
+    workshop.libraryAuthority === 'cloud' &&
+    workshop.migrationCandidates.length > 0 &&
+    !workshop.migrationDismissed
+  }
+    <section class="migration" aria-labelledby="migration-title">
+      <div class="migration-copy">
+        <span class="migration-icon"><Icon name="upload" size={18} /></span>
+        <div>
+          <h2 id="migration-title">Move your sets online</h2>
+          <p>
+            {workshop.migrationCandidates.length}
+            {workshop.migrationCandidates.length === 1 ? 'set is' : 'sets are'} saved only on this
+            device ({formatSize(migrationBytes)}). Uploading adds
+            {workshop.migrationCandidates.length === 1 ? ' it' : ' them'} to the private cloud
+            library belonging to <strong>{auth.user?.email || 'the signed-in account'}</strong>.
+            Each local copy stays here.
+          </p>
+          {#if workshop.migrationRunning}
+            <p class="migration-progress" role="status">
+              Uploading {Math.min(workshop.migrationDone + 1, workshop.migrationTotal)} of
+              {workshop.migrationTotal}…
+            </p>
+          {/if}
+        </div>
+      </div>
+
+      <div class="migration-actions">
+        <Button
+          variant="primary"
+          size="sm"
+          disabled={workshop.migrationRunning}
+          onclick={() => void workshop.migrateAll()}
+        >
+          {workshop.migrationRunning ? 'Uploading…' : 'Upload all'}
+        </Button>
+        <Button
+          variant="ghost"
+          size="sm"
+          disabled={workshop.migrationRunning}
+          onclick={() => workshop.dismissMigration()}
+        >Not now</Button>
+      </div>
+
+      <ul class="migration-list">
+        {#each workshop.migrationCandidates as entry (entry.id)}
+          {@const status = workshop.migrationStatus.get(entry.id)}
           <li>
-            <button
-              type="button"
-              class="collection-tile"
-              onclick={() => navigation.openCollection(entry.slug)}
+            <span>
+              <strong>{entry.name || 'Untitled Adventure'}</strong>
+              <small>
+                {entry.bytes === null ? 'Size unavailable' : formatSize(entry.bytes)}
+                {#if status?.message} · {status.message}{/if}
+              </small>
+            </span>
+            <Button
+              size="sm"
+              variant="ghost"
+              disabled={workshop.migrationRunning || status?.kind === 'uploading'}
+              onclick={() => void workshop.migrateSet(entry.id)}
             >
-              <span class="collection-banner" style:background={tint(entry.id)}>
-                {#if entry.banner_url}
-                  <img src={entry.banner_url} alt="" loading="lazy" />
-                {/if}
-              </span>
-              <span class="collection-body">
-                <span class="collection-name">{entry.name || 'Untitled collection'}</span>
-                {#if entry.subtitle}
-                  <span class="collection-subtitle">{entry.subtitle}</span>
-                {/if}
-                <span class="collection-meta">
-                  <!--
-                    The role first, because it is the thing that decides what
-                    this page is *for* on the other side of the click.
-                  -->
-                  <span class="role" class:organizer={entry.is_organizer}>
-                    {entry.is_organizer ? 'Organizer' : 'Your deck is in this'}
-                  </span>
-                  <span>{entry.deck_count} {entry.deck_count === 1 ? 'deck' : 'decks'}</span>
-                  {#if entry.visibility !== 'public'}
-                    <span>{entry.visibility}</span>
-                  {/if}
-                </span>
-              </span>
-            </button>
+              {status?.kind === 'uploading' ? 'Uploading…' : status?.kind === 'error' ? 'Retry' : 'Upload'}
+            </Button>
           </li>
         {/each}
       </ul>
@@ -1469,32 +1496,8 @@
     </div>
   {/if}
 
-  {#if waitingSets.length > 0 || behindSets.length > 0 || pendingByCollection.length > 0}
+  {#if waitingSets.length > 0 || behindSets.length > 0}
     <div class="attention">
-      {#if pendingByCollection.length > 0}
-        {@const total = pendingMemberships.length}
-        <div class="attention-card waiting">
-          <Icon name="users" size={15} />
-          <div class="attention-body">
-            <span class="attention-title">
-              {total} collection {total === 1 ? 'decision' : 'decisions'} waiting
-            </span>
-            <span class="attention-detail">
-              {#each pendingByCollection as row, index (row.slug)}
-                {#if index > 0}<span aria-hidden="true"> · </span>{/if}
-                <button
-                  type="button"
-                  class="attention-link"
-                  onclick={() => navigation.openCollection(row.slug)}
-                >
-                  {row.name} ({row.count})
-                </button>
-              {/each}
-            </span>
-          </div>
-        </div>
-      {/if}
-
       {#if waitingSets.length > 0}
         {@const total = waitingSets.reduce((sum, row) => sum + row.count, 0)}
         <div class="attention-card waiting">
@@ -1588,8 +1591,8 @@
                 </button>
               </div>
               <ul class="welcome-promises" aria-label="How Unmatched Labs works">
-                <li>Saves locally</li>
-                <li>Sign-in optional</li>
+                <li>Works offline</li>
+                <li>Private cloud drafts with sign-in</li>
                 <li>Print and TTS exports</li>
               </ul>
             </div>
@@ -1756,10 +1759,10 @@
               <article class="principle">
                 <span class="principle-index numeric">04</span>
                 <div>
-                  <h3>Local until you choose otherwise</h3>
+                  <h3>Private by default</h3>
                   <p>
-                    Authoring works without an account. A project leaves the browser only when you
-                    publish, share, or export it for online play.
+                    Author locally without an account, or sign in to keep private drafts available
+                    across browsers. Publishing remains a separate choice.
                   </p>
                 </div>
               </article>
@@ -1931,7 +1934,11 @@
             </li>
           </ol>
           <div class="journey-foot">
-            <span>Your work stays in this browser until you choose otherwise.</span>
+            <span>
+              {auth.signedIn && !auth.isAnonymous
+                ? 'Private drafts save online and remain cached on this device.'
+                : 'Without a permanent sign-in, drafts stay on this device.'}
+            </span>
             <Button variant="primary" onclick={() => (choosingKind = true)}>
               {entries.length > 0 ? 'Create another set' : 'Create your first set'}
             </Button>
@@ -2027,13 +2034,6 @@
   </p>
 </div>
 
-<NewCollectionDialog
-  open={choosingCollection}
-  busy={makingCollection}
-  oncreate={(name) => void newCollection(name)}
-  oncancel={() => (choosingCollection = false)}
-/>
-
 <NewSetDialog
   open={choosingKind}
   onchoose={startSet}
@@ -2096,6 +2096,133 @@
     font-size: var(--text-xs);
     color: var(--text-tertiary);
     background: var(--surface-sunken);
+  }
+
+  .library-notice {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    margin: var(--space-3) var(--space-9) 0;
+    padding: var(--space-3) var(--space-4);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-md);
+    background: var(--surface-raised);
+    color: var(--text-secondary);
+    font-size: var(--text-sm);
+  }
+
+  .library-notice[data-tone='warning'] {
+    border-color: color-mix(in oklab, var(--warning) 45%, var(--border-subtle));
+    color: var(--warning);
+  }
+
+  .library-notice[data-tone='local'] {
+    background: color-mix(in oklab, var(--accent) 7%, var(--surface-raised));
+  }
+
+  .library-notice button {
+    margin-left: var(--space-2);
+    color: inherit;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
+
+  .migration {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: var(--space-4);
+    margin: var(--space-4) var(--space-9) 0;
+    padding: var(--space-5);
+    border: 1px solid color-mix(in oklab, var(--accent) 45%, var(--border-subtle));
+    border-radius: var(--radius-lg);
+    background: color-mix(in oklab, var(--accent) 8%, var(--surface-raised));
+  }
+
+  .migration-copy {
+    display: flex;
+    gap: var(--space-3);
+    min-width: 0;
+  }
+
+  .migration-icon {
+    display: grid;
+    place-items: center;
+    flex: none;
+    width: 34px;
+    height: 34px;
+    border-radius: var(--radius-full);
+    background: color-mix(in oklab, var(--accent) 16%, transparent);
+    color: var(--accent);
+  }
+
+  .migration h2,
+  .migration p {
+    margin: 0;
+  }
+
+  .migration h2 {
+    font-family: var(--font-display);
+    font-size: var(--text-md);
+    color: var(--text-primary);
+  }
+
+  .migration p {
+    margin-top: var(--space-1);
+    max-width: 72ch;
+    font-size: var(--text-sm);
+    line-height: var(--leading-normal);
+    color: var(--text-tertiary);
+  }
+
+  .migration .migration-progress {
+    color: var(--accent);
+  }
+
+  .migration-actions {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-2);
+  }
+
+  .migration-list {
+    grid-column: 1 / -1;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: var(--space-2);
+  }
+
+  .migration-list li {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
+    min-width: 0;
+    padding: var(--space-2) var(--space-3);
+    border-radius: var(--radius-sm);
+    background: var(--surface-base);
+  }
+
+  .migration-list li > span {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+  }
+
+  .migration-list strong,
+  .migration-list small {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .migration-list strong {
+    font-size: var(--text-sm);
+    color: var(--text-secondary);
+  }
+
+  .migration-list small {
+    font-size: var(--text-2xs);
+    color: var(--text-muted);
   }
 
   .controls {
@@ -2465,110 +2592,6 @@
     font-size: var(--text-2xs);
   }
 
-  .collections {
-    margin-bottom: var(--space-6);
-  }
-
-  .section-title {
-    margin: 0 0 var(--space-1);
-    font-size: var(--text-base);
-    color: var(--text-primary);
-  }
-
-  .section-hint {
-    margin: 0 0 var(--space-3);
-    font-size: var(--text-sm);
-    color: var(--text-tertiary);
-  }
-
-  .collection-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr));
-    gap: var(--space-3);
-    list-style: none;
-    margin: 0;
-    padding: 0;
-  }
-
-  .collection-tile {
-    display: flex;
-    width: 100%;
-    gap: var(--space-3);
-    padding: var(--space-3);
-    text-align: left;
-    font: inherit;
-    color: inherit;
-    cursor: pointer;
-    background: var(--surface-raised);
-    border: 1px solid var(--border-subtle);
-    border-radius: var(--radius-md);
-    transition: border-color var(--duration-fast) var(--ease-out);
-  }
-  .collection-tile:hover {
-    border-color: var(--border-strong);
-  }
-  .collection-tile:focus-visible {
-    outline: none;
-    box-shadow: var(--focus-ring);
-  }
-
-  .collection-banner {
-    flex: none;
-    width: 3.25rem;
-    height: 3.25rem;
-    border-radius: var(--radius-sm);
-    overflow: hidden;
-  }
-  .collection-banner img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-  }
-
-  .collection-body {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-    min-width: 0;
-  }
-
-  .collection-name {
-    font-weight: 600;
-    color: var(--text-primary);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-
-  .collection-subtitle {
-    font-size: var(--text-sm);
-    color: var(--text-tertiary);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-
-  .collection-meta {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 0 var(--space-2);
-    margin-top: var(--space-1);
-    font-size: var(--text-xs);
-    color: var(--text-muted);
-  }
-
-  .role {
-    padding: 0 var(--space-2);
-    border-radius: var(--radius-sm);
-    background: var(--surface-inset);
-    color: var(--text-secondary);
-  }
-  .role.organizer {
-    background: var(--accent-soft);
-    color: var(--text-accent);
-  }
-
   .attention {
     display: flex;
     flex-direction: column;
@@ -2817,6 +2840,27 @@
 
   .pill.waiting {
     background: color-mix(in oklab, var(--warning) 16%, transparent);
+    color: var(--warning);
+  }
+
+  .pill.availability {
+    border: 1px solid var(--border-subtle);
+    background: var(--surface-sunken);
+    color: var(--text-muted);
+  }
+
+  .pill.availability[data-availability='online'] {
+    border-color: color-mix(in oklab, var(--success) 45%, var(--border-subtle));
+    color: var(--success);
+  }
+
+  .pill.availability[data-availability='pending'] {
+    border-color: color-mix(in oklab, var(--accent) 45%, var(--border-subtle));
+    color: var(--accent);
+  }
+
+  .pill.availability[data-availability='conflict'] {
+    border-color: color-mix(in oklab, var(--warning) 45%, var(--border-subtle));
     color: var(--warning);
   }
 
@@ -3815,6 +3859,7 @@
     letter-spacing: var(--tracking-wide);
     color: rgb(255 255 255 / 0.75);
   }
+
 
   .guides-list {
     display: flex;

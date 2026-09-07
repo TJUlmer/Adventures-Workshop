@@ -2,6 +2,7 @@ import { cloneArtwork, createArtwork } from '$lib/core/artwork';
 import { createId, now } from '$lib/core/id';
 import type { DeckId } from '$lib/decks/types';
 import { INITIATIVE_BAND_DEFAULTS } from '$lib/renderer/geometry';
+import { actionTextToPlain } from '$lib/text/action-text';
 import { SUBJECT_TOKEN } from '$lib/text/tokens';
 import { solid } from './style';
 import type { Card, CardCommon, CardId, CardOfType, CardType, InitiativeBands } from './types';
@@ -170,7 +171,10 @@ export function duplicateCard(card: Card): Card {
 /** Display name that never renders as an empty string in the UI. */
 export function cardLabel(card: Card): string {
   if (card.name.trim().length > 0) return card.name;
-  if (card.type === 'action' && card.title.trim().length > 0) return card.title;
+  if (card.type === 'action') {
+    const title = actionTextToPlain(card.title);
+    if (title.length > 0) return title;
+  }
   if ((card.type === 'rules' || card.type === 'event') && card.heading.trim().length > 0) {
     return card.heading;
   }

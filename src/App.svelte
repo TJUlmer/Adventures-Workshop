@@ -15,14 +15,14 @@
   import TitleBar from '$lib/components/layout/TitleBar.svelte';
   import GuideModal from '$lib/components/guides/GuideModal.svelte';
   import ContributionsScreen from '$lib/components/cloud/ContributionsScreen.svelte';
+  import DraftConflictDialog from '$lib/components/cloud/DraftConflictDialog.svelte';
   import AuthorProfileScreen from '$lib/components/cloud/AuthorProfileScreen.svelte';
-  import CollectionScreen from '$lib/components/cloud/CollectionScreen.svelte';
   import GalleryScreen from '$lib/components/cloud/GalleryScreen.svelte';
   import SharedSetScreen from '$lib/components/cloud/SharedSetScreen.svelte';
   import HomeScreen from '$lib/components/library/HomeScreen.svelte';
   import PrintScreen from '$lib/print/PrintScreen.svelte';
   import { auth } from '$lib/cloud/auth.svelte';
-  import { readCollectionSlug, readSharedSlug } from '$lib/state/navigation.svelte';
+  import { readSharedSlug } from '$lib/state/navigation.svelte';
   import PreviewPanel from '$lib/components/preview/PreviewPanel.svelte';
   import SetSidebar from '$lib/components/sidebar/SetSidebar.svelte';
   import FiguresPanel from '$lib/components/tools/FiguresPanel.svelte';
@@ -46,25 +46,17 @@
    * flight would show Home and then jump to whatever set was actually open —
    * `sessionReady` gates the first paint on it instead.
    *
-   * `openDeepLink` (below) now has to run inside this `.then` rather than
-   * straight after, for the same reason: it used to follow a *synchronous*
+   * `openDeepLink` (below) now has to run inside the async startup sequence
+   * rather than straight after, for the same reason: it used to follow a *synchronous*
    * `restoreSession` and so was guaranteed to run after it. Calling it
    * unconditionally here would race the restore instead, and could have the
    * restored "last open" set clobber the very share link it is meant to lose
    * to.
    */
-  let sessionReady = $state(false);
-  void restoreSession(workshop).then(() => {
-    openDeepLink();
-    sessionReady = true;
-  });
-  useAutosave(workshop);
-
   // Any session from a previous visit, before anything asks whether we have one.
   auth.restore();
 
-  /*
-   * And repair it now rather than at first use.
+  /* And repair it now rather than at first use.
    *
    * `restore` reads a session back from storage without checking the clock, so
    * a tab opened after a long absence shows "signed in" while holding a token
@@ -73,8 +65,6 @@
    * swallowed on purpose: offline must not sign anyone out, and the sign-in
    * panel is already the right answer to everything else.
    */
-  void auth.ensureFresh().catch(() => {});
-
   /*
    * A provider redirect, before the restored session and before the deep link.
    *
@@ -93,65 +83,42 @@
    *
    * Someone arriving on `#/shared/…` clicked a link to see a *particular* set,
    * and `restoreSession` has just reopened whatever they were last editing. The
-   * link is the more recent intent, so it is applied after — from inside
-   * `restoreSession`'s `.then`, above, rather than here.
+   * link is the more recent intent, so it is applied after.
    */
   const openDeepLink = (): void => {
-    /* A collection link is checked first only because the two patterns cannot
-       both match one URL — either order works, and this one reads in the
-       order the paths were added. */
-    const collection = readCollectionSlug();
-    if (collection) {
-      navigation.openCollection(collection);
-      return;
-    }
     const slug = readSharedSlug();
     if (slug) navigation.openShared(slug);
   };
 
-  /**
-   * Put the view back in step with whatever the address bar now says.
-   *
-   * Shared by the two listeners below because they are the same question
-   * asked after two different events, and answering it twice is how they
-   * would drift.
-   */
-  const syncFromUrl = (): void => {
-    const collection = readCollectionSlug();
-    if (collection) {
-      navigation.openCollection(collection);
-      return;
-    }
-    const slug = readSharedSlug();
-    if (slug) {
-      navigation.openShared(slug);
-      return;
-    }
-    // The URL no longer names either, so neither view may stay on screen.
-    if (navigation.view.kind === 'shared') navigation.leaveShared();
-    else if (navigation.view.kind === 'collection') navigation.leaveCollection();
-  };
+  let sessionReady = $state(false);
+  void (async () => {
+    // Home's permanent-account library is cloud-authoritative, so session
+    // restoration must settle before its first summary request. Offline is
+    // still allowed through: `ensureFresh` preserves a session on network
+    // failure and the library then presents its labelled cache fallback.
+    await auth.ensureFresh().catch(() => {});
+    await restoreSession(workshop);
+    openDeepLink();
+    sessionReady = true;
+  })();
+  useAutosave(workshop);
 
   $effect(() => {
     /*
-     * Back and forward, and paste-into-bar.
-     *
-     * **Two events, not one.** `hashchange` covers the hash forms and an
-     * in-app `#/shared/…` link; it does *not* fire for the two real paths,
-     * which move through `pushState` and come back through `popstate`. Until
-     * this listener existed, Back out of a shared set restored the URL to `/`
-     * and left the set itself on screen — a pre-existing gap, invisible while
-     * `/shared/` was the only real path and nobody had reason to test Back on
-     * it, and confirmed here by driving the shared route rather than assumed
-     * from reading. Adding the collection route is what made it worth fixing:
-     * one broken Back is a curiosity, two is the routing being wrong.
+     * Back and forward between a share link and the app, and paste-into-bar.
+     * Leaving the hash entirely means leaving the shared view too, or Back out
+     * of a set would clear the URL and leave the set still on screen.
      */
-    window.addEventListener('hashchange', syncFromUrl);
-    window.addEventListener('popstate', syncFromUrl);
-    return () => {
-      window.removeEventListener('hashchange', syncFromUrl);
-      window.removeEventListener('popstate', syncFromUrl);
+    const onHashChange = async (): Promise<void> => {
+      const slug = readSharedSlug();
+      if (slug) {
+        if (navigation.inSet && !(await workshop.saveNow())) return;
+        navigation.openShared(slug);
+      }
+      else if (navigation.view.kind === 'shared') navigation.leaveShared();
     };
+    window.addEventListener('hashchange', onHashChange);
+    return () => window.removeEventListener('hashchange', onHashChange);
   });
 
   const currentPage = $derived(navigation.page);
@@ -169,14 +136,6 @@
     <div class="app-view">
       {#if navigation.view.kind === 'shared'}
         <SharedSetScreen slug={navigation.view.slug} characterHint={navigation.view.characterHint} />
-      {:else if navigation.view.kind === 'collection'}
-        <!--
-          Outside `AppShell`, like a shared set and for the same reason: this
-          is very often somebody's first sight of the app, and chrome for a set
-          they do not have would answer a question they have not asked. It
-          keeps the global banner above it, which every view now does.
-        -->
-        <CollectionScreen slug={navigation.view.slug} />
       {:else if navigation.view.kind === 'gallery'}
         <GalleryScreen />
       {:else if navigation.view.kind === 'author'}
@@ -247,6 +206,7 @@
     closed `<dialog>` element.
   -->
   <GuideModal />
+  <DraftConflictDialog />
 {/if}
 
 <style>

@@ -28,14 +28,8 @@
  * new configuration is needed for this to work.
  */
 
-/*
- * Both real paths this app has. Everything else routes on a hash, which never
- * reaches a server and so can never be unfurled — see
- * `state/navigation.svelte.ts`. A third entry belongs here only alongside the
- * same argument.
- */
 export const config = {
-  matcher: ['/shared/:slug*', '/collection/:slug*']
+  matcher: '/shared/:slug*'
 };
 
 /** Substrings of known link-unfurling bots' User-Agent strings, lower-cased. */
@@ -64,8 +58,7 @@ function isBot(userAgent: string | null): boolean {
   return BOT_MARKERS.some((marker) => lower.includes(marker));
 }
 
-const SHARED_PATTERN = /^\/shared\/([A-Za-z0-9_-]+)\/?$/;
-const COLLECTION_PATTERN = /^\/collection\/([A-Za-z0-9_-]+)\/?$/;
+const SLUG_PATTERN = /^\/shared\/([A-Za-z0-9_-]+)\/?$/;
 
 /** Minimal — this only ever feeds a `content="…"` attribute, never a tag. */
 function escapeAttr(value: string): string {
@@ -74,13 +67,6 @@ function escapeAttr(value: string): string {
     .replace(/"/g, '&quot;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;');
-}
-
-interface CollectionRow {
-  name: string;
-  subtitle: string;
-  blurb: string;
-  banner_url: string;
 }
 
 interface SetSummaryRow {
@@ -99,13 +85,13 @@ interface SetSummaryRow {
  * is down): a preview that falls back to the generic one is a far better
  * outcome than a link that fails to unfurl at all.
  */
-async function fetchRow<T>(rpc: string, slug: string): Promise<T | null> {
+async function fetchSummary(slug: string): Promise<SetSummaryRow | null> {
   const url = process.env['VITE_SUPABASE_URL'];
   const key = process.env['VITE_SUPABASE_PUBLISHABLE_KEY'];
   if (!url || !key) return null;
 
   try {
-    const response = await fetch(`${url.replace(/\/+$/, '')}/rest/v1/rpc/${rpc}`, {
+    const response = await fetch(`${url.replace(/\/+$/, '')}/rest/v1/rpc/set_by_slug`, {
       method: 'POST',
       headers: {
         apikey: key,
@@ -116,64 +102,11 @@ async function fetchRow<T>(rpc: string, slug: string): Promise<T | null> {
     });
     if (!response.ok) return null;
 
-    const rows = (await response.json()) as T[];
+    const rows = (await response.json()) as SetSummaryRow[];
     return rows[0] ?? null;
   } catch {
     return null;
   }
-}
-
-/**
- * One preview page. `path` is where a human is sent if they land on the HTML
- * a bot was served, which happens when somebody pastes a link into a client
- * that follows it themselves.
- */
-function page(
-  title: string,
-  description: string,
-  image: string,
-  path: string,
-  label: string
-): string {
-  return `<!doctype html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<title>${escapeAttr(title)}</title>
-<meta property="og:type" content="website">
-<meta property="og:title" content="${escapeAttr(title)}">
-<meta property="og:description" content="${escapeAttr(description)}">
-${image ? `<meta property="og:image" content="${escapeAttr(image)}">\n` : ''}<meta name="twitter:card" content="${image ? 'summary_large_image' : 'summary'}">
-</head>
-<body>
-<h1>${escapeAttr(title)}</h1>
-<p>${escapeAttr(description)}</p>
-<p><a href="${escapeAttr(path)}">${escapeAttr(label)}</a></p>
-</body>
-</html>`;
-}
-
-/**
- * A collection's preview.
- *
- * No composed picture of its own — a collection has no cards to render, and
- * its banner is a file its organizers uploaded, so there is nothing to fall
- * back to when they have not. That is the deliberate answer recorded in
- * `COLLECTIONS.md`: the cheap option is the right one here, and an absent
- * banner simply yields a text-only unfurl rather than borrowing some member's
- * artwork and implying it speaks for the whole box.
- */
-function renderCollectionPreview(slug: string, row: CollectionRow | null): string {
-  const title = row?.name || 'A collection on Unmatched Labs';
-  const description =
-    row?.subtitle || row?.blurb || 'A themed box of decks, each owned by the person who made it.';
-  return page(
-    title,
-    description,
-    row?.banner_url || '',
-    `/collection/${encodeURIComponent(slug)}`,
-    'Open in Unmatched Labs'
-  );
 }
 
 function renderPreview(slug: string, summary: SetSummaryRow | null): string {
@@ -205,31 +138,32 @@ function renderPreview(slug: string, summary: SetSummaryRow | null): string {
    */
   const image = summary?.social_image_url || summary?.thumbnail_url || '';
 
-  return page(
-    title,
-    description,
-    image,
-    `/shared/${encodeURIComponent(slug)}`,
-    'Open in Unmatched Labs'
-  );
+  return `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>${escapeAttr(title)}</title>
+<meta property="og:type" content="website">
+<meta property="og:title" content="${escapeAttr(title)}">
+<meta property="og:description" content="${escapeAttr(description)}">
+${image ? `<meta property="og:image" content="${escapeAttr(image)}">\n` : ''}<meta name="twitter:card" content="${image ? 'summary_large_image' : 'summary'}">
+</head>
+<body>
+<h1>${escapeAttr(title)}</h1>
+<p>${escapeAttr(description)}</p>
+<p><a href="/shared/${encodeURIComponent(slug)}">Open in Unmatched Labs</a></p>
+</body>
+</html>`;
 }
 
 export default async function middleware(request: Request): Promise<Response | undefined> {
   if (!isBot(request.headers.get('user-agent'))) return undefined;
 
-  const { pathname } = new URL(request.url);
-  const html = (body: string) =>
-    new Response(body, { headers: { 'content-type': 'text/html; charset=utf-8' } });
-
-  const collection = COLLECTION_PATTERN.exec(pathname)?.[1];
-  if (collection) {
-    const row = await fetchRow<CollectionRow>('collection_by_slug', collection);
-    return html(renderCollectionPreview(collection, row));
-  }
-
-  const slug = SHARED_PATTERN.exec(pathname)?.[1];
+  const slug = SLUG_PATTERN.exec(new URL(request.url).pathname)?.[1];
   if (!slug) return undefined;
 
-  const summary = await fetchRow<SetSummaryRow>('set_by_slug', slug);
-  return html(renderPreview(slug, summary));
+  const summary = await fetchSummary(slug);
+  return new Response(renderPreview(slug, summary), {
+    headers: { 'content-type': 'text/html; charset=utf-8' }
+  });
 }

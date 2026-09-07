@@ -99,7 +99,7 @@ export function insertToken(
 //
 // So the id form is the storage form and `{{hook}}` is the *display* form,
 // translated at the edge of the two fields that show token text at all —
-// `AbilityField` and `TokenInput`. (Rich text has never shown a token: it
+// `AbilityField` and `FormattedTextField`. (Rules rich text never shows a token: it
 // carries a real `<img data-symbol-id>`, so there is nothing to translate.)
 // The document is untouched by any of this, which means an older set opens
 // exactly as before and a name can be changed as often as the author likes.

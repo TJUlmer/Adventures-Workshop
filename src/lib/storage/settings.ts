@@ -11,6 +11,7 @@
 import { idbDelete, idbGet, idbPut, META_STORE } from './indexeddb';
 
 const TTS_SAVED_OBJECTS_PATH_KEY = 'tts-saved-objects-path';
+const CLOUD_DRAFT_OPT_IN_PREFIX = 'cloud-draft-opt-in:';
 
 /**
  * Where this machine's Tabletop Simulator looks for Saved Objects — typed in
@@ -33,4 +34,31 @@ export async function writeTtsSavedObjectsPath(path: string): Promise<void> {
   const trimmed = path.trim();
   if (trimmed.length === 0) await idbDelete(META_STORE, TTS_SAVED_OBJECTS_PATH_KEY);
   else await idbPut(META_STORE, TTS_SAVED_OBJECTS_PATH_KEY, trimmed);
+}
+
+/**
+ * One account's explicit cloud-draft choice on this browser.
+ *
+ * `null` is materially different from `false` once automatic cohorts begin:
+ * it means the author has never chosen, so the rollout policy may decide for
+ * them. `false` is an opt-out and must continue winning over a cohort or the
+ * eventual default-on build.
+ */
+export async function readCloudDraftPreference(userId: string): Promise<boolean | null> {
+  const value = await idbGet<unknown>(META_STORE, `${CLOUD_DRAFT_OPT_IN_PREFIX}${userId}`);
+  return typeof value === 'boolean' ? value : null;
+}
+
+/** Kept as the narrow yes/no reader used by older callers and support probes. */
+export async function readCloudDraftOptIn(userId: string): Promise<boolean> {
+  return (await readCloudDraftPreference(userId)) === true;
+}
+
+export function writeCloudDraftOptIn(userId: string, enabled: boolean): Promise<boolean> {
+  return idbPut(META_STORE, `${CLOUD_DRAFT_OPT_IN_PREFIX}${userId}`, enabled);
+}
+
+/** Used by scoped verification and account-removal support without touching other preferences. */
+export function clearCloudDraftOptIn(userId: string): Promise<void> {
+  return idbDelete(META_STORE, `${CLOUD_DRAFT_OPT_IN_PREFIX}${userId}`);
 }

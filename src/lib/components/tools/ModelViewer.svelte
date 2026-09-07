@@ -8,7 +8,7 @@
    * carry for "show me the thing I attached".
    */
   import type { Mesh } from '$lib/models/mesh';
-  import { renderMeshToCanvas } from '$lib/models/gl';
+  import { drawMeshInto, onContextRestored } from '$lib/models/gl';
 
   interface Props {
     mesh: Mesh | null;
@@ -29,11 +29,17 @@
   let dragging = $state(false);
 
   /**
-   * One draw. Everything is rebuilt each frame — buffers, program, the lot.
+   * One draw, through the shared 3D context rather than one of this canvas's
+   * own — see `drawMeshInto`. This canvas is an ordinary 2D one, which is what
+   * lets a panel show a preview per figure: WebGL contexts are capped per page
+   * and the browser silently loses the oldest past the cap, so nineteen
+   * components meant three previews that were dead before anyone touched them.
    *
-   * That is wasteful for an animation and exactly right here: the viewer redraws
-   * only when the model or the camera changes, and rebuilding means there is no
-   * GL state to leak when the component is swapped out from under it.
+   * An earlier note here claimed rebuilding the program and buffers every frame
+   * meant "no GL state to leak". That held for this component's lifetime and
+   * not for the context's: `orbit` moves the camera on every `pointermove`, so
+   * a drag redrew continuously and re-uploaded the token art each time.
+   * `gl.ts` caches both now.
    */
   function draw(): void {
     if (!canvas || !mesh || mesh.triangles === 0) return;
@@ -45,7 +51,7 @@
     canvas.height = Math.round(displayHeight * dpr);
 
     try {
-      renderMeshToCanvas(canvas, mesh, textureImage, { yaw, pitch, zoom });
+      drawMeshInto(canvas, mesh, textureImage, { yaw, pitch, zoom });
       failure = null;
     } catch (cause) {
       failure = cause instanceof Error ? cause.message : 'Could not draw the model.';
@@ -81,6 +87,14 @@
     observer.observe(canvas);
     return () => observer.disconnect();
   });
+
+  /*
+   * A lost context is recoverable and used not to be recovered from: the
+   * picture stayed broken until the whole component was unmounted and built
+   * again, which is what made toggling "build a token from the image" look
+   * like a fix. Redrawing on restore is the actual one.
+   */
+  $effect(() => onContextRestored(() => draw()));
 
   function orbit(event: PointerEvent): void {
     if (!dragging) return;

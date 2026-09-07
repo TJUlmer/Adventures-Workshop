@@ -2,6 +2,7 @@
   import { EXPORTERS, getExporter, saveExport } from '$lib/export';
   import { setLabel } from '$lib/sets/factory';
   import { workshop } from '$lib/state/workshop.svelte';
+  import { persistenceCoordinator } from '$lib/persistence/coordinator.svelte';
   import { Button, Icon } from '$lib/ui';
 
   let message = $state<string | null>(null);
@@ -19,7 +20,16 @@
    * author is wondering whether their work is safe.
    */
   async function saveNow(): Promise<void> {
-    flash((await workshop.saveNow()) ? 'Saved.' : 'Could not save — export the set to keep your work.');
+    if (!(await workshop.saveNow())) {
+      flash('Could not save — export the set to keep your work.');
+      return;
+    }
+    const kind = persistenceCoordinator.status.kind;
+    if (kind === 'synced') flash('Saved locally and to cloud.');
+    else if (kind === 'conflict') flash('Saved locally. Cloud conflict needs attention.');
+    else if (kind === 'offline' || kind === 'pending' || kind === 'retrying') {
+      flash('Saved locally. Cloud save is pending.');
+    } else flash('Saved locally.');
   }
 
   let exportOpen = $state(false);
@@ -67,7 +77,7 @@
       <span class="message">{message}</span>
     {/if}
 
-    <Button size="sm" variant="ghost" title="Save to this browser" onclick={saveNow}>
+    <Button size="sm" variant="ghost" title="Save now" onclick={saveNow}>
       <Icon name="save" size={14} />
       Save
     </Button>

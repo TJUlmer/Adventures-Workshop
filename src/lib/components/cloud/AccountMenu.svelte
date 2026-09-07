@@ -19,6 +19,9 @@
    */
   import { auth } from '$lib/cloud/auth.svelte';
   import { cloudEnabled } from '$lib/cloud/config';
+  import { saveExport } from '$lib/export';
+  import { draftDiagnostics } from '$lib/persistence/diagnostics.svelte';
+  import { draftRollout } from '$lib/persistence/rollout.svelte';
   import { fetchOwnProfile, updateOwnDisplayName } from '$lib/cloud/profile';
   import { Button, Icon, TextInput } from '$lib/ui';
   import SignInPanel from './SignInPanel.svelte';
@@ -91,6 +94,14 @@
     await auth.signOut();
   }
 
+  async function toggleDraftPreview(): Promise<void> {
+    await draftRollout.setEnabled(!draftRollout.enabled);
+  }
+
+  function downloadDiagnostics(): void {
+    saveExport(draftDiagnostics.export());
+  }
+
   /** Close on an outside click or Escape, the way a menu should — see `TitleBar`'s export menu. */
   $effect(() => {
     if (!open) return;
@@ -127,7 +138,11 @@
     {#if open}
       <div class="menu" role="menu">
         {#if !auth.signedIn}
-          <SignInPanel reason="Sign in to publish and share sets from anywhere." />
+          <SignInPanel
+            reason={draftRollout.mode === 'off'
+              ? 'Sign in to manage what you publish.'
+              : 'Sign in to try private drafts across browsers and publish when you choose.'}
+          />
         {:else}
           <p class="who">
             {#if auth.isAnonymous}
@@ -151,6 +166,49 @@
             clear it any time; blank shows as “Anonymous”.
           </p>
 
+          {#if !auth.isAnonymous}
+            <section class="draft-rollout" data-enabled={draftRollout.enabled}>
+              <div>
+                <strong>{draftRollout.mode === 'opt-in' ? 'Cloud drafts beta' : 'Cloud drafts'}</strong>
+                {#if draftRollout.mode === 'off'}
+                  <small>Off in this build. Drafts stay on this device; publishing still works.</small>
+                {:else if !draftRollout.preferenceLoaded}
+                  <small>Checking this browser’s cloud-draft choice…</small>
+                {:else if draftRollout.enabled}
+                  <small>
+                    {draftRollout.preference === true
+                      ? 'On for this browser by your choice. Turning it off keeps online drafts intact and uses downloaded device copies.'
+                      : draftRollout.mode === 'cohort'
+                        ? 'Automatically enabled for this account’s limited rollout group. You can still use device copies on this browser.'
+                        : 'Automatically enabled for permanent accounts. You can still use device copies on this browser.'}
+                  </small>
+                {:else if draftRollout.preference === false}
+                  <small>Off on this browser by your choice. Online drafts remain intact.</small>
+                {:else}
+                  <small>
+                    This account is not automatically enrolled yet. You can still turn on cloud drafts for this browser.
+                  </small>
+                {/if}
+              </div>
+              {#if draftRollout.canChoose}
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  disabled={draftRollout.saving}
+                  onclick={toggleDraftPreview}
+                >
+                  {draftRollout.saving
+                    ? 'Saving…'
+                    : draftRollout.enabled
+                      ? 'Use device copies'
+                      : 'Try cloud drafts'}
+                </Button>
+              {/if}
+              {#if draftRollout.error}<p class="error" role="alert">{draftRollout.error}</p>{/if}
+            </section>
+
+          {/if}
+
           {#if error}<p class="error" role="alert">{error}</p>{/if}
 
           <div class="row">
@@ -159,6 +217,19 @@
             </Button>
             <Button size="sm" variant="ghost" onclick={signOut}>Sign out</Button>
           </div>
+        {/if}
+
+        {#if draftDiagnostics.entries.length > 0}
+          <section class="support-report">
+            <div>
+              <strong>Cloud save support report</strong>
+              <small>
+                Contains the latest {draftDiagnostics.entries.length} save-stage timings and
+                status codes—never set contents, account details, or sign-in tokens.
+              </small>
+            </div>
+            <Button size="sm" variant="ghost" onclick={downloadDiagnostics}>Download report</Button>
+          </section>
         {/if}
       </div>
     {/if}
@@ -208,6 +279,43 @@
 
   .fineprint {
     margin: 0;
+    font-size: var(--text-2xs);
+    line-height: var(--leading-normal);
+    color: var(--text-muted);
+  }
+
+  .draft-rollout,
+  .support-report {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--space-2);
+    padding: var(--space-3);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-sm);
+    background: var(--surface-sunken);
+  }
+
+  .draft-rollout[data-enabled='true'] {
+    border-color: color-mix(in oklab, var(--success) 40%, var(--border-subtle));
+  }
+
+  .draft-rollout strong,
+  .draft-rollout small,
+  .support-report strong,
+  .support-report small {
+    display: block;
+  }
+
+  .draft-rollout strong,
+  .support-report strong {
+    font-size: var(--text-xs);
+    color: var(--text-primary);
+  }
+
+  .draft-rollout small,
+  .support-report small {
+    margin-top: var(--space-1);
     font-size: var(--text-2xs);
     line-height: var(--leading-normal);
     color: var(--text-muted);

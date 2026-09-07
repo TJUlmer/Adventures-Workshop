@@ -986,11 +986,16 @@ export function normalizeSet(value: AdventureSet): AdventureSet {
     .map(normalizeCard)
     .filter((card): card is Card => card !== null);
 
+  const kind = SET_KINDS.includes(raw['kind'] as SetKind)
+    ? (raw['kind'] as SetKind)
+    : 'adventure';
+
   return {
     ...value,
     /* Read back from the raw value, never defaulted blind — a set authored
        before `kind` existed opens as an adventure, which is what it was. */
-    kind: SET_KINDS.includes(raw['kind'] as SetKind) ? (raw['kind'] as SetKind) : 'adventure',
+    kind,
+    singleHero: kind === 'heroes' && bool(raw['singleHero'], false),
     style: repairStyleOverride(asRecord(raw['style'])),
     characters,
     decks,

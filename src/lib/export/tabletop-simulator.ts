@@ -409,7 +409,10 @@ function describe(card: Card): string {
       if (card.defense !== null) parts.push(`Defense ${card.defense}`);
       if (card.boost !== null) parts.push(`Boost ${card.boost}`);
       const stats = parts.join(' · ');
-      const text = [card.ability.plain, card.defenseAbility.plain].filter(Boolean).join(' / ');
+      const text = [card.ability.plain, card.defenseAbility.plain]
+        .map(richTextToPlain)
+        .filter(Boolean)
+        .join(' / ');
       return [stats, text].filter(Boolean).join('\n');
     }
     case 'initiative':
