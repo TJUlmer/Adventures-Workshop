@@ -850,8 +850,9 @@
     >
       <span
         class="tuck-effect-text"
-        style:font-size={pu(TUCK_EFFECT.text.size)}
-        style:line-height={TUCK_EFFECT.text.lineHeight}
+        style:font-size={pu(TUCK_EFFECT.text.right.size)}
+        style:line-height={TUCK_EFFECT.text.right.lineHeight}
+        style:translate="{pu(TUCK_EFFECT.text.right.offsetX)} {pu(TUCK_EFFECT.text.right.offsetY)}"
       >{card.tuckEffect}</span>
     </div>
   {/if}

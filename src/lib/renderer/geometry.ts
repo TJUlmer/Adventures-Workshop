@@ -761,14 +761,26 @@ export const BONUS_ATTACK = {
  * effect's orientation changes only its edge rather than its visual weight.
  */
 export const TUCK_EFFECT = {
-  thickness: 160,
+  thickness: 120,
   padding: 48,
   text: {
     /** Change this value to dial in the tuck-effect text size. */
     size: inFace(90),
     lineHeight: 2,
     /** Compensates for the face's low-sitting cap ink inside its centred line box. */
-    offsetY: -20
+    offsetY: -20,
+    /**
+     * Vertical writing turns line height into the box's horizontal thickness,
+     * so the right edge needs its own compact value and position dials.
+     */
+    right: {
+      size: inFace(90),
+      lineHeight: 1,
+      /** Positive moves the copy right; negative moves it left. */
+      offsetX: 0,
+      /** Positive moves the copy down the card; negative moves it up. */
+      offsetY: 0
+    }
   }
 } as const;
 

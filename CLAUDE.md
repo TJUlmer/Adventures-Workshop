@@ -873,6 +873,10 @@ the Design tab exposes the same keys with the rest of the action-card palette.
 `TUCK_EFFECT` in `renderer/geometry.ts` owns the shared thickness, padding and
 type size; `text.size` is the manual size dial and `text.offsetY` optically
 centres the bottom bar's visible cap ink rather than merely its CSS line box.
+The vertical-writing variant has independent `text.right.size`, `lineHeight`,
+`offsetX` and `offsetY` dials: vertical CSS makes line height the physical width
+of the text box, so sharing a deliberately loose bottom leading clips it inside
+a narrow right-side bar.
 Printer-friendly mode resolves the bar to paper and its copy to ink through
 `MONO_LAYER`, without mutating the authored colours. When the bar is on the
 right, one translated `.boost-assembly` moves the capsule, disc, ring and value
