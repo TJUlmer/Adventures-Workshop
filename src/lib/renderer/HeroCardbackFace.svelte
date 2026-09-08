@@ -7,13 +7,12 @@
    * 373×520, no bleed), and the hero back was supplied at the same bleed
    * canvas every other hero face uses (the action card's `BLEED`). Second,
    * the templates themselves disagree in kind — the villain/minion art sits
-   * *inside* a ring the template draws, where `hero_cardback_border.png` is
-   * only a thin line near the edge, so this back's own artwork runs the full
-   * bleed canvas behind it rather than being boxed into a smaller window.
-   * The line is drawn as a themed mask (`HERO_CARDBACK.frame`,
-   * `back.frame`) rather than a flat overlay, same technique as every other
-   * recolourable template border in this app, so an author can choose its
-   * colour the way they already can for everything else on a hero's cards.
+   * *inside* a ring the template draws, where the UMLABS hero frame is only
+   * a line near the edge, so this back's own artwork runs the full bleed
+   * canvas behind it rather than being boxed into a smaller window. The
+   * supplied lockup is split into frame and logo masks: the former follows
+   * `back.frame`, while the contrasting mark follows `back.ink` along with
+   * the hero name. That keeps both existing colour controls meaningful.
    */
   import { fillCss } from '$lib/cards/style';
   import type { Character } from '$lib/characters/types';
@@ -41,8 +40,9 @@
     <CardArt artwork={back.artwork} background="transparent" />
   </div>
 
-  <!-- The template's own thin line, recoloured — see the file note above. -->
+  <!-- The template's border and logo badge, recoloured — see the file note above. -->
   <div class="mask frame" style:background={fillCss(back.frame)}></div>
+  <div class="mask logo" style:background={back.ink}></div>
 
   <div
     class="name"
@@ -72,8 +72,13 @@
   }
 
   .frame {
-    mask-image: url('/assets/templates/hero_cardback_border.png');
-    -webkit-mask-image: url('/assets/templates/hero_cardback_border.png');
+    mask-image: url('/assets/templates/umlabs_cardback_frame.png');
+    -webkit-mask-image: url('/assets/templates/umlabs_cardback_frame.png');
+  }
+
+  .logo {
+    mask-image: url('/assets/templates/umlabs_cardback_logo.png');
+    -webkit-mask-image: url('/assets/templates/umlabs_cardback_logo.png');
   }
 
   .name {

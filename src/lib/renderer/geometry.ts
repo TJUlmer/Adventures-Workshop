@@ -1527,16 +1527,14 @@ export const CARDBACK = {
 
 /**
  * A hero's own back, at the action card's bleed canvas — see
- * `HeroCardbackFace`. `hero_cardback_border.png` carries only a thin rounded
- * line, not a ring or a lockup like the villain/minion template, so this
- * back's own art is never boxed in behind it: `frame` is only where that
- * line itself sits, measured off the art's alpha, for the mask that
- * recolours it and for placing the name relative to it. It is coincidence,
- * not derivation, that these numbers equal the action card's own `INTERIOR`
- * — this file does not read that constant.
+ * `HeroCardbackFace`. The UMLABS frame carries a thin rounded line plus its
+ * upper-left logo badge, not a ring like the villain/minion template, so
+ * this back's own art is never boxed in behind it. `frame` records the outer
+ * rounded line, excluding the badge that rises above it; the name remains
+ * placed against its lower-right corner.
  */
 export const HERO_CARDBACK = {
-  frame: { x: 143, y: 143, width: 1346, height: 1937 },
+  frame: { x: 140, y: 140, width: 1347, height: 1937 },
   radius: 46,
   /** Bottom right, inset 60px from the frame's right edge, 120px from its foot. */
   name: { right: 1450, capTop: 2020, size: inName(72) }

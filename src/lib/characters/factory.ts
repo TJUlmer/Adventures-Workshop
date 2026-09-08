@@ -122,8 +122,8 @@ export function createCardback(role: CharacterRole): CardbackDesign {
     useReplacement: false,
     label: CHARACTER_ROLE_META[role].label.toUpperCase(),
     /**
-     * Each role's own template has its own line colour — `#f6eada` from
-     * `hero_cardback_border.png`, `#ebe8d5` from
+     * Each role's own template has its own line colour — `#f6eada` for the
+     * UMLABS hero frame, `#ebe8d5` from
      * `adventures_minion_cardback_nologo.png` — so the default tracks
      * whichever one this role actually prints, rather than picking one for
      * both and reading wrong the moment an author opens the other.

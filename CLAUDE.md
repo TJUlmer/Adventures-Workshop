@@ -728,20 +728,22 @@ margin the reference art never has; both backs' art now runs the full bleed
 canvas (full trim canvas for villain/minion, whose template carries no
 bleed — `CARDBACK_BLEED`), with the line drawn *over* it.
 
-`HERO_CARDBACK.frame` (143,143 to 1489,2080) is where the hero's own line
-sits — the same four numbers as the action card's `INTERIOR`, coincidentally,
-since this file does not read that constant. `CARDBACK.window`/`.radius`
-were removed outright rather than left unused, since nothing needs a
-clipping box's numbers once nothing clips to it.
+`HERO_CARDBACK.frame` (140,140 to 1487,2077) records the UMLABS hero back's
+outer rounded line. Its logo badge rises above that line to the bleed edge;
+the frame geometry deliberately excludes that protrusion. `CARDBACK.window`/
+`.radius` were removed outright rather than left unused, since nothing needs
+a clipping box's numbers once nothing clips to it.
 
 Both lines are now a themed mask rather than a flat overlay —
 `CardbackDesign.frame`, drawn the same "art as a CSS alpha mask over a
 fill" way every other recolourable template border in this app is, with a
 `FillEditor` in `CardbackPanel` for every role. Each role's own template has
 its own line colour, so `createCardback`'s default is role-aware: `#f6eada`
-for a hero (`hero_cardback_border.png`), `#ebe8d5` for villain/minion
+for the hero's `umlabs_cardback_frame.png`, `#ebe8d5` for villain/minion
 (`adventures_minion_cardback_nologo.png`) — picking one colour for both would
 read wrong the moment an author opened whichever role it wasn't sampled from.
+The hero's contrasting `umlabs_cardback_logo.png` follows the same ink colour
+as its name, exposed together as "Text & logo" in `CardbackPanel`.
 
 **A hero's back prints no role line, so `CardbackPanel`'s "Role line" field
 is gated to `character.role !== 'hero'`.** `HeroCardbackFace` has never read
