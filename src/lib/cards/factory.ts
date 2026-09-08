@@ -111,7 +111,9 @@ export function createCard<TType extends CardType>(
         split: false,
         defenseAbility: createAbilityBlocks(),
         showRibbonSymbol: false,
-        ribbonSymbol: ''
+        ribbonSymbol: '',
+        showBoostEffect: false,
+        boostEffect: ''
       } as CardOfType<TType>;
   }
 }

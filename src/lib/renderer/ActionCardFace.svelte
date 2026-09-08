@@ -41,6 +41,7 @@
     BODY_PANEL_MAX_HEIGHT,
     BOOST,
     BOOST_DISC_RADIUS,
+    BOOST_EFFECT,
     BOOST_RING,
     BOOST_VALUE,
     capTopToBoxTop,
@@ -370,6 +371,47 @@
   -->
   <div class="divider" style:height={pu(DIVIDER.height)} style:background={theme.divider}>
     {#if card.boost !== null}
+      {#if card.showBoostEffect}
+        <!--
+          The capsule is painted before the disc and ends under its centre,
+          so the existing boost layers cover the join without a second seam.
+          It lives inside the divider for the same reason the boost does: both
+          ride upward together when additional ability copy grows the panel.
+        -->
+        <div
+          class="boost-effect"
+          style:right={pu(
+            INTERIOR.x + INTERIOR.width - (BOOST.cx + BOOST_EFFECT.offsetX)
+          )}
+          style:top={pu(
+            BOOST.cy - BOOST_EFFECT.height / 2 - DIVIDER.y + BOOST_EFFECT.offsetY
+          )}
+          style:min-width={pu(BOOST_EFFECT.minWidth)}
+          style:max-width={pu(BOOST.cx + BOOST_EFFECT.offsetX - INTERIOR.x)}
+          style:height={pu(BOOST_EFFECT.height)}
+          style:border-width={pu(BOOST_EFFECT.borderWidth)}
+          style:border-radius={pu(BOOST_EFFECT.height / 2)}
+          style:border-color={theme.divider}
+          style:background={fillCss(theme.boost)}
+          style:padding-left={pu(BOOST_EFFECT.label.left - BOOST_EFFECT.borderWidth)}
+          style:padding-right={pu(
+            Math.max(
+              0,
+              BOOST_EFFECT.label.right + BOOST_EFFECT.offsetX - BOOST_EFFECT.borderWidth
+            )
+          )}
+        >
+          <div
+            class="boost-effect-label"
+            style:font-size={pu(BOOST_EFFECT.label.size)}
+            style:line-height={BOOST_EFFECT.label.lineHeight}
+            style:color={theme.boostInk}
+          >
+            {card.boostEffect}
+          </div>
+        </div>
+      {/if}
+
       <div
         class="boost-disc"
         style:left={pu(BOOST.cx - BOOST_DISC_RADIUS - INTERIOR.x)}
@@ -1456,6 +1498,24 @@
     width: auto;
     object-fit: contain;
     scale: var(--title-symbol-scale) 1;
+  }
+
+  .boost-effect {
+    position: absolute;
+    display: flex;
+    align-items: center;
+    overflow: hidden;
+    width: max-content;
+    border-style: solid;
+    pointer-events: none;
+  }
+
+  .boost-effect-label {
+    overflow: hidden;
+    font-family: var(--card-font-text);
+    font-weight: var(--card-font-text-weight);
+    white-space: nowrap;
+    text-overflow: ellipsis;
   }
 
   /* Bebas ships as one weight; bold title runs deliberately permit synthesis. */

@@ -381,10 +381,15 @@ export type SetId = Id<'Set'>;
  *      false, so every existing adventure and heroes box keeps its own
  *      identity exactly as before.
  *
+ * v49 — action cards gained `showBoostEffect`/`boostEffect`: an optional
+ *      labelled capsule joined to the boost disc. Older cards default to the
+ *      effect off with empty copy; an older build would silently discard an
+ *      enabled effect, so it cannot read a v49 document.
+ *
  * Older documents are *repaired*, not rejected — see `sets/normalize.ts`. Only
  * a version newer than this build understands is refused.
  */
-export const SET_SCHEMA_VERSION = 48;
+export const SET_SCHEMA_VERSION = 49;
 
 /**
  * What a set is for.

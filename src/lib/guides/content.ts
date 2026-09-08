@@ -243,9 +243,9 @@ export const GUIDES: readonly Guide[] = [
       },
       {
         text:
-          'A hero or villain card can also carry a symbol below its name ribbon, standing on its own in the strip that connects the ribbon to the divider. Pick it from "Ribbon symbol" in the card\'s Combat section, set how large it prints, and it\'s there whether or not the same symbol appears anywhere else on the card.',
+          'A hero or villain card can also carry a symbol below its name ribbon, standing on its own in the strip that connects the ribbon to the divider. Turn on "Ribbon symbol" in the card\'s Special card effects section, set how large it prints, and it\'s there whether or not the same symbol appears anywhere else on the card.',
         shot: 'custom-symbols/03-ribbon.webp',
-        alt: 'The Ribbon symbol control with Hook selected, and the printed card showing the glyph in the strip below its name ribbon.',
+        alt: 'The Special card effects controls with Ribbon symbol enabled and Hook selected, and the printed card showing the glyph below its name ribbon.',
         hotspots: [
           {
             x: 0.445,

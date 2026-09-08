@@ -871,7 +871,10 @@ function normalizeCard(value: unknown): Card | null {
         /* Off on a document written before the ribbon foot existed, which is
            what keeps every existing card looking exactly as it did. */
         showRibbonSymbol: bool(raw['showRibbonSymbol'], false),
-        ribbonSymbol: str(raw['ribbonSymbol'])
+        ribbonSymbol: str(raw['ribbonSymbol']),
+        /* Off on documents written before the attached boost capsule existed. */
+        showBoostEffect: bool(raw['showBoostEffect'], false),
+        boostEffect: str(raw['boostEffect'])
       } as ActionCard;
   }
 }

@@ -331,90 +331,105 @@
   </Section>
 {/if}
 
-<!--
-  The strip between the name ribbon's point and the divider, filled so the two
-  read as one line, with a symbol standing in it. Its own section rather than a
-  field inside Combat: it is neither a value nor ability copy, and the toggle
-  governs a piece of the card's chrome rather than anything printed as text.
--->
 <Section
-  title="Ribbon symbol"
-  description="Carries the ribbon down to the divider, with a symbol standing at its foot."
+  title="Special card effects"
+  description="Optional treatments attached to the card’s ribbon and boost."
 >
-  {#snippet actions()}
+  <div class="effect-option">
     <Switch
-      label="Show"
+      label="Ribbon symbol"
+      hint="Carries the ribbon down to the divider, with a symbol standing at its foot."
       checked={card.showRibbonSymbol}
       onchange={(show) => edit((target) => (target.showRibbonSymbol = show))}
     />
-  {/snippet}
 
-  {#if card.showRibbonSymbol}
-    <div class="icon-picker" role="group" aria-label="Ribbon symbol">
-      <button
-        type="button"
-        class="icon-choice"
-        class:active={!card.ribbonSymbol}
-        onclick={() => edit((target) => (target.ribbonSymbol = ''))}
-      >
-        None
-      </button>
-      {#each COMBAT_SYMBOLS as name (name)}
+    {#if card.showRibbonSymbol}
+      <div class="icon-picker" role="group" aria-label="Ribbon symbol">
         <button
           type="button"
           class="icon-choice"
-          class:active={card.ribbonSymbol === symbolToken(name)}
-          onclick={() => edit((target) => (target.ribbonSymbol = symbolToken(name)))}
+          class:active={!card.ribbonSymbol}
+          onclick={() => edit((target) => (target.ribbonSymbol = ''))}
         >
-          <img src={CARD_SYMBOLS[name]} alt="" />
-          {CARD_SYMBOL_LABELS[name]}
+          None
         </button>
-      {/each}
-      {#each workshop.adventure.customSymbols.filter((s) => s.source) as symbol (symbol.id)}
-        <button
-          type="button"
-          class="icon-choice"
-          class:active={card.ribbonSymbol === customSymbolToken(symbol.id)}
-          onclick={() => edit((target) => (target.ribbonSymbol = customSymbolToken(symbol.id)))}
-        >
-          <img src={symbol.source} alt="" />
-          {customSymbolLabel(symbol)}
-        </button>
-      {/each}
-    </div>
+        {#each COMBAT_SYMBOLS as name (name)}
+          <button
+            type="button"
+            class="icon-choice"
+            class:active={card.ribbonSymbol === symbolToken(name)}
+            onclick={() => edit((target) => (target.ribbonSymbol = symbolToken(name)))}
+          >
+            <img src={CARD_SYMBOLS[name]} alt="" />
+            {CARD_SYMBOL_LABELS[name]}
+          </button>
+        {/each}
+        {#each workshop.adventure.customSymbols.filter((s) => s.source) as symbol (symbol.id)}
+          <button
+            type="button"
+            class="icon-choice"
+            class:active={card.ribbonSymbol === customSymbolToken(symbol.id)}
+            onclick={() => edit((target) => (target.ribbonSymbol = customSymbolToken(symbol.id)))}
+          >
+            <img src={symbol.source} alt="" />
+            {customSymbolLabel(symbol)}
+          </button>
+        {/each}
+      </div>
 
-    <!-- Bleed pixels, not a multiple of the ability text — this symbol stands
-         alone rather than sitting in a run of copy. See `ribbonSymbolSize`. -->
-    <Slider
-      label="Symbol size"
-      value={resolvedTheme.ribbonSymbolSize}
-      min={40}
-      max={220}
-      step={2}
-      neutral={110}
-      format={(value) => `${Math.round(value)}`}
-      onchange={(size) => workshop.setStyle(styleTarget, 'ribbonSymbolSize', size)}
+      <!-- Bleed pixels, not a multiple of the ability text — this symbol stands
+           alone rather than sitting in a run of copy. See `ribbonSymbolSize`. -->
+      <Slider
+        label="Symbol size"
+        value={resolvedTheme.ribbonSymbolSize}
+        min={40}
+        max={220}
+        step={2}
+        neutral={110}
+        format={(value) => `${Math.round(value)}`}
+        onchange={(size) => workshop.setStyle(styleTarget, 'ribbonSymbolSize', size)}
+      />
+
+      <!--
+        The strip's own fill, not the symbol's: `ribbonFoot` already exists as
+        one of `StylePanel`'s "Surfaces", but a change here is exactly what
+        this section is for, so it gets a shortcut to the same field rather
+        than sending an author to Design for one colour. A per-symbol colour
+        was tried instead and reverted — the four combat symbols (and any
+        custom upload) are small multi-colour illustrations with no
+        transparency of their own, so masking one to a single colour just
+        filled a rectangle and hid the art.
+      -->
+      <FillEditor
+        label="Fill colour"
+        value={resolvedTheme.ribbonFoot}
+        origin={originFor('ribbonFoot')}
+        overridden={styleLayer.ribbonFoot !== undefined}
+        onchange={(fill) => workshop.setStyle(styleTarget, 'ribbonFoot', fill)}
+        onreset={() => workshop.setStyle(styleTarget, 'ribbonFoot', undefined)}
+      />
+    {/if}
+  </div>
+
+  <div class="effect-option">
+    <Switch
+      label="Boost effect"
+      hint="Adds a short rules reminder to the left of the boost value."
+      checked={card.showBoostEffect}
+      onchange={(show) => edit((target) => (target.showBoostEffect = show))}
     />
 
-    <!--
-      The strip's own fill, not the symbol's: `ribbonFoot` already exists as
-      one of `StylePanel`'s "Surfaces", but a change here is exactly what
-      this section is for, so it gets a shortcut to the same field rather
-      than sending an author to Design for one colour. A per-symbol colour
-      was tried instead and reverted — the four combat symbols (and any
-      custom upload) are small multi-colour illustrations with no
-      transparency of their own, so masking one to a single colour just
-      filled a rectangle and hid the art.
-    -->
-    <FillEditor
-      label="Fill colour"
-      value={resolvedTheme.ribbonFoot}
-      origin={originFor('ribbonFoot')}
-      overridden={styleLayer.ribbonFoot !== undefined}
-      onchange={(fill) => workshop.setStyle(styleTarget, 'ribbonFoot', fill)}
-      onreset={() => workshop.setStyle(styleTarget, 'ribbonFoot', undefined)}
-    />
-  {/if}
+    {#if card.showBoostEffect}
+      <Field label="Effect text" hint="The attachment lengthens to fit longer text.">
+        <TextInput
+          value={card.boostEffect}
+          placeholder="Draw 2 cards"
+          oninput={(event) =>
+            edit((target) => (target.boostEffect = event.currentTarget.value))}
+        />
+      </Field>
+    {/if}
+  </div>
 </Section>
 
 <Section title="Notes" description="Working notes. Never printed.">
@@ -431,6 +446,16 @@
     display: flex;
     flex-wrap: wrap;
     gap: var(--space-2);
+  }
+
+  .effect-option {
+    display: grid;
+    gap: var(--space-4);
+  }
+
+  .effect-option + .effect-option {
+    padding-top: var(--space-4);
+    border-top: 1px solid var(--border-subtle);
   }
 
   .icon-choice {

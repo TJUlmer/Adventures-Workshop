@@ -202,6 +202,14 @@ export interface ActionCard extends CardCommon {
    */
   showRibbonSymbol: boolean;
   ribbonSymbol: string;
+  /**
+   * A short rules reminder attached to the boost disc. Its capsule follows the
+   * divider as the body panel grows, so it remains joined to the boost value.
+   * Kept behind an explicit toggle so a blank label can still be designed
+   * without changing every existing card.
+   */
+  showBoostEffect: boolean;
+  boostEffect: string;
 }
 
 /**

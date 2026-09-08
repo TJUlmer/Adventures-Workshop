@@ -675,6 +675,41 @@ export const QUANTITY = { right: 1488, capTop: 2045, size: inFace(55) } as const
 export const BOOST_VALUE = { size: inFace(117.5), lineHeight: 1 } as const;
 
 /**
+ * Optional rules capsule joined to the left of the boost disc.
+ *
+ * Measured from `boost_effect.png`. The supplied example's boost ring is a few
+ * pixels smaller and left of the current renderer's authoritative `BOOST`, so
+ * the capsule keeps the artwork's measurements *relative to the ring centre*
+ * and joins the disc this renderer already prints instead of moving it. The
+ * right half runs behind the disc; DOM order lets the disc and ring close that
+ * seam cleanly.
+ */
+export const BOOST_EFFECT = {
+  /** Short copy keeps at least the supplied artwork's measured length. */
+  minWidth: 346,
+  height: BOOST.outerRadius * 2,
+  /** Exactly the same stroke that draws `BOOST_RING`. */
+  borderWidth: BOOST.outerRadius - BOOST.innerRadius,
+  /** Positive values move the capsule right/down without moving the boost disc. */
+  offsetX: 90,
+  offsetY: 0,
+  label: {
+    /** Ink begins 29px inside the capsule's measured left edge. */
+    left: 29,
+    /**
+     * Ends the copy 22px before the boost ring's leftmost point, as in the
+     * supplied artwork. The renderer adds `offsetX` to this clearance,
+     * because moving the capsule's right edge must not move its text
+     * underneath the stationary disc.
+     */
+    right: BOOST.outerRadius + 22,
+    /** Change the `52` here to adjust the effect text's font size. */
+    size: inFace(55),
+    lineHeight: 1
+  }
+} as const;
+
+/**
  * Card name, set bottom-up inside the ribbon.
  *
  * The name is anchored at its *end* — the last character, nearest the frame —

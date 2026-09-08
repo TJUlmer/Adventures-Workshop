@@ -775,7 +775,7 @@ upload, are not: they are small multi-colour illustrations with an opaque
 background, so masking one to a flat fill just painted a rectangle and hid
 the art underneath it. What *is* an author's choice is `ribbonFoot` — the
 strip's own fill, already one of `StylePanel`'s "Surfaces" — and
-`ActionCardContent`'s "Ribbon symbol" section carries a second `FillEditor`
+`ActionCardContent`'s "Special card effects" section carries a second `FillEditor`
 bound to that same field, a shortcut so changing it does not mean a trip to
 Design for one colour. Same field, same cascade, two places to reach it.
 
@@ -794,6 +794,29 @@ box fitted to the gap: it is one tall column standing *on* the divider
 up **behind** the ribbon. Over-running upward costs nothing — the ribbon paints
 over it, the printed frame covers the rest, and `.interior`'s own `overflow:
 hidden` crops whatever reaches the top.
+
+### Boost effects
+
+An action card may also carry `showBoostEffect`/`boostEffect`: a short text
+capsule joined to the left of the boost disc. It is the second toggle in
+`ActionCardContent`'s "Special card effects" section. Normalisation and the
+editor both leave its text blank until the author supplies it.
+
+The capsule is drawn as CSS geometry measured from `boost_effect.png`, not as
+that full-card reference image. It lives inside `.divider`, behind the existing
+disc and ring, so all three pieces ride upward together as the body panel grows
+and the later boost layers cover the join. Its fill, outline and copy reuse
+`theme.boost`, `theme.divider` and `theme.boostInk`; the hero stock theme makes
+those navy, cream and white exactly as in the supplied artwork, while other
+roles keep their own established palette. Its width is intrinsic: short copy
+keeps the reference minimum, while longer copy grows the capsule leftward until
+it reaches the card interior. `BOOST_EFFECT.offsetX`/`offsetY` in
+`renderer/geometry.ts` are the deliberate manual position controls; positive
+values move the attachment right/down without moving the boost disc. Horizontal
+text clearance includes `offsetX`, so moving the capsule past the stationary
+disc cannot hide copy beneath it, and flex centring keeps the line box on the
+capsule's vertical centre. `BOOST_EFFECT.label.size` is the manual type-size
+control.
 
 **Two layers, not one flat colour.** The field is `CardTheme.ribbonFoot` —
 black on the printed card — and only a bar down its right edge, one ribbon
