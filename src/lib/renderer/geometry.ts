@@ -1151,7 +1151,7 @@ export const CHARACTER_HEADING = {
    * used to mirror the left inset and stop at x1349, throwing away 129px of
    * empty band before `fit-text.ts` began shrinking an author's name.
    */
-  right: CHARACTER_ATTACK_ROW.badgeRight
+  right: CHARACTER_ATTACK_ROW.badgeRight - 14
 } as const;
 
 /**
