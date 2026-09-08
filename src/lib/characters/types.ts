@@ -243,6 +243,8 @@ export interface CharacterCardDesign {
   quoteScale: number;
   /** The special ability's name, its rule and its body text — one colour for all three. */
   abilityInk: Fill;
+  /** Multiplier shared by the special ability's name and body text. */
+  abilityScale: number;
   /** The move value: its digit, the arrow beside it and the word MOVE, together. */
   moveInk: Fill;
   hero: CharacterBandStyle;

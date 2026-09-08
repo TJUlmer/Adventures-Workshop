@@ -409,10 +409,14 @@ export type SetId = Id<'Set'>;
  *      colours plus background opacity. Older cards default the effect off and
  *      older builds would silently discard the badge content and styling.
  *
+ * v55 — a hero character-card design gained `abilityScale`, one multiplier for
+ *      the Special Ability name and body text. Older designs normalise to the
+ *      template's original size; older builds would discard the chosen scale.
+ *
  * Older documents are *repaired*, not rejected — see `sets/normalize.ts`. Only
  * a version newer than this build understands is refused.
  */
-export const SET_SCHEMA_VERSION = 54;
+export const SET_SCHEMA_VERSION = 55;
 
 /**
  * What a set is for.

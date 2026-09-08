@@ -284,6 +284,7 @@ function characterCard(value: unknown): CharacterCardDesign {
     quoteInk: fill(raw['quoteInk'], defaults.quoteInk),
     quoteScale: num(raw['quoteScale'], defaults.quoteScale),
     abilityInk: fill(raw['abilityInk'], defaults.abilityInk),
+    abilityScale: num(raw['abilityScale'], defaults.abilityScale),
     moveInk: fill(raw['moveInk'], defaults.moveInk),
     ...(Object.fromEntries(CHARACTER_BAND_NAMES.map((name) => [name, band(name)])) as Pick<
       CharacterCardDesign,

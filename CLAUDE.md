@@ -693,6 +693,13 @@ it remains visible where the stack overlaps instead of revealing the preceding
 disc or restoring a fixed black outline. Older designs normalise to the former
 `#858585` grey.
 
+`CharacterCardDesign.abilityScale` is the Special Ability content section's single
+text-size control: it multiplies the calibrated name and body sizes together,
+preserving their ratio. `HeroCharacterCardFace` re-runs `fitScale` when it changes and divides
+the fitter's absolute 70% floor by the author's multiplier, so increasing the
+slider does not accidentally prevent long copy from shrinking back to the same
+minimum legible size. Older designs normalise to `1`.
+
 A sidekick is **one sub-object, not a list**: every character-card template
 shows at most one sidekick concept — a single tracked individual, or an
 undifferentiated swarm of identical copies, never several distinct companions

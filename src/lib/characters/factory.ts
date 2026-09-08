@@ -81,6 +81,7 @@ export function createCharacterCard(): CharacterCardDesign {
     quoteInk: solid('#f6eada'),
     quoteScale: 1,
     abilityInk: solid('#000000'),
+    abilityScale: 1,
     moveInk: solid('#000000'),
     hero: band('#001722', '#ffffff'),
     ability: band('#cfa058', '#000000'),

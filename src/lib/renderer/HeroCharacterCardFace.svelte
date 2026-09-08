@@ -212,14 +212,22 @@
     (1 - (NAME_METRICS.ascent + NAME_METRICS.descent)) / 2 + NAME_METRICS.ascent;
   const HEADING_SHRINK_DELTA = HEADING_BASELINE_RATIO * CHARACTER_HEADING.size;
 
+  /** The author's one scale preserves the measured name/body size ratio. */
+  const abilityNameSize = $derived(CHARACTER_ABILITY.nameSize * design.abilityScale);
+  const abilityTextSize = $derived(CHARACTER_ABILITY.textSize * design.abilityScale);
+  const ABILITY_MIN_SCALE = 0.7;
+
   /** Where the ability block's three pieces sit, solved from the measured ink. */
-  const NAME_TOP = capTopToBoxTop(
+  const BASE_NAME_TOP = capTopToBoxTop(
     CHARACTER_ABILITY.nameCapTop,
     CHARACTER_ABILITY.nameSize,
     1,
     NAME_METRICS
   );
-  const RULE_GAP = CHARACTER_ABILITY.ruleY - (NAME_TOP + CHARACTER_ABILITY.nameSize);
+  const NAME_TOP = $derived(
+    capTopToBoxTop(CHARACTER_ABILITY.nameCapTop, abilityNameSize, 1, NAME_METRICS)
+  );
+  const RULE_GAP = CHARACTER_ABILITY.ruleY - (BASE_NAME_TOP + CHARACTER_ABILITY.nameSize);
   const TEXT_TOP = capTopToBoxTop(
     CHARACTER_ABILITY.textCapTop,
     CHARACTER_ABILITY.textSize,
@@ -308,11 +316,17 @@
   let abilityBox: HTMLDivElement | null = $state(null);
   let quoteBox: HTMLDivElement | null = $state(null);
 
-  /** Re-fit whenever the printed ability text (name or copy) changes. */
+  /** Re-fit whenever the printed ability text or its author-selected size changes. */
   $effect(() => {
     const signature = identity.abilities.map((a) => `${a.name}|${a.text}`).join('\n');
     void signature;
-    if (abilityBox) fitScale(abilityBox);
+    void abilityNameSize;
+    void abilityTextSize;
+    if (abilityBox) {
+      fitScale(abilityBox, {
+        min: Math.min(1, ABILITY_MIN_SCALE / design.abilityScale)
+      });
+    }
   });
 
   /**
@@ -424,7 +438,7 @@
       -->
       <div
         class="ability-name"
-        style:font-size="calc({pu(CHARACTER_ABILITY.nameSize)} * var(--fit-scale, 1))"
+        style:font-size="calc({pu(abilityNameSize)} * var(--fit-scale, 1))"
         style:line-height="1"
       >
         {ability ? ability.name.trim() : 'Ability Name'}
@@ -457,7 +471,7 @@
         class:placeholder={ability === null}
         style:margin-top="calc({pu(TEXT_GAP)} * var(--fit-scale, 1))"
         style:margin-left="calc({pu(CHARACTER_ABILITY.textX - CHARACTER_ABILITY.nameX)} * var(--fit-scale, 1))"
-        style:font-size="calc({pu(CHARACTER_ABILITY.textSize)} * var(--fit-scale, 1))"
+        style:font-size="calc({pu(abilityTextSize)} * var(--fit-scale, 1))"
         style:line-height={CHARACTER_ABILITY.textLineHeight}
       >
         {#if ability?.text.trim()}

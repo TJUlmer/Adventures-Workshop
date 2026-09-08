@@ -185,6 +185,8 @@
 
 {#snippet abilityList(
   abilities: CharacterAbility[],
+  abilityScale: number,
+  onScale: (scale: number) => void,
   onAdd: () => void,
   onRemove: (index: number) => void
 )}
@@ -226,6 +228,17 @@
         {/each}
       </ul>
     {/if}
+
+    <Slider
+      label="Special ability text size"
+      value={abilityScale}
+      min={0.6}
+      max={1.6}
+      step={0.02}
+      neutral={1}
+      format={(scale) => `${Math.round(scale * 100)}%`}
+      onchange={onScale}
+    />
   </Section>
 {/snippet}
 
@@ -473,6 +486,12 @@
 
         {@render abilityList(
           character.abilities,
+          character.characterCard.abilityScale,
+          (abilityScale) =>
+            workshop.editCharacterCard(
+              character.id,
+              (card) => (card.abilityScale = abilityScale)
+            ),
           () => addAbilityTo(character.abilities),
           (index) => removeAbilityFrom(character.abilities, index)
         )}
@@ -652,6 +671,13 @@
 
         {@render abilityList(
           extra.abilities,
+          extra.characterCard.abilityScale,
+          (abilityScale) =>
+            workshop.editCharacterCard(
+              character.id,
+              (card) => (card.abilityScale = abilityScale),
+              extra.id
+            ),
           () => addAbilityTo(extra.abilities),
           (abilityIndex) => removeAbilityFrom(extra.abilities, abilityIndex)
         )}
