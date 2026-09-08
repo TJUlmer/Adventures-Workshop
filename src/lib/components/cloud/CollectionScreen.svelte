@@ -52,6 +52,7 @@
   } from '$lib/cloud/collections';
   import { fetchSetSummaryBySlug, listMyPublishedSets } from '$lib/cloud/sets';
   import type { PublishedSet } from '$lib/cloud/sets';
+  import type { CharacterId } from '$lib/characters/types';
   import type {
     Collection,
     CollectionMembership,
@@ -75,6 +76,9 @@
   import { CARD_FORMATS, trimBox } from '$lib/renderer/geometry';
   import { auth } from '$lib/cloud/auth.svelte';
   import { navigation } from '$lib/state/navigation.svelte';
+  import { workshop } from '$lib/state/workshop.svelte';
+  import { applyCharacterExportSelection } from '$lib/sets/export-selection';
+  import CollectionExportSelector from '$lib/components/export/CollectionExportSelector.svelte';
 
   interface Props {
     slug: string;
@@ -502,6 +506,19 @@
   );
 
   /**
+   * Home is an editable-draft library; this picker is a publication library.
+   *
+   * A publication may legitimately outlive its local draft or have been made
+   * on another device, so it remains offerable. Marking that distinction on
+   * the row keeps an old publication from looking like a local-preview bug.
+   */
+  const homeSetIds = $derived(new Set(workshop.library.map((entry) => String(entry.id))));
+
+  function draftIsOnHome(row: PublishedSet): boolean {
+    return homeSetIds.has(row.local_id);
+  }
+
+  /**
    * My decks that are waiting on somebody else — offered, not yet decided.
    *
    * Without this the page went silent the moment an offer succeeded: the
@@ -595,6 +612,9 @@
     ]);
     memberships = rows;
     tiles = freshTiles;
+    boxDecks = null;
+    excludedExportCharacters = new Map();
+    exportSelectorOpen = false;
   }
 
   async function run(key: string, work: () => Promise<void>): Promise<void> {
@@ -745,11 +765,53 @@
   let boxProgress = $state<string | null>(null);
   let boxProblem = $state<string | null>(null);
   let boxSkipped = $state<{ name: string; reason: string }[]>([]);
+  let boxDecks = $state<CollectionDeck[] | null>(null);
+  let excludedExportCharacters = $state<Map<string, ReadonlySet<CharacterId>>>(new Map());
+  let exportSelectorOpen = $state(false);
+  let boxCollectionId = $state('');
   let hostBoxOnline = $state(true);
   let boxPath = $state('');
   void readTtsSavedObjectsPath().then((value) => (boxPath = value));
 
   const onlineAvailable = cloudEnabled();
+
+  $effect(() => {
+    const collectionId = collection?.id ?? '';
+    if (collectionId === boxCollectionId) return;
+    boxCollectionId = collectionId;
+    boxDecks = null;
+    excludedExportCharacters = new Map();
+    exportSelectorOpen = false;
+  });
+
+  const exportCharacterTotal = $derived(
+    boxDecks
+      ? boxDecks.reduce(
+          (count, deck) =>
+            count + deck.set.characters.filter((character) => character.role === 'hero').length,
+          0
+        )
+      : tiles.reduce((count, tile) => count + tile.hero_count, 0)
+  );
+
+  const selectedCharacterCount = $derived(
+    boxDecks
+      ? boxDecks.reduce(
+          (count, deck) =>
+            count +
+            deck.set.characters.filter(
+              (character) =>
+                character.role === 'hero' &&
+                !excludedExportCharacters.get(deck.tile.set_id)?.has(character.id)
+            ).length,
+          0
+        )
+      : exportCharacterTotal
+  );
+
+  const exportSelectionActive = $derived(
+    [...excludedExportCharacters.values()].some((excluded) => excluded.size > 0)
+  );
 
   /**
    * Fetch every member's document and check the box can be built at all.
@@ -763,6 +825,7 @@
    */
   async function loadBox(): Promise<CollectionDeck[] | null> {
     if (!collection) return null;
+    if (boxDecks) return boxDecks;
 
     /* Fetched rather than read off the tiles: a tile is a summary, and both
        rendering and paging need the whole document. This is also the slow
@@ -777,7 +840,54 @@
       boxProblem = problem;
       return null;
     }
+    boxDecks = decks;
     return decks;
+  }
+
+  /** Apply the one character selection before any of the three exporters. */
+  function selectedBox(decks: readonly CollectionDeck[]): CollectionDeck[] {
+    return decks.flatMap((deck) => {
+      const excluded = excludedExportCharacters.get(deck.tile.set_id);
+      const included = new Set<CharacterId>(
+        deck.set.characters
+          .filter((character) => character.role === 'hero' && !excluded?.has(character.id))
+          .map((character) => character.id)
+      );
+      if (included.size === 0) return [];
+      return [
+        {
+          ...deck,
+          set: excluded?.size
+            ? applyCharacterExportSelection(deck.set, included)
+            : deck.set
+        }
+      ];
+    });
+  }
+
+  async function loadSelectedBox(): Promise<CollectionDeck[] | null> {
+    const decks = await loadBox();
+    if (!decks) return null;
+    const selected = selectedBox(decks);
+    if (selected.length > 0) return selected;
+    boxProblem = 'Choose at least one character to include.';
+    return null;
+  }
+
+  async function openExportSelector(): Promise<void> {
+    if (boxProgress !== null) return;
+    boxProgress = 'Fetching decks…';
+    boxProblem = null;
+    boxSkipped = [];
+    notice = null;
+    try {
+      const decks = await loadBox();
+      if (decks) exportSelectorOpen = true;
+    } catch (error) {
+      notice = error instanceof Error ? error.message : 'Those decks could not be fetched.';
+    } finally {
+      boxProgress = null;
+    }
   }
 
   /**
@@ -796,7 +906,7 @@
     boxSkipped = [];
     notice = null;
     try {
-      const decks = await loadBox();
+      const decks = await loadSelectedBox();
       if (!decks) return;
       printMembers = decks.map((deck) => ({
         author: deck.tile.author_name || 'Anonymous',
@@ -825,7 +935,7 @@
     boxSkipped = [];
     notice = null;
     try {
-      const decks = await loadBox();
+      const decks = await loadSelectedBox();
       if (!decks) return;
 
       const result = await exportCollectionCardPngs(
@@ -862,7 +972,7 @@
     notice = null;
 
     try {
-      const decks = await loadBox();
+      const decks = await loadSelectedBox();
       if (!decks) return;
 
       if (!hostBoxOnline) void writeTtsSavedObjectsPath(boxPath);
@@ -906,6 +1016,57 @@
   const liveMembers = $derived(liveMemberCount(memberships));
   let confirmingDelete = $state(false);
 
+  type PageMode = 'showcase' | 'manage' | 'member';
+  type ManageTab = 'decks' | 'people' | 'settings';
+  type ExportChoice = 'print' | 'images' | 'tts' | null;
+
+  let pageMode = $state<PageMode>('showcase');
+  let manageTab = $state<ManageTab>('decks');
+  let exportChoice = $state<ExportChoice>(null);
+  let previewed = $state(new Set<string>());
+
+  const displayedRemovable = $derived(
+    pageMode === 'member'
+      ? removable.filter((row) => row.set?.owner_id === auth.user?.id)
+      : removable
+  );
+
+  const creators = $derived.by(() => {
+    const seen = new Set<string>();
+    return tiles.flatMap((tile) => {
+      if (seen.has(tile.owner_id)) return [];
+      seen.add(tile.owner_id);
+      return [{ id: tile.owner_id, name: tile.author_name || 'Anonymous', avatar: tile.author_avatar }];
+    });
+  });
+
+  const hasMemberTools = $derived(
+    auth.signedIn &&
+      (myPending.length > 0 ||
+        myInvitations.length > 0 ||
+        myAccepted.length > 0 ||
+        offerable.length > 0 ||
+        joining !== 'settled')
+  );
+
+  const deckAttention = $derived(submissions.length + myInvitations.length);
+  const peopleAttention = $derived(pendingInvites.length);
+
+  function showShowcase(): void {
+    pageMode = 'showcase';
+    editing = false;
+  }
+
+  function showManage(tab: ManageTab = 'decks'): void {
+    pageMode = 'manage';
+    manageTab = tab;
+  }
+
+  function primePreview(setId: string): void {
+    if (previewed.has(setId)) return;
+    previewed = new Set(previewed).add(setId);
+  }
+
   async function removeCollection(): Promise<void> {
     if (!collection) return;
     await run('delete', async () => {
@@ -939,6 +1100,13 @@
        hide at print time and a chance to shift it by a millimetre. -->
   <PrintScreen members={printMembers} onback={() => (printMembers = null)} />
 {:else}
+  <CollectionExportSelector
+    open={exportSelectorOpen}
+    members={boxDecks ?? []}
+    excludedBySet={excludedExportCharacters}
+    onchange={(next) => (excludedExportCharacters = next)}
+    onclose={() => (exportSelectorOpen = false)}
+  />
   <div class="screen">
   <main class="body">
     {#if loading}
@@ -954,57 +1122,133 @@
       -->
       <p class="message">No collection here. The link may be wrong, or no longer shared.</p>
     {:else}
-      <div class="banner" style:background={tint(collection.id)}>
-        {#if collection.banner_url}
-          <img src={collection.banner_url} alt="" />
-        {/if}
-        {#if organizer}
-          <input
-            bind:this={bannerInput}
-            class="sr-only"
-            type="file"
-            accept="image/*"
-            onchange={pickBanner}
-          />
-          <button type="button" class="banner-edit" onclick={() => bannerInput?.click()}>
-            {collection.banner_url ? 'Change banner' : 'Add a banner'}
-          </button>
-        {/if}
-      </div>
-
-      {#if editing}
-        <div class="editor">
-          <label class="field">
-            <span class="field-label">Name</span>
-            <input type="text" bind:value={draftName} placeholder="Winter Extravaganza" />
-          </label>
-          <label class="field">
-            <span class="field-label">Subtitle</span>
-            <input type="text" bind:value={draftSubtitle} placeholder="Six winter-themed decks" />
-          </label>
-          <label class="field">
-            <span class="field-label">About</span>
-            <textarea rows="3" bind:value={draftBlurb} placeholder="What this project is."></textarea>
-          </label>
-          <div class="editor-actions">
-            <button type="button" class="btn primary" onclick={saveEdits} disabled={saving}>
-              {saving ? 'Saving...' : 'Save'}
+      <section class="hero" aria-labelledby="collection-heading">
+        <div class="banner" style:background={tint(collection.id)}>
+          {#if collection.banner_url}
+            <img src={collection.banner_url} alt="" />
+          {:else}
+            <span class="banner-initials">{initials(heading)}</span>
+          {/if}
+          {#if organizer && pageMode === 'manage' && manageTab === 'settings'}
+            <input
+              bind:this={bannerInput}
+              class="sr-only"
+              type="file"
+              accept="image/*"
+              onchange={pickBanner}
+            />
+            <button type="button" class="banner-edit" onclick={() => bannerInput?.click()}>
+              {collection.banner_url ? 'Change banner' : 'Add a banner'}
             </button>
-            <button type="button" class="btn" onclick={() => (editing = false)}>Cancel</button>
-          </div>
-        </div>
-      {:else}
-        <div class="title-row">
-          <h1>{heading}</h1>
-          {#if organizer}
-            <button type="button" class="btn" onclick={startEditing}>Edit details</button>
           {/if}
         </div>
-        {#if collection.subtitle}<p class="subtitle">{collection.subtitle}</p>{/if}
-        {#if collection.blurb}<p class="blurb">{collection.blurb}</p>{/if}
+
+        <div class="hero-copy">
+          {#if editing}
+            <div class="editor">
+              <label class="field">
+                <span class="field-label">Name</span>
+                <input type="text" bind:value={draftName} placeholder="Winter Extravaganza" />
+              </label>
+              <label class="field">
+                <span class="field-label">Subtitle</span>
+                <input type="text" bind:value={draftSubtitle} placeholder="Six winter-themed decks" />
+              </label>
+              <label class="field">
+                <span class="field-label">About</span>
+                <textarea rows="3" bind:value={draftBlurb} placeholder="What this project is."></textarea>
+              </label>
+              <div class="editor-actions">
+                <button type="button" class="btn primary" onclick={saveEdits} disabled={saving}>
+                  {saving ? 'Saving...' : 'Save'}
+                </button>
+                <button type="button" class="btn" onclick={() => (editing = false)}>Cancel</button>
+              </div>
+            </div>
+          {:else}
+            <div class="title-row">
+              <div>
+                <p class="eyebrow">Community collection</p>
+                <h1 id="collection-heading" class="collection-title">{heading}</h1>
+                {#if collection.subtitle}<p class="subtitle">{collection.subtitle}</p>{/if}
+              </div>
+              <div class="hero-actions">
+                {#if pageMode === 'showcase'}
+                  {#if hasMemberTools}
+                    <button type="button" class="btn" onclick={() => (pageMode = 'member')}>
+                      Your decks
+                    </button>
+                  {/if}
+                  {#if organizer}
+                    <button type="button" class="btn primary" onclick={() => showManage()}>
+                      Manage collection
+                    </button>
+                  {/if}
+                {:else}
+                  <button type="button" class="btn" onclick={showShowcase}>View collection</button>
+                {/if}
+              </div>
+            </div>
+            {#if collection.blurb}<p class="blurb">{collection.blurb}</p>{/if}
+            <div class="hero-meta">
+              <span>{tiles.length} {tiles.length === 1 ? 'deck' : 'decks'}</span>
+              <span>{creators.length} {creators.length === 1 ? 'creator' : 'creators'}</span>
+              {#if collection.visibility !== 'public' && tiles.length > 0 && auth.signedIn}
+                <span class:ready={readiness.waitingOn.length === 0}>
+                  {readiness.ready} of {readiness.total} ready
+                </span>
+              {/if}
+              {#if creators.length > 0}
+                <span class="creator-stack" aria-label={`Creators: ${creators.map((row) => row.name).join(', ')}`}>
+                  {#each creators.slice(0, 6) as creator (creator.id)}
+                    {#if creator.avatar}
+                      <img src={creator.avatar} alt="" loading="lazy" />
+                    {:else}
+                      <span aria-hidden="true">{initials(creator.name)}</span>
+                    {/if}
+                  {/each}
+                </span>
+              {/if}
+            </div>
+          {/if}
+        </div>
+      </section>
+
+      {#if pageMode === 'manage' && organizer}
+        <nav class="manage-tabs" aria-label="Collection management">
+          <button
+            type="button"
+            class:on={manageTab === 'decks'}
+            aria-current={manageTab === 'decks' ? 'page' : undefined}
+            onclick={() => (manageTab = 'decks')}
+          >
+            Decks {#if deckAttention > 0}<span>{deckAttention}</span>{/if}
+          </button>
+          <button
+            type="button"
+            class:on={manageTab === 'people'}
+            aria-current={manageTab === 'people' ? 'page' : undefined}
+            onclick={() => (manageTab = 'people')}
+          >
+            People {#if peopleAttention > 0}<span>{peopleAttention}</span>{/if}
+          </button>
+          <button
+            type="button"
+            class:on={manageTab === 'settings'}
+            aria-current={manageTab === 'settings' ? 'page' : undefined}
+            onclick={() => (manageTab = 'settings')}
+          >
+            Settings
+          </button>
+        </nav>
+      {:else if pageMode === 'member'}
+        <div class="workspace-heading">
+          <p class="eyebrow">Contributor tools</p>
+          <h2>Your decks in {heading}</h2>
+        </div>
       {/if}
 
-      {#if organizer}
+      {#if organizer && pageMode === 'manage' && (manageTab === 'settings' || manageTab === 'people')}
         <!--
           Organizer-only, and each control says what the setting *does* rather
           than naming it: "unlisted" means nothing to somebody who has not read
@@ -1012,7 +1256,15 @@
           made about their collaborators' work.
         -->
         <section class="admin">
-          <div class="admin-row">
+          <h2>{manageTab === 'settings' ? 'Collection settings' : 'Organizers'}</h2>
+          {#if manageTab === 'settings'}
+            <div class="admin-row presentation-row">
+              <span class="field-label">Presentation</span>
+              <button type="button" class="btn" onclick={startEditing}>Edit title and description</button>
+              <span class="hint">The banner, title and introduction visitors see first.</span>
+            </div>
+          {/if}
+          <div class="admin-row" class:hidden={manageTab !== 'settings'}>
             <span class="field-label">Who can see this</span>
             <div class="choices">
               {#each VISIBILITIES as option (option.value)}
@@ -1049,7 +1301,7 @@
             {/if}
           </div>
 
-          {#if publishGate}
+          {#if publishGate && manageTab === 'settings'}
             <div class="gate">
               <p class="gate-title">
                 {publishGate.length}
@@ -1078,7 +1330,7 @@
             </div>
           {/if}
 
-          <div class="admin-row">
+          <div class="admin-row" class:hidden={manageTab !== 'settings'}>
             <span class="field-label">Submissions</span>
             <label class="toggle">
               <input
@@ -1101,7 +1353,7 @@
             </span>
           </div>
 
-          <div class="admin-row">
+          <div class="admin-row" class:hidden={manageTab !== 'people'}>
             <span class="field-label">Organizers</span>
 
             <ul class="organizers">
@@ -1175,7 +1427,7 @@
             {/if}
           </div>
 
-          <div class="admin-row">
+          <div class="admin-row" class:hidden={manageTab !== 'settings'}>
             <span class="field-label">Delete</span>
             {#if liveMembers > 0}
               <!--
@@ -1210,7 +1462,7 @@
             {/if}
           </div>
 
-          <div class="admin-row">
+          <div class="admin-row" class:hidden={manageTab !== 'settings'}>
             <span class="field-label">Link</span>
             <button type="button" class="btn" onclick={copyLink}>Copy link</button>
             <span class="hint">
@@ -1228,7 +1480,9 @@
 
       {#if notice}<p class="notice">{notice}</p>{/if}
 
-      {#if myPending.length > 0}
+      <div class="content-flow">
+
+      {#if pageMode === 'member' && myPending.length > 0}
         <section class="panel">
           <h2>Waiting on the organizers</h2>
           <p class="hint">
@@ -1254,7 +1508,7 @@
         </section>
       {/if}
 
-      {#if myInvitations.length > 0}
+      {#if pageMode === 'member' && myInvitations.length > 0}
         <!--
           The deck owner's own decision, and the one place the consent
           sentence has to appear — see `CONSENT`.
@@ -1296,7 +1550,7 @@
         </section>
       {/if}
 
-      {#if organizer && submissions.length > 0}
+      {#if organizer && pageMode === 'manage' && manageTab === 'decks' && submissions.length > 0}
         <section class="panel">
           <h2>Decks offered to this collection</h2>
           <ul class="rows">
@@ -1336,7 +1590,7 @@
         </section>
       {/if}
 
-      {#if organizer}
+      {#if organizer && pageMode === 'manage' && manageTab === 'decks'}
         <section class="panel">
           <h2>Invite a deck</h2>
           <p class="hint">
@@ -1367,14 +1621,14 @@
         </section>
       {/if}
 
-      {#if removable.length > 0}
+      {#if (pageMode === 'member' || (organizer && pageMode === 'manage' && manageTab === 'decks')) && displayedRemovable.length > 0}
         <section class="panel">
           <h2>In this collection</h2>
           <p class="hint">
             Removing a deck only unlinks it. Its own page, link and listing are untouched.
           </p>
           <ul class="rows">
-            {#each removable as row (row.set_id)}
+            {#each displayedRemovable as row (row.set_id)}
               <li>
                 <span class="row-name">
                   {row.set?.name || 'Untitled'}
@@ -1402,9 +1656,9 @@
         why every branch here has to exist rather than the panel simply not
         rendering.
       -->
-      {#if joining !== 'settled'}
+      {#if pageMode === 'member' && joining !== 'settled'}
         <section class="panel joining">
-          <h2>Add your own deck</h2>
+          <h2>Offer one of your published decks</h2>
 
           {#if joining === 'signed-out'}
             <p class="hint">
@@ -1424,10 +1678,19 @@
             </p>
           {:else}
             <p class="consent">{CONSENT}</p>
+            <p class="hint publication-note">
+              Home shows editable drafts in this browser. This list shows published copies owned
+              by your account, including copies whose draft is on another device or no longer in Home.
+            </p>
             <ul class="rows">
               {#each offerable as row (row.id)}
                 <li>
-                  <span class="row-name">{row.name || 'Untitled'}</span>
+                  <span class="row-name deck-source">
+                    <span>{row.name || 'Untitled'}</span>
+                    {#if !draftIsOnHome(row)}
+                      <span class="row-source">Published copy · draft not in Home on this browser</span>
+                    {/if}
+                  </span>
                   <button
                     type="button"
                     class="btn primary"
@@ -1443,17 +1706,22 @@
         </section>
       {/if}
 
-      {#if organizer && offerable.length > 0}
+      {#if organizer && pageMode === 'manage' && manageTab === 'decks' && offerable.length > 0}
         <section class="panel">
-          <h2>Add one of your own decks</h2>
+          <h2>Add one of your published decks</h2>
           <p class="hint">
-            Yours goes straight in — you own the deck and you organize the collection, so
-            there is nobody else to ask.
+            Published copies owned by your account go straight in. Home shows editable drafts,
+            so a copy published on another device or left after its draft was deleted may also appear.
           </p>
           <ul class="rows">
             {#each offerable as row (row.id)}
               <li>
-                <span class="row-name">{row.name || 'Untitled'}</span>
+                <span class="row-name deck-source">
+                  <span>{row.name || 'Untitled'}</span>
+                  {#if !draftIsOnHome(row)}
+                    <span class="row-source">Published copy · draft not in Home on this browser</span>
+                  {/if}
+                </span>
                 <button
                   type="button"
                   class="btn"
@@ -1468,7 +1736,8 @@
         </section>
       {/if}
 
-      <p class="count">
+      {#if pageMode === 'showcase'}
+      <p class="count showcase-count">
         {tiles.length}
         {tiles.length === 1 ? 'deck' : 'decks'}
         <!--
@@ -1482,8 +1751,9 @@
           </span>
         {/if}
       </p>
+      {/if}
 
-      {#if myAccepted.length > 0}
+      {#if pageMode === 'member' && myAccepted.length > 0}
         <section class="panel">
           <h2>Your deck{myAccepted.length === 1 ? '' : 's'} here</h2>
           <p class="hint">
@@ -1549,7 +1819,7 @@
         </section>
       {/if}
 
-      {#if organizer}
+      {#if organizer && pageMode === 'manage' && manageTab === 'people'}
         <section class="panel invites">
           <h2>Invite people</h2>
           <!--
@@ -1673,70 +1943,184 @@
         </section>
       {/if}
 
-      {#if tiles.length > 0}
-        <section class="panel box">
-          <h2>The whole box</h2>
+      {#if pageMode === 'showcase' && tiles.length === 0}
+        <!-- An empty project is a beginning, not a broken collection. -->
+        <p class="message empty-collection">
+          No decks yet. Whoever is organizing this can invite them, or open it for submissions.
+        </p>
+      {:else if pageMode === 'showcase'}
+        <ul class="grid showcase-grid">
+          {#each tiles as tile (tile.set_id)}
+            <li>
+              <button
+                type="button"
+                class="tile"
+                aria-label={`Open ${tile.name || 'Untitled'} deck by ${tile.author_name || 'Anonymous'}`}
+                onclick={() => navigation.openShared(tile.slug)}
+                onmouseenter={() => tile.preview_card_url && primePreview(tile.set_id)}
+                onfocus={() => tile.preview_card_url && primePreview(tile.set_id)}
+              >
+                <span
+                  class="cover"
+                  style:--trim-scale={TRIM_SCALE_WIDE}
+                  style:background={tint(tile.set_id)}
+                >
+                  {#if tileImage(tile)}
+                    <img
+                      src={tileImage(tile)}
+                      class="cover-art"
+                      class:trimmed={tile.cover_bleeds}
+                      alt=""
+                      loading="lazy"
+                    />
+                  {:else}
+                    <span class="initials">{initials(tile.name)}</span>
+                  {/if}
+                  {#if tile.preview_card_url && previewed.has(tile.set_id)}
+                    <img class="preview-card" src={tile.preview_card_url} alt="" />
+                  {/if}
+                </span>
+
+                <span class="card-body">
+                  <span class="deck-name">{tile.name || 'Untitled'}</span>
+                  {#if tile.subtitle}<span class="subtitle-line">{tile.subtitle}</span>{/if}
+                  <span class="by">
+                    {#if tile.author_avatar}
+                      <img class="avatar" src={tile.author_avatar} alt="" loading="lazy" />
+                    {/if}
+                    <span class="author">{tile.author_name || 'Anonymous'}</span>
+                  </span>
+                  <span class="meta">
+                    <span>revision {tile.revision}</span>
+                    {#if tile.hero_count > 0}
+                      <span>{tile.hero_count} {tile.hero_count === 1 ? 'hero' : 'heroes'}</span>
+                    {/if}
+                    <span>{tile.card_count} {tile.card_count === 1 ? 'card' : 'cards'}</span>
+                  </span>
+                  <span class="open-deck">
+                    Explore this deck <span aria-hidden="true">→</span>
+                  </span>
+                </span>
+              </button>
+            </li>
+          {/each}
+        </ul>
+      {/if}
+
+      {#if pageMode === 'showcase' && tiles.length > 0}
+        <section class="panel box showcase-export">
+          <p class="eyebrow">Ready for the table</p>
+          <h2>Play or print this collection</h2>
           <p class="hint">
-            Every deck here at once, each drawn under its own author's styling — as one
-            Tabletop Simulator save with a row per creator, or as printable sheets.
+            Take every deck together, while preserving each creator's artwork and styling.
           </p>
-
-          <div class="row-actions">
+          <div class="customize-row">
             <button
               type="button"
               class="btn"
               disabled={boxProgress !== null}
-              onclick={openPrint}
+              onclick={() => void openExportSelector()}
             >
-              Print sheets
+              {boxProgress ?? "Customize what's included"}
+            </button>
+            <span>
+              {#if exportSelectionActive}
+                {selectedCharacterCount} of {exportCharacterTotal} characters
+              {:else}
+                {exportCharacterTotal}
+                {exportCharacterTotal === 1 ? 'character' : 'characters'} included
+              {/if}
+            </span>
+          </div>
+
+          <div class="export-choices" aria-label="Export format">
+            <button
+              type="button"
+              class:chosen={exportChoice === 'print'}
+              aria-pressed={exportChoice === 'print'}
+              onclick={() => (exportChoice = 'print')}
+            >
+              <strong>Print sheets</strong>
+              <span>Lay out the whole collection for printing.</span>
             </button>
             <button
               type="button"
-              class="btn"
-              disabled={boxProgress !== null}
-              onclick={downloadImages}
+              class:chosen={exportChoice === 'images'}
+              aria-pressed={exportChoice === 'images'}
+              onclick={() => (exportChoice = 'images')}
             >
-              Card images
+              <strong>Card images</strong>
+              <span>Download every card as an image archive.</span>
             </button>
-          </div>
-
-          <label class="toggle">
-            <input type="checkbox" bind:checked={pngBleed} disabled={boxProgress !== null} />
-            <span>Card images include the printer's bleed</span>
-          </label>
-
-          <h3 class="sub">Tabletop Simulator</h3>
-
-          {#if onlineAvailable}
-            <label class="toggle">
-              <input type="checkbox" bind:checked={hostBoxOnline} />
-              <span>Host the images online, so everyone at the table can see them</span>
-            </label>
-          {/if}
-
-          {#if !hostBoxOnline || !onlineAvailable}
-            <!-- Only asked for when the images are not going online: a local
-                 save addresses them by a path on this machine. -->
-            <label class="field">
-              <span class="field-label">Saved Objects folder</span>
-              <input
-                type="text"
-                bind:value={boxPath}
-                placeholder="C:\Users\you\Documents\My Games\Tabletop Simulator\Saves\Saved Objects"
-              />
-            </label>
-          {/if}
-
-          <div class="row-actions">
             <button
               type="button"
-              class="btn primary"
-              disabled={boxProgress !== null}
-              onclick={downloadBox}
+              class:chosen={exportChoice === 'tts'}
+              aria-pressed={exportChoice === 'tts'}
+              onclick={() => (exportChoice = 'tts')}
             >
-              {boxProgress ?? 'Download the save'}
+              <strong>Tabletop Simulator</strong>
+              <span>Build one save with a row per creator.</span>
             </button>
           </div>
+
+          {#if exportChoice === 'print'}
+            <div class="export-options">
+              <p>Cards are grouped into printable sheets by their finished size.</p>
+              <button
+                type="button"
+                class="btn primary"
+                disabled={boxProgress !== null || selectedCharacterCount === 0}
+                onclick={openPrint}
+              >
+                Open print sheets
+              </button>
+            </div>
+          {:else if exportChoice === 'images'}
+            <div class="export-options">
+              <label class="toggle">
+                <input type="checkbox" bind:checked={pngBleed} disabled={boxProgress !== null} />
+                <span>Include the printer's bleed</span>
+              </label>
+              <button
+                type="button"
+                class="btn primary"
+                disabled={boxProgress !== null || selectedCharacterCount === 0}
+                onclick={downloadImages}
+              >
+                {boxProgress ?? 'Download card images'}
+              </button>
+            </div>
+          {:else if exportChoice === 'tts'}
+            <div class="export-options">
+              {#if onlineAvailable}
+                <label class="toggle">
+                  <input type="checkbox" bind:checked={hostBoxOnline} />
+                  <span>Host the images online so everyone at the table can see them</span>
+                </label>
+              {/if}
+
+              {#if !hostBoxOnline || !onlineAvailable}
+                <!-- A local save addresses images by a path on this machine. -->
+                <label class="field">
+                  <span class="field-label">Saved Objects folder</span>
+                  <input
+                    type="text"
+                    bind:value={boxPath}
+                    placeholder="C:\Users\you\Documents\My Games\Tabletop Simulator\Saves\Saved Objects"
+                  />
+                </label>
+              {/if}
+
+              <button
+                type="button"
+                class="btn primary"
+                disabled={boxProgress !== null || selectedCharacterCount === 0}
+                onclick={downloadBox}
+              >
+                {boxProgress ?? 'Download the save'}
+              </button>
+            </div>
+          {/if}
 
           {#if boxProblem}
             <p class="hint problem">{boxProblem}</p>
@@ -1758,72 +2142,7 @@
         </section>
       {/if}
 
-      {#if tiles.length === 0}
-        <!--
-          Not an error. A collection with no accepted decks is the ordinary
-          state of a project on the day it is created, and the page has to
-          read as "not started yet" rather than "broken".
-        -->
-        <p class="message">
-          No decks yet. Whoever is organizing this can invite them, or open it for submissions.
-        </p>
-      {:else}
-        <ul class="grid">
-          {#each tiles as tile (tile.set_id)}
-            <li>
-              <!--
-                Opens the member's own shared page rather than anything
-                collection-shaped: the deck belongs to its author, and its
-                page is where they publish, export and are credited. A
-                collection links to its members; it does not contain them.
-              -->
-              <button type="button" class="tile" onclick={() => navigation.openShared(tile.slug)}>
-                <span
-                  class="cover"
-                  style:--trim-scale={TRIM_SCALE_WIDE}
-                  style:background={tint(tile.set_id)}
-                >
-                  {#if tileImage(tile)}
-                    <img
-                      src={tileImage(tile)}
-                      class:trimmed={tile.cover_bleeds}
-                      alt=""
-                      loading="lazy"
-                    />
-                  {:else}
-                    <span class="initials">{initials(tile.name)}</span>
-                  {/if}
-                </span>
-
-                <span class="card-body">
-                  <span class="name">{tile.name || 'Untitled'}</span>
-                  {#if tile.subtitle}<span class="subtitle-line">{tile.subtitle}</span>{/if}
-
-                  <!--
-                    The author line is the whole point of a collection page:
-                    every tile is somebody else's, and saying whose is what
-                    makes this a project rather than one person's box.
-                  -->
-                  <span class="by">
-                    {#if tile.author_avatar}
-                      <img class="avatar" src={tile.author_avatar} alt="" loading="lazy" />
-                    {/if}
-                    <span class="author">{tile.author_name || 'Anonymous'}</span>
-                  </span>
-
-                  <span class="meta">
-                    <span>revision {tile.revision}</span>
-                    {#if tile.hero_count > 0}
-                      <span>{tile.hero_count} {tile.hero_count === 1 ? 'hero' : 'heroes'}</span>
-                    {/if}
-                    <span>{tile.card_count} {tile.card_count === 1 ? 'card' : 'cards'}</span>
-                  </span>
-                </span>
-              </button>
-            </li>
-          {/each}
-        </ul>
-      {/if}
+      </div>
     {/if}
   </main>
 </div>
@@ -2203,6 +2522,18 @@
     color: var(--text-tertiary);
     font-size: var(--text-sm);
   }
+  .deck-source {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 0;
+  }
+  .row-source {
+    color: var(--text-muted);
+    font-size: var(--text-xs);
+  }
+  .publication-note {
+    margin-top: 0;
+  }
   .row-actions {
     display: flex;
     gap: var(--space-2);
@@ -2341,14 +2672,6 @@
     min-width: 0;
   }
 
-  .name {
-    color: var(--text-primary);
-    font-weight: 600;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-
   .subtitle-line {
     color: var(--text-tertiary);
     font-size: var(--text-sm);
@@ -2384,5 +2707,417 @@
     gap: 0 var(--space-3);
     color: var(--text-muted);
     font-size: var(--text-xs);
+  }
+
+  /* The collection is a showcase first; management is a deliberate mode. */
+  .hero {
+    margin-bottom: var(--space-8);
+  }
+
+  .hero .banner {
+    height: clamp(10rem, 24vw, 19rem);
+    margin: 0;
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-sm);
+  }
+
+  .banner-initials {
+    display: grid;
+    width: 100%;
+    height: 100%;
+    place-items: center;
+    color: var(--text-on-accent);
+    font-family: var(--font-display);
+    font-size: clamp(var(--text-2xl), 7vw, var(--space-10));
+    font-weight: var(--weight-semibold);
+    opacity: 0.72;
+  }
+
+  .hero-copy {
+    position: relative;
+    width: calc(100% - var(--space-8));
+    margin: calc(var(--space-7) * -1) auto 0;
+    padding: var(--space-6);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-lg);
+    background: var(--surface-raised);
+    box-shadow: var(--shadow-md);
+  }
+
+  .eyebrow {
+    margin: 0 0 var(--space-2);
+    color: var(--text-accent);
+    font-size: var(--text-xs);
+    font-weight: var(--weight-semibold);
+    letter-spacing: var(--tracking-caps);
+    text-transform: uppercase;
+  }
+
+  .hero .title-row {
+    align-items: flex-start;
+  }
+
+  .collection-title {
+    margin: 0;
+    font-family: var(--font-display);
+    font-size: var(--text-2xl);
+    font-weight: var(--weight-semibold);
+    letter-spacing: var(--tracking-tight);
+  }
+
+  .hero-actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: var(--space-2);
+  }
+
+  .hero .blurb {
+    margin-top: var(--space-4);
+    margin-bottom: var(--space-5);
+    font-size: var(--text-md);
+    line-height: var(--leading-relaxed);
+  }
+
+  .hero-meta {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: var(--space-2) var(--space-4);
+    color: var(--text-tertiary);
+    font-size: var(--text-sm);
+  }
+
+  .hero-meta > span:not(.creator-stack) + span:not(.creator-stack)::before {
+    content: '·';
+    margin-right: var(--space-4);
+    color: var(--border-strong);
+  }
+
+  .hero-meta .ready {
+    color: var(--success);
+  }
+
+  .creator-stack {
+    display: flex;
+    margin-left: auto;
+    padding-left: var(--space-2);
+  }
+
+  .creator-stack img,
+  .creator-stack > span {
+    display: grid;
+    width: var(--space-7);
+    height: var(--space-7);
+    margin-left: calc(var(--space-2) * -1);
+    place-items: center;
+    border: 2px solid var(--surface-raised);
+    border-radius: var(--radius-full);
+    background: var(--surface-selected);
+    color: var(--text-accent);
+    font-size: var(--text-2xs);
+    font-weight: var(--weight-semibold);
+    object-fit: cover;
+  }
+
+  .manage-tabs {
+    display: flex;
+    gap: var(--space-1);
+    margin-bottom: var(--space-5);
+    padding-bottom: var(--space-2);
+    border-bottom: 1px solid var(--border-subtle);
+  }
+
+  .manage-tabs button {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    padding: var(--space-2) var(--space-4);
+    border: 0;
+    border-radius: var(--radius-sm);
+    background: transparent;
+    color: var(--text-secondary);
+    font: inherit;
+    font-size: var(--text-sm);
+    cursor: pointer;
+  }
+
+  .manage-tabs button:hover {
+    background: var(--surface-hover);
+    color: var(--text-primary);
+  }
+
+  .manage-tabs button.on {
+    background: var(--surface-selected);
+    color: var(--text-accent);
+    font-weight: var(--weight-semibold);
+  }
+
+  .manage-tabs button span {
+    min-width: 1.25rem;
+    padding: 0 var(--space-1);
+    border-radius: var(--radius-full);
+    background: var(--accent);
+    color: var(--text-on-accent);
+    font-size: var(--text-2xs);
+    text-align: center;
+  }
+
+  .workspace-heading {
+    margin-bottom: var(--space-5);
+  }
+
+  .workspace-heading h2,
+  .admin h2 {
+    margin: 0;
+    color: var(--text-primary);
+    font-family: var(--font-display);
+    font-size: var(--text-xl);
+  }
+
+  .hidden {
+    display: none;
+  }
+
+  .content-flow {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .showcase-count {
+    order: 0;
+    margin-bottom: var(--space-3);
+    font-size: var(--text-xs);
+    font-weight: var(--weight-semibold);
+    letter-spacing: var(--tracking-caps);
+    text-transform: uppercase;
+  }
+
+  .showcase-grid {
+    order: 1;
+  }
+
+  .showcase-export {
+    order: 2;
+    margin-top: var(--space-9);
+    margin-bottom: 0;
+    padding: var(--space-6);
+    background: var(--surface-base);
+  }
+
+  .showcase-export h2 {
+    margin-bottom: var(--space-2);
+    font-family: var(--font-display);
+    font-size: var(--text-xl);
+  }
+
+  .export-choices {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: var(--space-3);
+    margin-top: var(--space-5);
+  }
+
+  .customize-row {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: var(--space-2) var(--space-3);
+    margin-top: var(--space-4);
+  }
+
+  .customize-row span {
+    color: var(--text-muted);
+    font-size: var(--text-xs);
+  }
+
+  .export-choices button {
+    display: flex;
+    min-height: 6rem;
+    flex-direction: column;
+    gap: var(--space-2);
+    padding: var(--space-4);
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-md);
+    background: var(--surface-raised);
+    color: var(--text-primary);
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+  }
+
+  .export-choices button:hover,
+  .export-choices button.chosen {
+    border-color: var(--border-accent);
+    background: var(--accent-soft);
+  }
+
+  .export-choices button span {
+    color: var(--text-tertiary);
+    font-size: var(--text-sm);
+    line-height: var(--leading-normal);
+  }
+
+  .export-options {
+    display: flex;
+    align-items: flex-start;
+    flex-direction: column;
+    gap: var(--space-3);
+    margin-top: var(--space-4);
+    padding-top: var(--space-4);
+    border-top: 1px solid var(--border-subtle);
+  }
+
+  .export-options p {
+    margin: 0;
+    color: var(--text-secondary);
+    font-size: var(--text-sm);
+  }
+
+  .grid {
+    grid-template-columns: repeat(auto-fill, minmax(16rem, 1fr));
+    gap: var(--space-5);
+  }
+
+  .grid li {
+    display: flex;
+  }
+
+  .tile {
+    height: 100%;
+    gap: 0;
+    padding: 0;
+    overflow: hidden;
+    box-shadow: var(--shadow-sm);
+  }
+
+  .tile:hover {
+    border-color: var(--border-accent);
+    box-shadow: var(--shadow-md);
+  }
+
+  .cover {
+    position: relative;
+    width: 100%;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    font: inherit;
+  }
+
+  .cover img.cover-art,
+  .cover img.preview-card {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+  }
+
+  .cover img.cover-art {
+    object-fit: cover;
+  }
+
+  .cover img.preview-card {
+    object-fit: contain;
+    background: inherit;
+    opacity: 0;
+    transition: opacity var(--duration-normal) var(--ease-out);
+  }
+
+  .tile:focus .preview-card {
+    opacity: 1;
+  }
+
+  @media (hover: hover) {
+    .tile:hover .preview-card {
+      opacity: 1;
+    }
+  }
+
+  .card-body {
+    flex: 1;
+    gap: var(--space-2);
+    padding: var(--space-4);
+  }
+
+  .deck-name {
+    overflow: hidden;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: var(--text-primary);
+    font: inherit;
+    font-size: var(--text-md);
+    font-weight: var(--weight-semibold);
+    text-align: left;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .open-deck {
+    display: flex;
+    min-height: calc(var(--space-7) + var(--space-3));
+    align-items: center;
+    align-self: flex-start;
+    margin-top: auto;
+    padding: var(--space-2) 0 0;
+    border: 0;
+    background: transparent;
+    color: var(--text-accent);
+    font: inherit;
+    font-size: var(--text-sm);
+    font-weight: var(--weight-semibold);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .cover img.preview-card {
+      transition: none;
+    }
+  }
+
+  @media (max-width: 720px) {
+    .body {
+      padding: var(--space-4) var(--space-4) var(--space-9);
+    }
+
+    .hero-copy {
+      width: calc(100% - var(--space-4));
+      margin-top: calc(var(--space-5) * -1);
+      padding: var(--space-4);
+    }
+
+    .hero .title-row {
+      flex-direction: column;
+    }
+
+    .hero-actions {
+      width: 100%;
+      justify-content: flex-start;
+    }
+
+    .creator-stack {
+      width: 100%;
+      margin: var(--space-1) 0 0 var(--space-2);
+    }
+
+    .hero-meta > span:not(.creator-stack) + span:not(.creator-stack)::before {
+      margin-right: var(--space-2);
+    }
+
+    .manage-tabs {
+      overflow-x: auto;
+    }
+
+    .manage-tabs button {
+      white-space: nowrap;
+    }
+
+    .export-choices {
+      grid-template-columns: 1fr;
+    }
+
+    .export-choices button {
+      min-height: 0;
+    }
   }
 </style>

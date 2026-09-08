@@ -83,6 +83,8 @@ export interface CollectionTile {
   revision: number;
   author_name: string;
   author_avatar: string;
+  /** One hero card for the collection-page reveal; empty for old or non-hero sets. */
+  preview_card_url: string;
   sort_order: number;
   ready: boolean;
 }

@@ -20,6 +20,7 @@
  * checkboxes that would need to show a deck as "some cards on" — simpler to
  * build, and simpler for an author scanning a long list to reason about.
  */
+import type { CharacterId } from '$lib/characters/types';
 import type { DeckId } from '$lib/decks/types';
 import type { FigureId } from '$lib/figures/types';
 import { normalizeSet } from './normalize';
@@ -89,4 +90,36 @@ export function applyExportSelection(set: AdventureSet, selection: ExportSelecti
     threat: selection.includeThreat ? set.threat : { ...set.threat, enabled: false },
     map: selection.includeMap ? set.map : { ...set.map, enabled: false }
   });
+}
+
+/**
+ * Keep several characters from one published heroes set for a collection export.
+ *
+ * This is deliberately character-level rather than expressed as one
+ * `PublishScope`: a collection visitor may want two heroes out of a three-hero
+ * set, while a publish scope can name only one. Characters, their owned decks,
+ * cards and figures leave together so a deselected hero cannot still contribute
+ * a deck back or character card through the export planners.
+ *
+ * Unowned content stays with the member while at least one of its characters
+ * is selected. Heroes sets rarely have any, but silently dropping a shared
+ * rules pile would be a surprising side effect of choosing between heroes.
+ */
+export function applyCharacterExportSelection(
+  set: AdventureSet,
+  includedCharacterIds: ReadonlySet<CharacterId>
+): AdventureSet {
+  if (set.characters.every((character) => includedCharacterIds.has(character.id))) return set;
+
+  const characters = set.characters.filter((character) => includedCharacterIds.has(character.id));
+  const decks = set.decks.filter(
+    (deck) => deck.ownerId === null || includedCharacterIds.has(deck.ownerId)
+  );
+  const keptDeckIds = new Set(decks.map((deck) => deck.id));
+  const cards = set.cards.filter((card) => keptDeckIds.has(card.deckId));
+  const figures = set.figures.filter(
+    (figure) => figure.characterId === null || includedCharacterIds.has(figure.characterId)
+  );
+
+  return normalizeSet({ ...set, characters, decks, cards, figures });
 }
