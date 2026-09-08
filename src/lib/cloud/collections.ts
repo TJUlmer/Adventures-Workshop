@@ -147,11 +147,61 @@ const COLLECTION_COLUMNS =
  * `sets!forked_from` in `cloud/sets.ts`, where naming the table resolved a
  * self-reference backwards.
  */
-const MEMBERSHIP_COLUMNS =
-  'collection_id,set_id,status,ready,sort_order,invited_by,created_at,updated_at,' +
-  'set:sets(slug,name,subtitle,thumbnail_url,owner_id,visibility,' +
-  'author:profiles(display_name,avatar_url)),' +
-  'collection:collections(slug,name,subtitle)';
+/**
+ * One row of `collection_memberships`, flat as SQL returns it.
+ *
+ * Reshaped into `CollectionMembership` by `asMembership` so the screens that
+ * read `row.set?.name` did not have to change — the nesting was always a
+ * presentation of the join, not a fact about the data.
+ */
+interface MembershipRow {
+  collection_id: string;
+  set_id: string;
+  status: MembershipStatus;
+  ready: boolean;
+  sort_order: number;
+  invited_by: string | null;
+  created_at: string;
+  updated_at: string;
+  set_slug: string;
+  set_name: string;
+  set_subtitle: string;
+  set_thumbnail_url: string;
+  set_owner_id: string;
+  set_visibility: string;
+  author_name: string;
+  author_avatar: string;
+  collection_slug: string;
+  collection_name: string;
+  collection_subtitle: string;
+}
+
+function asMembership(row: MembershipRow): CollectionMembership {
+  return {
+    collection_id: row.collection_id,
+    set_id: row.set_id,
+    status: row.status,
+    ready: row.ready,
+    sort_order: row.sort_order,
+    invited_by: row.invited_by,
+    created_at: row.created_at,
+    updated_at: row.updated_at,
+    set: {
+      slug: row.set_slug,
+      name: row.set_name,
+      subtitle: row.set_subtitle,
+      thumbnail_url: row.set_thumbnail_url,
+      owner_id: row.set_owner_id,
+      visibility: row.set_visibility,
+      author: { display_name: row.author_name, avatar_url: row.author_avatar }
+    },
+    collection: {
+      slug: row.collection_slug,
+      name: row.collection_name,
+      subtitle: row.collection_subtitle
+    }
+  };
+}
 
 /** Both halves of the composite key, as a PostgREST filter. */
 function memberFilter(collectionId: string, setId: string): string {
@@ -678,11 +728,11 @@ export async function reorderMember(
  */
 export async function listMemberships(collectionId: string): Promise<CollectionMembership[]> {
   await auth.ensureFresh();
-  return request<CollectionMembership[]>(
-    `/rest/v1/collection_members?select=${MEMBERSHIP_COLUMNS}` +
-      `&collection_id=eq.${encodeURIComponent(collectionId)}` +
-      '&order=status.asc,sort_order.asc'
-  );
+  const rows = await request<MembershipRow[]>('/rest/v1/rpc/collection_memberships', {
+    method: 'POST',
+    body: { target: collectionId }
+  });
+  return rows.map(asMembership);
 }
 
 /**
@@ -698,10 +748,13 @@ export async function listMemberships(collectionId: string): Promise<CollectionM
 export async function listPendingMemberships(): Promise<CollectionMembership[]> {
   await auth.ensureFresh();
   if (!auth.user) return [];
-  return request<CollectionMembership[]>(
-    `/rest/v1/collection_members?select=${MEMBERSHIP_COLUMNS}` +
-      '&status=in.(invited,submitted)&order=created_at.desc'
-  );
+  const rows = await request<MembershipRow[]>('/rest/v1/rpc/collection_memberships', {
+    method: 'POST',
+    body: {}
+  });
+  return rows
+    .filter((row) => row.status === 'invited' || row.status === 'submitted')
+    .map(asMembership);
 }
 
 // -- Organizers ----------------------------------------------------------
