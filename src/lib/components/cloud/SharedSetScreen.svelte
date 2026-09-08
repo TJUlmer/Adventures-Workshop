@@ -565,7 +565,7 @@
     {:else if set}
       {@const shown = computeScopedSet(set, viewScope)}
       {@const scopeOptions = scopeOptionsFor(set)}
-      {#snippet actions(currentSet: AdventureSet)}
+      {#snippet commentPanel()}
         {#if row?.visibility === 'public'}
           <section class="panel community-panel">
             <h2 class="panel-title">Comments</h2>
@@ -733,7 +733,9 @@
             {/if}
           </section>
         {/if}
+      {/snippet}
 
+      {#snippet actions(currentSet: AdventureSet)}
         {#if SHOW_FORK || forked}
           <section class="panel">
             <h2 class="panel-title">Build on this</h2>
@@ -770,6 +772,8 @@
           </p>
           <ExportPanel set={currentSet} onprint={() => (printing = true)} bind:scope={viewScope} />
         </section>
+
+        {@render commentPanel()}
       {/snippet}
       <!--
         The set left, its exports right — the same arrangement as the map
