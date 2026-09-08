@@ -13,10 +13,12 @@ export {
   PRINT_DPI
 } from './types';
 
-export type { CardSymbolName, PatternName } from './assets';
+export type { CardSymbolName, PatternName, TextSymbolName } from './assets';
 export {
   CARD_SYMBOL_LABELS,
   CARD_SYMBOLS,
+  TEXT_SYMBOL_LABELS,
+  TEXT_SYMBOLS,
   PATTERN_NAMES,
   patternUrl,
   symbolUrl,

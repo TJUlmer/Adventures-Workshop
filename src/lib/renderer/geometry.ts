@@ -710,6 +710,47 @@ export const BOOST_EFFECT = {
 } as const;
 
 /**
+ * Optional second attack at the foot of an action card.
+ *
+ * The supplied `bonus_attack_banner.png` is already at bleed scale: 280 × 163
+ * with the white burst and pointed red field baked together. The examples are
+ * reduced web images, so the asset is authoritative for the banner while the
+ * surrounding copy deliberately reuses this renderer's measured title,
+ * ability and divider metrics.
+ */
+export const BONUS_ATTACK = {
+  /** A quiet wash of the panel's own ink produces the lighter lower section. */
+  washOpacity: 0.07,
+  minHeight: 191,
+  banner: {
+    width: 280,
+    height: 163,
+    valueCenterX: 195,
+    valueCenterY: 81.5,
+    valueSize: inFace(118)
+  },
+  content: {
+    left: 316,
+    right: INTERIOR_RADIUS,
+    top: 26,
+    /** Keeps bonus copy clear of the copies count, as the primary ability does. */
+    bottom: ABILITY.bottomInset
+  },
+  title: {
+    size: inName(112),
+    lineHeight: 0.9,
+    tracking: TITLE.tracking,
+    condense: TITLE.condense,
+    maxLines: 2
+  },
+  rule: {
+    gapAbove: 12,
+    height: TITLE_RULE.height,
+    gapBelow: 18
+  }
+} as const;
+
+/**
  * Card name, set bottom-up inside the ribbon.
  *
  * The name is anchored at its *end* — the last character, nearest the frame —

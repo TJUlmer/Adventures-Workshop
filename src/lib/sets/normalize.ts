@@ -874,7 +874,12 @@ function normalizeCard(value: unknown): Card | null {
         ribbonSymbol: str(raw['ribbonSymbol']),
         /* Off on documents written before the attached boost capsule existed. */
         showBoostEffect: bool(raw['showBoostEffect'], false),
-        boostEffect: str(raw['boostEffect'])
+        boostEffect: str(raw['boostEffect']),
+        /* Off on documents written before the lower bonus-attack panel existed. */
+        showBonusAttack: bool(raw['showBonusAttack'], false),
+        bonusAttackTitle: str(raw['bonusAttackTitle']),
+        bonusAttackValue: num(raw['bonusAttackValue'], 2),
+        bonusAttackAbility: str(raw['bonusAttackAbility'])
       } as ActionCard;
   }
 }

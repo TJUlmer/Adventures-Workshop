@@ -213,7 +213,7 @@ export const GUIDES: readonly Guide[] = [
     steps: [
       {
         text:
-          'Upload a transparent PNG on the Symbols page and give it a short, one-word name. "Hook" becomes {{hook}} — as long as it\'s not already claimed by another symbol or one of the four built-ins. A name that can\'t work as a word still inserts fine from the palette button; it just keeps a longer ID form in the text.',
+          'Upload a transparent PNG on the Symbols page and give it a short, one-word name. "Hook" becomes {{hook}} — as long as it\'s not already claimed by another symbol or one of the built-ins. A name that can\'t work as a word still inserts fine from the palette button; it just keeps a longer ID form in the text.',
         shot: 'custom-symbols/01-upload.webp',
         alt: 'A custom symbol named Hook, with its image attached and the {{hook}} token shown.',
         hotspots: [

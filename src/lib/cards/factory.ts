@@ -113,7 +113,11 @@ export function createCard<TType extends CardType>(
         showRibbonSymbol: false,
         ribbonSymbol: '',
         showBoostEffect: false,
-        boostEffect: ''
+        boostEffect: '',
+        showBonusAttack: false,
+        bonusAttackTitle: '',
+        bonusAttackValue: 2,
+        bonusAttackAbility: ''
       } as CardOfType<TType>;
   }
 }

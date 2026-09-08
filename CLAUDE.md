@@ -818,6 +818,29 @@ disc cannot hide copy beneath it, and flex centring keeps the line box on the
 capsule's vertical centre. `BOOST_EFFECT.label.size` is the manual type-size
 control.
 
+### Bonus attacks
+
+`ActionCard.showBonusAttack` adds a second, always-attack block at the foot of
+the body panel. Its `bonusAttackTitle`, `bonusAttackValue` and
+`bonusAttackAbility` are separate from the primary card fields and use the same
+small bold/italic text dialect. A full-width bar exactly `DIVIDER.height` high
+separates it from the primary effect. Below that bar, a translucent paper wash
+lightens the existing body fill without erasing its stock or custom pattern.
+
+The fixed 280 × 163 `bonus_attack_banner.png` supplies the red pointed value
+field and white burst as one official lockup; the numeral is live type centred
+over it. The title and its rule stay beside the banner. Once below that banner,
+the optional ability extends left to the primary ability column — the
+full-width column on hero/no-value cards, or the value-separated column
+otherwise — so the two blocks align. The lower panel grows when copy needs it.
+The horizontal title rule is only drawn when `bonusAttackAbility` has content. `BONUS_ATTACK` in
+`renderer/geometry.ts` owns its measured banner, value, copy and wash geometry.
+
+The smaller `symbols/bonus_attack.png` is a fifth **text** symbol and therefore
+lives in `TEXT_SYMBOLS`, while `CARD_SYMBOLS` deliberately remains the four
+combat types used by value controls and hero ribbons. This distinction prevents
+the bonus-attack token from appearing as a selectable primary card type.
+
 **Two layers, not one flat colour.** The field is `CardTheme.ribbonFoot` —
 black on the printed card — and only a bar down its right edge, one ribbon
 stroke wide (`BANNER.edge.width` / `HERO_RIBBON.edgeWidth`), is `divider`. That

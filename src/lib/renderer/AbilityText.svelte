@@ -43,7 +43,7 @@
   /**
    * Resolved the same way an inline `{{token}}` is — `bonusIcon` is stored as
    * that same token string rather than a separate reference type, so it runs
-   * through the same `CARD_SYMBOLS`/`CustomSymbol` lookup, just read once
+   * through the same built-in/custom-symbol lookup, just read once
    * instead of per glyph in a run of text.
    */
   const bonusIconSrc = $derived.by(() => {
@@ -137,6 +137,13 @@
     width: auto;
     vertical-align: -0.08em;
     margin-inline: 0.06em;
+  }
+
+  /* The supplied bonus-attack badge is much wider than the four combat glyphs. */
+  .line :global(.symbol[alt='bonus_attack']) {
+    /* The wide badge needs a shorter box and a neutral baseline. */
+    height: 0.68em;
+    vertical-align: 0em;
   }
 
   /* The bundled card cut has no bold file; opt in only for author-marked runs. */

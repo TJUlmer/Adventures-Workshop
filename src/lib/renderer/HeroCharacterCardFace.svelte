@@ -1055,6 +1055,12 @@
     margin-inline: 0.06em;
   }
 
+  .ability-symbol[alt='bonus_attack'] {
+    /* The wide badge needs a shorter box and a neutral baseline. */
+    height: 0.68em;
+    vertical-align: 0em;
+  }
+
   .placeholder {
     opacity: 0.55;
   }

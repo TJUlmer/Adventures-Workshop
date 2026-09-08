@@ -39,7 +39,7 @@ export interface AbilityBlocks {
    * column rather than inline with the text — unlike every other symbol in
    * ability copy. Stored as the same `{{token}}` string an inline symbol
    * would use (`{{attack}}`, `{{custom:<id>}}`), so it resolves through the
-   * same `parseAbilityText`/`CARD_SYMBOLS`/`CustomSymbol` machinery instead
+   * same `parseAbilityText`/`TEXT_SYMBOLS`/`CustomSymbol` machinery instead
    * of a second symbol-reference type. Empty string prints no icon.
    */
   bonusIcon: string;
@@ -210,6 +210,15 @@ export interface ActionCard extends CardCommon {
    */
   showBoostEffect: boolean;
   boostEffect: string;
+  /**
+   * A second, always-attack effect printed in its own lighter panel at the
+   * bottom of the card. The title and ability use the same compact inline
+   * formatting dialect as the card's primary title and ability copy.
+   */
+  showBonusAttack: boolean;
+  bonusAttackTitle: string;
+  bonusAttackValue: number;
+  bonusAttackAbility: string;
 }
 
 /**

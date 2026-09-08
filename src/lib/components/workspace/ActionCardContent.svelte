@@ -33,6 +33,7 @@
     TextArea,
     TextInput
   } from '$lib/ui';
+  import AbilityField from './AbilityField.svelte';
   import AbilityStack from './AbilityStack.svelte';
   import FormattedTextField from './FormattedTextField.svelte';
   import ValueControl from './ValueControl.svelte';
@@ -333,7 +334,7 @@
 
 <Section
   title="Special card effects"
-  description="Optional treatments attached to the card’s ribbon and boost."
+  description="Optional treatments attached to the card’s ribbon, boost and ability panel."
 >
   <div class="effect-option">
     <Switch
@@ -430,6 +431,48 @@
       </Field>
     {/if}
   </div>
+
+  <div class="effect-option">
+    <Switch
+      label="Bonus attack"
+      hint="Adds a second attack in a divided, lighter section at the bottom of the card."
+      checked={card.showBonusAttack}
+      onchange={(show) => edit((target) => (target.showBonusAttack = show))}
+    />
+
+    {#if card.showBonusAttack}
+      <div class="bonus-attack-head">
+        <FormattedTextField
+          label="Bonus attack title"
+          value={card.bonusAttackTitle}
+          placeholder="Bonus attack title"
+          prominent
+          multiline={false}
+          onchange={(title) => edit((target) => (target.bonusAttackTitle = title))}
+          customSymbols={workshop.adventure.customSymbols}
+        />
+
+        <Field label="Combat value">
+          <NumberInput
+            value={card.bonusAttackValue}
+            min={0}
+            max={9}
+            onchange={(value) => edit((target) => (target.bonusAttackValue = value))}
+          />
+        </Field>
+      </div>
+
+      <AbilityField
+        label="Bonus attack ability"
+        value={card.bonusAttackAbility}
+        rows={3}
+        formatted
+        placeholder="Ability text…"
+        onchange={(value) => edit((target) => (target.bonusAttackAbility = value))}
+        customSymbols={workshop.adventure.customSymbols}
+      />
+    {/if}
+  </div>
 </Section>
 
 <Section title="Notes" description="Working notes. Never printed.">
@@ -456,6 +499,19 @@
   .effect-option + .effect-option {
     padding-top: var(--space-4);
     border-top: 1px solid var(--border-subtle);
+  }
+
+  .bonus-attack-head {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 112px;
+    align-items: end;
+    gap: var(--space-3);
+  }
+
+  @container workspace (max-width: 520px) {
+    .bonus-attack-head {
+      grid-template-columns: 1fr;
+    }
   }
 
   .icon-choice {

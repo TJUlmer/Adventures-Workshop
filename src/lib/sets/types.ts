@@ -386,10 +386,15 @@ export type SetId = Id<'Set'>;
  *      effect off with empty copy; an older build would silently discard an
  *      enabled effect, so it cannot read a v49 document.
  *
+ * v50 — action cards gained an optional bonus attack: its own title, attack
+ *      value and ability copy in a divided lower panel. The built-in text
+ *      symbol registry also gained `bonus_attack`. Older cards default the
+ *      whole effect off; older builds would discard these fields.
+ *
  * Older documents are *repaired*, not rejected — see `sets/normalize.ts`. Only
  * a version newer than this build understands is refused.
  */
-export const SET_SCHEMA_VERSION = 49;
+export const SET_SCHEMA_VERSION = 50;
 
 /**
  * What a set is for.

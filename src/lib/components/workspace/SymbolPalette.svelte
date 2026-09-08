@@ -19,8 +19,8 @@
    * store a name the renderer does not resolve, and it would print as
    * literal braces.
    */
-  import { CARD_SYMBOL_LABELS, CARD_SYMBOLS } from '$lib/renderer/assets';
-  import type { CardSymbolName } from '$lib/renderer/assets';
+  import { TEXT_SYMBOL_LABELS, TEXT_SYMBOLS } from '$lib/renderer/assets';
+  import type { TextSymbolName } from '$lib/renderer/assets';
   import type { CustomSymbol } from '$lib/symbols/types';
   import { customSymbolLabel } from '$lib/symbols/types';
   import { displaySymbolToken, SUBJECT_TOKEN, symbolToken } from '$lib/text/tokens';
@@ -38,7 +38,7 @@
 
   let { oninsert, onformat, customSymbols = [] }: Props = $props();
 
-  const SYMBOL_NAMES = Object.keys(CARD_SYMBOLS) as CardSymbolName[];
+  const SYMBOL_NAMES = Object.keys(TEXT_SYMBOLS) as TextSymbolName[];
 </script>
 
 <div
@@ -70,11 +70,15 @@
     <button
       type="button"
       class="symbol"
-      title="Insert {CARD_SYMBOL_LABELS[name]} symbol"
+      title="Insert {TEXT_SYMBOL_LABELS[name]} symbol"
       onmousedown={(event) => event.preventDefault()}
       onclick={() => oninsert(symbolToken(name))}
     >
-      <img src={CARD_SYMBOLS[name]} alt={CARD_SYMBOL_LABELS[name]} />
+      <img
+        class:bonus-attack-symbol={name === 'bonus_attack'}
+        src={TEXT_SYMBOLS[name]}
+        alt={TEXT_SYMBOL_LABELS[name]}
+      />
     </button>
   {/each}
 
@@ -174,6 +178,11 @@
     width: 14px;
     height: 14px;
     object-fit: contain;
+  }
+
+  .symbol img.bonus-attack-symbol {
+    width: 12px;
+    height: 12px;
   }
 
   .symbol.token {

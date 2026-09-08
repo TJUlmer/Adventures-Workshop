@@ -25,7 +25,14 @@
   import { actionTextIsEmpty, renderActionText } from '$lib/text/action-text';
   import { parseAbilityText } from '$lib/text/tokens';
   import AbilityText from './AbilityText.svelte';
-  import { CARD_SYMBOL_COLORS, CARD_SYMBOL_SIZES, CARD_SYMBOLS, patternAspect } from './assets';
+  import {
+    CARD_SYMBOL_COLORS,
+    CARD_SYMBOL_SIZES,
+    CARD_SYMBOLS,
+    patternAspect,
+    symbolUrl,
+    TEMPLATE_ASSETS
+  } from './assets';
   import type { CardSymbolName } from './assets';
   import CardArt from './CardArt.svelte';
   import {
@@ -39,6 +46,7 @@
     BLEED,
     BODY_PANEL,
     BODY_PANEL_MAX_HEIGHT,
+    BONUS_ATTACK,
     BOOST,
     BOOST_DISC_RADIUS,
     BOOST_EFFECT,
@@ -136,6 +144,10 @@
 
   const ribbonName = $derived(card.name.trim() || shortName || 'Villain Name');
   const title = $derived(actionTextIsEmpty(card.title) ? 'Card Title' : card.title);
+  const bonusAttackTitle = $derived(
+    actionTextIsEmpty(card.bonusAttackTitle) ? 'Bonus Attack' : card.bonusAttackTitle
+  );
+  const hasBonusAttackAbility = $derived(!actionTextIsEmpty(card.bonusAttackAbility));
 
   /**
    * Who may play this card: the primary identity's own name, an additional
@@ -193,6 +205,15 @@
   });
 
   const hasValues = $derived(values.length > 0);
+
+  /**
+   * The primary ability's printed left edge, reused by the bonus attack below.
+   * A value column shifts villain/minion and split copy right; hero cards and
+   * cards without values use the title's full-width text column instead.
+   */
+  const primaryAbilityLeft = $derived(
+    card.split || hasValues ? ABILITY.x - BODY_PANEL.x : TITLE.x - BODY_PANEL.x
+  );
 
   /**
    * How far the value stack runs below the rule's top edge.
@@ -262,7 +283,7 @@
   const ribbonSymbolSrc = $derived.by(() => {
     if (!card.showRibbonSymbol || !card.ribbonSymbol) return null;
     const [segment] = parseAbilityText(card.ribbonSymbol);
-    if (segment?.kind === 'symbol') return CARD_SYMBOLS[segment.name];
+    if (segment?.kind === 'symbol') return symbolUrl(segment.name);
     if (segment?.kind === 'customSymbol') {
       return customSymbols.find((entry) => entry.id === segment.id)?.source ?? null;
     }
@@ -450,7 +471,9 @@
     class="body"
     style:min-height={pu(isHero ? HERO_BODY_PANEL_HEIGHT : BODY_PANEL.height)}
     style:max-height={pu(BODY_PANEL_MAX_HEIGHT)}
-    style:padding-bottom={isHero ? pu(HERO_BODY_PANEL_FOOT_CLEARANCE) : undefined}
+    style:padding-bottom={isHero && !card.showBonusAttack
+      ? pu(HERO_BODY_PANEL_FOOT_CLEARANCE)
+      : undefined}
     style:background={fillCss(theme.body)}
   >
     {#if theme.pattern.name}
@@ -663,6 +686,106 @@
         <div class="panel-foot" style:height={pu(ABILITY.bottomInset)}></div>
       {/if}
     </div>
+
+    {#if card.showBonusAttack}
+      <!-- Same stock as the art/body divider, by definition of this treatment. -->
+      <div
+        class="bonus-attack-divider"
+        style:height={pu(DIVIDER.height)}
+        style:background={theme.divider}
+      ></div>
+
+      <div
+        class="bonus-attack-panel"
+        style:min-height={pu(BONUS_ATTACK.minHeight)}
+        style:padding-bottom={isHero ? pu(HERO_BODY_PANEL_FOOT_CLEARANCE) : undefined}
+      >
+        <!-- A translucent paper wash lightens the body fill without flattening its pattern. -->
+        <div class="bonus-attack-wash" style:opacity={BONUS_ATTACK.washOpacity}></div>
+
+        <img
+          class="bonus-attack-banner"
+          src={TEMPLATE_ASSETS.bonusAttackBanner}
+          alt=""
+          style:width={pu(BONUS_ATTACK.banner.width)}
+          style:height={pu(BONUS_ATTACK.banner.height)}
+        />
+        <span
+          class="bonus-attack-value"
+          style:left={pu(BONUS_ATTACK.banner.valueCenterX)}
+          style:top={pu(
+            digitMiddleToBoxTop(
+              BONUS_ATTACK.banner.valueCenterY,
+              BONUS_ATTACK.banner.valueSize
+            )
+          )}
+          style:font-size={pu(BONUS_ATTACK.banner.valueSize)}
+          style:color={theme.bannerInk}
+        >
+          {card.bonusAttackValue}
+        </span>
+
+        <div
+          class="bonus-attack-copy"
+          style:margin-left={pu(BONUS_ATTACK.content.left)}
+          style:padding-top={pu(
+            capTopToBoxTop(
+              BONUS_ATTACK.content.top,
+              BONUS_ATTACK.title.size,
+              BONUS_ATTACK.title.lineHeight,
+              NAME_METRICS
+            )
+          )}
+          style:padding-right={pu(BONUS_ATTACK.content.right)}
+          style:padding-bottom={pu(BONUS_ATTACK.content.bottom)}
+          style:color={theme.bodyInk}
+        >
+          <div
+            class="bonus-attack-title"
+            style:font-size={pu(BONUS_ATTACK.title.size)}
+            style:line-height={BONUS_ATTACK.title.lineHeight}
+            style:letter-spacing="{BONUS_ATTACK.title.tracking}em"
+            style:scale="{BONUS_ATTACK.title.condense} 1"
+            style:max-height={pu(
+              BONUS_ATTACK.title.size *
+                BONUS_ATTACK.title.lineHeight *
+                BONUS_ATTACK.title.maxLines
+            )}
+            style:--bonus-title-symbol-height={pu(BONUS_ATTACK.title.size * NAME_METRICS.cap)}
+            style:--bonus-title-symbol-scale={1 / BONUS_ATTACK.title.condense}
+          >
+            {@html renderActionText(
+              bonusAttackTitle,
+              ribbonName,
+              customSymbols,
+              'bonus-title-symbol'
+            )}
+          </div>
+
+          {#if hasBonusAttackAbility}
+            <div
+              class="bonus-attack-title-rule"
+              style:margin-top={pu(BONUS_ATTACK.rule.gapAbove)}
+              style:height={pu(BONUS_ATTACK.rule.height)}
+              style:background={theme.bodyInk}
+            ></div>
+            <div
+              class="bonus-attack-ability"
+              style:margin-top={pu(BONUS_ATTACK.rule.gapBelow)}
+              style:margin-left={pu(primaryAbilityLeft - BONUS_ATTACK.content.left)}
+              style:width={pu(
+                INTERIOR.width - primaryAbilityLeft - BONUS_ATTACK.content.right
+              )}
+              style:font-size={pu(abilitySize)}
+              style:line-height={ABILITY.lineHeight}
+              style:letter-spacing="{ABILITY.tracking}em"
+            >
+              {@html renderActionText(card.bonusAttackAbility, ribbonName, customSymbols)}
+            </div>
+          {/if}
+        </div>
+      </div>
+    {/if}
   </div>
   </div>
 </div>
@@ -1131,6 +1254,116 @@
     overflow: hidden;
   }
 
+  .bonus-attack-divider {
+    position: relative;
+    z-index: 2;
+    flex: none;
+  }
+
+  .bonus-attack-panel {
+    position: relative;
+    z-index: 1;
+    /* Fill slack left by `.body`'s minimum height, especially with no ability copy. */
+    flex: 1 0 auto;
+    overflow: hidden;
+  }
+
+  .bonus-attack-wash {
+    position: absolute;
+    inset: 0;
+    background: var(--print-paper);
+    pointer-events: none;
+  }
+
+  .bonus-attack-banner {
+    position: absolute;
+    z-index: 1;
+    top: 0;
+    left: 0;
+    max-width: none;
+    object-fit: contain;
+    pointer-events: none;
+  }
+
+  .bonus-attack-value {
+    position: absolute;
+    z-index: 2;
+    translate: -50% 0;
+    font-family: var(--card-font-numeral);
+    font-weight: var(--card-font-numeral-weight);
+    line-height: 1;
+  }
+
+  .bonus-attack-copy {
+    position: relative;
+    z-index: 2;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+  }
+
+  .bonus-attack-title {
+    display: block;
+    overflow: hidden;
+    font-family: var(--card-font-name);
+    font-weight: var(--card-font-name-weight);
+    transform-origin: left center;
+    text-transform: uppercase;
+  }
+
+  .bonus-attack-title :global(.bonus-title-symbol) {
+    display: inline-block;
+    width: auto;
+    height: var(--bonus-title-symbol-height);
+    object-fit: contain;
+    scale: var(--bonus-title-symbol-scale) 1;
+  }
+
+  .bonus-attack-title :global(.bonus-title-symbol[alt='bonus_attack']) {
+    height: calc(var(--bonus-title-symbol-height) * 0.86);
+  }
+
+  .bonus-attack-title :global(b),
+  .bonus-attack-title :global(strong),
+  .bonus-attack-ability :global(b),
+  .bonus-attack-ability :global(strong) {
+    font-weight: 700;
+    font-synthesis-weight: auto;
+  }
+
+  .bonus-attack-title :global(i),
+  .bonus-attack-title :global(em),
+  .bonus-attack-ability :global(i),
+  .bonus-attack-ability :global(em) {
+    font-style: italic;
+  }
+
+  .bonus-attack-title-rule {
+    flex: none;
+    width: 100%;
+  }
+
+  .bonus-attack-ability {
+    font-family: var(--card-font-text);
+    font-weight: var(--card-font-text-weight);
+    text-wrap: pretty;
+    white-space: pre-wrap;
+  }
+
+  .bonus-attack-ability :global(.symbol) {
+    display: inline-block;
+    width: auto;
+    height: 0.82em;
+    margin-inline: 0.06em;
+    vertical-align: -0.08em;
+  }
+
+  .bonus-attack-ability :global(.symbol[alt='bonus_attack']) {
+    /* The wide badge needs a shorter box and a neutral baseline. */
+    height: 0.68em;
+    vertical-align: 0em;
+  }
+
   .panel-lead,
   .panel-foot {
     flex: none;
@@ -1498,6 +1731,10 @@
     width: auto;
     object-fit: contain;
     scale: var(--title-symbol-scale) 1;
+  }
+
+  .title :global(.title-symbol[alt='bonus_attack']) {
+    height: calc(var(--title-symbol-height) * 0.46);
   }
 
   .boost-effect {

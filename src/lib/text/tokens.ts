@@ -9,13 +9,13 @@
  * owner should keep naming it after the card is moved to another deck or the
  * figure is renamed, which a typed-out name cannot do.
  */
-import type { CardSymbolName } from '$lib/renderer/assets';
-import { CARD_SYMBOLS } from '$lib/renderer/assets';
+import type { TextSymbolName } from '$lib/renderer/assets';
+import { TEXT_SYMBOLS } from '$lib/renderer/assets';
 import type { CustomSymbolId } from '$lib/symbols/types';
 
 export type AbilitySegment =
   | { readonly kind: 'text'; readonly value: string }
-  | { readonly kind: 'symbol'; readonly name: CardSymbolName }
+  | { readonly kind: 'symbol'; readonly name: TextSymbolName }
   /** An author-uploaded glyph, resolved against the set's registry at render time. */
   | { readonly kind: 'customSymbol'; readonly id: CustomSymbolId }
   /** Stands in for the figure the card belongs to. */
@@ -34,7 +34,7 @@ const CUSTOM_SYMBOL_PREFIX = 'custom:';
 /** The token that prints the owning figure's name. */
 export const SUBJECT_TOKEN = '{{name}}';
 
-export function symbolToken(name: CardSymbolName): string {
+export function symbolToken(name: TextSymbolName): string {
   return `{{${name}}}`;
 }
 
@@ -42,8 +42,8 @@ export function customSymbolToken(id: CustomSymbolId): string {
   return `{{${CUSTOM_SYMBOL_PREFIX}${id}}}`;
 }
 
-function isSymbolName(value: string): value is CardSymbolName {
-  return Object.hasOwn(CARD_SYMBOLS, value);
+function isSymbolName(value: string): value is TextSymbolName {
+  return Object.hasOwn(TEXT_SYMBOLS, value);
 }
 
 /** Split text into runs and tokens. Unknown tokens stay as literal text. */
@@ -105,7 +105,7 @@ export function insertToken(
 // exactly as before and a name can be changed as often as the author likes.
 
 /** Names a custom symbol may not take, because a token already means them. */
-const RESERVED = new Set([...Object.keys(CARD_SYMBOLS), 'name']);
+const RESERVED = new Set([...Object.keys(TEXT_SYMBOLS), 'name']);
 
 /** What a name has to look like to be a token: the token grammar, minus `:`. */
 const NAME_PATTERN = /^[a-zA-Z][a-zA-Z0-9_-]*$/;
