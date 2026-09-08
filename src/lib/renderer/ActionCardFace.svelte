@@ -441,6 +441,7 @@
             class="boost-effect-label"
             style:font-size={pu(BOOST_EFFECT.label.size)}
             style:line-height={BOOST_EFFECT.label.lineHeight}
+            style:transform="translateY({pu(BOOST_EFFECT.label.offsetY)})"
             style:color={theme.boostInk}
           >
             {card.boostEffect}

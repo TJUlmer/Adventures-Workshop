@@ -695,17 +695,19 @@ export const BOOST_EFFECT = {
   offsetY: 0,
   label: {
     /** Ink begins 29px inside the capsule's measured left edge. */
-    left: 29,
+    left: 75,
     /**
      * Ends the copy 22px before the boost ring's leftmost point, as in the
      * supplied artwork. The renderer adds `offsetX` to this clearance,
      * because moving the capsule's right edge must not move its text
      * underneath the stationary disc.
      */
-    right: BOOST.outerRadius + 22,
-    /** Change the `52` here to adjust the effect text's font size. */
-    size: inFace(55),
-    lineHeight: 1
+    right: BOOST.outerRadius + 30,
+    /** Change `size` here to adjust the effect text's font size. */
+    size: inFace(60),
+    /** Positive values move only the label down; negative values move it up. */
+    offsetY: -5,
+    lineHeight: 2
   }
 } as const;
 
