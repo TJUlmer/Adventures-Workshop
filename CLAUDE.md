@@ -673,10 +673,25 @@ centre. The badge is a shield — full width for its top two thirds, then a tape
 
 The two band headings print the character's and the sidekick's **full** names,
 falling back to the words HERO and SIDEKICK the template sets. Full, because
-this is the sheet a figure is introduced on — `Character.subtitle` is a
-*shortened* name for the action cards' ribbon, which is the one place a name is
-set at display size in a column two centimetres wide. The line beside the
-copies count takes the full name too; it has a whole card's width to run in.
+this is the sheet a figure is introduced on — `Character.subtitle` and
+`HeroSidekick.subtitle` are *shortened* names for the action cards' ribbon,
+which is the one place a name is set at display size in a column two centimetres
+wide. The line beside the copies count takes the full hero name too; it has a
+whole card's width to run in. A card's Name override wins over the selected
+hero, additional identity or sidekick's shortened and full names.
+
+An action card's inherited `name` field is therefore ribbon copy only. Its
+`title` is the card's label in the workspace, export filenames, print sheets
+and accessible renderer name; `cardLabel()` never lets a ribbon override take
+that identity over, and duplication preserves the override verbatim rather
+than appending “(copy)” to printed ribbon text.
+
+The small discs representing a 1–2 HP swarm sidekick take their fill from
+`CharacterCardDesign.sidekickDisc`, edited in the Sidekick Band design block.
+Their measured ring is transparent and backed with the Sidekick Band fill so
+it remains visible where the stack overlaps instead of revealing the preceding
+disc or restoring a fixed black outline. Older designs normalise to the former
+`#858585` grey.
 
 A sidekick is **one sub-object, not a list**: every character-card template
 shows at most one sidekick concept — a single tracked individual, or an
@@ -728,20 +743,22 @@ margin the reference art never has; both backs' art now runs the full bleed
 canvas (full trim canvas for villain/minion, whose template carries no
 bleed — `CARDBACK_BLEED`), with the line drawn *over* it.
 
-`HERO_CARDBACK.frame` (143,143 to 1489,2080) is where the hero's own line
-sits — the same four numbers as the action card's `INTERIOR`, coincidentally,
-since this file does not read that constant. `CARDBACK.window`/`.radius`
-were removed outright rather than left unused, since nothing needs a
-clipping box's numbers once nothing clips to it.
+`HERO_CARDBACK.frame` (140,140 to 1487,2077) records the UMLABS hero back's
+outer rounded line. Its logo badge rises above that line to the bleed edge;
+the frame geometry deliberately excludes that protrusion. `CARDBACK.window`/
+`.radius` were removed outright rather than left unused, since nothing needs
+a clipping box's numbers once nothing clips to it.
 
 Both lines are now a themed mask rather than a flat overlay —
 `CardbackDesign.frame`, drawn the same "art as a CSS alpha mask over a
 fill" way every other recolourable template border in this app is, with a
 `FillEditor` in `CardbackPanel` for every role. Each role's own template has
 its own line colour, so `createCardback`'s default is role-aware: `#f6eada`
-for a hero (`hero_cardback_border.png`), `#ebe8d5` for villain/minion
+for the hero's `umlabs_cardback_frame.png`, `#ebe8d5` for villain/minion
 (`adventures_minion_cardback_nologo.png`) — picking one colour for both would
 read wrong the moment an author opened whichever role it wasn't sampled from.
+The hero's contrasting `umlabs_cardback_logo.png` follows the same ink colour
+as its name, exposed together as "Text & logo" in `CardbackPanel`.
 
 **A hero's back prints no role line, so `CardbackPanel`'s "Role line" field
 is gated to `character.role !== 'hero'`.** `HeroCardbackFace` has never read
@@ -773,7 +790,7 @@ upload, are not: they are small multi-colour illustrations with an opaque
 background, so masking one to a flat fill just painted a rectangle and hid
 the art underneath it. What *is* an author's choice is `ribbonFoot` — the
 strip's own fill, already one of `StylePanel`'s "Surfaces" — and
-`ActionCardContent`'s "Ribbon symbol" section carries a second `FillEditor`
+`ActionCardContent`'s "Special card effects" section carries a second `FillEditor`
 bound to that same field, a shortcut so changing it does not mean a trip to
 Design for one colour. Same field, same cascade, two places to reach it.
 
@@ -792,6 +809,52 @@ box fitted to the gap: it is one tall column standing *on* the divider
 up **behind** the ribbon. Over-running upward costs nothing — the ribbon paints
 over it, the printed frame covers the rest, and `.interior`'s own `overflow:
 hidden` crops whatever reaches the top.
+
+### Boost effects
+
+An action card may also carry `showBoostEffect`/`boostEffect`: a short text
+capsule joined to the left of the boost disc. It is the second toggle in
+`ActionCardContent`'s "Special card effects" section. Normalisation and the
+editor both leave its text blank until the author supplies it.
+
+The capsule is drawn as CSS geometry measured from `boost_effect.png`, not as
+that full-card reference image. It lives inside `.divider`, behind the existing
+disc and ring, so all three pieces ride upward together as the body panel grows
+and the later boost layers cover the join. Its fill, outline and copy reuse
+`theme.boost`, `theme.divider` and `theme.boostInk`; the hero stock theme makes
+those navy, cream and white exactly as in the supplied artwork, while other
+roles keep their own established palette. Its width is intrinsic: short copy
+keeps the reference minimum, while longer copy grows the capsule leftward until
+it reaches the card interior. `BOOST_EFFECT.offsetX`/`offsetY` in
+`renderer/geometry.ts` are the deliberate manual position controls; positive
+values move the attachment right/down without moving the boost disc. Horizontal
+text clearance includes `offsetX`, so moving the capsule past the stationary
+disc cannot hide copy beneath it, and flex centring keeps the line box on the
+capsule's vertical centre. `BOOST_EFFECT.label.size` is the manual type-size
+control.
+
+### Bonus attacks
+
+`ActionCard.showBonusAttack` adds a second, always-attack block at the foot of
+the body panel. Its `bonusAttackTitle`, `bonusAttackValue` and
+`bonusAttackAbility` are separate from the primary card fields and use the same
+small bold/italic text dialect. A full-width bar exactly `DIVIDER.height` high
+separates it from the primary effect. Below that bar, a translucent paper wash
+lightens the existing body fill without erasing its stock or custom pattern.
+
+The fixed 280 × 163 `bonus_attack_banner.png` supplies the red pointed value
+field and white burst as one official lockup; the numeral is live type centred
+over it. The title and its rule stay beside the banner. Once below that banner,
+the optional ability extends left to the primary ability column — the
+full-width column on hero/no-value cards, or the value-separated column
+otherwise — so the two blocks align. The lower panel grows when copy needs it.
+The horizontal title rule is only drawn when `bonusAttackAbility` has content. `BONUS_ATTACK` in
+`renderer/geometry.ts` owns its measured banner, value, copy and wash geometry.
+
+The smaller `symbols/bonus_attack.png` is a fifth **text** symbol and therefore
+lives in `TEXT_SYMBOLS`, while `CARD_SYMBOLS` deliberately remains the four
+combat types used by value controls and hero ribbons. This distinction prevents
+the bonus-attack token from appearing as a selectable primary card type.
 
 **Two layers, not one flat colour.** The field is `CardTheme.ribbonFoot` —
 black on the printed card — and only a bar down its right edge, one ribbon
@@ -1696,6 +1759,26 @@ box art (or the first character's artwork) to 512px of WebP.
 
 Sorting is by `published_at`, not `updated_at` — the latter moves on every
 re-publish, so "newest" would really mean "most recently edited".
+
+Gallery engagement keeps **three different signals** rather than making one
+button do two jobs. `set_likes` is one public approval per permanent account;
+only its aggregate `sets.like_count` is public. `set_favourites` privately saves
+one published listing; `character_favourites` privately saves the stable
+`(owner_id, local_id, character_id)` identity, because the listing selected for
+a character can change when a standalone publish appears. `set_comments` is
+public discussion, plain text and limited to 2,000 characters; authors can
+edit or soft-delete their own rows,
+while reports and the `moderate_set_comment` RPC give moderators the same
+takedown boundary as sets. All three writes reject Supabase anonymous users.
+
+The public shelf and comment list still use anonymous HTTP reads. Personal
+like/favourite state is fetched separately and may fail without blanking the
+gallery or shared set. Likes and visible comments are trigger-counted onto the
+set row so they can be displayed and sorted without exposing user ids or
+joining per tile. `touch_updated_at` deliberately ignores those counters (and
+`view_count`): community activity is not a new revision of the author's work.
+`GalleryScreen` offers both "Most liked" and the existing "Most viewed";
+favourites are a private filter, not another public popularity score.
 
 `revision` is written by a **trigger**, never by the client, and moves only when
 `document is distinct from old.document` — a visibility flip or a takedown is

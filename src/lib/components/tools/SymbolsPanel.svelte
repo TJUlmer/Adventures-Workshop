@@ -1,14 +1,14 @@
 <script lang="ts">
   /**
-   * Custom symbols: author-uploaded glyphs, usable anywhere the four built-in
-   * combat symbols are — inline in ability text, and in rules/event rich text.
+   * Custom symbols: author-uploaded glyphs, usable anywhere the built-in text
+   * symbols are — inline in ability text, and in rules/event rich text.
    *
    * One upload point for the whole set, deliberately: every surface that
    * offers a symbol palette reads the same registry rather than asking for a
    * picture of its own, so a glyph uploaded here is immediately available on
    * every action card, rules card and character sheet.
    */
-  import { CARD_SYMBOLS } from '$lib/renderer/assets';
+  import { TEXT_SYMBOLS } from '$lib/renderer/assets';
   import { readArtworkFile } from '$lib/core/image-import';
   import type { CustomSymbol, CustomSymbolId } from '$lib/symbols/types';
   import { customSymbolLabel } from '$lib/symbols/types';
@@ -31,7 +31,7 @@
     return null;
   }
 
-  const reservedList = [...Object.keys(CARD_SYMBOLS), 'name'].map((n) => `{{${n}}}`).join(', ');
+  const reservedList = [...Object.keys(TEXT_SYMBOLS), 'name'].map((n) => `{{${n}}}`).join(', ');
 
   let fileInputs: Record<string, HTMLInputElement | null> = $state({});
   let error = $state<string | null>(null);

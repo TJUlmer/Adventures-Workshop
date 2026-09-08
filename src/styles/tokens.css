@@ -49,6 +49,8 @@
   --grey-200: hsl(210 18% 90%);
   --grey-100: hsl(210 22% 94%);
   --grey-50: hsl(210 26% 97%);
+  /** Theme-independent paper ink used by printable artwork overlays. */
+  --print-paper: hsl(0 0% 100%);
 
   /* ------------------------------------------------------------------ */
   /* Primitives — accent                                                 */

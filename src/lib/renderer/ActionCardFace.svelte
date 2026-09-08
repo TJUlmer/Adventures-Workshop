@@ -25,7 +25,14 @@
   import { actionTextIsEmpty, renderActionText } from '$lib/text/action-text';
   import { parseAbilityText } from '$lib/text/tokens';
   import AbilityText from './AbilityText.svelte';
-  import { CARD_SYMBOL_COLORS, CARD_SYMBOL_SIZES, CARD_SYMBOLS, patternAspect } from './assets';
+  import {
+    CARD_SYMBOL_COLORS,
+    CARD_SYMBOL_SIZES,
+    CARD_SYMBOLS,
+    patternAspect,
+    symbolUrl,
+    TEMPLATE_ASSETS
+  } from './assets';
   import type { CardSymbolName } from './assets';
   import CardArt from './CardArt.svelte';
   import {
@@ -39,8 +46,10 @@
     BLEED,
     BODY_PANEL,
     BODY_PANEL_MAX_HEIGHT,
+    BONUS_ATTACK,
     BOOST,
     BOOST_DISC_RADIUS,
+    BOOST_EFFECT,
     BOOST_RING,
     BOOST_VALUE,
     capTopToBoxTop,
@@ -118,7 +127,7 @@
   const abilitySize = $derived(inFace(theme.abilityFontSize));
 
   /**
-   * The character's name as the *ribbon* prints it.
+   * The primary character's name as the *ribbon* prints it.
    *
    * `subtitle` is a shortened form — "Geralt" against "Geralt of Rivia" — and
    * the ribbon is where the difference matters, because it is the one place a
@@ -133,8 +142,30 @@
     character?.subtitle.trim() || (character ? primaryCardName(character) : '').trim() || ''
   );
 
-  const ribbonName = $derived(card.name.trim() || shortName || 'Villain Name');
+  /**
+   * The selected player's resolved ribbon name. A per-card override always
+   * wins, followed by that identity's shortened and full names. Keeping this
+   * single value behind both the printed ribbon and `{{name}}` prevents the
+   * two from disagreeing when the selected player is a sidekick.
+   */
+  const ribbonName = $derived.by(() => {
+    const override = card.name.trim();
+    if (override) return override;
+    if (!isHero) return shortName || 'Villain Name';
+    if (card.owner === 'sidekick') {
+      return (
+        character?.sidekick.subtitle.trim() || character?.sidekick.name.trim() || 'Sidekick'
+      );
+    }
+    if (card.owner === 'any') return 'ANY';
+    const extra = character?.additionalCards.find((entry) => entry.id === card.owner);
+    return extra?.subtitle.trim() || extra?.name.trim() || shortName || 'Hero Name';
+  });
   const title = $derived(actionTextIsEmpty(card.title) ? 'Card Title' : card.title);
+  const bonusAttackTitle = $derived(
+    actionTextIsEmpty(card.bonusAttackTitle) ? 'Bonus Attack' : card.bonusAttackTitle
+  );
+  const hasBonusAttackAbility = $derived(!actionTextIsEmpty(card.bonusAttackAbility));
 
   /**
    * Who may play this card: the primary identity's own name, an additional
@@ -150,11 +181,8 @@
    * has a whole card's width to run in — takes the full one.
    */
   const ownerLabel = $derived.by(() => {
-    if (card.owner === 'sidekick') return character?.sidekick.name.trim() || 'Sidekick';
     if (card.owner === 'any') return 'ANY';
-    const extra = character?.additionalCards.find((entry) => entry.id === card.owner);
-    const extraShortName = extra ? extra.subtitle.trim() || extra.name.trim() : '';
-    return card.name.trim() || extraShortName || shortName || 'Hero Name';
+    return ribbonName;
   });
 
   /**
@@ -192,6 +220,15 @@
   });
 
   const hasValues = $derived(values.length > 0);
+
+  /**
+   * The primary ability's printed left edge, reused by the bonus attack below.
+   * A value column shifts villain/minion and split copy right; hero cards and
+   * cards without values use the title's full-width text column instead.
+   */
+  const primaryAbilityLeft = $derived(
+    card.split || hasValues ? ABILITY.x - BODY_PANEL.x : TITLE.x - BODY_PANEL.x
+  );
 
   /**
    * How far the value stack runs below the rule's top edge.
@@ -261,7 +298,7 @@
   const ribbonSymbolSrc = $derived.by(() => {
     if (!card.showRibbonSymbol || !card.ribbonSymbol) return null;
     const [segment] = parseAbilityText(card.ribbonSymbol);
-    if (segment?.kind === 'symbol') return CARD_SYMBOLS[segment.name];
+    if (segment?.kind === 'symbol') return symbolUrl(segment.name);
     if (segment?.kind === 'customSymbol') {
       return customSymbols.find((entry) => entry.id === segment.id)?.source ?? null;
     }
@@ -370,6 +407,48 @@
   -->
   <div class="divider" style:height={pu(DIVIDER.height)} style:background={theme.divider}>
     {#if card.boost !== null}
+      {#if card.showBoostEffect}
+        <!--
+          The capsule is painted before the disc and ends under its centre,
+          so the existing boost layers cover the join without a second seam.
+          It lives inside the divider for the same reason the boost does: both
+          ride upward together when additional ability copy grows the panel.
+        -->
+        <div
+          class="boost-effect"
+          style:right={pu(
+            INTERIOR.x + INTERIOR.width - (BOOST.cx + BOOST_EFFECT.offsetX)
+          )}
+          style:top={pu(
+            BOOST.cy - BOOST_EFFECT.height / 2 - DIVIDER.y + BOOST_EFFECT.offsetY
+          )}
+          style:min-width={pu(BOOST_EFFECT.minWidth)}
+          style:max-width={pu(BOOST.cx + BOOST_EFFECT.offsetX - INTERIOR.x)}
+          style:height={pu(BOOST_EFFECT.height)}
+          style:border-width={pu(BOOST_EFFECT.borderWidth)}
+          style:border-radius={pu(BOOST_EFFECT.height / 2)}
+          style:border-color={theme.divider}
+          style:background={fillCss(theme.boost)}
+          style:padding-left={pu(BOOST_EFFECT.label.left - BOOST_EFFECT.borderWidth)}
+          style:padding-right={pu(
+            Math.max(
+              0,
+              BOOST_EFFECT.label.right + BOOST_EFFECT.offsetX - BOOST_EFFECT.borderWidth
+            )
+          )}
+        >
+          <div
+            class="boost-effect-label"
+            style:font-size={pu(BOOST_EFFECT.label.size)}
+            style:line-height={BOOST_EFFECT.label.lineHeight}
+            style:transform="translateY({pu(BOOST_EFFECT.label.offsetY)})"
+            style:color={theme.boostInk}
+          >
+            {card.boostEffect}
+          </div>
+        </div>
+      {/if}
+
       <div
         class="boost-disc"
         style:left={pu(BOOST.cx - BOOST_DISC_RADIUS - INTERIOR.x)}
@@ -408,7 +487,9 @@
     class="body"
     style:min-height={pu(isHero ? HERO_BODY_PANEL_HEIGHT : BODY_PANEL.height)}
     style:max-height={pu(BODY_PANEL_MAX_HEIGHT)}
-    style:padding-bottom={isHero ? pu(HERO_BODY_PANEL_FOOT_CLEARANCE) : undefined}
+    style:padding-bottom={isHero && !card.showBonusAttack
+      ? pu(HERO_BODY_PANEL_FOOT_CLEARANCE)
+      : undefined}
     style:background={fillCss(theme.body)}
   >
     {#if theme.pattern.name}
@@ -621,6 +702,106 @@
         <div class="panel-foot" style:height={pu(ABILITY.bottomInset)}></div>
       {/if}
     </div>
+
+    {#if card.showBonusAttack}
+      <!-- Same stock as the art/body divider, by definition of this treatment. -->
+      <div
+        class="bonus-attack-divider"
+        style:height={pu(DIVIDER.height)}
+        style:background={theme.divider}
+      ></div>
+
+      <div
+        class="bonus-attack-panel"
+        style:min-height={pu(BONUS_ATTACK.minHeight)}
+        style:padding-bottom={isHero ? pu(HERO_BODY_PANEL_FOOT_CLEARANCE) : undefined}
+      >
+        <!-- A translucent paper wash lightens the body fill without flattening its pattern. -->
+        <div class="bonus-attack-wash" style:opacity={BONUS_ATTACK.washOpacity}></div>
+
+        <img
+          class="bonus-attack-banner"
+          src={TEMPLATE_ASSETS.bonusAttackBanner}
+          alt=""
+          style:width={pu(BONUS_ATTACK.banner.width)}
+          style:height={pu(BONUS_ATTACK.banner.height)}
+        />
+        <span
+          class="bonus-attack-value"
+          style:left={pu(BONUS_ATTACK.banner.valueCenterX)}
+          style:top={pu(
+            digitMiddleToBoxTop(
+              BONUS_ATTACK.banner.valueCenterY,
+              BONUS_ATTACK.banner.valueSize
+            )
+          )}
+          style:font-size={pu(BONUS_ATTACK.banner.valueSize)}
+          style:color={theme.bannerInk}
+        >
+          {card.bonusAttackValue}
+        </span>
+
+        <div
+          class="bonus-attack-copy"
+          style:margin-left={pu(BONUS_ATTACK.content.left)}
+          style:padding-top={pu(
+            capTopToBoxTop(
+              BONUS_ATTACK.content.top,
+              BONUS_ATTACK.title.size,
+              BONUS_ATTACK.title.lineHeight,
+              NAME_METRICS
+            )
+          )}
+          style:padding-right={pu(BONUS_ATTACK.content.right)}
+          style:padding-bottom={pu(BONUS_ATTACK.content.bottom)}
+          style:color={theme.bodyInk}
+        >
+          <div
+            class="bonus-attack-title"
+            style:font-size={pu(BONUS_ATTACK.title.size)}
+            style:line-height={BONUS_ATTACK.title.lineHeight}
+            style:letter-spacing="{BONUS_ATTACK.title.tracking}em"
+            style:scale="{BONUS_ATTACK.title.condense} 1"
+            style:max-height={pu(
+              BONUS_ATTACK.title.size *
+                BONUS_ATTACK.title.lineHeight *
+                BONUS_ATTACK.title.maxLines
+            )}
+            style:--bonus-title-symbol-height={pu(BONUS_ATTACK.title.size * NAME_METRICS.cap)}
+            style:--bonus-title-symbol-scale={1 / BONUS_ATTACK.title.condense}
+          >
+            {@html renderActionText(
+              bonusAttackTitle,
+              ribbonName,
+              customSymbols,
+              'bonus-title-symbol'
+            )}
+          </div>
+
+          {#if hasBonusAttackAbility}
+            <div
+              class="bonus-attack-title-rule"
+              style:margin-top={pu(BONUS_ATTACK.rule.gapAbove)}
+              style:height={pu(BONUS_ATTACK.rule.height)}
+              style:background={theme.bodyInk}
+            ></div>
+            <div
+              class="bonus-attack-ability"
+              style:margin-top={pu(BONUS_ATTACK.rule.gapBelow)}
+              style:margin-left={pu(primaryAbilityLeft - BONUS_ATTACK.content.left)}
+              style:width={pu(
+                INTERIOR.width - primaryAbilityLeft - BONUS_ATTACK.content.right
+              )}
+              style:font-size={pu(abilitySize)}
+              style:line-height={ABILITY.lineHeight}
+              style:letter-spacing="{ABILITY.tracking}em"
+            >
+              {@html renderActionText(card.bonusAttackAbility, ribbonName, customSymbols)}
+            </div>
+          {/if}
+        </div>
+      </div>
+    {/if}
   </div>
   </div>
 </div>
@@ -1089,6 +1270,116 @@
     overflow: hidden;
   }
 
+  .bonus-attack-divider {
+    position: relative;
+    z-index: 2;
+    flex: none;
+  }
+
+  .bonus-attack-panel {
+    position: relative;
+    z-index: 1;
+    /* Fill slack left by `.body`'s minimum height, especially with no ability copy. */
+    flex: 1 0 auto;
+    overflow: hidden;
+  }
+
+  .bonus-attack-wash {
+    position: absolute;
+    inset: 0;
+    background: var(--print-paper);
+    pointer-events: none;
+  }
+
+  .bonus-attack-banner {
+    position: absolute;
+    z-index: 1;
+    top: 0;
+    left: 0;
+    max-width: none;
+    object-fit: contain;
+    pointer-events: none;
+  }
+
+  .bonus-attack-value {
+    position: absolute;
+    z-index: 2;
+    translate: -50% 0;
+    font-family: var(--card-font-numeral);
+    font-weight: var(--card-font-numeral-weight);
+    line-height: 1;
+  }
+
+  .bonus-attack-copy {
+    position: relative;
+    z-index: 2;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+  }
+
+  .bonus-attack-title {
+    display: block;
+    overflow: hidden;
+    font-family: var(--card-font-name);
+    font-weight: var(--card-font-name-weight);
+    transform-origin: left center;
+    text-transform: uppercase;
+  }
+
+  .bonus-attack-title :global(.bonus-title-symbol) {
+    display: inline-block;
+    width: auto;
+    height: var(--bonus-title-symbol-height);
+    object-fit: contain;
+    scale: var(--bonus-title-symbol-scale) 1;
+  }
+
+  .bonus-attack-title :global(.bonus-title-symbol[alt='bonus_attack']) {
+    height: calc(var(--bonus-title-symbol-height) * 0.86);
+  }
+
+  .bonus-attack-title :global(b),
+  .bonus-attack-title :global(strong),
+  .bonus-attack-ability :global(b),
+  .bonus-attack-ability :global(strong) {
+    font-weight: 700;
+    font-synthesis-weight: auto;
+  }
+
+  .bonus-attack-title :global(i),
+  .bonus-attack-title :global(em),
+  .bonus-attack-ability :global(i),
+  .bonus-attack-ability :global(em) {
+    font-style: italic;
+  }
+
+  .bonus-attack-title-rule {
+    flex: none;
+    width: 100%;
+  }
+
+  .bonus-attack-ability {
+    font-family: var(--card-font-text);
+    font-weight: var(--card-font-text-weight);
+    text-wrap: pretty;
+    white-space: pre-wrap;
+  }
+
+  .bonus-attack-ability :global(.symbol) {
+    display: inline-block;
+    width: auto;
+    height: 0.82em;
+    margin-inline: 0.06em;
+    vertical-align: -0.08em;
+  }
+
+  .bonus-attack-ability :global(.symbol[alt='bonus_attack']) {
+    /* The wide badge needs a shorter box and a neutral baseline. */
+    height: 0.68em;
+    vertical-align: 0em;
+  }
+
   .panel-lead,
   .panel-foot {
     flex: none;
@@ -1456,6 +1747,28 @@
     width: auto;
     object-fit: contain;
     scale: var(--title-symbol-scale) 1;
+  }
+
+  .title :global(.title-symbol[alt='bonus_attack']) {
+    height: calc(var(--title-symbol-height) * 0.46);
+  }
+
+  .boost-effect {
+    position: absolute;
+    display: flex;
+    align-items: center;
+    overflow: hidden;
+    width: max-content;
+    border-style: solid;
+    pointer-events: none;
+  }
+
+  .boost-effect-label {
+    overflow: hidden;
+    font-family: var(--card-font-text);
+    font-weight: var(--card-font-text-weight);
+    white-space: nowrap;
+    text-overflow: ellipsis;
   }
 
   /* Bebas ships as one weight; bold title runs deliberately permit synthesis. */

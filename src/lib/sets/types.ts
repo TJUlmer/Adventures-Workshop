@@ -381,10 +381,29 @@ export type SetId = Id<'Set'>;
  *      false, so every existing adventure and heroes box keeps its own
  *      identity exactly as before.
  *
+ * v49 — action cards gained `showBoostEffect`/`boostEffect`: an optional
+ *      labelled capsule joined to the boost disc. Older cards default to the
+ *      effect off with empty copy; an older build would silently discard an
+ *      enabled effect, so it cannot read a v49 document.
+ *
+ * v50 — action cards gained an optional bonus attack: its own title, attack
+ *      value and ability copy in a divided lower panel. The built-in text
+ *      symbol registry also gained `bonus_attack`. Older cards default the
+ *      whole effect off; older builds would discard these fields.
+ *
+ * v51 — a hero's sidekick gained `subtitle`, the shortened name used on action
+ *      card ribbons. Older documents default it blank and therefore keep using
+ *      the sidekick's full name; older builds would silently discard it.
+ *
+ * v52 — a hero character-card design gained `sidekickDisc`, the author-chosen
+ *      fill for the small token discs shown by 1–2 HP swarm sidekicks. Older
+ *      documents default to the former fixed grey; older builds would silently
+ *      discard the chosen fill.
+ *
  * Older documents are *repaired*, not rejected — see `sets/normalize.ts`. Only
  * a version newer than this build understands is refused.
  */
-export const SET_SCHEMA_VERSION = 48;
+export const SET_SCHEMA_VERSION = 52;
 
 /**
  * What a set is for.

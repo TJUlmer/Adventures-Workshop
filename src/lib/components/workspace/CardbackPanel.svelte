@@ -140,7 +140,7 @@
     />
 
     <label class="stack">
-      <span class="field-label">Text</span>
+      <span class="field-label">{character.role === 'hero' ? 'Text & logo' : 'Text'}</span>
       <ColorInput
         value={back.ink === defaults.ink ? undefined : back.ink}
         inherited={defaults.ink}

@@ -675,6 +675,84 @@ export const QUANTITY = { right: 1488, capTop: 2045, size: inFace(55) } as const
 export const BOOST_VALUE = { size: inFace(117.5), lineHeight: 1 } as const;
 
 /**
+ * Optional rules capsule joined to the left of the boost disc.
+ *
+ * Measured from `boost_effect.png`. The supplied example's boost ring is a few
+ * pixels smaller and left of the current renderer's authoritative `BOOST`, so
+ * the capsule keeps the artwork's measurements *relative to the ring centre*
+ * and joins the disc this renderer already prints instead of moving it. The
+ * right half runs behind the disc; DOM order lets the disc and ring close that
+ * seam cleanly.
+ */
+export const BOOST_EFFECT = {
+  /** Short copy keeps at least the supplied artwork's measured length. */
+  minWidth: 346,
+  height: BOOST.outerRadius * 2,
+  /** Exactly the same stroke that draws `BOOST_RING`. */
+  borderWidth: BOOST.outerRadius - BOOST.innerRadius,
+  /** Positive values move the capsule right/down without moving the boost disc. */
+  offsetX: 90,
+  offsetY: 0,
+  label: {
+    /** Ink begins 29px inside the capsule's measured left edge. */
+    left: 75,
+    /**
+     * Ends the copy 22px before the boost ring's leftmost point, as in the
+     * supplied artwork. The renderer adds `offsetX` to this clearance,
+     * because moving the capsule's right edge must not move its text
+     * underneath the stationary disc.
+     */
+    right: BOOST.outerRadius + 30,
+    /** Change `size` here to adjust the effect text's font size. */
+    size: inFace(60),
+    /** Positive values move only the label down; negative values move it up. */
+    offsetY: -5,
+    lineHeight: 2
+  }
+} as const;
+
+/**
+ * Optional second attack at the foot of an action card.
+ *
+ * The supplied `bonus_attack_banner.png` is already at bleed scale: 280 × 163
+ * with the white burst and pointed red field baked together. The examples are
+ * reduced web images, so the asset is authoritative for the banner while the
+ * surrounding copy deliberately reuses this renderer's measured title,
+ * ability and divider metrics.
+ */
+export const BONUS_ATTACK = {
+  /** A quiet wash of the panel's own ink produces the lighter lower section. */
+  washOpacity: 0.07,
+  minHeight: 191,
+  banner: {
+    width: 280,
+    height: 163,
+    valueCenterX: 195,
+    valueCenterY: 81.5,
+    valueSize: inFace(118)
+  },
+  content: {
+    left: 316,
+    right: INTERIOR_RADIUS,
+    top: 26,
+    /** Keeps bonus copy clear of the copies count, as the primary ability does. */
+    bottom: ABILITY.bottomInset
+  },
+  title: {
+    size: inName(112),
+    lineHeight: 0.9,
+    tracking: TITLE.tracking,
+    condense: TITLE.condense,
+    maxLines: 2
+  },
+  rule: {
+    gapAbove: 12,
+    height: TITLE_RULE.height,
+    gapBelow: 18
+  }
+} as const;
+
+/**
  * Card name, set bottom-up inside the ribbon.
  *
  * The name is anchored at its *end* — the last character, nearest the frame —
@@ -1068,15 +1146,12 @@ export const CHARACTER_HEADING = {
   /**
    * Right edge of the shrink-to-fit box a long name has to stay inside.
    *
-   * Neither template marks a right margin for this row — both only ever
-   * printed the fixed words HERO/SIDEKICK, never long enough to need one —
-   * so this mirrors `x`'s own inset from the card's printed edge rather
-   * than being read off the art. See the heading snippet in
-   * `HeroCharacterCardFace.svelte` for why it exists at all: content-driven
-   * sizing, not template geometry (`fit-text.ts`'s own exception to "nothing
-   * measures text at runtime").
+   * The band stays open to the frame's measured inner edge at x1478; the
+   * attack row's health columns are below this heading, not beside it. This
+   * used to mirror the left inset and stop at x1349, throwing away 129px of
+   * empty band before `fit-text.ts` began shrinking an author's name.
    */
-  right: CHARACTER_CARD.x + CHARACTER_CARD.width - (282 - CHARACTER_CARD.x)
+  right: CHARACTER_ATTACK_ROW.badgeRight - 14
 } as const;
 
 /**
@@ -1527,16 +1602,14 @@ export const CARDBACK = {
 
 /**
  * A hero's own back, at the action card's bleed canvas — see
- * `HeroCardbackFace`. `hero_cardback_border.png` carries only a thin rounded
- * line, not a ring or a lockup like the villain/minion template, so this
- * back's own art is never boxed in behind it: `frame` is only where that
- * line itself sits, measured off the art's alpha, for the mask that
- * recolours it and for placing the name relative to it. It is coincidence,
- * not derivation, that these numbers equal the action card's own `INTERIOR`
- * — this file does not read that constant.
+ * `HeroCardbackFace`. The UMLABS frame carries a thin rounded line plus its
+ * upper-left logo badge, not a ring like the villain/minion template, so
+ * this back's own art is never boxed in behind it. `frame` records the outer
+ * rounded line, excluding the badge that rises above it; the name remains
+ * placed against its lower-right corner.
  */
 export const HERO_CARDBACK = {
-  frame: { x: 143, y: 143, width: 1346, height: 1937 },
+  frame: { x: 140, y: 140, width: 1347, height: 1937 },
   radius: 46,
   /** Bottom right, inset 60px from the frame's right edge, 120px from its foot. */
   name: { right: 1450, capTop: 2020, size: inName(72) }

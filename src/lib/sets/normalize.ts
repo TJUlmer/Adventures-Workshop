@@ -218,6 +218,7 @@ function heroSidekick(value: unknown): HeroSidekick {
   return {
     enabled: bool(raw['enabled'], defaults.enabled),
     name: str(raw['name'], defaults.name),
+    subtitle: str(raw['subtitle'], defaults.subtitle),
     attackType: (ATTACK_TYPES as readonly unknown[]).includes(raw['attackType'])
       ? (raw['attackType'] as HeroSidekick['attackType'])
       : defaults.attackType,
@@ -279,6 +280,7 @@ function characterCard(value: unknown): CharacterCardDesign {
     healthBadge: fill(raw['healthBadge'], defaults.healthBadge),
     healthBadgeAccent: fill(raw['healthBadgeAccent'], defaults.healthBadgeAccent),
     healthInk: fill(raw['healthInk'], defaults.healthInk),
+    sidekickDisc: fill(raw['sidekickDisc'], defaults.sidekickDisc),
     quoteInk: fill(raw['quoteInk'], defaults.quoteInk),
     quoteScale: num(raw['quoteScale'], defaults.quoteScale),
     abilityInk: fill(raw['abilityInk'], defaults.abilityInk),
@@ -871,7 +873,15 @@ function normalizeCard(value: unknown): Card | null {
         /* Off on a document written before the ribbon foot existed, which is
            what keeps every existing card looking exactly as it did. */
         showRibbonSymbol: bool(raw['showRibbonSymbol'], false),
-        ribbonSymbol: str(raw['ribbonSymbol'])
+        ribbonSymbol: str(raw['ribbonSymbol']),
+        /* Off on documents written before the attached boost capsule existed. */
+        showBoostEffect: bool(raw['showBoostEffect'], false),
+        boostEffect: str(raw['boostEffect']),
+        /* Off on documents written before the lower bonus-attack panel existed. */
+        showBonusAttack: bool(raw['showBonusAttack'], false),
+        bonusAttackTitle: str(raw['bonusAttackTitle']),
+        bonusAttackValue: num(raw['bonusAttackValue'], 2),
+        bonusAttackAbility: str(raw['bonusAttackAbility'])
       } as ActionCard;
   }
 }
@@ -952,6 +962,7 @@ export function normalizeSet(value: AdventureSet): AdventureSet {
         {
           ...createHeroCharacterCard(),
           name: sidekick.name,
+          subtitle: sidekick.subtitle,
           attackType: sidekick.attackType,
           health: sidekick.health,
           characterCard: characterCard(normalizedCharacterCard)

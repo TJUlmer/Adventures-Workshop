@@ -3,7 +3,7 @@
  * ability copy. The full prose editor supports headings, lists, colour and
  * sizing; action cards only need bold, italic, line breaks and inline symbols.
  */
-import { CARD_SYMBOLS } from '$lib/renderer/assets';
+import { symbolUrl } from '$lib/renderer/assets';
 import type { CustomSymbol } from '$lib/symbols/types';
 import { parseAbilityText } from './tokens';
 import {
@@ -85,7 +85,7 @@ export function renderActionText(
       } else {
         const source =
           segment.kind === 'symbol'
-            ? CARD_SYMBOLS[segment.name]
+            ? symbolUrl(segment.name)
             : customSymbols.find((symbol) => symbol.id === segment.id)?.source;
         if (!source) continue;
 

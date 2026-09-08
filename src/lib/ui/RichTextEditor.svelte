@@ -6,8 +6,8 @@
    * typed, pasted or dropped — goes through the allowlist sanitiser before it
    * reaches the document.
    */
-  import { CARD_SYMBOL_LABELS, CARD_SYMBOLS } from '$lib/renderer/assets';
-  import type { CardSymbolName } from '$lib/renderer/assets';
+  import { TEXT_SYMBOL_LABELS, TEXT_SYMBOLS } from '$lib/renderer/assets';
+  import type { TextSymbolName } from '$lib/renderer/assets';
   import type { CustomSymbol } from '$lib/symbols/types';
   import { customSymbolLabel } from '$lib/symbols/types';
   import {
@@ -167,7 +167,7 @@
     { tag: 'p', label: 'Body' }
   ] as const;
 
-  const SYMBOL_NAMES = Object.keys(CARD_SYMBOLS) as CardSymbolName[];
+  const SYMBOL_NAMES = Object.keys(TEXT_SYMBOLS) as TextSymbolName[];
 
   function setBlock(tag: string): void {
     editor?.focus();
@@ -388,12 +388,12 @@
     commit();
   }
 
-  function insertSymbol(name: CardSymbolName): void {
+  function insertSymbol(name: TextSymbolName): void {
     editor?.focus();
     document.execCommand(
       'insertHTML',
       false,
-      `<img class="symbol" src="${CARD_SYMBOLS[name]}" alt="${CARD_SYMBOL_LABELS[name]}" />`
+      `<img class="symbol" src="${TEXT_SYMBOLS[name]}" alt="${TEXT_SYMBOL_LABELS[name]}" />`
     );
     commit();
   }
@@ -543,11 +543,15 @@
       <button
         type="button"
         class="tool symbol-tool"
-        title="Insert {CARD_SYMBOL_LABELS[name]} symbol"
+        title="Insert {TEXT_SYMBOL_LABELS[name]} symbol"
         onmousedown={(event) => event.preventDefault()}
         onclick={() => insertSymbol(name)}
       >
-        <img src={CARD_SYMBOLS[name]} alt={CARD_SYMBOL_LABELS[name]} />
+        <img
+          class:bonus-attack-symbol={name === 'bonus_attack'}
+          src={TEXT_SYMBOLS[name]}
+          alt={TEXT_SYMBOL_LABELS[name]}
+        />
       </button>
     {/each}
 
@@ -633,6 +637,11 @@
     width: 14px;
     height: 14px;
     object-fit: contain;
+  }
+
+  .symbol-tool img.bonus-attack-symbol {
+    width: 12px;
+    height: 12px;
   }
 
   .tool {

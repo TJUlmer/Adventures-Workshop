@@ -18,7 +18,15 @@ import { CHARACTER_BAND_NAMES, CHARACTER_ROLE_META } from './types';
 
 /** A hero with no sidekick — the quote panel prints until one is turned on. */
 export function createHeroSidekick(): HeroSidekick {
-  return { enabled: false, name: '', attackType: 'melee', multiple: false, health: 7, count: 3 };
+  return {
+    enabled: false,
+    name: '',
+    subtitle: '',
+    attackType: 'melee',
+    multiple: false,
+    health: 7,
+    count: 3
+  };
 }
 
 export function createHeroQuote(): HeroQuote {
@@ -69,6 +77,7 @@ export function createCharacterCard(): CharacterCardDesign {
     healthBadge: solid('#293992'),
     healthBadgeAccent: solid('#f9f6ee'),
     healthInk: solid('#ffffff'),
+    sidekickDisc: solid('#858585'),
     quoteInk: solid('#f6eada'),
     quoteScale: 1,
     abilityInk: solid('#000000'),
@@ -122,8 +131,8 @@ export function createCardback(role: CharacterRole): CardbackDesign {
     useReplacement: false,
     label: CHARACTER_ROLE_META[role].label.toUpperCase(),
     /**
-     * Each role's own template has its own line colour — `#f6eada` from
-     * `hero_cardback_border.png`, `#ebe8d5` from
+     * Each role's own template has its own line colour — `#f6eada` for the
+     * UMLABS hero frame, `#ebe8d5` from
      * `adventures_minion_cardback_nologo.png` — so the default tracks
      * whichever one this role actually prints, rather than picking one for
      * both and reading wrong the moment an author opens the other.

@@ -56,6 +56,8 @@ export const TEMPLATE_ASSETS = {
   heroRibbonPointEdge: `${TEMPLATES}/hero_ribbon_point_edge.png`,
   /** Disc behind the boost value. */
   boostFill: `${TEMPLATES}/boost_fill.png`,
+  /** Fixed red attack banner at the head of an action card's bonus-attack section. */
+  bonusAttackBanner: `${TEMPLATES}/bonus_attack_banner.png`,
   /** Separator between the halves of a split card, with curved shoulders. */
   splitSeparator: `${TEMPLATES}/split_effect_separator.png`,
   /**
@@ -226,6 +228,19 @@ export const CARD_SYMBOLS = {
 } as const;
 
 /**
+ * Everything that may be inserted into a run of card copy.
+ *
+ * `CARD_SYMBOLS` deliberately remains the four combat types: it also drives
+ * value controls, hero ribbons and fixed size/colour tables. A bonus attack is
+ * a text token, not a fifth way to play an action card, so widening that table
+ * would leak it into controls where it has no meaning.
+ */
+export const TEXT_SYMBOLS = {
+  ...CARD_SYMBOLS,
+  bonus_attack: `${SYMBOLS}/bonus_attack.png`
+} as const;
+
+/**
  * A figure's attack type, for the character card's attack rows.
  *
  * A different set from `CARD_SYMBOLS`: those name a card's combat *symbol*,
@@ -272,6 +287,7 @@ export const ATTACK_TYPE_SIZES: Readonly<
 } as const;
 
 export type CardSymbolName = keyof typeof CARD_SYMBOLS;
+export type TextSymbolName = keyof typeof TEXT_SYMBOLS;
 
 /**
  * Natural pixel size of each symbol file. They are already drawn at printed
@@ -294,6 +310,11 @@ export const CARD_SYMBOL_LABELS: Readonly<Record<CardSymbolName, string>> = {
   scheme: 'Scheme'
 } as const;
 
+export const TEXT_SYMBOL_LABELS: Readonly<Record<TextSymbolName, string>> = {
+  ...CARD_SYMBOL_LABELS,
+  bonus_attack: 'Bonus attack'
+} as const;
+
 /**
  * Fixed colours for a hero card's combat ribbon: white ink on a background of
  * the symbol's own colour, rather than a coloured icon on the card's body fill
@@ -312,8 +333,8 @@ export const CARD_SYMBOL_COLORS: Readonly<Record<CardSymbolName, string>> = {
   scheme: '#fcbd71'
 } as const;
 
-export function symbolUrl(name: CardSymbolName): string {
-  return CARD_SYMBOLS[name];
+export function symbolUrl(name: TextSymbolName): string {
+  return TEXT_SYMBOLS[name];
 }
 
 export function patternUrl(name: string): string {

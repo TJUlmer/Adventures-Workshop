@@ -90,7 +90,8 @@ export interface CardbackDesign {
  * card even when it is on, since that card prints the fixed word "SIDEKICK"
  * rather than an identity. `name` exists to be picked up elsewhere: labelling
  * which of a hero's action cards this figure may play, and naming the piece in
- * a Tabletop Simulator export.
+ * a Tabletop Simulator export. `subtitle` is the optional shorter form used
+ * only where that name must fit in an action-card ribbon.
  *
  * `multiple` is not asked for directly — the editor derives it from `count`
  * (one copy is a single tracked figure, more than one a swarm) rather than
@@ -107,6 +108,8 @@ export interface CardbackDesign {
 export interface HeroSidekick {
   enabled: boolean;
   name: string;
+  /** Used on action-card ribbons; blank falls back to the full `name`. */
+  subtitle: string;
   attackType: AttackType;
   /**
    * Off: one figure with its own tracked `health`. On: `count` identical,
@@ -199,10 +202,10 @@ export interface CharacterBandStyle {
  * fixed layout and its chrome is supplied art, so what an author gets to
  * choose is the border's colour, the health badge's colour and the value
  * printed on it, what fills each of the three bands *and how that band's own
- * labels are inked over it*, the special ability text's own colour, the move
- * value's — or, with `useReplacement` on, a finished sheet that skips
- * composing one entirely, the same escape hatch every other printed face
- * already has.
+ * labels are inked over it*, the swarm-sidekick discs, the special ability
+ * text's own colour, the move value's — or, with `useReplacement` on, a
+ * finished sheet that skips composing one entirely, the same escape hatch
+ * every other printed face already has.
  *
  * The labels were fixed ink until an author repainted a band and found the
  * white tab standing on it was no longer legible — see
@@ -220,6 +223,8 @@ export interface CharacterCardDesign {
   healthBadgeAccent: Fill;
   /** The START HEALTH value printed inside the badge — the hero's own and every reused copy of it. */
   healthInk: Fill;
+  /** The filled centres of a 1–2 HP swarm sidekick's token discs. */
+  sidekickDisc: Fill;
   /** The quote text, its attribution and its quotation marks — one colour for all three. */
   quoteInk: Fill;
   /**

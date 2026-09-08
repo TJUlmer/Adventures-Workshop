@@ -16,6 +16,8 @@ measurements printed at the end are what the constants in
 
 Outputs, all alpha masks unless noted:
 
+  umlabs_cardback_frame.png      the deck-back border and logo badge
+  umlabs_cardback_logo.png       the contrasting UMLABS mark inside the badge
   hero_action_frame.png          the card frame, boost numeral removed
   hero_combat_banner.png         the ribbon's coloured head, chevron foot and all
   hero_ribbon_point.png          the tail's pennant point, at its natural place
@@ -54,6 +56,12 @@ TEMPLATES = Path(__file__).resolve().parent.parent / "public" / "assets" / "temp
 BLEED = (1632, 2222)
 
 SOURCE = "hero_action_card_border.png"
+
+# The replacement hero deck back carries a two-colour UMLABS lockup in its
+# upper-left corner. Splitting its dark and light artwork lets the renderer
+# keep the existing frame and ink colour controls instead of baking black and
+# white into every exported card back.
+CARDBACK_SOURCE = "UMLabs_Cardback_Template.png"
 
 # The frame's own colour in the supplied file. Everything opaque that is *not*
 # this is the ribbon the frame was drawn around.
@@ -423,7 +431,25 @@ def split_label_ink() -> None:
         print(f"label ink already out of {skipped} band(s); skipped")
 
 
+def split_cardback() -> None:
+    art = load(CARDBACK_SOURCE)
+    alpha = art[:, :, 3].astype(float) / 255
+
+    # The source is deliberately greyscale. Its dark pixels are the rounded
+    # frame and badge; its light pixels are the badge outline and lettering.
+    # Multiplying both halves by source alpha preserves antialiasing against
+    # the transparent canvas while partitioning grey edge pixels smoothly.
+    luminance = art[:, :, :3].mean(2) / 255
+    dark = np.rint(alpha * (1 - luminance) * 255).astype(int)
+    light = np.rint(alpha * luminance * 255).astype(int)
+
+    to_bleed(mask_png(dark)).save(TEMPLATES / "umlabs_cardback_frame.png")
+    to_bleed(mask_png(light)).save(TEMPLATES / "umlabs_cardback_logo.png")
+
+
 def main() -> None:
+    split_cardback()
+
     art = load(SOURCE)
     rgb, alpha = art[:, :, :3], art[:, :, 3]
     height, width = alpha.shape
