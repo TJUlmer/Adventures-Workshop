@@ -22,7 +22,21 @@
    * set grid would mean a tile that is sometimes a box and sometimes a person.
    */
   import { cloudEnabled } from '$lib/cloud/config';
-  import { listPublicCharacters, listPublicSets } from '$lib/cloud/sets';
+  import { auth } from '$lib/cloud/auth.svelte';
+  import {
+    favouriteKey,
+    listMyFavourites,
+    listMyLikes,
+    setFavourite,
+    setLiked
+  } from '$lib/cloud/engagement';
+  import type { FavouriteTarget } from '$lib/cloud/engagement';
+  import {
+    listMyFavouriteCharacters,
+    listMyFavouriteSets,
+    listPublicCharacters,
+    listPublicSets
+  } from '$lib/cloud/sets';
   import type {
     GalleryCharacter,
     GallerySet,
@@ -97,6 +111,13 @@
   let offset = $state(0);
   /** Whether the last page came back full, which is the only "more" signal. */
   let maybeMore = $state(false);
+  let favouritesOnly = $state(false);
+  let likedSetIds = $state(new Set<string>());
+  let favouriteKeys = $state(new Set<string>());
+  let engagementError = $state<string | null>(null);
+  let engagementBusy = $state(new Set<string>());
+
+  const canEngage = $derived(auth.signedIn && !auth.isAnonymous);
 
   /**
    * Characters whose card has been asked for at least once.
@@ -125,6 +146,7 @@
 
   const SORTS = [
     { value: 'newest' as const, label: 'Newest' },
+    { value: 'liked' as const, label: 'Most liked' },
     { value: 'popular' as const, label: 'Most viewed' },
     { value: 'name' as const, label: 'Name' }
   ];
@@ -159,39 +181,61 @@
     sort: GallerySort;
     scope: ScopeFilter;
     role: '' | CharacterRole;
+    favouritesOnly: boolean;
+    accountId: string;
     offset: number;
   }
 
+  let loadVersion = 0;
+
   async function load(query: Query, append = false): Promise<void> {
+    const version = ++loadVersion;
     loading = true;
     error = null;
     try {
       const { search: term, sort: order, offset: skip } = query;
+      if (query.favouritesOnly) {
+        if (!query.accountId) {
+          sets = [];
+          characters = [];
+          maybeMore = false;
+          return;
+        }
+      }
+
       if (query.mode === 'sets') {
-        const page = await listPublicSets({
+        const listSets = query.favouritesOnly ? listMyFavouriteSets : listPublicSets;
+        const page = await listSets({
           search: term,
           sort: order,
           scope: query.scope,
           limit: PAGE,
           offset: skip
         });
+        if (version !== loadVersion) return;
         sets = append ? [...sets, ...page] : page;
         maybeMore = page.length === PAGE;
       } else {
-        const page = await listPublicCharacters({
+        const listCharacters = query.favouritesOnly
+          ? listMyFavouriteCharacters
+          : listPublicCharacters;
+        const page = await listCharacters({
           search: term,
           sort: order,
           role: query.role,
           limit: PAGE,
           offset: skip
         });
+        if (version !== loadVersion) return;
         characters = append ? [...characters, ...page] : page;
         maybeMore = page.length === PAGE;
       }
     } catch (cause) {
-      error = cause instanceof Error ? cause.message : 'Could not load the gallery.';
+      if (version === loadVersion) {
+        error = cause instanceof Error ? cause.message : 'Could not load the gallery.';
+      }
     } finally {
-      loading = false;
+      if (version === loadVersion) loading = false;
     }
   }
 
@@ -207,7 +251,8 @@
    */
   let timer: ReturnType<typeof setTimeout> | undefined;
   $effect(() => {
-    const query: Query = { mode, search, sort, scope, role, offset: 0 };
+    const accountId = canEngage ? (auth.user?.id ?? '') : '';
+    const query: Query = { mode, search, sort, scope, role, favouritesOnly, accountId, offset: 0 };
     clearTimeout(timer);
     timer = setTimeout(() => {
       offset = 0;
@@ -218,7 +263,139 @@
 
   function more(): void {
     offset += PAGE;
-    void load({ mode, search, sort, scope, role, offset }, true);
+    const accountId = canEngage ? (auth.user?.id ?? '') : '';
+    void load({ mode, search, sort, scope, role, favouritesOnly, accountId, offset }, true);
+  }
+
+  /*
+   * Personal marks arrive separately from the public shelf. A stale token may
+   * therefore lose its highlighted buttons, but can never blank the gallery —
+   * the public request above remains anonymous by construction.
+   */
+  $effect(() => {
+    const accountId = canEngage ? (auth.user?.id ?? '') : '';
+    if (!accountId) {
+      likedSetIds = new Set();
+      favouriteKeys = new Set();
+      return;
+    }
+
+    void Promise.all([listMyLikes(), listMyFavourites()])
+      .then(([likes, favourites]) => {
+        if (auth.user?.id !== accountId || auth.isAnonymous) return;
+        likedSetIds = new Set(likes);
+        favouriteKeys = new Set(favourites.map(favouriteKey));
+      })
+      .catch(() => {
+        // The account menu owns expired-session messaging. Public browsing is
+        // still useful without these private decorations.
+      });
+  });
+
+  function engagementNotice(): void {
+    engagementError = auth.isAnonymous
+      ? 'Likes, favourites and comments need a permanent account.'
+      : 'Sign in with a permanent account to like or favourite gallery items.';
+  }
+
+  function markBusy(key: string, busy: boolean): void {
+    const next = new Set(engagementBusy);
+    if (busy) next.add(key);
+    else next.delete(key);
+    engagementBusy = next;
+  }
+
+  function adjustLikeCount(setId: string, amount: number): void {
+    sets = sets.map((set) =>
+      set.id === setId ? { ...set, like_count: Math.max(0, set.like_count + amount) } : set
+    );
+    characters = characters.map((character) =>
+      character.set_id === setId
+        ? { ...character, like_count: Math.max(0, character.like_count + amount) }
+        : character
+    );
+  }
+
+  async function toggleLike(setId: string): Promise<void> {
+    if (!canEngage) {
+      engagementNotice();
+      return;
+    }
+    const busyKey = `like:${setId}`;
+    if (engagementBusy.has(busyKey)) return;
+
+    const nextLiked = !likedSetIds.has(setId);
+    const next = new Set(likedSetIds);
+    if (nextLiked) next.add(setId);
+    else next.delete(setId);
+    likedSetIds = next;
+    adjustLikeCount(setId, nextLiked ? 1 : -1);
+    markBusy(busyKey, true);
+    engagementError = null;
+
+    try {
+      await setLiked(setId, nextLiked);
+    } catch (cause) {
+      const rollback = new Set(likedSetIds);
+      if (nextLiked) rollback.delete(setId);
+      else rollback.add(setId);
+      likedSetIds = rollback;
+      adjustLikeCount(setId, nextLiked ? -1 : 1);
+      engagementError = cause instanceof Error ? cause.message : 'Could not update that like.';
+    } finally {
+      markBusy(busyKey, false);
+    }
+  }
+
+  async function toggleFavourite(target: FavouriteTarget): Promise<void> {
+    if (!canEngage) {
+      engagementNotice();
+      return;
+    }
+    const key = favouriteKey(target);
+    const busyKey = `favourite:${key}`;
+    if (engagementBusy.has(busyKey)) return;
+
+    const nextFavourite = !favouriteKeys.has(key);
+    const next = new Set(favouriteKeys);
+    if (nextFavourite) next.add(key);
+    else next.delete(key);
+    favouriteKeys = next;
+    markBusy(busyKey, true);
+    engagementError = null;
+
+    try {
+      await setFavourite(target, nextFavourite);
+      if (!nextFavourite && favouritesOnly) {
+        if (target.kind === 'character') {
+          characters = characters.filter(
+            (character) =>
+              character.owner_id !== target.owner_id ||
+              character.local_id !== target.local_id ||
+              character.character_id !== target.character_id
+          );
+        } else {
+          sets = sets.filter((set) => set.id !== target.set_id);
+        }
+      }
+    } catch (cause) {
+      const rollback = new Set(favouriteKeys);
+      if (nextFavourite) rollback.delete(key);
+      else rollback.add(key);
+      favouriteKeys = rollback;
+      engagementError = cause instanceof Error ? cause.message : 'Could not update that favourite.';
+    } finally {
+      markBusy(busyKey, false);
+    }
+  }
+
+  function toggleFavouritesOnly(): void {
+    if (!canEngage) {
+      engagementNotice();
+      return;
+    }
+    favouritesOnly = !favouritesOnly;
+    engagementError = null;
   }
 
   /**
@@ -306,7 +483,15 @@
    * control.
    */
   const emptyMessage = $derived.by(() => {
+    if (favouritesOnly && !canEngage) {
+      return 'Sign in with a permanent account to see your favourites.';
+    }
     if (search.trim()) return `Nothing matches “${search.trim()}”.`;
+    if (favouritesOnly) {
+      return mode === 'sets'
+        ? 'You have not favourited any set listings yet.'
+        : 'You have not favourited any characters yet.';
+    }
     if (mode === 'characters') {
       if (role) {
         return `Nothing published has a ${CHARACTER_ROLE_META[role].label.toLowerCase()} in it yet.`;
@@ -337,6 +522,17 @@
     <div class="controls">
       <SegmentedControl bind:value={mode} segments={MODES} label="Browse" />
 
+      <button
+        type="button"
+        class="favourites-filter"
+        class:active={favouritesOnly}
+        aria-pressed={favouritesOnly}
+        onclick={toggleFavouritesOnly}
+      >
+        <Icon name="bookmark" size={14} />
+        {favouritesOnly ? 'Showing favourites' : 'My favourites'}
+      </button>
+
       <input
         class="search"
         type="search"
@@ -363,6 +559,10 @@
       </label>
     </div>
 
+    {#if engagementError}
+      <p class="message engagement-error" role="status">{engagementError}</p>
+    {/if}
+
     {#if error}
       <p class="message error" role="alert">{error}</p>
     {:else if loading && empty}
@@ -372,78 +572,114 @@
     {:else if mode === 'sets'}
       <ul class="grid">
         {#each sets as set (set.id)}
+          {@const target = { kind: 'set' as const, set_id: set.id }}
           <li>
-            <button type="button" class="tile" onclick={() => navigation.openShared(set.slug)}>
-              <span
-                class="cover"
-                style:--trim-scale={TRIM_SCALE_WIDE}
-                style:background={tint(set.id)}
-              >
-                {#if setImage(set)}
-                  <!-- Lazy, because a gallery page is mostly pictures nobody has
-                       scrolled to yet.
+            <div class="tile-wrap">
+              <button type="button" class="tile" onclick={() => navigation.openShared(set.slug)}>
+                <span
+                  class="cover"
+                  style:--trim-scale={TRIM_SCALE_WIDE}
+                  style:background={tint(set.id)}
+                >
+                  {#if setImage(set)}
+                    <!-- Lazy, because a gallery page is mostly pictures nobody has
+                         scrolled to yet.
 
-                       `cover_bleeds` governs the thumbnail as well as the
-                       cover, because both are the same artwork — see
-                       `characterImageBleeds` for why a thumbnail is not
-                       automatically bleed-free. -->
-                  <img src={setImage(set)} class:trimmed={set.cover_bleeds} alt="" loading="lazy" />
-                {:else}
-                  <span class="initials">{initials(set.name)}</span>
-                {/if}
-              </span>
-
-              <span class="body">
-                <span class="name-row">
-                  <span class="name">{set.name || 'Untitled Adventure'}</span>
-                  <!--
-                    A scoped publish reads as a smaller, related thing next to
-                    a box tile, not as another box — the badge is what says so
-                    at a glance, before anyone reads down to the "From …" line
-                    the subtitle already carries (see `sets/scope.ts`).
-                  -->
-                  {#if set.scope !== 'full'}
-                    <span class="scope-badge">{set.scope === 'hero' ? 'Hero' : 'Villain'}</span>
+                         `cover_bleeds` governs the thumbnail as well as the
+                         cover, because both are the same artwork — see
+                         `characterImageBleeds` for why a thumbnail is not
+                         automatically bleed-free. -->
+                    <img src={setImage(set)} class:trimmed={set.cover_bleeds} alt="" loading="lazy" />
+                  {:else}
+                    <span class="initials">{initials(set.name)}</span>
                   {/if}
                 </span>
-                {#if set.subtitle}<span class="subtitle">{set.subtitle}</span>{/if}
 
-                <span class="by">
-                  {#if set.author?.avatar_url}
-                    <img class="avatar" src={set.author.avatar_url} alt="" loading="lazy" />
-                  {/if}
-                  <span class="author">{set.author?.display_name || 'Anonymous'}</span>
-                </span>
-
-                <!--
-                  Lineage, quieter than the author line and deliberately so: the
-                  person who made *this* set is its author, and the set it grew
-                  from is a credit rather than a second byline. Equal billing
-                  would let someone else's set be passed off as a collaboration.
-                -->
-                {#if set.origin}
-                  <span class="stats">
-                    Based on {set.origin.name}
-                    {#if set.origin.author?.display_name}
-                      by {set.origin.author.display_name}
+                <span class="body">
+                  <span class="name-row">
+                    <span class="name">{set.name || 'Untitled Adventure'}</span>
+                    <!--
+                      A scoped publish reads as a smaller, related thing next to
+                      a box tile, not as another box — the badge is what says so
+                      at a glance, before anyone reads down to the "From …" line
+                      the subtitle already carries (see `sets/scope.ts`).
+                    -->
+                    {#if set.scope !== 'full'}
+                      <span class="scope-badge">{set.scope === 'hero' ? 'Hero' : 'Villain'}</span>
                     {/if}
                   </span>
-                {/if}
+                  {#if set.subtitle}<span class="subtitle">{set.subtitle}</span>{/if}
 
-                <span class="stats numeric">
-                  {set.card_count} cards · {set.character_count} characters
-                  {#if set.view_count > 0}· {set.view_count} views{/if}
+                  <span class="by">
+                    {#if set.author?.avatar_url}
+                      <img class="avatar" src={set.author.avatar_url} alt="" loading="lazy" />
+                    {/if}
+                    <span class="author">{set.author?.display_name || 'Anonymous'}</span>
+                  </span>
+
+                  <!--
+                    Lineage, quieter than the author line and deliberately so: the
+                    person who made *this* set is its author, and the set it grew
+                    from is a credit rather than a second byline. Equal billing
+                    would let someone else's set be passed off as a collaboration.
+                  -->
+                  {#if set.origin}
+                    <span class="stats">
+                      Based on {set.origin.name}
+                      {#if set.origin.author?.display_name}
+                        by {set.origin.author.display_name}
+                      {/if}
+                    </span>
+                  {/if}
+
+                  <span class="stats numeric">
+                    {set.card_count} cards · {set.character_count} characters
+                    {#if set.view_count > 0}· {set.view_count} views{/if}
+                  </span>
+                  <!--
+                    Revision only once there is one. "rev 1" on every tile is
+                    noise; "rev 4" is the thing worth noticing.
+                  -->
+                  <span class="stats numeric">
+                    Updated {new Date(set.updated_at).toLocaleDateString()}
+                    {#if set.revision > 1}· rev {set.revision}{/if}
+                  </span>
                 </span>
-                <!--
-                  Revision only once there is one. "rev 1" on every tile is
-                  noise; "rev 4" is the thing worth noticing.
-                -->
-                <span class="stats numeric">
-                  Updated {new Date(set.updated_at).toLocaleDateString()}
-                  {#if set.revision > 1}· rev {set.revision}{/if}
+              </button>
+
+              <div class="tile-actions">
+                <button
+                  type="button"
+                  class="tile-action"
+                  class:active={likedSetIds.has(set.id)}
+                  aria-pressed={likedSetIds.has(set.id)}
+                  aria-label={likedSetIds.has(set.id) ? `Unlike ${set.name}` : `Like ${set.name}`}
+                  disabled={engagementBusy.has(`like:${set.id}`)}
+                  onclick={() => void toggleLike(set.id)}
+                >
+                  <Icon name="thumbUp" size={14} />
+                  <span class="numeric">{set.like_count ?? 0}</span>
+                </button>
+                <span class="comment-count" title="Comments">
+                  <Icon name="message" size={14} />
+                  <span class="numeric">{set.comment_count ?? 0}</span>
                 </span>
-              </span>
-            </button>
+                <button
+                  type="button"
+                  class="tile-action favourite"
+                  class:active={favouriteKeys.has(favouriteKey(target))}
+                  aria-pressed={favouriteKeys.has(favouriteKey(target))}
+                  aria-label={favouriteKeys.has(favouriteKey(target))
+                    ? `Remove ${set.name} from favourites`
+                    : `Add ${set.name} to favourites`}
+                  disabled={engagementBusy.has(`favourite:${favouriteKey(target)}`)}
+                  onclick={() => void toggleFavourite(target)}
+                >
+                  <Icon name="bookmark" size={14} />
+                  <span>Favourite</span>
+                </button>
+              </div>
+            </div>
           </li>
         {/each}
       </ul>
@@ -451,6 +687,12 @@
       <ul class="grid">
         {#each characters as character (character.set_id + character.character_id)}
           {@const parent = parentOf(character)}
+          {@const target = {
+            kind: 'character' as const,
+            owner_id: character.owner_id,
+            local_id: character.local_id,
+            character_id: character.character_id
+          }}
           <li>
             <!--
               The link to the parent set is its own control, so it sits *beside*
@@ -565,6 +807,29 @@
                 </span>
               </button>
 
+              <div class="tile-actions character-actions">
+                <span class="listing-engagement" title="Engagement on the listing this opens">
+                  <Icon name="thumbUp" size={13} />
+                  <span class="numeric">{character.like_count ?? 0}</span>
+                  <Icon name="message" size={13} />
+                  <span class="numeric">{character.comment_count ?? 0}</span>
+                </span>
+                <button
+                  type="button"
+                  class="tile-action favourite"
+                  class:active={favouriteKeys.has(favouriteKey(target))}
+                  aria-pressed={favouriteKeys.has(favouriteKey(target))}
+                  aria-label={favouriteKeys.has(favouriteKey(target))
+                    ? `Remove ${character.name} from favourites`
+                    : `Add ${character.name} to favourites`}
+                  disabled={engagementBusy.has(`favourite:${favouriteKey(target)}`)}
+                  onclick={() => void toggleFavourite(target)}
+                >
+                  <Icon name="bookmark" size={14} />
+                  <span>Favourite</span>
+                </button>
+              </div>
+
               {#if parent}
                 <button
                   type="button"
@@ -647,6 +912,43 @@
     flex-wrap: wrap;
   }
 
+  .favourites-filter {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    height: 32px;
+    padding: 0 var(--space-3);
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-sm);
+    background: var(--surface-raised);
+    color: var(--text-muted);
+    font-size: var(--text-sm);
+    cursor: pointer;
+    transition:
+      border-color var(--duration-fast) var(--ease-out),
+      color var(--duration-fast) var(--ease-out),
+      background var(--duration-fast) var(--ease-out);
+  }
+
+  .favourites-filter:hover,
+  .favourites-filter.active {
+    border-color: var(--accent);
+    color: var(--text-default);
+  }
+
+  .favourites-filter.active {
+    background: var(--surface-selected);
+  }
+
+  .favourites-filter.active :global(svg) {
+    fill: currentColor;
+  }
+
+  .engagement-error {
+    margin-top: calc(-1 * var(--space-3));
+    margin-bottom: var(--space-4);
+  }
+
   .search {
     flex: 1;
     min-width: 200px;
@@ -694,8 +996,9 @@
   .tile {
     display: flex;
     flex-direction: column;
+    flex: 1;
     width: 100%;
-    height: 100%;
+    height: auto;
     padding: 0;
     overflow: hidden;
     border: 1px solid var(--border-default);
@@ -879,6 +1182,66 @@
   .author {
     font-size: var(--text-xs);
     color: var(--text-default);
+  }
+
+  .tile-actions {
+    display: flex;
+    align-items: center;
+    gap: var(--space-1);
+    min-height: 34px;
+    margin-top: 2px;
+    padding: var(--space-1) var(--space-2);
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-sm);
+    background: var(--surface-raised);
+    color: var(--text-muted);
+  }
+
+  .tile-action,
+  .comment-count,
+  .listing-engagement {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: var(--text-xs);
+  }
+
+  .tile-action {
+    min-height: 26px;
+    padding: 0 var(--space-2);
+    border: 0;
+    border-radius: var(--radius-sm);
+    background: transparent;
+    color: inherit;
+    cursor: pointer;
+  }
+
+  .tile-action:hover,
+  .tile-action.active {
+    background: var(--surface-selected);
+    color: var(--text-default);
+  }
+
+  .tile-action.active :global(svg) {
+    fill: currentColor;
+  }
+
+  .tile-action:disabled {
+    opacity: 0.55;
+    cursor: wait;
+  }
+
+  .comment-count {
+    padding-inline: var(--space-2);
+  }
+
+  .favourite {
+    margin-left: auto;
+  }
+
+  .listing-engagement {
+    gap: var(--space-1);
+    padding-inline: var(--space-2);
   }
 
   .parent-link {

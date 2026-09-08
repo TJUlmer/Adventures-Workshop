@@ -1697,6 +1697,26 @@ box art (or the first character's artwork) to 512px of WebP.
 Sorting is by `published_at`, not `updated_at` — the latter moves on every
 re-publish, so "newest" would really mean "most recently edited".
 
+Gallery engagement keeps **three different signals** rather than making one
+button do two jobs. `set_likes` is one public approval per permanent account;
+only its aggregate `sets.like_count` is public. `set_favourites` privately saves
+one published listing; `character_favourites` privately saves the stable
+`(owner_id, local_id, character_id)` identity, because the listing selected for
+a character can change when a standalone publish appears. `set_comments` is
+public discussion, plain text and limited to 2,000 characters; authors can
+edit or soft-delete their own rows,
+while reports and the `moderate_set_comment` RPC give moderators the same
+takedown boundary as sets. All three writes reject Supabase anonymous users.
+
+The public shelf and comment list still use anonymous HTTP reads. Personal
+like/favourite state is fetched separately and may fail without blanking the
+gallery or shared set. Likes and visible comments are trigger-counted onto the
+set row so they can be displayed and sorted without exposing user ids or
+joining per tile. `touch_updated_at` deliberately ignores those counters (and
+`view_count`): community activity is not a new revision of the author's work.
+`GalleryScreen` offers both "Most liked" and the existing "Most viewed";
+favourites are a private filter, not another public popularity score.
+
 `revision` is written by a **trigger**, never by the client, and moves only when
 `document is distinct from old.document` — a visibility flip or a takedown is
 not a new edition. It shipped declared-but-never-written, so every set read

@@ -32,6 +32,20 @@
   import AssetsOverview from '$lib/components/tools/AssetsOverview.svelte';
   import { listContributors } from '$lib/cloud/contributions';
   import type { Contributor } from '$lib/cloud/contributions';
+  import { auth } from '$lib/cloud/auth.svelte';
+  import {
+    createSetComment,
+    deleteSetComment,
+    editSetComment,
+    favouriteKey,
+    listMyFavourites,
+    listMyLikes,
+    listSetComments,
+    reportSetComment,
+    setFavourite,
+    setLiked
+  } from '$lib/cloud/engagement';
+  import type { FavouriteTarget, SetComment } from '$lib/cloud/engagement';
   import {
     fetchAuthorName,
     fetchParentSet,
@@ -47,7 +61,7 @@
   import type { AdventureSet } from '$lib/sets/types';
   import { navigation } from '$lib/state/navigation.svelte';
   import { workshop } from '$lib/state/workshop.svelte';
-  import { Button, Icon, Select } from '$lib/ui';
+  import { Button, Icon, Select, TextArea } from '$lib/ui';
 
   interface Props {
     slug: string;
@@ -116,6 +130,25 @@
   let compactLayout = $state(false);
   let actionsDialog = $state<HTMLDialogElement | null>(null);
 
+  let comments = $state<SetComment[]>([]);
+  let commentsLoading = $state(false);
+  let commentDraft = $state('');
+  let commentBusy = $state(false);
+  let editingCommentId = $state<string | null>(null);
+  let editDraft = $state('');
+  let deletingCommentId = $state<string | null>(null);
+  let reportingCommentId = $state<string | null>(null);
+  let reportReason = $state('');
+  let communityError = $state<string | null>(null);
+  let communityMessage = $state<string | null>(null);
+  let liked = $state(false);
+  let favourited = $state(false);
+  let likeCount = $state(0);
+  let commentCount = $state(0);
+  let reactionBusy = $state(false);
+
+  const canEngage = $derived(auth.signedIn && !auth.isAnonymous);
+
   /**
    * The whole set this one was sliced out of, for a hero- or villain-scoped
    * publish.
@@ -157,6 +190,17 @@
     error = null;
     forked = null;
     parent = null;
+    comments = [];
+    commentsLoading = false;
+    commentDraft = '';
+    editingCommentId = null;
+    reportingCommentId = null;
+    communityError = null;
+    communityMessage = null;
+    liked = false;
+    favourited = false;
+    likeCount = 0;
+    commentCount = 0;
     // A stale hero id from the previous set would otherwise survive the
     // navigation and quietly filter the overview down to nothing.
     viewScope = characterHint ? { kind: 'hero', characterId: characterHint as CharacterId } : { kind: 'full' };
@@ -172,6 +216,8 @@
           return;
         }
         row = found;
+        likeCount = found.like_count ?? 0;
+        commentCount = found.comment_count ?? 0;
         // Fired off rather than awaited: the credit is wanted for the fork
         // button, and nothing on the page should wait on a display name.
         void fetchAuthorName(found.owner_id).then((name) => (authorName = name));
@@ -182,6 +228,7 @@
         if (found.scope !== 'full') {
           void fetchParentSet(found.owner_id, found.local_id).then((box) => (parent = box));
         }
+        if (found.visibility === 'public') void refreshComments(found.id);
         set = await hydratePublishedSet(found, (done, total) => {
           progress = total > 0 ? `Fetching artwork ${done} of ${total}…` : null;
         });
@@ -212,6 +259,178 @@
     } finally {
       forking = false;
     }
+  }
+
+  async function refreshComments(setId: string): Promise<void> {
+    commentsLoading = true;
+    try {
+      const found = await listSetComments(setId);
+      if (row?.id !== setId) return;
+      comments = found;
+      commentCount = found.length;
+    } catch (cause) {
+      if (row?.id === setId) {
+        communityError = cause instanceof Error ? cause.message : 'Could not load the comments.';
+      }
+    } finally {
+      if (row?.id === setId) commentsLoading = false;
+    }
+  }
+
+  $effect(() => {
+    const setId = row?.visibility === 'public' ? row.id : '';
+    const accountId = canEngage ? (auth.user?.id ?? '') : '';
+    if (!setId || !accountId) {
+      liked = false;
+      favourited = false;
+      return;
+    }
+
+    void Promise.all([listMyLikes(), listMyFavourites()])
+      .then(([likes, favourites]) => {
+        if (row?.id !== setId || auth.user?.id !== accountId || auth.isAnonymous) return;
+        liked = likes.includes(setId);
+        favourited = favourites.some(
+          (target) => favouriteKey(target) === favouriteKey({ kind: 'set', set_id: setId })
+        );
+      })
+      .catch(() => {
+        // The shared set and its comments are public. A private-state failure
+        // must not replace either one with an account error.
+      });
+  });
+
+  function needAccount(): void {
+    communityError = auth.isAnonymous
+      ? 'Likes, favourites and comments need a permanent account.'
+      : 'Sign in with a permanent account to like, favourite or comment.';
+  }
+
+  async function toggleLike(): Promise<void> {
+    if (!row || reactionBusy) return;
+    if (!canEngage) {
+      needAccount();
+      return;
+    }
+
+    const next = !liked;
+    liked = next;
+    likeCount = Math.max(0, likeCount + (next ? 1 : -1));
+    reactionBusy = true;
+    communityError = null;
+    try {
+      await setLiked(row.id, next);
+    } catch (cause) {
+      liked = !next;
+      likeCount = Math.max(0, likeCount + (next ? -1 : 1));
+      communityError = cause instanceof Error ? cause.message : 'Could not update that like.';
+    } finally {
+      reactionBusy = false;
+    }
+  }
+
+  async function toggleFavourite(): Promise<void> {
+    if (!row || reactionBusy) return;
+    if (!canEngage) {
+      needAccount();
+      return;
+    }
+
+    const target: FavouriteTarget = { kind: 'set', set_id: row.id };
+    const next = !favourited;
+    favourited = next;
+    reactionBusy = true;
+    communityError = null;
+    try {
+      await setFavourite(target, next);
+    } catch (cause) {
+      favourited = !next;
+      communityError = cause instanceof Error ? cause.message : 'Could not update that favourite.';
+    } finally {
+      reactionBusy = false;
+    }
+  }
+
+  async function postComment(): Promise<void> {
+    if (!row || commentBusy) return;
+    if (!canEngage) {
+      needAccount();
+      return;
+    }
+    commentBusy = true;
+    communityError = null;
+    communityMessage = null;
+    try {
+      await createSetComment(row.id, commentDraft);
+      commentDraft = '';
+      await refreshComments(row.id);
+    } catch (cause) {
+      communityError = cause instanceof Error ? cause.message : 'Could not post that comment.';
+    } finally {
+      commentBusy = false;
+    }
+  }
+
+  function beginEdit(comment: SetComment): void {
+    editingCommentId = comment.id;
+    editDraft = comment.body;
+    deletingCommentId = null;
+    reportingCommentId = null;
+    communityError = null;
+  }
+
+  async function saveEdit(commentId: string): Promise<void> {
+    if (!row || commentBusy) return;
+    commentBusy = true;
+    communityError = null;
+    try {
+      await editSetComment(commentId, editDraft);
+      editingCommentId = null;
+      await refreshComments(row.id);
+    } catch (cause) {
+      communityError = cause instanceof Error ? cause.message : 'Could not edit that comment.';
+    } finally {
+      commentBusy = false;
+    }
+  }
+
+  async function removeComment(commentId: string): Promise<void> {
+    if (!row || commentBusy || deletingCommentId !== commentId) return;
+    commentBusy = true;
+    communityError = null;
+    try {
+      await deleteSetComment(commentId);
+      if (editingCommentId === commentId) editingCommentId = null;
+      await refreshComments(row.id);
+    } catch (cause) {
+      communityError = cause instanceof Error ? cause.message : 'Could not delete that comment.';
+    } finally {
+      deletingCommentId = null;
+      commentBusy = false;
+    }
+  }
+
+  async function sendReport(commentId: string): Promise<void> {
+    if (commentBusy) return;
+    commentBusy = true;
+    communityError = null;
+    communityMessage = null;
+    try {
+      await reportSetComment(commentId, reportReason);
+      reportingCommentId = null;
+      reportReason = '';
+      communityMessage = 'Report sent. Thank you.';
+    } catch (cause) {
+      communityError = cause instanceof Error ? cause.message : 'Could not send that report.';
+    } finally {
+      commentBusy = false;
+    }
+  }
+
+  function commentDate(comment: SetComment): string {
+    const edited = comment.updated_at !== comment.created_at;
+    const date = new Date(edited ? comment.updated_at : comment.created_at).toLocaleDateString();
+    return edited ? `${date} · edited` : date;
   }
 
   function openActions(): void {
@@ -258,6 +477,38 @@
             <Icon name="layers" size={13} />
             Open {box.name}
           </button>
+        {/if}
+
+        {#if row?.visibility === 'public'}
+          <div class="header-engagement">
+            <button
+              type="button"
+              class="engagement-button"
+              class:active={liked}
+              aria-pressed={liked}
+              disabled={reactionBusy}
+              onclick={() => void toggleLike()}
+            >
+              <Icon name="thumbUp" size={15} />
+              <span class="numeric">{likeCount}</span>
+              <span>{liked ? 'Liked' : 'Like'}</span>
+            </button>
+            <span class="engagement-count" title="Comments">
+              <Icon name="message" size={15} />
+              <span class="numeric">{commentCount}</span>
+            </span>
+            <button
+              type="button"
+              class="engagement-button"
+              class:active={favourited}
+              aria-pressed={favourited}
+              disabled={reactionBusy}
+              onclick={() => void toggleFavourite()}
+            >
+              <Icon name="bookmark" size={15} />
+              <span>{favourited ? 'Favourited' : 'Favourite'}</span>
+            </button>
+          </div>
         {/if}
 
         {#if set}
@@ -315,6 +566,174 @@
       {@const shown = computeScopedSet(set, viewScope)}
       {@const scopeOptions = scopeOptionsFor(set)}
       {#snippet actions(currentSet: AdventureSet)}
+        {#if row?.visibility === 'public'}
+          <section class="panel community-panel">
+            <h2 class="panel-title">Comments</h2>
+
+            {#if communityError}
+              <p class="community-note error" role="alert">{communityError}</p>
+            {:else if communityMessage}
+              <p class="community-note" role="status">{communityMessage}</p>
+            {/if}
+
+            {#if commentsLoading}
+              <p class="panel-hint">Loading comments…</p>
+            {:else if comments.length === 0}
+              <p class="panel-hint">No comments yet.</p>
+            {:else}
+              <div class="comments">
+                {#each comments as comment (comment.id)}
+                  <article class="comment">
+                    <header class="comment-head">
+                      <button
+                        type="button"
+                        class="comment-author"
+                        onclick={() => navigation.openAuthor(comment.author_id)}
+                      >
+                        {#if comment.author?.avatar_url}
+                          <img src={comment.author.avatar_url} alt="" loading="lazy" />
+                        {/if}
+                        <span>{comment.author?.display_name || 'Anonymous'}</span>
+                      </button>
+                      <time datetime={comment.updated_at}>{commentDate(comment)}</time>
+                    </header>
+
+                    {#if editingCommentId === comment.id}
+                      <form
+                        class="comment-form"
+                        onsubmit={(event) => {
+                          event.preventDefault();
+                          void saveEdit(comment.id);
+                        }}
+                      >
+                        <TextArea bind:value={editDraft} rows={3} maxlength={2000} />
+                        <div class="comment-form-actions">
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="ghost"
+                            onclick={() => (editingCommentId = null)}
+                          >
+                            Cancel
+                          </Button>
+                          <Button
+                            type="submit"
+                            size="sm"
+                            disabled={commentBusy || editDraft.trim().length === 0}
+                          >
+                            Save
+                          </Button>
+                        </div>
+                      </form>
+                    {:else}
+                      <p class="comment-body">{comment.body}</p>
+                      <div class="comment-actions">
+                        {#if auth.user?.id === comment.author_id && !auth.isAnonymous}
+                          <button type="button" onclick={() => beginEdit(comment)}>Edit</button>
+                          {#if deletingCommentId === comment.id}
+                            <button type="button" onclick={() => (deletingCommentId = null)}>Cancel</button>
+                            <button
+                              type="button"
+                              class="confirm-delete"
+                              disabled={commentBusy}
+                              onclick={() => void removeComment(comment.id)}
+                            >
+                              {commentBusy ? 'Deleting…' : 'Delete comment'}
+                            </button>
+                          {:else}
+                            <button
+                              type="button"
+                              onclick={() => {
+                                deletingCommentId = comment.id;
+                                reportingCommentId = null;
+                              }}
+                            >Delete</button>
+                          {/if}
+                        {:else}
+                          <button
+                            type="button"
+                            onclick={() => {
+                              reportingCommentId = reportingCommentId === comment.id ? null : comment.id;
+                              reportReason = '';
+                            }}
+                          >
+                            Report
+                          </button>
+                        {/if}
+                      </div>
+                    {/if}
+
+                    {#if reportingCommentId === comment.id}
+                      <form
+                        class="comment-form report-form"
+                        onsubmit={(event) => {
+                          event.preventDefault();
+                          void sendReport(comment.id);
+                        }}
+                      >
+                        <TextArea
+                          bind:value={reportReason}
+                          rows={2}
+                          maxlength={500}
+                          placeholder="What should a moderator know?"
+                        />
+                        <div class="comment-form-actions">
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="ghost"
+                            onclick={() => (reportingCommentId = null)}
+                          >
+                            Cancel
+                          </Button>
+                          <Button
+                            type="submit"
+                            size="sm"
+                            disabled={commentBusy || reportReason.trim().length === 0}
+                          >
+                            Send report
+                          </Button>
+                        </div>
+                      </form>
+                    {/if}
+                  </article>
+                {/each}
+              </div>
+            {/if}
+
+            {#if canEngage}
+              <form
+                class="comment-form new-comment"
+                onsubmit={(event) => {
+                  event.preventDefault();
+                  void postComment();
+                }}
+              >
+                <TextArea
+                  bind:value={commentDraft}
+                  rows={3}
+                  maxlength={2000}
+                  placeholder="Add a comment…"
+                />
+                <div class="comment-form-actions">
+                  <span class="character-count numeric">{commentDraft.length}/2000</span>
+                  <Button
+                    type="submit"
+                    size="sm"
+                    disabled={commentBusy || commentDraft.trim().length === 0}
+                  >
+                    {commentBusy ? 'Posting…' : 'Post comment'}
+                  </Button>
+                </div>
+              </form>
+            {:else}
+              <button type="button" class="sign-in-note" onclick={needAccount}>
+                Sign in with a permanent account to comment.
+              </button>
+            {/if}
+          </section>
+        {/if}
+
         {#if SHOW_FORK || forked}
           <section class="panel">
             <h2 class="panel-title">Build on this</h2>
@@ -515,6 +934,50 @@
     font-style: italic;
   }
 
+  .header-engagement {
+    display: flex;
+    align-items: center;
+    align-self: flex-start;
+    gap: var(--space-1);
+    margin-top: var(--space-2);
+  }
+
+  .engagement-button,
+  .engagement-count {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    min-height: 30px;
+    padding: 0 var(--space-2);
+    border-radius: var(--radius-sm);
+    color: var(--text-muted);
+    font-size: var(--text-xs);
+  }
+
+  .engagement-button {
+    border: 1px solid transparent;
+    background: transparent;
+    font: inherit;
+    font-size: var(--text-xs);
+    cursor: pointer;
+  }
+
+  .engagement-button:hover,
+  .engagement-button.active {
+    border-color: var(--border-default);
+    background: var(--surface-selected);
+    color: var(--text-default);
+  }
+
+  .engagement-button.active :global(svg) {
+    fill: currentColor;
+  }
+
+  .engagement-button:disabled {
+    opacity: 0.55;
+    cursor: wait;
+  }
+
   /*
    * Reads as text, not as a pill — this sits right under the title, where the
    * author's name has always belonged, and a button styled to disappear into
@@ -629,6 +1092,135 @@
     margin-top: calc(var(--space-2) * -1);
     font-size: var(--text-xs);
     color: var(--text-muted);
+  }
+
+  .community-panel,
+  .comments,
+  .comment-form {
+    width: 100%;
+  }
+
+  .community-note {
+    margin: 0;
+    font-size: var(--text-xs);
+    color: var(--text-muted);
+  }
+
+  .comments {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+  }
+
+  .comment {
+    padding-bottom: var(--space-3);
+    border-bottom: 1px solid var(--border-subtle);
+  }
+
+  .comment-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-2);
+  }
+
+  .comment-author {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    min-width: 0;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: var(--text-default);
+    font: inherit;
+    font-size: var(--text-xs);
+    font-weight: var(--weight-semibold);
+    cursor: pointer;
+  }
+
+  .comment-author img {
+    flex: none;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+  }
+
+  .comment-head time,
+  .character-count {
+    flex: none;
+    font-size: var(--text-2xs);
+    color: var(--text-muted);
+  }
+
+  .comment-body {
+    margin: var(--space-2) 0 0;
+    color: var(--text-secondary);
+    font-size: var(--text-xs);
+    line-height: var(--leading-normal);
+    overflow-wrap: anywhere;
+    white-space: pre-wrap;
+  }
+
+  .comment-actions {
+    display: flex;
+    gap: var(--space-3);
+    margin-top: var(--space-1);
+  }
+
+  .comment-actions button,
+  .sign-in-note {
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: var(--text-muted);
+    font: inherit;
+    font-size: var(--text-2xs);
+    text-decoration: underline;
+    text-decoration-color: transparent;
+    cursor: pointer;
+  }
+
+  .comment-actions button:hover,
+  .sign-in-note:hover {
+    color: var(--text-default);
+    text-decoration-color: currentcolor;
+  }
+
+  .comment-actions .confirm-delete {
+    color: var(--danger);
+  }
+
+  .comment-form {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    margin-top: var(--space-2);
+  }
+
+  .comment-form-actions {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: var(--space-2);
+  }
+
+  .new-comment {
+    padding-top: var(--space-1);
+  }
+
+  .new-comment .character-count {
+    margin-right: auto;
+  }
+
+  .report-form {
+    padding: var(--space-2);
+    border-radius: var(--radius-sm);
+    background: var(--surface-sunken);
+  }
+
+  .sign-in-note {
+    text-align: left;
   }
 
   .fineprint {

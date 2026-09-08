@@ -87,6 +87,10 @@ export interface PublishedSet {
   /** First time it went public. Null while it has never been listed. */
   published_at: string | null;
   view_count: number;
+  /** Public approval; individual liker identities remain private. */
+  like_count: number;
+  /** Public, currently visible comments. */
+  comment_count: number;
   /** The author's own line about what changed in this revision. */
   change_note: string;
   /**
@@ -167,7 +171,8 @@ export interface PublishedSetWithDocument extends PublishedSet {
 const SUMMARY_COLUMNS =
   'id,owner_id,local_id,slug,name,subtitle,card_count,character_count,schema_version,' +
   'revision,visibility,created_at,updated_at,thumbnail_url,social_image_url,cover_url,cover_bleeds,' +
-  'published_at,view_count,change_note,forked_from,forked_from_revision,scope,character_id,kind,hero_count';
+  'published_at,view_count,like_count,comment_count,change_note,forked_from,forked_from_revision,' +
+  'scope,character_id,kind,hero_count';
 
 /**
  * The same, plus the author and — for a fork — the set it came from.
@@ -186,8 +191,8 @@ const SUMMARY_COLUMNS =
  * prevent.
  */
 const GALLERY_COLUMNS =
-  `${SUMMARY_COLUMNS},author:profiles(display_name,avatar_url),` +
-  'origin:forked_from(slug,name,author:profiles(display_name))';
+  `${SUMMARY_COLUMNS},author:profiles!sets_owner_id_fkey(display_name,avatar_url),` +
+  'origin:forked_from(slug,name,author:profiles!sets_owner_id_fkey(display_name))';
 
 /** Public URL prefix for this project's asset bucket. */
 export function assetPrefix(): string {
@@ -515,7 +520,7 @@ export async function listMyPublishedSets(): Promise<PublishedSet[]> {
   );
 }
 
-export type GallerySort = 'newest' | 'popular' | 'name';
+export type GallerySort = 'newest' | 'liked' | 'popular' | 'name';
 
 /** Which kind of listing a row is, as a filter. `all` writes no filter. */
 export type ScopeFilter = 'all' | 'full' | 'hero' | 'villain';
@@ -580,20 +585,14 @@ export function searchQuery(search: string): string {
  * is the kind of thing that only shows up once something does.
  */
 function galleryOrder(sort: GallerySort, nameColumn = 'name'): string {
+  if (sort === 'liked') return 'like_count.desc,published_at.desc.nullslast';
   if (sort === 'popular') return 'view_count.desc,published_at.desc.nullslast';
   if (sort === 'name') return `${nameColumn}.asc`;
   return 'published_at.desc.nullslast';
 }
 
-/**
- * The public gallery.
- *
- * No token needed and no `visibility` filter written here — the RLS policy is
- * what decides, so this cannot accidentally widen what it returns. `hidden` is
- * likewise handled there: a moderated set is not something the client is
- * trusted to filter out.
- */
-export async function listPublicSets(query: GalleryQuery = {}): Promise<GallerySet[]> {
+/** One filter shape for the public shelf and the account's private subset. */
+function gallerySetQueryParts(query: GalleryQuery): string[] {
   const {
     search = '',
     sort = 'newest',
@@ -621,6 +620,20 @@ export async function listPublicSets(query: GalleryQuery = {}): Promise<GalleryS
   if (kind) parts.push(`kind=eq.${kind}`);
   if (heroes) parts.push(heroes === 'single' ? 'hero_count=eq.1' : 'hero_count=gt.1');
 
+  return parts;
+}
+
+/**
+ * The public gallery.
+ *
+ * No token needed and no `visibility` filter written here — the RLS policy is
+ * what decides, so this cannot accidentally widen what it returns. `hidden` is
+ * likewise handled there: a moderated set is not something the client is
+ * trusted to filter out.
+ */
+export async function listPublicSets(query: GalleryQuery = {}): Promise<GallerySet[]> {
+  const parts = gallerySetQueryParts(query);
+
   /*
    * Deliberately anonymous, even for a signed-in author.
    *
@@ -631,6 +644,14 @@ export async function listPublicSets(query: GalleryQuery = {}): Promise<GalleryS
    * gallery must do is be there.
    */
   return request<GallerySet[]>(`/rest/v1/sets?${parts.join('&')}`, { anonymous: true });
+}
+
+/** The signed-in account's private set favourites, with ordinary gallery filters. */
+export async function listMyFavouriteSets(query: GalleryQuery = {}): Promise<GallerySet[]> {
+  await auth.ensureFresh();
+  if (!auth.user || auth.isAnonymous) return [];
+  const parts = gallerySetQueryParts(query);
+  return request<GallerySet[]>(`/rest/v1/rpc/my_favourite_sets?${parts.join('&')}`);
 }
 
 // -- Browsing by character ----------------------------------------------
@@ -676,6 +697,8 @@ export interface GalleryCharacter {
   cover_bleeds: boolean;
   published_at: string | null;
   view_count: number;
+  like_count: number;
+  comment_count: number;
   /**
    * Who published the row this character was read out of.
    *
@@ -687,6 +710,8 @@ export interface GalleryCharacter {
    * a lookup key, not a name — see `fetchProfile`.
    */
   owner_id: string;
+  /** Stable local set identity used with owner and character for favourites. */
+  local_id: string;
   /**
    * The whole set this character belongs to, when it is public too.
    *
@@ -708,26 +733,15 @@ export interface CharacterQuery {
   offset?: number;
 }
 
-/**
- * Every published character, filterable by role.
- *
- * The listing a set-shaped gallery could not give: a hero published inside a
- * box is a row *of that box*, so "show me every hero" had no query behind it
- * until `set_characters` existed. Reading a view rather than the table, for
- * the deduplication described on `GalleryCharacter`.
- *
- * Searched on the character's own name only — this is a roster, and someone
- * typing here is naming a person. The set-level search is the one that also
- * looks at box names, and it is one toggle away.
- *
- * Anonymous, on the same footing as `listPublicSets` and for the same reason:
- * a stale token empties the page for its owner while every stranger sees it
- * fine.
- */
-export async function listPublicCharacters(
-  query: CharacterQuery = {}
-): Promise<GalleryCharacter[]> {
-  const { search = '', sort = 'newest', role = '', limit = 36, offset = 0 } = query;
+/** One filter shape for the public roster and the account's private subset. */
+function galleryCharacterQueryParts(query: CharacterQuery): string[] {
+  const {
+    search = '',
+    sort = 'newest',
+    role = '',
+    limit = 36,
+    offset = 0
+  } = query;
 
   const parts = [
     'select=*',
@@ -750,9 +764,45 @@ export async function listPublicCharacters(
 
   if (role) parts.push(`role=eq.${encodeURIComponent(role)}`);
 
+  return parts;
+}
+
+/**
+ * Every published character, filterable by role.
+ *
+ * The listing a set-shaped gallery could not give: a hero published inside a
+ * box is a row *of that box*, so "show me every hero" had no query behind it
+ * until `set_characters` existed. Reading a view rather than the table, for
+ * the deduplication described on `GalleryCharacter`.
+ *
+ * Searched on the character's own name only — this is a roster, and someone
+ * typing here is naming a person. The set-level search is the one that also
+ * looks at box names, and it is one toggle away.
+ *
+ * Anonymous, on the same footing as `listPublicSets` and for the same reason:
+ * a stale token empties the page for its owner while every stranger sees it
+ * fine.
+ */
+export async function listPublicCharacters(
+  query: CharacterQuery = {}
+): Promise<GalleryCharacter[]> {
+  const parts = galleryCharacterQueryParts(query);
+
   return request<GalleryCharacter[]>(`/rest/v1/gallery_characters?${parts.join('&')}`, {
     anonymous: true
   });
+}
+
+/** The signed-in account's exact character favourites, searched and paged in SQL. */
+export async function listMyFavouriteCharacters(
+  query: CharacterQuery = {}
+): Promise<GalleryCharacter[]> {
+  await auth.ensureFresh();
+  if (!auth.user || auth.isAnonymous) return [];
+  const parts = galleryCharacterQueryParts(query);
+  return request<GalleryCharacter[]>(
+    `/rest/v1/rpc/my_favourite_gallery_characters?${parts.join('&')}`
+  );
 }
 
 /**
