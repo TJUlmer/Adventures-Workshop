@@ -228,6 +228,9 @@ export interface ActionCard extends CardCommon {
   showTuckEffect: boolean;
   tuckEffect: string;
   tuckEffectOrientation: TuckEffectOrientation;
+  /** A symbol or short value set into the artwork's upper-right corner. */
+  showCornerBadge: boolean;
+  cornerBadge: string;
 }
 
 /**

@@ -229,6 +229,12 @@ export interface CardTheme {
   artBackground: Fill;
   /** Divider line under the art window, and the boost ring. */
   divider: string;
+  /** An action card's upper-right symbol/value badge. */
+  cornerBadge: Fill;
+  /** Opacity of the badge background only; its content remains fully opaque. */
+  cornerBadgeOpacity: number;
+  /** Symbol or value printed over the corner badge. */
+  cornerBadgeInk: string;
   /**
    * The ribbon's foot — the strip between the name ribbon's point and the
    * divider. Its own surface rather than reusing `divider`, which paints the
@@ -308,6 +314,9 @@ export const DEFAULT_CARD_THEME: CardTheme = {
   displayFont: 'edo',
   artBackground: solid('#ffffff'),
   divider: '#001722',
+  cornerBadge: solid('#001722'),
+  cornerBadgeOpacity: 1,
+  cornerBadgeInk: '#ffffff',
   ribbonFoot: solid('#000000'),
   boost: solid('#3f474c'),
   boostInk: '#ffffff',
@@ -376,7 +385,9 @@ export const HERO_ACTION_CARD_THEME: CardTheme = {
   banner: solid('#001722'),
   body: solid('#001722'),
   boost: solid('#001722'),
-  divider: '#f6eada'
+  divider: '#f6eada',
+  cornerBadge: solid('#f6eada'),
+  cornerBadgeInk: '#001722'
 };
 
 export const THEME_KEYS = [
@@ -392,6 +403,9 @@ export const THEME_KEYS = [
   'displayFont',
   'artBackground',
   'divider',
+  'cornerBadge',
+  'cornerBadgeOpacity',
+  'cornerBadgeInk',
   'ribbonFoot',
   'boost',
   'boostInk',

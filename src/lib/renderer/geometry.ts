@@ -785,6 +785,19 @@ export const TUCK_EFFECT = {
 } as const;
 
 /**
+ * An unofficial square badge cut into an action card's upper-right artwork.
+ * It deliberately follows the ribbon's visual width without borrowing either
+ * ribbon geometry: both ribbon variants remain independent of this treatment.
+ */
+export const CORNER_BADGE = {
+  size: 240,
+  contentSize: inFace(150),
+  contentInset: 34,
+  /** Optical correction for the display face's low-sitting cap ink. */
+  contentOffsetY: -8
+} as const;
+
+/**
  * Card name, set bottom-up inside the ribbon.
  *
  * The name is anchored at its *end* — the last character, nearest the frame —

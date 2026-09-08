@@ -354,7 +354,7 @@
 
 <Section
   title="Special card effects"
-  description="Optional treatments attached to the card’s ribbon, boost, ability panel and exposed edge."
+  description="Optional treatments attached to the card’s ribbon, boost, ability panel, exposed edge and corner."
 >
   <div class="effect-option">
     <Switch
@@ -543,6 +543,56 @@
           />
         </label>
       </div>
+    {/if}
+  </div>
+
+  <div class="effect-option">
+    <Switch
+      label="Corner badge"
+      hint="Adds a square badge for a symbol or short value in the upper-right corner."
+      checked={card.showCornerBadge}
+      onchange={(show) => edit((target) => (target.showCornerBadge = show))}
+    />
+
+    {#if card.showCornerBadge}
+      <AbilityField
+        label="Badge content"
+        value={card.cornerBadge}
+        placeholder="Symbol or value"
+        rows={1}
+        onchange={(content) => edit((target) => (target.cornerBadge = content))}
+        customSymbols={workshop.adventure.customSymbols}
+      />
+
+      <FillEditor
+        label="Background colour"
+        value={resolvedTheme.cornerBadge}
+        origin={originFor('cornerBadge')}
+        overridden={styleLayer.cornerBadge !== undefined}
+        onchange={(fill) => workshop.setStyle(styleTarget, 'cornerBadge', fill)}
+        onreset={() => workshop.setStyle(styleTarget, 'cornerBadge', undefined)}
+      />
+
+      <Slider
+        label="Background opacity"
+        value={resolvedTheme.cornerBadgeOpacity}
+        min={0}
+        max={1}
+        step={0.01}
+        neutral={1}
+        format={(value) => `${Math.round(value * 100)}%`}
+        onchange={(opacity) => workshop.setStyle(styleTarget, 'cornerBadgeOpacity', opacity)}
+      />
+
+      <label class="effect-ink">
+        <span>Content colour</span>
+        <ColorInput
+          value={styleLayer.cornerBadgeInk as string | undefined}
+          inherited={resolvedTheme.cornerBadgeInk}
+          origin={originFor('cornerBadgeInk')}
+          onchange={(ink) => workshop.setStyle(styleTarget, 'cornerBadgeInk', ink)}
+        />
+      </label>
     {/if}
   </div>
 </Section>

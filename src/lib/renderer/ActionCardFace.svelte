@@ -52,6 +52,7 @@
     BOOST_EFFECT,
     BOOST_RING,
     BOOST_VALUE,
+    CORNER_BADGE,
     capTopToBoxTop,
     digitMiddleToBoxTop,
     digitTopToBoxTop,
@@ -349,6 +350,33 @@
   <div class="art" style:height={pu(isHero ? HERO_ART_WINDOW_HEIGHT : ART_WINDOW.height)}>
     <CardArt artwork={card.artwork} background={fillCss(theme.artBackground)} />
   </div>
+
+  {#if card.showCornerBadge}
+    <!-- The frame is painted later and trims the outer corner, making this read
+         as a notch in the card rather than a square floating over the artwork. -->
+    <div
+      class="corner-badge"
+      style:top="0"
+      style:right={pu(hasRightTuckEffect ? TUCK_EFFECT.thickness : 0)}
+      style:width={pu(CORNER_BADGE.size)}
+      style:height={pu(CORNER_BADGE.size)}
+      style:padding={pu(CORNER_BADGE.contentInset)}
+      style:font-size={pu(CORNER_BADGE.contentSize)}
+      style:color={theme.cornerBadgeInk}
+    >
+      <div
+        class="corner-badge-background"
+        style:background={fillCss(theme.cornerBadge)}
+        style:opacity={theme.cornerBadgeOpacity}
+      ></div>
+      <span
+        class="corner-badge-content"
+        style:translate="0 {pu(CORNER_BADGE.contentOffsetY)}"
+      >
+        {@html renderActionText(card.cornerBadge, ribbonName, customSymbols, 'corner-badge-symbol')}
+      </span>
+    </div>
+  {/if}
 
   <!--
     Bottom-anchored, so the panel grows upward. Its own height is its copy's,
@@ -1449,6 +1477,44 @@
     align-items: center;
     justify-content: center;
     overflow: hidden;
+  }
+
+  .corner-badge {
+    position: absolute;
+    z-index: 2;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    font-family: var(--card-font-numeral);
+    font-weight: var(--card-font-numeral-weight);
+    line-height: 1;
+    text-align: center;
+    white-space: nowrap;
+  }
+
+  .corner-badge-content {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    height: 100%;
+  }
+
+  .corner-badge-background {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+  }
+
+  .corner-badge-content :global(.corner-badge-symbol) {
+    display: inline-block;
+    width: auto;
+    max-width: 100%;
+    height: 100%;
+    object-fit: contain;
   }
 
   .tuck-effect-bottom {

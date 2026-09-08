@@ -882,6 +882,16 @@ Printer-friendly mode resolves the bar to paper and its copy to ink through
 right, one translated `.boost-assembly` moves the capsule, disc, ring and value
 left together by the bar thickness so none of that lockup is obscured.
 
+An action card may also enable `showCornerBadge`, placing `cornerBadge` in a
+square notch at the upper-right of the artwork. The field uses the action-text
+symbol palette, so it accepts either a short typed value or a built-in/custom
+symbol. `CardTheme.cornerBadge`, `cornerBadgeOpacity` and `cornerBadgeInk`
+independently cascade its background fill, background-only opacity and content
+colour; the Special card effects editor exposes all three beside the toggle.
+`CORNER_BADGE` in
+`renderer/geometry.ts` owns its size, inset, type size and optical vertical
+offset; a right-side tuck effect moves the badge inward by the bar's thickness.
+
 **Two layers, not one flat colour.** The field is `CardTheme.ribbonFoot` —
 black on the printed card — and only a bar down its right edge, one ribbon
 stroke wide (`BANNER.edge.width` / `HERO_RIBBON.edgeWidth`), is `divider`. That

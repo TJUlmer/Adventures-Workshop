@@ -885,7 +885,10 @@ function normalizeCard(value: unknown): Card | null {
         /* Off on documents written before an exposed tuck reminder existed. */
         showTuckEffect: bool(raw['showTuckEffect'], false),
         tuckEffect: str(raw['tuckEffect']),
-        tuckEffectOrientation: raw['tuckEffectOrientation'] === 'right' ? 'right' : 'bottom'
+        tuckEffectOrientation: raw['tuckEffectOrientation'] === 'right' ? 'right' : 'bottom',
+        /* Off on documents written before an upper-right corner badge existed. */
+        showCornerBadge: bool(raw['showCornerBadge'], false),
+        cornerBadge: str(raw['cornerBadge'])
       } as ActionCard;
   }
 }

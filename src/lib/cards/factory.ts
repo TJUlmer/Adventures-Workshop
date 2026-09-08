@@ -120,7 +120,9 @@ export function createCard<TType extends CardType>(
         bonusAttackAbility: '',
         showTuckEffect: false,
         tuckEffect: '',
-        tuckEffectOrientation: 'bottom'
+        tuckEffectOrientation: 'bottom',
+        showCornerBadge: false,
+        cornerBadge: ''
       } as CardOfType<TType>;
   }
 }

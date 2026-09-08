@@ -404,10 +404,15 @@ export type SetId = Id<'Set'>;
  *      orientation and independently themed bar/ink colours. Older cards
  *      default the effect off and older builds would discard those choices.
  *
+ * v54 — action cards gained an optional upper-right corner badge containing a
+ *      symbol or short value, with independently themed background and content
+ *      colours plus background opacity. Older cards default the effect off and
+ *      older builds would silently discard the badge content and styling.
+ *
  * Older documents are *repaired*, not rejected — see `sets/normalize.ts`. Only
  * a version newer than this build understands is refused.
  */
-export const SET_SCHEMA_VERSION = 53;
+export const SET_SCHEMA_VERSION = 54;
 
 /**
  * What a set is for.
