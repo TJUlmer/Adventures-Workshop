@@ -1485,13 +1485,19 @@
 
 
   <!--
-    Gated on `welcome` but deliberately *not* on `entries.length`: a deliberate
-    welcome view is a pitch and should not carry somebody's shelves, but a
-    collection points at *published* rows and has nothing to do with how many
-    sets happen to be in this browser's library. Someone can be in a
-    collection with no local sets at all.
+    One condition: are you in any collections. Not how many sets you have, not
+    whether a deck of yours is in one, and not which flavour of Home you are
+    looking at.
+    
+    Every stipulation here has been wrong at least once. The shelf used to hide
+    on the welcome view, on the reasoning that a pitch should not carry
+    somebody's shelves — but the person most likely to be looking at the pitch
+    is the one who was invited before building anything, and their collection
+    is the one thing on the page that is actually theirs. Belonging to a
+    collection is a commitment to other people; it does not come and go with
+    the state of your own library.
   -->
-  {#if myCollections.length > 0 && !welcome}
+  {#if myCollections.length > 0}
     <section class="collections">
       <h2 class="section-title">Collections</h2>
       <p class="section-hint">
@@ -1521,7 +1527,11 @@
                     this page is *for* on the other side of the click.
                   -->
                   <span class="role" class:organizer={entry.is_organizer}>
-                    {entry.is_organizer ? 'Organizer' : 'Your deck is in this'}
+                    {entry.is_organizer
+                      ? 'Organizer'
+                      : entry.my_deck_count > 0
+                        ? 'Your deck is in this'
+                        : 'Joined — no deck yet'}
                   </span>
                   <span>{entry.deck_count} {entry.deck_count === 1 ? 'deck' : 'decks'}</span>
                   {#if entry.visibility !== 'public'}

@@ -522,6 +522,13 @@ export interface MyCollection {
   is_organizer: boolean;
   /** Accepted decks, so a shelf tile can say how big the box is. */
   deck_count: number;
+  /**
+   * How many of *my* decks are in it, which is what separates the two ways of
+   * belonging without a deck of your own: an accepted invitation puts a
+   * collection on the shelf before anything has been published, and a tile
+   * that called that "your deck is in this" would be plainly wrong.
+   */
+  my_deck_count: number;
   updated_at: string;
 }
 
