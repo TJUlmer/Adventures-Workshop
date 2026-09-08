@@ -686,6 +686,13 @@ and accessible renderer name; `cardLabel()` never lets a ribbon override take
 that identity over, and duplication preserves the override verbatim rather
 than appending “(copy)” to printed ribbon text.
 
+The small discs representing a 1–2 HP swarm sidekick take their fill from
+`CharacterCardDesign.sidekickDisc`, edited in the Sidekick Band design block.
+Their measured ring is transparent and backed with the Sidekick Band fill so
+it remains visible where the stack overlaps instead of revealing the preceding
+disc or restoring a fixed black outline. Older designs normalise to the former
+`#858585` grey.
+
 A sidekick is **one sub-object, not a list**: every character-card template
 shows at most one sidekick concept — a single tracked individual, or an
 undifferentiated swarm of identical copies, never several distinct companions

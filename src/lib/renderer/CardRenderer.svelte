@@ -569,9 +569,12 @@
     filter: brightness(0) !important;
   }
 
-  /* A swarm's tokens are drawn discs, not art: the ring is already black. */
+  /* A swarm's tokens are drawn discs, not art. Keep their transparent ring and
+     back it with paper so overlapping discs retain their separation. */
   .printer-friendly :global(.hero-character .token) {
-    background: #fff !important;
+    --sidekick-disc: #858585 !important;
+    --sidekick-ring: #fff !important;
+    border-color: transparent !important;
   }
 
   /* Cut line, for checking that nothing important sits in the bleed. */

@@ -16,7 +16,8 @@
    * on one flat field, and nobody wants to match three colours across it.
    *
    * What is left as fixed art is only what is not a word — the decorative
-   * arcs framing a badge, and the sidekick's own health badge.
+   * arcs framing a badge, and the sidekick's own health badge. The swarm's
+   * drawn token discs are a separate fill in the Sidekick band block.
    *
    * Shared between the primary identity's own sheet and every additional
    * card's — `cardId` says which. Each is independent: pairing two heroes on
@@ -92,7 +93,14 @@
   const RESET_TITLE = 'Back to the template’s own colour';
 
   /** Every simple, top-level colour on this sheet, and its printed default. */
-  type InkKey = 'border' | 'healthBadge' | 'healthBadgeAccent' | 'healthInk' | 'abilityInk' | 'moveInk';
+  type InkKey =
+    | 'border'
+    | 'healthBadge'
+    | 'healthBadgeAccent'
+    | 'healthInk'
+    | 'sidekickDisc'
+    | 'abilityInk'
+    | 'moveInk';
 
   const defaults = createCharacterCard();
 
@@ -179,7 +187,7 @@
 
   {#each CHARACTER_BAND_NAMES as band (band)}
     <Section title={BANDS[band].title} description={BANDS[band].hint}>
-      <div class="colours band-colours">
+      <div class="colours band-colours" class:disc-colours={band === 'sidekick'}>
         <FillEditor
           label="Background"
           value={design[band].fill}
@@ -199,6 +207,21 @@
           onchange={(labelInk: Fill) => edit((card) => (card[band].labelInk = labelInk))}
           onreset={resetBand(band, 'labelInk')}
         />
+
+        {#if band === 'sidekick'}
+          <FillEditor
+            label="Sidekick discs"
+            value={design.sidekickDisc}
+            origin="the template"
+            overridden={!isDefault('sidekickDisc')}
+            resetTitle={RESET_TITLE}
+            onchange={(sidekickDisc: Fill) =>
+              edit((card) => {
+                card.sidekickDisc = sidekickDisc;
+              })}
+            onreset={reset('sidekickDisc')}
+          />
+        {/if}
       </div>
 
       <ArtworkPanel
@@ -225,6 +248,10 @@
    */
   .band-colours {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .band-colours.disc-colours {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
   @container workspace (max-width: 560px) {

@@ -202,10 +202,10 @@ export interface CharacterBandStyle {
  * fixed layout and its chrome is supplied art, so what an author gets to
  * choose is the border's colour, the health badge's colour and the value
  * printed on it, what fills each of the three bands *and how that band's own
- * labels are inked over it*, the special ability text's own colour, the move
- * value's — or, with `useReplacement` on, a finished sheet that skips
- * composing one entirely, the same escape hatch every other printed face
- * already has.
+ * labels are inked over it*, the swarm-sidekick discs, the special ability
+ * text's own colour, the move value's — or, with `useReplacement` on, a
+ * finished sheet that skips composing one entirely, the same escape hatch
+ * every other printed face already has.
  *
  * The labels were fixed ink until an author repainted a band and found the
  * white tab standing on it was no longer legible — see
@@ -223,6 +223,8 @@ export interface CharacterCardDesign {
   healthBadgeAccent: Fill;
   /** The START HEALTH value printed inside the badge — the hero's own and every reused copy of it. */
   healthInk: Fill;
+  /** The filled centres of a 1–2 HP swarm sidekick's token discs. */
+  sidekickDisc: Fill;
   /** The quote text, its attribution and its quotation marks — one colour for all three. */
   quoteInk: Fill;
   /**

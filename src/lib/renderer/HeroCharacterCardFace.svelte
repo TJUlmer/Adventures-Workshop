@@ -681,6 +681,8 @@
         style:width={px(CHARACTER_TOKENS.diameter)}
         style:height={py(CHARACTER_TOKENS.diameter)}
         style:border-width={pu(CHARACTER_TOKENS.ring)}
+        style:--sidekick-disc={fillCss(design.sidekickDisc)}
+        style:--sidekick-ring={fillCss(design.sidekick.fill)}
       ></span>
     {/each}
 
@@ -708,6 +710,8 @@
         style:width={px(CHARACTER_TOKENS.diameter)}
         style:height={py(CHARACTER_TOKENS.diameter)}
         style:border-width={pu(CHARACTER_TOKENS.ring)}
+        style:--sidekick-disc={fillCss(design.sidekickDisc)}
+        style:--sidekick-ring={fillCss(design.sidekick.fill)}
       ></span>
     {/each}
 
@@ -1091,8 +1095,19 @@
     position: absolute;
     border-radius: 50%;
     border-style: solid;
-    border-color: #000000;
-    background: #858585;
+    border-color: transparent;
+    /* The transparent stroke needs its own copy of the band fill. Otherwise an
+       overlapping token sits beneath it and shows grey through the stroke
+       instead of the band-coloured separation the printed stack needs. */
+    background: var(--sidekick-ring);
+  }
+
+  .token::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background: var(--sidekick-disc);
   }
 
   /* Colour comes from `design.moveInk`, inline — the same one the arrow mask beside it takes. */
