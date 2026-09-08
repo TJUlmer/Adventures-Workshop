@@ -59,7 +59,9 @@ export const ACTION_SURFACES = [
   'bodyInk',
   'divider',
   'boostInk',
-  'ribbonFoot'
+  'ribbonFoot',
+  'tuckEffect',
+  'tuckEffectInk'
 ] as const satisfies readonly (keyof CardTheme)[];
 
 /** Rules cards: a heading band over prose, and nothing else. */

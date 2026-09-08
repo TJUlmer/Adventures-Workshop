@@ -89,6 +89,7 @@
     TITLE_BOX_TOP,
     TITLE_RULE,
     TITLE_RULE_GAP,
+    TUCK_EFFECT,
     VALUE_STACK
   } from './geometry';
 
@@ -166,6 +167,16 @@
     actionTextIsEmpty(card.bonusAttackTitle) ? 'Bonus Attack' : card.bonusAttackTitle
   );
   const hasBonusAttackAbility = $derived(!actionTextIsEmpty(card.bonusAttackAbility));
+  const hasBottomTuckEffect = $derived(
+    card.showTuckEffect && card.tuckEffectOrientation === 'bottom'
+  );
+  const hasRightTuckEffect = $derived(
+    card.showTuckEffect && card.tuckEffectOrientation === 'right'
+  );
+  const bodyBottomPadding = $derived(
+    (isHero && !card.showBonusAttack ? HERO_BODY_PANEL_FOOT_CLEARANCE : 0) +
+      (hasBottomTuckEffect ? TUCK_EFFECT.thickness : 0)
+  );
 
   /**
    * Who may play this card: the primary identity's own name, an additional
@@ -407,6 +418,12 @@
   -->
   <div class="divider" style:height={pu(DIVIDER.height)} style:background={theme.divider}>
     {#if card.boost !== null}
+      <!-- The whole assembly shifts as one when a right-side tuck bar claims
+           that edge: disc, ring, value and the optional capsule stay joined. -->
+      <div
+        class="boost-assembly"
+        style:translate="{pu(hasRightTuckEffect ? -TUCK_EFFECT.thickness : 0)} 0"
+      >
       {#if card.showBoostEffect}
         <!--
           The capsule is painted before the disc and ends under its centre,
@@ -480,6 +497,7 @@
       >
         {card.boost}
       </div>
+      </div>
     {/if}
   </div>
 
@@ -487,9 +505,7 @@
     class="body"
     style:min-height={pu(isHero ? HERO_BODY_PANEL_HEIGHT : BODY_PANEL.height)}
     style:max-height={pu(BODY_PANEL_MAX_HEIGHT)}
-    style:padding-bottom={isHero && !card.showBonusAttack
-      ? pu(HERO_BODY_PANEL_FOOT_CLEARANCE)
-      : undefined}
+    style:padding-bottom={bodyBottomPadding > 0 ? pu(bodyBottomPadding) : undefined}
     style:background={fillCss(theme.body)}
   >
     {#if theme.pattern.name}
@@ -802,8 +818,43 @@
         </div>
       </div>
     {/if}
+
+    {#if hasBottomTuckEffect}
+      <div
+        class="tuck-effect tuck-effect-bottom"
+        style:height={pu(TUCK_EFFECT.thickness)}
+        style:padding-inline={pu(TUCK_EFFECT.padding)}
+        style:background={fillCss(theme.tuckEffect)}
+        style:color={theme.tuckEffectInk}
+      >
+        <span
+          class="tuck-effect-text"
+          style:font-size={pu(TUCK_EFFECT.text.size)}
+          style:line-height={TUCK_EFFECT.text.lineHeight}
+          style:transform="translateY({pu(TUCK_EFFECT.text.offsetY)})"
+        >{card.tuckEffect}</span>
+      </div>
+    {/if}
   </div>
   </div>
+
+  {#if hasRightTuckEffect}
+    <!-- Full interior height: a side-tucked card exposes its long edge, not only
+         the much shorter body panel, and ordinary reminder copy needs that run. -->
+    <div
+      class="tuck-effect tuck-effect-right"
+      style:width={pu(TUCK_EFFECT.thickness)}
+      style:padding-block={pu(TUCK_EFFECT.padding)}
+      style:background={fillCss(theme.tuckEffect)}
+      style:color={theme.tuckEffectInk}
+    >
+      <span
+        class="tuck-effect-text"
+        style:font-size={pu(TUCK_EFFECT.text.size)}
+        style:line-height={TUCK_EFFECT.text.lineHeight}
+      >{card.tuckEffect}</span>
+    </div>
+  {/if}
 </div>
 
 {#if isHero}
@@ -1125,8 +1176,18 @@
 <!-- The copies count prints over the border, so it is drawn after it. -->
 <div
   class="quantity"
-  style:right={px(BLEED.width - (isHero ? OWNER_LINE.right : QUANTITY.right))}
-  style:top={py(capTopToBoxTop(isHero ? OWNER_LINE.capTop : QUANTITY.capTop, QUANTITY.size))}
+  style:right={px(
+    BLEED.width -
+      (isHero ? OWNER_LINE.right : QUANTITY.right) +
+      (hasRightTuckEffect ? TUCK_EFFECT.thickness : 0)
+  )}
+  style:top={py(
+    capTopToBoxTop(
+      (isHero ? OWNER_LINE.capTop : QUANTITY.capTop) -
+        (hasBottomTuckEffect ? TUCK_EFFECT.thickness : 0),
+      QUANTITY.size
+    )
+  )}
   style:font-size={pu(QUANTITY.size)}
   style:color={theme.bodyInk}
 >
@@ -1380,6 +1441,45 @@
     vertical-align: 0em;
   }
 
+  .tuck-effect {
+    position: absolute;
+    z-index: 3;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+  }
+
+  .tuck-effect-bottom {
+    right: 0;
+    bottom: 0;
+    left: 0;
+  }
+
+  .tuck-effect-right {
+    top: 0;
+    right: 0;
+    bottom: 0;
+  }
+
+  .tuck-effect-text {
+    display: block;
+    min-width: 0;
+    overflow: hidden;
+    font-family: var(--card-font-text);
+    font-weight: var(--card-font-text-weight);
+    text-align: center;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .tuck-effect-right .tuck-effect-text {
+    max-height: 100%;
+    writing-mode: vertical-rl;
+    text-orientation: mixed;
+    transform: rotate(180deg);
+  }
+
   .panel-lead,
   .panel-foot {
     flex: none;
@@ -1540,6 +1640,12 @@
     pointer-events: none;
     border-radius: 50%;
     border-style: solid;
+  }
+
+  .boost-assembly {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
   }
 
   /* -- name ribbon ----------------------------------------------------- */

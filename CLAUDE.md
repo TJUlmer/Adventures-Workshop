@@ -856,6 +856,28 @@ lives in `TEXT_SYMBOLS`, while `CARD_SYMBOLS` deliberately remains the four
 combat types used by value controls and hero ribbons. This distinction prevents
 the bonus-attack token from appearing as a selectable primary card type.
 
+### Tuck effects
+
+`ActionCard.showTuckEffect` adds a short reminder intended to stay visible while
+the card is tucked behind another card. `tuckEffectOrientation` places the same
+160px treatment against either the bottom of the body panel or the full right
+interior edge. A bottom bar reserves that much body-panel space and moves the
+copies count upward; the right-side bar uses the long card edge so ordinary
+reminder copy still fits, and moves the count left. Both orientations therefore
+keep the fixed corner metadata out of the exposed reminder.
+
+The copy stays per card in `tuckEffect`; its independently cascading surface and
+ink are `CardTheme.tuckEffect`/`tuckEffectInk`. The Special card effects editor
+offers shortcuts to those two theme keys beside the text and orientation, while
+the Design tab exposes the same keys with the rest of the action-card palette.
+`TUCK_EFFECT` in `renderer/geometry.ts` owns the shared thickness, padding and
+type size; `text.size` is the manual size dial and `text.offsetY` optically
+centres the bottom bar's visible cap ink rather than merely its CSS line box.
+Printer-friendly mode resolves the bar to paper and its copy to ink through
+`MONO_LAYER`, without mutating the authored colours. When the bar is on the
+right, one translated `.boost-assembly` moves the capsule, disc, ring and value
+left together by the bar thickness so none of that lockup is obscured.
+
 **Two layers, not one flat colour.** The field is `CardTheme.ribbonFoot` —
 black on the printed card — and only a bar down its right edge, one ribbon
 stroke wide (`BANNER.edge.width` / `HERO_RIBBON.edgeWidth`), is `divider`. That

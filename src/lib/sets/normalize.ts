@@ -881,7 +881,11 @@ function normalizeCard(value: unknown): Card | null {
         showBonusAttack: bool(raw['showBonusAttack'], false),
         bonusAttackTitle: str(raw['bonusAttackTitle']),
         bonusAttackValue: num(raw['bonusAttackValue'], 2),
-        bonusAttackAbility: str(raw['bonusAttackAbility'])
+        bonusAttackAbility: str(raw['bonusAttackAbility']),
+        /* Off on documents written before an exposed tuck reminder existed. */
+        showTuckEffect: bool(raw['showTuckEffect'], false),
+        tuckEffect: str(raw['tuckEffect']),
+        tuckEffectOrientation: raw['tuckEffectOrientation'] === 'right' ? 'right' : 'bottom'
       } as ActionCard;
   }
 }

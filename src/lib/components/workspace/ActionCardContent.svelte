@@ -11,7 +11,12 @@
   import type { StyleOrigin } from '$lib/cards/theme';
   import { STYLE_ORIGIN_LABELS } from '$lib/cards/theme';
   import { COMBAT_SYMBOLS } from '$lib/cards/types';
-  import type { ActionCard, CardOwner, CombatSymbol } from '$lib/cards/types';
+  import type {
+    ActionCard,
+    CardOwner,
+    CombatSymbol,
+    TuckEffectOrientation
+  } from '$lib/cards/types';
   import { characterLabel, primaryCardName } from '$lib/characters/factory';
   import { deckLabel } from '$lib/decks/factory';
   import type { DeckId } from '$lib/decks/types';
@@ -24,6 +29,7 @@
   import {
     Field,
     FillEditor,
+    ColorInput,
     NumberInput,
     Section,
     SegmentedControl,
@@ -87,6 +93,11 @@
     value: symbol,
     label: CARD_SYMBOL_LABELS[symbol]
   }));
+
+  const tuckEffectOrientations = [
+    { value: 'bottom', label: 'Bottom' },
+    { value: 'right', label: 'Right side' }
+  ] as const;
 
   const isScheme = $derived(card.symbol === 'scheme');
 
@@ -343,7 +354,7 @@
 
 <Section
   title="Special card effects"
-  description="Optional treatments attached to the card’s ribbon, boost and ability panel."
+  description="Optional treatments attached to the card’s ribbon, boost, ability panel and exposed edge."
 >
   <div class="effect-option">
     <Switch
@@ -482,6 +493,58 @@
       />
     {/if}
   </div>
+
+  <div class="effect-option">
+    <Switch
+      label="Tuck effect"
+      hint="Adds reminder text on an exposed edge while this card is tucked behind another card."
+      checked={card.showTuckEffect}
+      onchange={(show) => edit((target) => (target.showTuckEffect = show))}
+    />
+
+    {#if card.showTuckEffect}
+      <Field label="Effect text">
+        <TextInput
+          value={card.tuckEffect}
+          placeholder="When you play a scheme, gain 1 action."
+          oninput={(event) => edit((target) => (target.tuckEffect = event.currentTarget.value))}
+        />
+      </Field>
+
+      <Field label="Orientation">
+        <SegmentedControl
+          label="Tuck effect orientation"
+          value={card.tuckEffectOrientation}
+          segments={tuckEffectOrientations}
+          onchange={(orientation) =>
+            edit((target) => {
+              target.tuckEffectOrientation = orientation as TuckEffectOrientation;
+            })}
+        />
+      </Field>
+
+      <div class="effect-colours">
+        <FillEditor
+          label="Bar fill"
+          value={resolvedTheme.tuckEffect}
+          origin={originFor('tuckEffect')}
+          overridden={styleLayer.tuckEffect !== undefined}
+          onchange={(fill) => workshop.setStyle(styleTarget, 'tuckEffect', fill)}
+          onreset={() => workshop.setStyle(styleTarget, 'tuckEffect', undefined)}
+        />
+
+        <label class="effect-ink">
+          <span>Text</span>
+          <ColorInput
+            value={styleLayer.tuckEffectInk as string | undefined}
+            inherited={resolvedTheme.tuckEffectInk}
+            origin={originFor('tuckEffectInk')}
+            onchange={(ink) => workshop.setStyle(styleTarget, 'tuckEffectInk', ink)}
+          />
+        </label>
+      </div>
+    {/if}
+  </div>
 </Section>
 
 <Section title="Notes" description="Working notes. Never printed.">
@@ -517,8 +580,24 @@
     gap: var(--space-3);
   }
 
+  .effect-colours {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: end;
+    gap: var(--space-3);
+  }
+
+  .effect-ink {
+    display: grid;
+    gap: var(--space-2);
+    min-width: 0;
+    font-size: var(--text-xs);
+    color: var(--text-tertiary);
+  }
+
   @container workspace (max-width: 520px) {
-    .bonus-attack-head {
+    .bonus-attack-head,
+    .effect-colours {
       grid-template-columns: 1fr;
     }
   }

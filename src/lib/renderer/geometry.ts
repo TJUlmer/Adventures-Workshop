@@ -753,6 +753,26 @@ export const BONUS_ATTACK = {
 } as const;
 
 /**
+ * Reminder copy kept visible on the exposed edge of a tucked action card.
+ *
+ * The bottom bar is 39px tall on the supplied 413×578 official-card image.
+ * Scaled against that card's printed face it lands at roughly 160 bleed pixels.
+ * The right-side variant deliberately uses the same thickness, so changing an
+ * effect's orientation changes only its edge rather than its visual weight.
+ */
+export const TUCK_EFFECT = {
+  thickness: 160,
+  padding: 48,
+  text: {
+    /** Change this value to dial in the tuck-effect text size. */
+    size: inFace(90),
+    lineHeight: 2,
+    /** Compensates for the face's low-sitting cap ink inside its centred line box. */
+    offsetY: -20
+  }
+} as const;
+
+/**
  * Card name, set bottom-up inside the ribbon.
  *
  * The name is anchored at its *end* — the last character, nearest the frame —

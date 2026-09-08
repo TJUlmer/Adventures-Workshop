@@ -57,6 +57,8 @@ export const MONO_LAYER: CardStyleOverride = {
   ribbonFoot: solid(MONO_PAPER),
   boost: solid(MONO_PAPER),
   boostInk: MONO_INK,
+  tuckEffect: solid(MONO_PAPER),
+  tuckEffectInk: MONO_INK,
   /* Both exist to lay tone over a panel. There is no tone to lay. */
   pattern: NO_PATTERN,
   texture: { kind: 'none', opacity: 0 },

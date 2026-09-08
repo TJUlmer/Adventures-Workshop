@@ -400,10 +400,14 @@ export type SetId = Id<'Set'>;
  *      documents default to the former fixed grey; older builds would silently
  *      discard the chosen fill.
  *
+ * v53 — action cards gained an optional tuck-effect reminder, its bottom/right
+ *      orientation and independently themed bar/ink colours. Older cards
+ *      default the effect off and older builds would discard those choices.
+ *
  * Older documents are *repaired*, not rejected — see `sets/normalize.ts`. Only
  * a version newer than this build understands is refused.
  */
-export const SET_SCHEMA_VERSION = 52;
+export const SET_SCHEMA_VERSION = 53;
 
 /**
  * What a set is for.

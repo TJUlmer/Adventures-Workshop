@@ -240,6 +240,9 @@ export interface CardTheme {
   /** Disc behind the boost value. */
   boost: Fill;
   boostInk: string;
+  /** Exposed reminder bar on a card that remains visible while tucked. */
+  tuckEffect: Fill;
+  tuckEffectInk: string;
   /**
    * The Bonus ability line, printed last on an action card's ability text —
    * its own ink rather than `bodyInk`, since it is meant to stand apart from
@@ -308,6 +311,9 @@ export const DEFAULT_CARD_THEME: CardTheme = {
   ribbonFoot: solid('#000000'),
   boost: solid('#3f474c'),
   boostInk: '#ffffff',
+  /** A restrained gold so the reminder reads as a secondary card treatment. */
+  tuckEffect: solid('#a9854f'),
+  tuckEffectInk: '#ffffff',
   bonusAbilityInk: '#ffffff',
   /*
    * A judgement call, not a measured constant — unlike most sizes in this
@@ -389,6 +395,8 @@ export const THEME_KEYS = [
   'ribbonFoot',
   'boost',
   'boostInk',
+  'tuckEffect',
+  'tuckEffectInk',
   'bonusAbilityInk',
   'bonusIconSize',
   'ribbonSymbolSize',
