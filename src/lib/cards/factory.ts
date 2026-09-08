@@ -146,7 +146,9 @@ export function duplicateCard(card: Card): Card {
   const copy: Card = {
     ...card,
     id: createId<CardId>('card'),
-    name: card.name ? `${card.name} (copy)` : '',
+    /* An action card's inherited `name` is ribbon copy, not its document
+       label. Duplicating the card must not print "(copy)" on that ribbon. */
+    name: card.type === 'action' ? card.name : card.name ? `${card.name} (copy)` : '',
     artwork: cloneArtwork(card.artwork),
     replacement: cloneArtwork(card.replacement),
     style: { ...card.style },
@@ -176,11 +178,16 @@ export function duplicateCard(card: Card): Card {
 
 /** Display name that never renders as an empty string in the UI. */
 export function cardLabel(card: Card): string {
-  if (card.name.trim().length > 0) return card.name;
+  /* An action card's `name` is only its ribbon-name override. Its printed
+     title is the card's identity everywhere else: workspace, exports, print
+     labels and accessibility. A blank title stays honestly untitled rather
+     than borrowing the name of the figure printed on its ribbon. */
   if (card.type === 'action') {
     const title = actionTextToPlain(card.title);
     if (title.length > 0) return title;
+    return `Untitled ${CARD_TYPE_META[card.type].label.toLowerCase()}`;
   }
+  if (card.name.trim().length > 0) return card.name;
   if ((card.type === 'rules' || card.type === 'event') && card.heading.trim().length > 0) {
     return card.heading;
   }

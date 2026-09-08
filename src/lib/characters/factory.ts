@@ -18,7 +18,15 @@ import { CHARACTER_BAND_NAMES, CHARACTER_ROLE_META } from './types';
 
 /** A hero with no sidekick — the quote panel prints until one is turned on. */
 export function createHeroSidekick(): HeroSidekick {
-  return { enabled: false, name: '', attackType: 'melee', multiple: false, health: 7, count: 3 };
+  return {
+    enabled: false,
+    name: '',
+    subtitle: '',
+    attackType: 'melee',
+    multiple: false,
+    health: 7,
+    count: 3
+  };
 }
 
 export function createHeroQuote(): HeroQuote {

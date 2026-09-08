@@ -11,6 +11,7 @@
   import type { CardTheme } from '$lib/cards/style';
   import { mergeCardStyle } from '$lib/cards/style';
   import { stockTheme } from '$lib/cards/theme';
+  import { cardLabel } from '$lib/cards/factory';
   import type { Card } from '$lib/cards/types';
   import { characterLabel } from '$lib/characters/factory';
   import type { Character, HeroCharacterCard } from '$lib/characters/types';
@@ -280,13 +281,13 @@
         No texture over the top: the point of a replacement is that it is
         already finished, and a card-wide overlay would be the app editing it.
       -->
-      <article class="face" aria-label="{card.name || 'Untitled card'} (replacement image)">
+      <article class="face" aria-label="{cardLabel(card)} (replacement image)">
         <div class="replacement">
           <CardArt artwork={replacement} background="transparent" />
         </div>
       </article>
     {:else}
-      <article class="face" aria-label={card.name || 'Untitled card'}>
+      <article class="face" aria-label={cardLabel(card)}>
         {#if card.type === 'action'}
           <ActionCardFace {card} {character} theme={look} {customSymbols} />
         {:else if card.type === 'initiative'}

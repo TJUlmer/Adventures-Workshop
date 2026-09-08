@@ -1144,15 +1144,12 @@ export const CHARACTER_HEADING = {
   /**
    * Right edge of the shrink-to-fit box a long name has to stay inside.
    *
-   * Neither template marks a right margin for this row — both only ever
-   * printed the fixed words HERO/SIDEKICK, never long enough to need one —
-   * so this mirrors `x`'s own inset from the card's printed edge rather
-   * than being read off the art. See the heading snippet in
-   * `HeroCharacterCardFace.svelte` for why it exists at all: content-driven
-   * sizing, not template geometry (`fit-text.ts`'s own exception to "nothing
-   * measures text at runtime").
+   * The band stays open to the frame's measured inner edge at x1478; the
+   * attack row's health columns are below this heading, not beside it. This
+   * used to mirror the left inset and stop at x1349, throwing away 129px of
+   * empty band before `fit-text.ts` began shrinking an author's name.
    */
-  right: CHARACTER_CARD.x + CHARACTER_CARD.width - (282 - CHARACTER_CARD.x)
+  right: CHARACTER_ATTACK_ROW.badgeRight
 } as const;
 
 /**

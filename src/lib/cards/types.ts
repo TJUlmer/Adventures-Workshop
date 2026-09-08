@@ -159,6 +159,7 @@ export type CardOwner = (typeof CARD_OWNERS)[number] | HeroCharacterCardId;
 /** A villain, minion or hero action card. */
 export interface ActionCard extends CardCommon {
   type: 'action';
+  /** `CardCommon.name` is a ribbon-name override, never the card's own label. */
   /** Sanitised inline HTML, printed above the ability text. */
   title: string;
   /** `null` means the symbol is not printed at all. */

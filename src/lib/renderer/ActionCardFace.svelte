@@ -127,7 +127,7 @@
   const abilitySize = $derived(inFace(theme.abilityFontSize));
 
   /**
-   * The character's name as the *ribbon* prints it.
+   * The primary character's name as the *ribbon* prints it.
    *
    * `subtitle` is a shortened form — "Geralt" against "Geralt of Rivia" — and
    * the ribbon is where the difference matters, because it is the one place a
@@ -142,7 +142,25 @@
     character?.subtitle.trim() || (character ? primaryCardName(character) : '').trim() || ''
   );
 
-  const ribbonName = $derived(card.name.trim() || shortName || 'Villain Name');
+  /**
+   * The selected player's resolved ribbon name. A per-card override always
+   * wins, followed by that identity's shortened and full names. Keeping this
+   * single value behind both the printed ribbon and `{{name}}` prevents the
+   * two from disagreeing when the selected player is a sidekick.
+   */
+  const ribbonName = $derived.by(() => {
+    const override = card.name.trim();
+    if (override) return override;
+    if (!isHero) return shortName || 'Villain Name';
+    if (card.owner === 'sidekick') {
+      return (
+        character?.sidekick.subtitle.trim() || character?.sidekick.name.trim() || 'Sidekick'
+      );
+    }
+    if (card.owner === 'any') return 'ANY';
+    const extra = character?.additionalCards.find((entry) => entry.id === card.owner);
+    return extra?.subtitle.trim() || extra?.name.trim() || shortName || 'Hero Name';
+  });
   const title = $derived(actionTextIsEmpty(card.title) ? 'Card Title' : card.title);
   const bonusAttackTitle = $derived(
     actionTextIsEmpty(card.bonusAttackTitle) ? 'Bonus Attack' : card.bonusAttackTitle
@@ -163,11 +181,8 @@
    * has a whole card's width to run in — takes the full one.
    */
   const ownerLabel = $derived.by(() => {
-    if (card.owner === 'sidekick') return character?.sidekick.name.trim() || 'Sidekick';
     if (card.owner === 'any') return 'ANY';
-    const extra = character?.additionalCards.find((entry) => entry.id === card.owner);
-    const extraShortName = extra ? extra.subtitle.trim() || extra.name.trim() : '';
-    return card.name.trim() || extraShortName || shortName || 'Hero Name';
+    return ribbonName;
   });
 
   /**

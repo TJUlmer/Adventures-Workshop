@@ -673,10 +673,18 @@ centre. The badge is a shield — full width for its top two thirds, then a tape
 
 The two band headings print the character's and the sidekick's **full** names,
 falling back to the words HERO and SIDEKICK the template sets. Full, because
-this is the sheet a figure is introduced on — `Character.subtitle` is a
-*shortened* name for the action cards' ribbon, which is the one place a name is
-set at display size in a column two centimetres wide. The line beside the
-copies count takes the full name too; it has a whole card's width to run in.
+this is the sheet a figure is introduced on — `Character.subtitle` and
+`HeroSidekick.subtitle` are *shortened* names for the action cards' ribbon,
+which is the one place a name is set at display size in a column two centimetres
+wide. The line beside the copies count takes the full hero name too; it has a
+whole card's width to run in. A card's Name override wins over the selected
+hero, additional identity or sidekick's shortened and full names.
+
+An action card's inherited `name` field is therefore ribbon copy only. Its
+`title` is the card's label in the workspace, export filenames, print sheets
+and accessible renderer name; `cardLabel()` never lets a ribbon override take
+that identity over, and duplication preserves the override verbatim rather
+than appending “(copy)” to printed ribbon text.
 
 A sidekick is **one sub-object, not a list**: every character-card template
 shows at most one sidekick concept — a single tracked individual, or an

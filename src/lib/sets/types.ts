@@ -391,10 +391,14 @@ export type SetId = Id<'Set'>;
  *      symbol registry also gained `bonus_attack`. Older cards default the
  *      whole effect off; older builds would discard these fields.
  *
+ * v51 — a hero's sidekick gained `subtitle`, the shortened name used on action
+ *      card ribbons. Older documents default it blank and therefore keep using
+ *      the sidekick's full name; older builds would silently discard it.
+ *
  * Older documents are *repaired*, not rejected — see `sets/normalize.ts`. Only
  * a version newer than this build understands is refused.
  */
-export const SET_SCHEMA_VERSION = 50;
+export const SET_SCHEMA_VERSION = 51;
 
 /**
  * What a set is for.

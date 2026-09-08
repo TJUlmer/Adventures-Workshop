@@ -74,9 +74,38 @@ export function fitScaleWidth(
  */
 export function fitWidth(node: HTMLElement, _word: string): { update(word: string): void } {
   fitScaleWidth(node);
+
+  /*
+   * An action's update can run before Svelte has replaced the child text node.
+   * The immediate pass preserves the export path's synchronous guarantee; this
+   * second pass sees the new word once that DOM update has landed. Without it,
+   * the box was always fitted for the previous value and the last letter of a
+   * growing character name stayed clipped at every smaller scale.
+   */
+  const refitAfterTextUpdate = (): void => {
+    queueMicrotask(() => {
+      if (node.isConnected) fitScaleWidth(node);
+    });
+  };
+  refitAfterTextUpdate();
+
+  /* The live preview can mount before this face has ever requested its font.
+     Export loads every card face before mounting (see `card-stage.ts`), but the
+     preview needs one more fit when its own computed face finishes loading. */
+  const font = getComputedStyle(node).font;
+  if (font) {
+    void document.fonts.load(font).then(
+      () => {
+        if (node.isConnected) fitScaleWidth(node);
+      },
+      () => undefined
+    );
+  }
+
   return {
     update() {
       fitScaleWidth(node);
+      refitAfterTextUpdate();
     }
   };
 }

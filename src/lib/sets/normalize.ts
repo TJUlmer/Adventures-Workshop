@@ -218,6 +218,7 @@ function heroSidekick(value: unknown): HeroSidekick {
   return {
     enabled: bool(raw['enabled'], defaults.enabled),
     name: str(raw['name'], defaults.name),
+    subtitle: str(raw['subtitle'], defaults.subtitle),
     attackType: (ATTACK_TYPES as readonly unknown[]).includes(raw['attackType'])
       ? (raw['attackType'] as HeroSidekick['attackType'])
       : defaults.attackType,
@@ -960,6 +961,7 @@ export function normalizeSet(value: AdventureSet): AdventureSet {
         {
           ...createHeroCharacterCard(),
           name: sidekick.name,
+          subtitle: sidekick.subtitle,
           attackType: sidekick.attackType,
           health: sidekick.health,
           characterCard: characterCard(normalizedCharacterCard)

@@ -137,11 +137,20 @@
     />
 
     <Field label="Name override">
-      <TextInput bind:value={card.name} placeholder="Leave blank to use the hero’s own name" />
+      <TextInput
+        value={card.name}
+        placeholder="Leave blank to use the selected character’s name"
+        oninput={(event) => edit((target) => (target.name = event.currentTarget.value))}
+      />
     </Field>
   {:else}
     <Field label="Name on the ribbon">
-      <TextInput bind:value={card.name} placeholder="Villain name" prominent />
+      <TextInput
+        value={card.name}
+        placeholder="Villain name"
+        prominent
+        oninput={(event) => edit((target) => (target.name = event.currentTarget.value))}
+      />
     </Field>
 
     <FormattedTextField

@@ -90,7 +90,8 @@ export interface CardbackDesign {
  * card even when it is on, since that card prints the fixed word "SIDEKICK"
  * rather than an identity. `name` exists to be picked up elsewhere: labelling
  * which of a hero's action cards this figure may play, and naming the piece in
- * a Tabletop Simulator export.
+ * a Tabletop Simulator export. `subtitle` is the optional shorter form used
+ * only where that name must fit in an action-card ribbon.
  *
  * `multiple` is not asked for directly — the editor derives it from `count`
  * (one copy is a single tracked figure, more than one a swarm) rather than
@@ -107,6 +108,8 @@ export interface CardbackDesign {
 export interface HeroSidekick {
   enabled: boolean;
   name: string;
+  /** Used on action-card ribbons; blank falls back to the full `name`. */
+  subtitle: string;
   attackType: AttackType;
   /**
    * Off: one figure with its own tracked `health`. On: `count` identical,

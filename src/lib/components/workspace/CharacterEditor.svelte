@@ -499,6 +499,10 @@
                 <TextInput bind:value={character.sidekick.name} placeholder="Name this sidekick" />
               </Field>
 
+              <Field label="Shortened name" hint="Used on the action card ribbon. Blank uses the full name.">
+                <TextInput bind:value={character.sidekick.subtitle} placeholder="e.g. Watson" />
+              </Field>
+
               <Field label="Attack type">
                 <SegmentedControl
                   label="Sidekick attack type"
