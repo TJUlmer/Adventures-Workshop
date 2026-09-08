@@ -360,6 +360,7 @@
       style:right={pu(hasRightTuckEffect ? TUCK_EFFECT.thickness : 0)}
       style:width={pu(CORNER_BADGE.size)}
       style:height={pu(CORNER_BADGE.size)}
+      style:border-bottom-left-radius={pu(CORNER_BADGE.cornerRadius)}
       style:padding={pu(CORNER_BADGE.contentInset)}
       style:font-size={pu(CORNER_BADGE.contentSize)}
       style:color={theme.cornerBadgeInk}

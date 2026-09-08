@@ -890,7 +890,8 @@ independently cascade its background fill, background-only opacity and content
 colour; the Special card effects editor exposes all three beside the toggle.
 `CORNER_BADGE` in
 `renderer/geometry.ts` owns its size, inset, type size and optical vertical
-offset; a right-side tuck effect moves the badge inward by the bar's thickness.
+offset. Its lower-left radius mirrors the card window's own corner curve; a
+right-side tuck effect moves the badge inward by the bar's thickness.
 
 **Two layers, not one flat colour.** The field is `CardTheme.ribbonFoot` —
 black on the printed card — and only a bar down its right edge, one ribbon

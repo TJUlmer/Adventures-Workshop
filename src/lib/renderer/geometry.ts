@@ -791,6 +791,8 @@ export const TUCK_EFFECT = {
  */
 export const CORNER_BADGE = {
   size: 240,
+  /** Mirrors the card window's corner curve at the badge's exposed lower-left. */
+  cornerRadius: INTERIOR_RADIUS,
   contentSize: inFace(150),
   contentInset: 34,
   /** Optical correction for the display face's low-sitting cap ink. */
