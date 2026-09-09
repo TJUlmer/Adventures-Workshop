@@ -449,7 +449,13 @@ export async function createCollection(fields: CollectionFields = {}): Promise<C
       blurb: fields.blurb?.trim() ?? '',
       banner_url: fields.banner_url ?? '',
       visibility: fields.visibility ?? 'unlisted',
-      open_submissions: fields.open_submissions ?? false
+      /* Open by default, matching the column's own default — the client was
+         overriding it with `false` and quietly making every new collection
+         invitation-only. A collection is usually made because somebody wants
+         contributions; an organizer who wants to close the door has the
+         toggle, and closing one is a smaller surprise than discovering people
+         could not offer anything. */
+      open_submissions: fields.open_submissions ?? true
     },
     headers: { Prefer: 'return=representation' }
   });
