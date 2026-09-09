@@ -777,7 +777,7 @@ export const TUCK_EFFECT = {
       size: inFace(90),
       lineHeight: 1,
       /** Positive moves the copy right; negative moves it left. */
-      offsetX: 0,
+      offsetX: -15,
       /** Positive moves the copy down the card; negative moves it up. */
       offsetY: 0
     }

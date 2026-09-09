@@ -1578,6 +1578,7 @@
 
   .tuck-effect-right .tuck-effect-text {
     max-height: 100%;
+    overflow: visible;
     writing-mode: vertical-rl;
     text-orientation: mixed;
     transform: rotate(180deg);
@@ -2070,6 +2071,16 @@
     flex: 1 1 auto;
   }
 
+  /*
+   * The lower half ends with the Bonus ability, so letting it shrink alongside
+   * the upper half clips that final line at the card foot even while the upper
+   * half still has room it can surrender. Keep the lower half at its content
+   * height; the flexible upper half gives way first when both sides are busy.
+   */
+  .half:not(.upper) {
+    flex-shrink: 0;
+  }
+
   .half-content {
     position: relative;
     flex: none;
@@ -2135,15 +2146,6 @@
     display: flex;
     align-items: stretch;
     overflow: hidden;
-  }
-
-  /*
-   * Split: the half is the bound. The block stops at the half's content edge,
-   * so an over-long ability truncates there and the rule stops with it rather
-   * than being laid out across the separator.
-   */
-  .half .ability-block {
-    max-height: 100%;
   }
 
   .rule-v {
