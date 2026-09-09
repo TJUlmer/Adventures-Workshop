@@ -134,32 +134,30 @@
 </script>
 
 {#snippet boostSymbolPicker()}
-  {#if availableCustomSymbols.length > 0 || card.boostSymbol}
-    <!-- The symbol is only a printed override. Keeping the number control below
-         means None can reveal the previous boost value without resetting it. -->
-    <div class="boost-symbol-picker" role="group" aria-label="Boost symbol">
-      <span class="boost-symbol-label">Boost symbol</span>
+  <!-- The symbol is only a printed override. Keeping the number control below
+       means None can reveal the previous boost value without resetting it. -->
+  <div class="boost-symbol-picker" role="group" aria-label="Boost symbol">
+    <span class="boost-symbol-label">Boost symbol</span>
+    <button
+      type="button"
+      class="icon-choice"
+      class:active={!card.boostSymbol}
+      onclick={() => edit((target) => (target.boostSymbol = ''))}
+    >
+      None
+    </button>
+    {#each availableCustomSymbols as symbol (symbol.id)}
       <button
         type="button"
         class="icon-choice"
-        class:active={!card.boostSymbol}
-        onclick={() => edit((target) => (target.boostSymbol = ''))}
+        class:active={card.boostSymbol === customSymbolToken(symbol.id)}
+        onclick={() => edit((target) => (target.boostSymbol = customSymbolToken(symbol.id)))}
       >
-        None
+        <img src={symbol.source} alt="" />
+        {customSymbolLabel(symbol)}
       </button>
-      {#each availableCustomSymbols as symbol (symbol.id)}
-        <button
-          type="button"
-          class="icon-choice"
-          class:active={card.boostSymbol === customSymbolToken(symbol.id)}
-          onclick={() => edit((target) => (target.boostSymbol = customSymbolToken(symbol.id)))}
-        >
-          <img src={symbol.source} alt="" />
-          {customSymbolLabel(symbol)}
-        </button>
-      {/each}
-    </div>
-  {/if}
+    {/each}
+  </div>
 {/snippet}
 
 <!-- What the card is called and where it lives: four short fields, two by two. -->
