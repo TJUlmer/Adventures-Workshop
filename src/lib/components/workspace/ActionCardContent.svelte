@@ -248,7 +248,7 @@
       remembers it for *that* card, not for the panel.
     -->
     {#key card.id}
-      <div class="hero-combat" class:split-combat-active={card.split}>
+      <div class="hero-combat">
         <!--
           A scheme card has no value at all — that is what the symbol means —
           so the control goes rather than sitting at nought or disabled. The
@@ -850,10 +850,6 @@
 
   .values .boost-slot {
     grid-column: 3;
-  }
-
-  .hero-combat.split-combat-active .boost-slot {
-    grid-column: 1;
   }
 
   @container workspace (max-width: 480px) {
