@@ -935,6 +935,19 @@ export const HERO_POINT_BELOW = BLEED.height - 935;
 export const HERO_RIBBON_SYMBOL = { top: 187, centerX: HERO_RIBBON.centerX } as const;
 
 /**
+ * Split combat prints no value beneath its fixed Versatile symbol, so the
+ * ordinary symbol geometry would leave that glyph small and stranded at the
+ * head's top. These three values are deliberately independent dials: `width`
+ * changes only its size, increasing `top` moves it down, and positive
+ * `offsetX` moves it right of the ribbon's measured axis.
+ */
+export const HERO_SPLIT_RIBBON_SYMBOL = {
+  width: 190,
+  top: 235,
+  offsetX: 0
+} as const;
+
+/**
  * The combat value, under the symbol.
  *
  * The template's "3" stands 125px, and Knockout's lining figures are a shade

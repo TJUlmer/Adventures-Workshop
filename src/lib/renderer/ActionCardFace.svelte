@@ -67,6 +67,7 @@
     HERO_RIBBON_OWNER,
     HERO_RIBBON_OWNER_LEFT,
     HERO_RIBBON_SYMBOL,
+    HERO_SPLIT_RIBBON_SYMBOL,
     HERO_RIBBON_VALUE,
     inFace,
     inPanel,
@@ -1015,13 +1016,17 @@
     on these same four files, for the same reason.
   -->
   {@const size = CARD_SYMBOL_SIZES[heroSymbol]}
+  {@const symbolWidth = card.split ? HERO_SPLIT_RIBBON_SYMBOL.width : size.width}
+  {@const symbolTop = card.split ? HERO_SPLIT_RIBBON_SYMBOL.top : HERO_RIBBON_SYMBOL.top}
+  {@const symbolCenterX =
+    HERO_RIBBON_SYMBOL.centerX + (card.split ? HERO_SPLIT_RIBBON_SYMBOL.offsetX : 0)}
   <img
     class="hero-symbol"
     src={CARD_SYMBOLS[heroSymbol]}
     alt={heroSymbol}
-    style:left={pu(HERO_RIBBON_SYMBOL.centerX - size.width / 2)}
-    style:top={pu(HERO_RIBBON_SYMBOL.top)}
-    style:width={pu(size.width)}
+    style:left={pu(symbolCenterX - symbolWidth / 2)}
+    style:top={pu(symbolTop)}
+    style:width={pu(symbolWidth)}
   />
 
   {#if showSymbolValue}
