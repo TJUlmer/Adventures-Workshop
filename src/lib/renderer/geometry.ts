@@ -1245,15 +1245,15 @@ export const CHARACTER_HEALTH = {
 /** The special ability: a name, a rule under it, and the copy. */
 export const CHARACTER_ABILITY = {
   nameX: 272,
-  nameCapTop: 658,
+  nameCapTop: 735,
   /** Caps stand 84. */
   nameSize: inName(126),
   ruleX: 276,
-  ruleY: 788,
+  ruleY: 850,
   ruleWidth: 1173 - 276 + 1,
   ruleHeight: 7,
   textX: 276,
-  textCapTop: 840,
+  textCapTop: 902,
   /** Caps stand 68. */
   textSize: inFace(102),
   /**
