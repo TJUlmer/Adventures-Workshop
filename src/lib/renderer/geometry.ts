@@ -1213,6 +1213,20 @@ export const CHARACTER_ABILITY_PANEL = {
 } as const;
 
 /**
+ * The quote layout's lower ability divider, measured from the border mask.
+ * Its ink begins three pixels below the nominal ability-band foot and ends
+ * three pixels below the nominal quote-band top; the fills deliberately bleed
+ * beneath that overlap.
+ */
+export const CHARACTER_ABILITY_DIVIDER = {
+  top: 1591,
+  bottom: 1615,
+  /** The vertical rule separating the rotated SPECIAL ABILITY tab. */
+  tabRuleX: 229,
+  tabRuleRight: 234
+} as const;
+
+/**
  * The two band headings, HERO and SIDEKICK. Both sit the same distance below
  * their band's top — 66 and 67 — so one offset carries both.
  */
@@ -1396,7 +1410,29 @@ export const CHARACTER_MOVE = {
   centerX: (1322 + 1427) / 2,
   digitTop: 673,
   size: inFace(547),
-  condense: 0.56
+  condense: 0.56,
+  /**
+   * The arrow is a fixed head at either end of a six-pixel shaft. Keeping the
+   * three runs separate lets the quote layout lengthen only the shaft when a
+   * tall ability moves the lower band, without stretching either arrowhead.
+   */
+  arrow: {
+    x: 1249,
+    right: 1290,
+    top: 665,
+    topHeadBottom: 702,
+    shaftX: 1266,
+    shaftRight: 1272,
+    bottomHeadTop: 1519,
+    bottom: 1556
+  },
+  /** MOVE is the lower half of the combined lockup stretched with the numeral. */
+  word: {
+    x: 1326,
+    right: 1424,
+    top: 1109,
+    bottom: 1544
+  }
 } as const;
 
 /**

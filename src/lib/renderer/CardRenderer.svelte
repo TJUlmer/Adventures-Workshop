@@ -514,8 +514,10 @@
    * takes — same class name, two different mechanisms.
    */
   .printer-friendly :global(.hero-character .mask.border),
+  .printer-friendly :global(.hero-character .border-fill),
   .printer-friendly :global(.hero-character .mask.badge-accent),
   .printer-friendly :global(.hero-character .mask.move-ink),
+  .printer-friendly :global(.hero-character .move-line),
   .printer-friendly :global(.hero-character .mask.label-ink),
   .printer-friendly :global(.hero-character .mask.quote-marks) {
     background: #000 !important;
@@ -534,9 +536,12 @@
    * is the border art's own inner boundary rather than a rule drawn beside it.
    *
    * The three `--card-*` values are set inline by `HeroCharacterCardFace`,
-   * which is the only place that knows this card's measurements.
+   * which is the only place that knows this card's measurements. The clip is
+   * on the shared wrapper rather than each border mask: the quote layout
+   * composes its movable lower divider from several clipped layers, whose own
+   * clips must survive printer-friendly mode.
    */
-  .printer-friendly :global(.hero-character .mask.border) {
+  .printer-friendly :global(.hero-character .border-clip) {
     clip-path: inset(
       calc(var(--card-inset-y) - var(--keyline)) calc(var(--card-inset-x) - var(--keyline))
       round calc(var(--card-radius) + var(--keyline))
