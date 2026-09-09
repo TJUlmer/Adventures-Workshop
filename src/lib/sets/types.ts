@@ -413,10 +413,14 @@ export type SetId = Id<'Set'>;
  *      the Special Ability name and body text. Older designs normalise to the
  *      template's original size; older builds would discard the chosen scale.
  *
+ * v56 — action cards gained `boostSymbol`, an optional custom-symbol token that
+ *      replaces the number inside the boost disc. Older cards default it blank;
+ *      older builds would silently discard the selected symbol.
+ *
  * Older documents are *repaired*, not rejected — see `sets/normalize.ts`. Only
  * a version newer than this build understands is refused.
  */
-export const SET_SCHEMA_VERSION = 55;
+export const SET_SCHEMA_VERSION = 56;
 
 /**
  * What a set is for.

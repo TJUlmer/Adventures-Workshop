@@ -101,6 +101,9 @@
 
   const isScheme = $derived(card.symbol === 'scheme');
   const hasSeparateDefenseAbility = $derived(!abilityIsEmpty(card.defenseAbility));
+  const availableCustomSymbols = $derived(
+    workshop.adventure.customSymbols.filter((symbol) => symbol.source)
+  );
 
   /**
    * "Who may play this card" pulls from the hero's own named identities: the
@@ -129,6 +132,35 @@
   }
 
 </script>
+
+{#snippet boostSymbolPicker()}
+  {#if availableCustomSymbols.length > 0 || card.boostSymbol}
+    <!-- The symbol is only a printed override. Keeping the number control below
+         means None can reveal the previous boost value without resetting it. -->
+    <div class="boost-symbol-picker" role="group" aria-label="Boost symbol">
+      <span class="boost-symbol-label">Boost symbol</span>
+      <button
+        type="button"
+        class="icon-choice"
+        class:active={!card.boostSymbol}
+        onclick={() => edit((target) => (target.boostSymbol = ''))}
+      >
+        None
+      </button>
+      {#each availableCustomSymbols as symbol (symbol.id)}
+        <button
+          type="button"
+          class="icon-choice"
+          class:active={card.boostSymbol === customSymbolToken(symbol.id)}
+          onclick={() => edit((target) => (target.boostSymbol = customSymbolToken(symbol.id)))}
+        >
+          <img src={symbol.source} alt="" />
+          {customSymbolLabel(symbol)}
+        </button>
+      {/each}
+    </div>
+  {/if}
+{/snippet}
 
 <!-- What the card is called and where it lives: four short fields, two by two. -->
 <Section title="Card" columns={2} prominentHeading>
@@ -239,6 +271,7 @@
         {/if}
 
         <div class="boost-slot">
+          {@render boostSymbolPicker()}
           <ValueControl
             label="Boost"
             value={card.boost}
@@ -311,14 +344,17 @@
           defaultValue={2}
           onchange={(defense) => edit((target) => (target.defense = defense))}
         />
-        <ValueControl
-          label="Boost"
-          value={card.boost}
-          defaultValue={1}
-          min={1}
-          max={9}
-          onchange={(boost) => edit((target) => (target.boost = boost))}
-        />
+        <div class="boost-slot">
+          {@render boostSymbolPicker()}
+          <ValueControl
+            label="Boost"
+            value={card.boost}
+            defaultValue={1}
+            min={1}
+            max={9}
+            onchange={(boost) => edit((target) => (target.boost = boost))}
+          />
+        </div>
       </div>
     {/key}
 
@@ -692,6 +728,22 @@
     gap: var(--space-2);
   }
 
+  .boost-symbol-picker {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+  }
+
+  .boost-symbol-label {
+    font-size: var(--text-2xs);
+    font-weight: var(--weight-semibold);
+    letter-spacing: var(--tracking-caps);
+    text-transform: uppercase;
+    color: var(--text-muted);
+  }
+
   .effect-option {
     display: grid;
     gap: var(--space-4);
@@ -766,6 +818,7 @@
   .values {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
+    align-items: end;
     gap: var(--space-2);
   }
 
@@ -778,6 +831,7 @@
   .hero-combat {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: end;
     gap: var(--space-2);
     margin-bottom: var(--space-3);
   }
@@ -790,6 +844,12 @@
 
   .boost-slot {
     grid-column: 2;
+    display: grid;
+    gap: var(--space-2);
+  }
+
+  .values .boost-slot {
+    grid-column: 3;
   }
 
   .hero-combat.split-combat-active .boost-slot {

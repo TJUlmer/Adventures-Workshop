@@ -341,6 +341,15 @@
     }
     return null;
   });
+
+  /* Only custom symbols are offered for this slot. A missing/deleted symbol
+     falls back to the number, keeping older or partially edited cards legible. */
+  const boostSymbolSrc = $derived.by(() => {
+    if (!card.boostSymbol) return null;
+    const [segment] = parseAbilityText(card.boostSymbol);
+    if (segment?.kind !== 'customSymbol') return null;
+    return customSymbols.find((entry) => entry.id === segment.id)?.source ?? null;
+  });
 </script>
 
 <!--
@@ -539,18 +548,32 @@
         style:border-color={theme.divider}
       ></div>
 
-      <div
-        class="boost-value"
-        style:left={pu(BOOST.cx - INTERIOR.x)}
-        style:top={pu(
-          digitMiddleToBoxTop(BOOST.cy, BOOST_VALUE.size, BOOST_VALUE.lineHeight) - DIVIDER.y
-        )}
-        style:font-size={pu(BOOST_VALUE.size)}
-        style:line-height={BOOST_VALUE.lineHeight}
-        style:color={theme.boostInk}
-      >
-        {card.boost}
-      </div>
+      {#if boostSymbolSrc}
+        <!-- The square uses the value's existing nominal size, so custom art
+             gains a consistent safe inset without inventing new disc geometry. -->
+        <img
+          class="boost-symbol"
+          src={boostSymbolSrc}
+          alt=""
+          style:left={pu(BOOST.cx - BOOST_VALUE.size / 2 - INTERIOR.x)}
+          style:top={pu(BOOST.cy - BOOST_VALUE.size / 2 - DIVIDER.y)}
+          style:width={pu(BOOST_VALUE.size)}
+          style:height={pu(BOOST_VALUE.size)}
+        />
+      {:else}
+        <div
+          class="boost-value"
+          style:left={pu(BOOST.cx - INTERIOR.x)}
+          style:top={pu(
+            digitMiddleToBoxTop(BOOST.cy, BOOST_VALUE.size, BOOST_VALUE.lineHeight) - DIVIDER.y
+          )}
+          style:font-size={pu(BOOST_VALUE.size)}
+          style:line-height={BOOST_VALUE.lineHeight}
+          style:color={theme.boostInk}
+        >
+          {card.boost}
+        </div>
+      {/if}
       </div>
     {/if}
   </div>
@@ -2174,6 +2197,12 @@
     translate: -50% 0;
     font-family: var(--card-font-numeral);
     font-weight: var(--card-font-numeral-weight);
+  }
+
+  .boost-symbol {
+    position: absolute;
+    display: block;
+    object-fit: contain;
   }
 
   .quantity {

@@ -170,6 +170,8 @@ export interface ActionCard extends CardCommon {
   attack: number | null;
   defense: number | null;
   boost: number | null;
+  /** A custom-symbol token rendered in the boost disc instead of its value. */
+  boostSymbol: string;
   ability: AbilityBlocks;
   /**
    * A hero card's own combat display: one symbol and one value in the ribbon,

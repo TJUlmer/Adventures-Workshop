@@ -943,7 +943,7 @@ export const HERO_RIBBON_SYMBOL = { top: 187, centerX: HERO_RIBBON.centerX } as 
  */
 export const HERO_SPLIT_RIBBON_SYMBOL = {
   width: 190,
-  top: 235,
+  top: 200,
   offsetX: 0
 } as const;
 

@@ -865,6 +865,7 @@ function normalizeCard(value: unknown): Card | null {
         attack: nullableNum(raw['attack'], 2),
         defense: nullableNum(raw['defense'], null),
         boost: nullableNum(raw['boost'], null),
+        boostSymbol: str(raw['boostSymbol']),
         ability: abilityBlocks(raw['ability']),
         symbol: combatSymbol(raw['symbol']),
         symbolValue: nullableNum(raw['symbolValue'], 2),
