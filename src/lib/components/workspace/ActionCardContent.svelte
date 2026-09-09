@@ -10,7 +10,7 @@
   import type { CardTheme } from '$lib/cards/style';
   import type { StyleOrigin } from '$lib/cards/theme';
   import { STYLE_ORIGIN_LABELS } from '$lib/cards/theme';
-  import { COMBAT_SYMBOLS } from '$lib/cards/types';
+  import { abilityIsEmpty, COMBAT_SYMBOLS } from '$lib/cards/types';
   import type {
     ActionCard,
     CardOwner,
@@ -100,6 +100,7 @@
   ] as const;
 
   const isScheme = $derived(card.symbol === 'scheme');
+  const hasSeparateDefenseAbility = $derived(!abilityIsEmpty(card.defenseAbility));
 
   /**
    * "Who may play this card" pulls from the hero's own named identities: the
@@ -130,7 +131,7 @@
 </script>
 
 <!-- What the card is called and where it lives: four short fields, two by two. -->
-<Section title="Card" columns={2}>
+<Section title="Card" columns={2} prominentHeading>
   {#if isHero}
     <!--
       Card title first and prominent, ahead of Name override — the title is
@@ -189,20 +190,25 @@
 
 {#if isHero}
   <!--
-    A hero's card prints one symbol and one value in the ribbon, and who may
-    play it — never the attack/defense pair or the split layout a villain or
-    minion card can carry, so those controls do not appear here at all rather
-    than sitting disabled.
+    An ordinary hero card prints one symbol and one value in the ribbon. Split
+    combat replaces that display with a fixed versatile glyph and moves both
+    values into the body; its extra fields live beside that effect's toggle.
   -->
-  <Section title="Combat" description="What prints in the ribbon, and who may play the card.">
-    <Field label="Card type">
-      <SegmentedControl
-        label="Card type"
-        value={card.symbol ?? 'attack'}
-        segments={symbolOptions}
-        onchange={(value) => edit((target) => (target.symbol = value as CombatSymbol))}
-      />
-    </Field>
+  <Section
+    title="Combat"
+    prominentHeading
+    description="Card text and values, and who may play this card."
+  >
+    {#if !card.split}
+      <Field label="Card type">
+        <SegmentedControl
+          label="Card type"
+          value={card.symbol ?? 'attack'}
+          segments={symbolOptions}
+          onchange={(value) => edit((target) => (target.symbol = value as CombatSymbol))}
+        />
+      </Field>
+    {/if}
 
     <!--
       Keyed on the card for the same reason the villain block below is: a
@@ -210,7 +216,7 @@
       remembers it for *that* card, not for the panel.
     -->
     {#key card.id}
-      <div class="hero-combat">
+      <div class="hero-combat" class:split-combat-active={card.split}>
         <!--
           A scheme card has no value at all — that is what the symbol means —
           so the control goes rather than sitting at nought or disabled. The
@@ -219,7 +225,7 @@
           it left — an unplaced lone item would otherwise auto-flow into the
           first track.
         -->
-        {#if !isScheme}
+        {#if !card.split && !isScheme}
           <div class="value-slot">
             <ValueControl
               label="Value"
@@ -254,15 +260,17 @@
       />
     </Field>
 
-    <AbilityStack
-      title="Ability"
-      ability={card.ability}
-      onchange={(patch) => edit((target) => Object.assign(target.ability, patch))}
-      target={styleTarget}
-      resolved={resolvedTheme}
-      {originFor}
-      customSymbols={workshop.adventure.customSymbols}
-    />
+    {#if !card.split}
+      <AbilityStack
+        title="Ability"
+        ability={card.ability}
+        onchange={(patch) => edit((target) => Object.assign(target.ability, patch))}
+        target={styleTarget}
+        resolved={resolvedTheme}
+        {originFor}
+        customSymbols={workshop.adventure.customSymbols}
+      />
+    {/if}
   </Section>
 {:else}
   <!--
@@ -270,7 +278,11 @@
     says. Split puts the defense side under the attack side, which is how it
     prints.
   -->
-  <Section title="Combat" description="Click a value to put it on the card or take it off.">
+  <Section
+    title="Combat"
+    description="Card text and values, and who may play this card."
+    prominentHeading
+  >
     {#snippet actions()}
       <Switch
         label="Split effect"
@@ -354,8 +366,75 @@
 
 <Section
   title="Special card effects"
-  description="Optional treatments attached to the card’s ribbon, boost, ability panel, exposed edge and corner."
+  description="Optional official and unofficial card effect augmentations."
+  prominentHeading
 >
+  {#if isHero}
+    <div class="effect-option">
+      <Switch
+        label="Split combat"
+        hint="Replaces the ribbon value with separate attack and defense values and abilities in the body panel."
+        checked={card.split}
+        onchange={(split) =>
+          edit((target) => {
+            target.split = split;
+            if (!split) return;
+            target.attack ??= target.symbolValue ?? 2;
+            target.defense ??= target.symbolValue ?? 2;
+          })}
+      />
+
+      {#if card.split}
+        {#key card.id}
+          <div class="split-values">
+            <ValueControl
+              label="Attack"
+              symbol={CARD_SYMBOLS.attack}
+              value={card.attack}
+              defaultValue={2}
+              onchange={(attack) => edit((target) => (target.attack = attack))}
+            />
+            <ValueControl
+              label="Defense"
+              symbol={CARD_SYMBOLS.defense}
+              value={card.defense}
+              defaultValue={2}
+              onchange={(defense) => edit((target) => (target.defense = defense))}
+            />
+          </div>
+        {/key}
+
+        <AbilityStack
+          title="Attack side"
+          symbol={CARD_SYMBOLS.attack}
+          hint={hasSeparateDefenseAbility
+            ? 'Printed above the floating separator.'
+            : 'Applies to both attack and defense until the Defense side contains text.'}
+          ability={card.ability}
+          onchange={(patch) => edit((target) => Object.assign(target.ability, patch))}
+          target={styleTarget}
+          resolved={resolvedTheme}
+          {originFor}
+          customSymbols={workshop.adventure.customSymbols}
+        />
+        <AbilityStack
+          title="Defense side"
+          symbol={CARD_SYMBOLS.defense}
+          hint={hasSeparateDefenseAbility
+            ? 'Printed below the floating separator.'
+            : 'Add text here to give defense its own effect and show the separator.'}
+          ability={card.defenseAbility}
+          onchange={(patch) => edit((target) => Object.assign(target.defenseAbility, patch))}
+          target={styleTarget}
+          resolved={resolvedTheme}
+          {originFor}
+          textStyle={false}
+          customSymbols={workshop.adventure.customSymbols}
+        />
+      {/if}
+    </div>
+  {/if}
+
   <div class="effect-option">
     <Switch
       label="Ribbon symbol"
@@ -597,7 +676,7 @@
   </div>
 </Section>
 
-<Section title="Notes" description="Working notes. Never printed.">
+<Section title="Notes" description="Working notes. Never printed." prominentHeading>
   <TextArea bind:value={card.notes} rows={2} placeholder="Balance thoughts, references…" />
 </Section>
 
@@ -690,6 +769,12 @@
     gap: var(--space-2);
   }
 
+  .split-values {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--space-2);
+  }
+
   .hero-combat {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -707,8 +792,13 @@
     grid-column: 2;
   }
 
+  .hero-combat.split-combat-active .boost-slot {
+    grid-column: 1;
+  }
+
   @container workspace (max-width: 480px) {
     .values,
+    .split-values,
     .hero-combat {
       grid-template-columns: minmax(0, 1fr);
     }

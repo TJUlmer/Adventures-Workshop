@@ -77,7 +77,7 @@ New-Item -ItemType Directory -Path $resolvedState -Force | Out-Null
 New-Item -ItemType Directory -Path (Join-Path $resolvedState 'logs') -Force | Out-Null
 
 # DPAPI already makes the ciphertext usable only by this Windows user on this machine. The
-# restricted ACL is defence in depth and also keeps the non-secret configuration private.
+# restricted ACL is defense in depth and also keeps the non-secret configuration private.
 $currentSid = [System.Security.Principal.WindowsIdentity]::GetCurrent().User.Value
 $aclOutput = & icacls.exe $resolvedState '/inheritance:r' '/grant:r' "*$($currentSid):(OI)(CI)F" 2>&1
 if ($LASTEXITCODE -ne 0) {

@@ -448,7 +448,22 @@ block) and simply had nowhere to print before now.
 **A hero's action card is one field, not a new card type.** `ActionCard.type`
 stays `'action'`; `symbol` (one of the four combat symbols), `symbolValue` and
 `owner` (`hero` / `sidekick` / `any` — who may play it) are new fields, read
-only when the owning character's role is `hero`. Everywhere else —
+only when the owning character's role is `hero`. A hero may also enable the
+existing `split` layout from **Special card effects**: it reuses `attack`,
+`defense`, `ability` and `defenseAbility`, prints a fixed versatile glyph with
+no ribbon value, and restores the stored ordinary card type/value when turned
+off. Its split stack is bottom-anchored; the attack content hugs the separator
+while unused height collects above it, and the hero body's existing owner-line
+clearance replaces the villain-only bottom inset. The hero path also drops the
+villain/minion split floors, letting its symbol/copy establish the compact
+resting height. `HERO_SPLIT_DIVIDER_Y` is the one manual Y control for its title,
+divider and boost; the art and body heights derive from it so no seam can open.
+Both halves therefore stay compact until their copy needs the room. A blank
+`defenseAbility` does not draw the split body or horizontal separator: both
+values use the ordinary value column beside `ability`, making that attack-side
+copy apply to both. Any real defense copy switches the same card to the two
+halves and restores the separator. No second split model is needed.
+Everywhere else —
 `ActionCardFace`'s artwork, divider, boost disc, title, and the ability text's
 own left-aligned layout the moment there are no attack/defense values to
 separate it from — a hero card falls through the same code path a villain's

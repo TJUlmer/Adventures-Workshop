@@ -1023,13 +1023,31 @@ export const HERO_BODY_PANEL_FOOT_CLEARANCE = 95;
 export const HERO_ART_WINDOW_HEIGHT = HERO_DIVIDER_Y - INTERIOR.y;
 
 /**
+ * Resting divider position for a hero split-combat card.
+ *
+ * This is deliberately independent of `HERO_DIVIDER_Y`: split combat has a
+ * denser body than an ordinary hero card, and tuning one should not move every
+ * other hero template. Increase this value to move the title, divider and boost
+ * down together; decrease it to move them up. The matching art-window and body
+ * heights below are derived so changing this one number cannot open a seam.
+ */
+export const HERO_SPLIT_DIVIDER_Y = 1390;
+
+export const HERO_SPLIT_BODY_PANEL_HEIGHT =
+  INTERIOR.y + INTERIOR.height - (HERO_SPLIT_DIVIDER_Y + DIVIDER.height);
+
+export const HERO_SPLIT_ART_WINDOW_HEIGHT = HERO_SPLIT_DIVIDER_Y - INTERIOR.y;
+
+/**
  * Split cards divide the body panel into an attack half and a defense half,
  * each with its own ability stack.
  *
  * The separator floats. Rather than computing its position, the halves are laid
  * out as a flex column: the lower half is sized by its content and the upper
- * half takes what is left, so the rule rises as the defense side fills up.
- * These are the constraints that layout works within.
+ * half takes what is left, while the upper half's content stays anchored to the
+ * separator. Spare room therefore collects above the printed effects instead
+ * of opening a visual hole between them. These are the constraints that layout
+ * works within.
  */
 export const SPLIT = {
   /** Gap below the title rule, where the halves begin. */
