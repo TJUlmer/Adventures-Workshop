@@ -697,7 +697,6 @@
     )}
   {/if}
   {/if}
-{/if}
 <!--
    The three `--card-*` values are for printer-friendly mode alone, and are set
   here because this is where the geometry is: `CardRenderer`'s own stylesheet
@@ -1025,6 +1024,7 @@
       sidekick.health ?? 0
     )}
   {/if}
+{/if}
 {/if}
 
 {#snippet heading(band: { top: number; height: number }, word: string)}
