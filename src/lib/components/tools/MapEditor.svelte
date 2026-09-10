@@ -35,6 +35,8 @@
     DEFAULT_SECRET_PASSAGE_FADE,
     findPath,
     findSpace,
+    isAutoLargeFighterPath,
+    LARGE_FIGHTER_CENTRE_THRESHOLD_MM,
     mapHeight,
     mapHeightMm,
     mapPrintSize,
@@ -43,12 +45,15 @@
     neighbours,
     orphanSpaces,
     pathExists,
+    pathCentreDistanceMm,
+    showsLargeFighterMarker,
     spaceZoneColors,
     zoneStyleFor
   } from '$lib/map/types';
   import type {
     MapEnvironmentPiece,
     MapEnvironmentPieceId,
+    MapLabelCorner,
     MapNote,
     MapNoteId,
     MapSecretPassage,
@@ -67,6 +72,17 @@
   /** What the export will actually produce — a preset's own row, or solved
       from `aspect` on `custom`. See `mapPrintSize`. */
   const printSize = $derived(mapPrintSize(map));
+
+  const LABEL_CORNERS: ReadonlyArray<{
+    value: MapLabelCorner;
+    label: string;
+    symbol: string;
+  }> = [
+    { value: 'top-left', label: 'Top left', symbol: '↖' },
+    { value: 'top-right', label: 'Top right', symbol: '↗' },
+    { value: 'bottom-left', label: 'Bottom left', symbol: '↙' },
+    { value: 'bottom-right', label: 'Bottom right', symbol: '↘' }
+  ];
 
   type Mode = 'place' | 'link' | 'text';
   let mode = $state<Mode>('place');
@@ -663,7 +679,11 @@
       // The faces have to be loaded before anything is measured, or every
       // space label is placed against a fallback.
       await document.fonts.ready;
-      const blob = await photographMapBoard(map, { customSymbols: set.customSymbols });
+      const blob = await photographMapBoard(map, {
+        customSymbols: set.customSymbols,
+        setName: set.name,
+        authorName: set.meta.author
+      });
       if (!blob) throw new Error('The map did not render.');
       saveExport({
         filename: `${slugify(set.name, 'adventure-set')}-map.png`,
@@ -1277,6 +1297,48 @@
               {printSize.width} × {printSize.height} px exported.
             </p>
 
+            <div class="board-wide">
+              <Switch
+                checked={map.showLabel}
+                label="Show map title"
+                hint="Print the UMLabs title plate and author credit"
+                onchange={(showLabel) => workshop.editMap((m) => (m.showLabel = showLabel))}
+              />
+            </div>
+
+            {#if map.showLabel}
+              <div class="field board-wide">
+                <span class="field-label">Map title</span>
+                <TextInput
+                  value={map.name}
+                  placeholder={set.name}
+                  aria-label="Map title"
+                  oninput={(event) =>
+                    workshop.editMap((m) => (m.name = event.currentTarget.value))}
+                />
+                <p class="hint">Leave blank to use the set name. The byline uses the set's author credit.</p>
+              </div>
+
+              <div class="field board-wide label-corners">
+                <span class="field-label">Label corner</span>
+                <div class="corner-buttons">
+                  {#each LABEL_CORNERS as entry (entry.value)}
+                    <button
+                      type="button"
+                      class="mode corner-button"
+                      class:active={map.labelCorner === entry.value}
+                      aria-label={entry.label}
+                      title={entry.label}
+                      aria-pressed={map.labelCorner === entry.value}
+                      onclick={() => workshop.editMap((m) => (m.labelCorner = entry.value))}
+                    >
+                      {entry.symbol}
+                    </button>
+                  {/each}
+                </div>
+              </div>
+            {/if}
+
             {#if map.size === 'custom'}
               <!--
                 Said plainly, because "Custom" on its own does not explain
@@ -1463,6 +1525,8 @@
             <MapBoard
               {map}
               customSymbols={set.customSymbols}
+              setName={set.name}
+              authorName={set.meta.author}
               highlight={Array.from(colorSelection)}
               linking={mode === 'link' ? linkFrom : null}
             />
@@ -1879,6 +1943,8 @@
                   <h3 class="selected-section-title">Connections</h3>
                   {#each neighbours(map, selectedSpace.id) as other (other)}
                     {@const path = findPath(map, selectedSpace.id, other)}
+                    {@const centreDistance = path ? pathCentreDistanceMm(map, path) : null}
+                    {@const automaticLargeFighter = path ? isAutoLargeFighterPath(map, path) : false}
                     <div class="connection">
                       <div class="link-row">
                         <span class="link-name">{spaceName(other)}</span>
@@ -1923,9 +1989,12 @@
                           setPathOption(selectedSpace.id, other, 'modifier', enabled)}
                       />
                       <Switch
-                        checked={path?.largeFighter ?? false}
+                        checked={path ? showsLargeFighterMarker(map, path) : false}
+                        disabled={automaticLargeFighter}
                         label="Large fighter"
-                        hint="Show the restriction pin"
+                        hint={automaticLargeFighter && centreDistance !== null
+                          ? `Automatic · ${centreDistance.toFixed(1)} mm centre to centre`
+                          : 'Show the restriction pin'}
                         onchange={(enabled) =>
                           setPathOption(selectedSpace.id, other, 'largeFighter', enabled)}
                       />
@@ -2041,8 +2110,11 @@
 
           {#snippet belowMap()}
             <div class="below-map">
-              <!-- Geometry and colour-wide zone settings belong together as
-                   board-wide controls, directly below the thing they change. -->
+              {@render boardPanel()}
+
+              <!-- Terrain styling and the path-wide restriction rule share
+                   the right column, with the more frequently inspected zone
+                   controls first. -->
               <div class="block zone-col">
               <h2 class="panel-title">Zones</h2>
 
@@ -2188,9 +2260,17 @@
                 {#if zonePatternError}<p class="error" role="alert">{zonePatternError}</p>{/if}
 
               {/if}
-              </div>
 
-              {@render boardPanel()}
+              <div class="zone-auto">
+                <Switch
+                  checked={map.autoLargeFighter}
+                  label="Auto large-fighter pins"
+                  hint="Mark connections over {LARGE_FIGHTER_CENTRE_THRESHOLD_MM} mm centre to centre"
+                  onchange={(autoLargeFighter) =>
+                    workshop.editMap((m) => (m.autoLargeFighter = autoLargeFighter))}
+                />
+              </div>
+              </div>
             </div>
           {/snippet}
         </div>
@@ -2363,12 +2443,12 @@
   }
 
   .zone-col {
-    border-radius: 0 0 0 var(--radius-sm);
+    border-left: 0;
+    border-radius: 0 0 var(--radius-sm) 0;
   }
 
   .below-map .board-block {
-    border-left: 0;
-    border-radius: 0 0 var(--radius-sm) 0;
+    border-radius: 0 0 0 var(--radius-sm);
   }
 
   .side-col {
@@ -2452,6 +2532,33 @@
   .board-block > .zones,
   .board-block > .hint {
     grid-column: 1 / -1;
+  }
+
+  .board-wide {
+    grid-column: 1 / -1;
+    width: 100%;
+  }
+
+  .corner-buttons {
+    display: grid;
+    grid-template-columns: repeat(4, 28px);
+    gap: var(--space-1);
+  }
+
+  .corner-button {
+    display: grid;
+    width: 28px;
+    height: 26px;
+    padding: 0;
+    place-items: center;
+    font-size: var(--text-sm);
+    line-height: 1;
+  }
+
+  .zone-auto {
+    width: 100%;
+    padding-top: var(--space-3);
+    border-top: 1px solid var(--border-default);
   }
 
   .selected-scroll {

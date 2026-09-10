@@ -39,6 +39,7 @@ import {
   createMapZoneStyle,
   DEFAULT_SECRET_PASSAGE_COLOR,
   DEFAULT_SECRET_PASSAGE_FADE,
+  MAP_LABEL_CORNERS,
   MAP_SIZES_ALL
 } from '$lib/map/types';
 import type {
@@ -494,6 +495,10 @@ function adventureMap(value: unknown, repairFormerPathBlack = false): AdventureM
   return {
     enabled: bool(raw['enabled'], defaults.enabled),
     name: str(raw['name']),
+    showLabel: bool(raw['showLabel'], defaults.showLabel),
+    labelCorner: (MAP_LABEL_CORNERS as readonly string[]).includes(raw['labelCorner'] as string)
+      ? (raw['labelCorner'] as AdventureMap['labelCorner'])
+      : defaults.labelCorner,
     /* Absent on anything written before `size` existed, which read `aspect`
        below verbatim rather than through a preset — defaulting to `large`
        here is a label for that existing shape, not a repair of it.
@@ -508,6 +513,7 @@ function adventureMap(value: unknown, repairFormerPathBlack = false): AdventureM
     artwork: artwork(raw['artwork']),
     background: fill(raw['background'], defaults.background),
     spaceDiameter: num(raw['spaceDiameter'], defaults.spaceDiameter),
+    autoLargeFighter: bool(raw['autoLargeFighter'], defaults.autoLargeFighter),
     spaceOpacity: Math.min(1, Math.max(0, num(raw['spaceOpacity'], defaults.spaceOpacity))),
     spaceStroke: str(raw['spaceStroke'], defaults.spaceStroke),
     pathColor:

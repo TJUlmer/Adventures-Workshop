@@ -11,6 +11,7 @@ const SYMBOLS = '/assets/symbols';
 export const PATTERNS_DIR = '/assets/patterns';
 
 export const MAP_ASSETS = {
+  label: '/assets/templates/map_label.png',
   largeFighterPin: '/assets/map/t-rex-pin.svg',
   oneWayArrowhead: '/assets/map/path-arrowhead.png',
   oneWayArrowModifier: '/assets/map/path-arrow-modifier.png',

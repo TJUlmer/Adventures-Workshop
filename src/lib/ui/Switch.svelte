@@ -3,13 +3,14 @@
     checked: boolean;
     label: string;
     hint?: string;
+    disabled?: boolean;
     onchange: (checked: boolean) => void;
   }
 
-  let { checked, label, hint, onchange }: Props = $props();
+  let { checked, label, hint, disabled = false, onchange }: Props = $props();
 </script>
 
-<label class="switch-row">
+<label class="switch-row" class:disabled>
   <span class="text">
     <span class="label">{label}</span>
     {#if hint}<span class="hint">{hint}</span>{/if}
@@ -22,6 +23,7 @@
     class:on={checked}
     aria-checked={checked}
     aria-label={label}
+    {disabled}
     onclick={() => onchange(!checked)}
   >
     <span class="knob"></span>
@@ -35,6 +37,11 @@
     justify-content: space-between;
     gap: var(--space-4);
     cursor: pointer;
+  }
+
+  .switch-row.disabled {
+    cursor: default;
+    opacity: 0.65;
   }
 
   .text {

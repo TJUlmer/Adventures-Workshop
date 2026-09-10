@@ -1009,6 +1009,13 @@ untouched.
 when a combat modifier is also present, the pin moves along the real curve so
 the two marks remain readable. Its public SVG is fetched and inlined before
 photography rather than left as an external reference inside the exported SVG.
+`AdventureMap.autoLargeFighter` adds the same pin whenever two connected space
+centres are more than **87.5mm apart**. Both stored axes are fractions of the
+fixed 495mm board width, so `pathCentreDistanceMm` uses one uniform scale; the
+connection's visual curve is deliberately irrelevant to whether the 68mm T-Rex
+base can occupy both endpoint spaces. Automatic pins are additive to the
+per-path `largeFighter` choice: disabling automation restores the author's
+manual board exactly, and a short exceptional path can still be marked by hand.
 
 `from` → `to` is meaningful while either option is active. The first toggle
 enabled from one endpoint deliberately makes that endpoint `from`; enabling
@@ -2596,7 +2603,7 @@ a data URL is an address like any other to the sheet renderer.
 
 ### Schema
 
-`SET_SCHEMA_VERSION` (currently 12) is checked on import; newer files are
+`SET_SCHEMA_VERSION` (currently 59) is checked on import; newer files are
 refused. There is no migration ladder — `sets/normalize.ts` repairs on load,
 filling absent fields from the factories. **Any new persisted field needs a
 branch there**, or existing documents load without it. Absent is meaningfully

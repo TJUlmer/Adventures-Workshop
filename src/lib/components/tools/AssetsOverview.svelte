@@ -773,7 +773,12 @@
               onclick={interactive ? () => navigation.go('map') : undefined}
             >
               <svelte:boundary onerror={(error) => report('The map', error)}>
-                <MapBoard map={set.map} customSymbols={set.customSymbols} />
+                <MapBoard
+                  map={set.map}
+                  customSymbols={set.customSymbols}
+                  setName={set.name}
+                  authorName={set.meta.author}
+                />
                 {#snippet failed(error)}
                   {@render broken('The map', error)}
                 {/snippet}

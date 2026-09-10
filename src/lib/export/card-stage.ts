@@ -16,7 +16,7 @@ import type { Card } from '$lib/cards/types';
 import { characterLabel } from '$lib/characters/factory';
 import type { Character, HeroCharacterCard } from '$lib/characters/types';
 import type { AdventureMap } from '$lib/map/types';
-import { mapPrintWidth } from '$lib/map/types';
+import { mapPrintWidth, showsLargeFighterMarker } from '$lib/map/types';
 import {
   loadPatternSource,
   loadRasterSource,
@@ -176,7 +176,12 @@ export async function withCardStage<T>(run: (photograph: Photograph) => Promise<
  */
 export async function photographMapBoard(
   map: AdventureMap,
-  options: { width?: number; customSymbols?: CustomSymbol[] } = {}
+  options: {
+    width?: number;
+    customSymbols?: CustomSymbol[];
+    setName?: string;
+    authorName?: string;
+  } = {}
 ): Promise<Blob | null> {
   if (!map.enabled) return null;
 
@@ -198,7 +203,18 @@ export async function photographMapBoard(
       .filter((name): name is string => name !== null)
       .map((name) => loadPatternSource(name))
   );
-  if (map.paths.some((path) => path.largeFighter)) {
+  if (map.showLabel) {
+    await Promise.all([
+      loadRasterSource(MAP_ASSETS.label),
+      loadRecolouredRasterSource(
+        MAP_ASSETS.label,
+        map.pathColor,
+        map.pathColor,
+        'dark-only'
+      )
+    ]);
+  }
+  if (map.paths.some((path) => showsLargeFighterMarker(map, path))) {
     await loadSvgSource(MAP_ASSETS.largeFighterPin);
   }
   if (map.paths.some((path) => path.oneWay)) {
@@ -257,7 +273,13 @@ export async function photographMapBoard(
    */
   const view = mount(MapBoard, {
     target: host,
-    props: { map, customSymbols: options.customSymbols ?? [], renderWidth: width }
+    props: {
+      map,
+      customSymbols: options.customSymbols ?? [],
+      renderWidth: width,
+      setName: options.setName ?? '',
+      authorName: options.authorName ?? ''
+    }
   });
 
   try {

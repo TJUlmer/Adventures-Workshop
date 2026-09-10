@@ -417,10 +417,23 @@ export type SetId = Id<'Set'>;
  *      replaces the number inside the boost disc. Older cards default it blank;
  *      older builds would silently discard the selected symbol.
  *
+ * v57 — the adventure map gained `autoLargeFighter`, a map-wide option that
+ *      prints the restriction pin on connections whose space centres are more
+ *      than 87.5mm apart. It defaults off so every older board keeps exactly
+ *      its manually chosen pins; older builds would discard the automatic rule.
+ *
+ * v58 — the adventure map gained `labelCorner`, placing its title and author
+ *      plate in any corner. Older boards default to the requested lower-left;
+ *      older builds would discard a chosen corner.
+ *
+ * v59 — the adventure map gained `showLabel`, allowing its title, UMLabs mark
+ *      and author credit to be hidden without discarding their content. Older
+ *      boards default on; older builds would discard the visibility choice.
+ *
  * Older documents are *repaired*, not rejected — see `sets/normalize.ts`. Only
  * a version newer than this build understands is refused.
  */
-export const SET_SCHEMA_VERSION = 56;
+export const SET_SCHEMA_VERSION = 59;
 
 /**
  * What a set is for.
