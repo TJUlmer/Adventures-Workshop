@@ -235,7 +235,8 @@ function drawIdentity(
   theme: CardTheme,
   kind: PosterKind,
   heroes: readonly Character[],
-  foes: readonly Character[]
+  villains: readonly Character[],
+  minions: readonly Character[]
 ): void {
   const kicker =
     kind === 'single-hero'
@@ -258,16 +259,16 @@ function drawIdentity(
   const stats = setStats(set);
   const summary =
     kind === 'single-hero'
-      ? `${plural(heroes.length, 'HERO')} · ${plural(stats.printCount, 'CARD')}`
+      ? `${plural(heroes.length, 'HERO', 'HEROES')} · ${plural(stats.printCount, 'CARD')}`
       : kind === 'hero-set'
-        ? `${plural(heroes.length, 'HERO')} · ${plural(stats.printCount, 'CARD')}`
-        : `${plural(heroes.length, 'HERO')} · ${plural(foes.length, 'FOE')} · ${plural(stats.printCount, 'CARD')}`;
+        ? `${plural(heroes.length, 'HERO', 'HEROES')} · ${plural(stats.printCount, 'CARD')}`
+        : `${plural(villains.length, 'VILLAIN')} · ${plural(heroes.length, 'HERO', 'HEROES')} · ${plural(minions.length, 'MINION')} · ${plural(stats.printCount, 'CARD')}`;
   const subtitle =
     set.subtitle ||
     (kind === 'single-hero'
       ? 'A HERO FOR UNMATCHED'
       : kind === 'hero-set'
-        ? `${plural(heroes.length, 'HERO')}, ONE SET`
+        ? `${plural(heroes.length, 'HERO', 'HEROES')}, ONE SET`
         : 'AN UNMATCHED ADVENTURES SET');
 
   context.save();
@@ -453,7 +454,6 @@ export async function renderSocialImage(set: AdventureSet): Promise<Blob | null>
   const heroes = charactersByRole(set, 'hero');
   const villains = charactersByRole(set, 'villain');
   const minions = charactersByRole(set, 'minion');
-  const foes = [...villains, ...minions];
   const kind: PosterKind =
     set.kind === 'adventure' ? 'adventure' : heroes.length === 1 ? 'single-hero' : 'hero-set';
   const themeCharacter =
@@ -470,7 +470,7 @@ export async function renderSocialImage(set: AdventureSet): Promise<Blob | null>
 
   await loadPosterFonts(theme);
   await paintBackdrop(context, set, theme);
-  drawIdentity(context, set, theme, kind, heroes, foes);
+  drawIdentity(context, set, theme, kind, heroes, villains, minions);
 
   if (themeCharacter) {
     try {
