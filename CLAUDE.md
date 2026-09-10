@@ -1960,16 +1960,20 @@ downscale of whatever `coverArtwork` finds, never a render. That is the right
 job for a square gallery tile and the wrong one for a link preview, which is
 read much larger and has no tile to crop into. `cloud/social-image.ts`'s
 `renderSocialImage` is a second, purpose-built picture stored in its own
-`social_image_url` column: box art still wins outright when an author
-supplied one (unchanged from `coverArtwork`'s own priority), but failing
-that, a set with heroes gets an actual **rendered, trimmed** picture of its
-own cards — one hero's deck back beside their character card, several heroes'
-deck backs in a grid two to a row, capped at four before it would read as a
-contact sheet rather than a preview. Reuses `cloud/character-cards.ts`'s
-stage exactly (`withCardStage`/`photograph`), just with `cardback` instead of
-`statCard`, or both. A set with no heroes to compose from — villain-only, or
-still early — falls through to the same downscale `renderThumbnail` already
-does, checked *before* opening a card stage so that case pays nothing extra.
+`social_image_url` column. It always produces a **1200 × 630 landscape
+poster**, with a bold identity panel on the left and actual rendered, trimmed
+components on the right. One hero gets their deck back and character card;
+a heroes set gets up to four fanned deck backs; an adventure stages its
+villain in front of up to two heroes (or its minions when the published scope
+has no heroes). Box art no longer changes the output shape or bypasses that
+visual language — it becomes atmospheric background art underneath the
+poster. The palette and display face resolve from the set/lead character's
+own card theme, so this is branded by the author rather than by the app.
+Reuses `cloud/character-cards.ts`'s stage exactly
+(`withCardStage`/`photograph`), with every photograph remaining sequential:
+parallel stage use caused a real publish to store an empty image. A failed
+component render leaves the useful title poster intact; only an unavailable
+canvas or failed encode falls back to `renderThumbnail`.
 
 **This is the one column in this project that a migration cannot backfill.**
 Every prior denormalised-column addition (`kind`, `hero_count`) backfilled

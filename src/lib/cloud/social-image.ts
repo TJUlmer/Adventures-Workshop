@@ -1,181 +1,497 @@
 /**
- * The picture attached to a shared set's link preview — what Discord, Slack,
- * Twitter and every other unfurler read as `og:image` (see `middleware.ts`).
+ * The 1200 × 630 picture attached to a shared set's link preview.
  *
- * Deliberately separate from `thumbnail.ts`'s `renderThumbnail`. That one is
- * a plain downscale of whatever artwork already exists, sized and cropped for
- * a small square gallery tile — right for that job, and wrong for this one: a
- * link preview is read much larger, has no tile to crop into, and an author's
- * raw deck-back replacement file (drawn at full bleed, margin and all) reads
- * as an unfinished picture at that size. This renders the set's own cards
- * instead — trimmed to the cut line, the same rasteriser the gallery's
- * character-card hover preview already uses (`cloud/character-cards.ts`) —
- * and composes more than one where there is more than one hero worth
- * showing. `renderThumbnail` keeps doing the gallery-tile job alone; this is
- * only ever read by `social_image_url`.
+ * Every scope uses one poster shape. Authored card colours, artwork and type
+ * make it belong to the set; the composition changes to introduce one hero,
+ * present a hero roster, or stage an adventure's opposing sides.
  */
+import type { CardTheme, Fill } from '$lib/cards/style';
+import { resolveCardTheme } from '$lib/cards/theme';
 import { characterLabel } from '$lib/characters/factory';
 import type { Character } from '$lib/characters/types';
-import { hasArtwork } from '$lib/core/artwork';
+import type { Artwork } from '$lib/core/artwork';
 import type { Photograph } from '$lib/export/card-stage';
 import { withCardStage } from '$lib/export/card-stage';
+import { displayFontStack, displayFontWeight, fitDisplaySize } from '$lib/renderer/fonts';
 import { CARD_FORMATS } from '$lib/renderer/geometry';
-import { charactersByRole } from '$lib/sets/queries';
+import { charactersByRole, setStats } from '$lib/sets/queries';
 import type { AdventureSet } from '$lib/sets/types';
-import { renderThumbnail } from './thumbnail';
+import { coverArtwork, renderThumbnail } from './thumbnail';
 
-/** Width of one card in the composed picture, in pixels. */
-const CARD_WIDTH = 480;
-/** Gap between cards, on both axes. */
-const GAP = 24;
-/** WebP quality. Matches `thumbnail.ts` and `character-cards.ts`. */
+const POSTER_WIDTH = 1200;
+const POSTER_HEIGHT = 630;
+const SOURCE_CARD_WIDTH = 420;
 const QUALITY = 0.85;
+const MAX_HEROES = 4;
+const CARD_RATIO = CARD_FORMATS.action.mm.height / CARD_FORMATS.action.mm.width;
+const COPY_FONT = `'Oswald Custom Junior', 'Haettenschweiler', 'Arial Narrow', sans-serif`;
 
-const CARD_HEIGHT = Math.round(
-  CARD_WIDTH * (CARD_FORMATS.action.mm.height / CARD_FORMATS.action.mm.width)
-);
+type PosterKind = 'single-hero' | 'hero-set' | 'adventure';
 
-/**
- * More heroes than this stop reading as one picture and start reading as a
- * contact sheet — a two-column grid five or six deep is not a link preview
- * anyone can take in at a glance. Every Unmatched box so far ships four or
- * fewer, so this is a ceiling nothing has hit yet rather than a compromise.
- */
-const MAX_GRID_HEROES = 4;
+interface CardPlacement {
+  x: number;
+  y: number;
+  width: number;
+  angle: number;
+}
 
 function toBlob(canvas: HTMLCanvasElement): Promise<Blob | null> {
   return new Promise((resolve) => canvas.toBlob(resolve, 'image/webp', QUALITY));
 }
 
-async function drawBlobAt(
+function canvasFill(
   context: CanvasRenderingContext2D,
-  blob: Blob,
+  fill: Fill,
   x: number,
   y: number,
   width: number,
   height: number
+): string | CanvasGradient {
+  if (fill.kind === 'solid') return fill.color;
+  const radians = (fill.angle * Math.PI) / 180;
+  const directionX = Math.sin(radians);
+  const directionY = -Math.cos(radians);
+  const reach = (Math.abs(directionX) * width + Math.abs(directionY) * height) / 2;
+  const centreX = x + width / 2;
+  const centreY = y + height / 2;
+  const gradient = context.createLinearGradient(
+    centreX - directionX * reach,
+    centreY - directionY * reach,
+    centreX + directionX * reach,
+    centreY + directionY * reach
+  );
+  gradient.addColorStop(0, fill.color);
+  gradient.addColorStop(1, fill.color2);
+  return gradient;
+}
+
+function paintFill(
+  context: CanvasRenderingContext2D,
+  fill: Fill,
+  x: number,
+  y: number,
+  width: number,
+  height: number
+): void {
+  context.fillStyle = canvasFill(context, fill, x, y, width, height);
+  context.fillRect(x, y, width, height);
+}
+
+/** Settles either way: a broken remote picture must not hang a publish. */
+function settled(image: HTMLImageElement): Promise<boolean> {
+  if (image.complete) return Promise.resolve(image.naturalWidth > 0);
+  return new Promise((resolve) => {
+    image.addEventListener('load', () => resolve(true), { once: true });
+    image.addEventListener('error', () => resolve(false), { once: true });
+  });
+}
+
+async function loadArtwork(artwork: Artwork | null): Promise<HTMLImageElement | null> {
+  if (!artwork?.source) return null;
+  const image = new Image();
+  if (/^https?:/i.test(artwork.source)) image.crossOrigin = 'anonymous';
+  image.src = artwork.source;
+  return (await settled(image)) ? image : null;
+}
+
+/** Draw an image edge-to-edge without distorting it. */
+function drawCover(
+  context: CanvasRenderingContext2D,
+  image: HTMLImageElement,
+  x: number,
+  y: number,
+  width: number,
+  height: number
+): void {
+  const sourceRatio = image.naturalWidth / image.naturalHeight;
+  const targetRatio = width / height;
+  let sourceX = 0;
+  let sourceY = 0;
+  let sourceWidth = image.naturalWidth;
+  let sourceHeight = image.naturalHeight;
+  if (sourceRatio > targetRatio) {
+    sourceWidth = image.naturalHeight * targetRatio;
+    sourceX = (image.naturalWidth - sourceWidth) / 2;
+  } else {
+    sourceHeight = image.naturalWidth / targetRatio;
+    sourceY = (image.naturalHeight - sourceHeight) / 2;
+  }
+  context.drawImage(
+    image,
+    sourceX,
+    sourceY,
+    sourceWidth,
+    sourceHeight,
+    x,
+    y,
+    width,
+    height
+  );
+}
+
+function primaryFamily(stack: string): string | null {
+  return stack.match(/['\"]([^'\"]+)['\"]/)?.[1] ?? null;
+}
+
+async function loadPosterFonts(theme: CardTheme): Promise<void> {
+  const families = [primaryFamily(displayFontStack(theme.displayFont)), 'Oswald Custom Junior'];
+  await Promise.all(
+    families.map((family) =>
+      family ? document.fonts.load(`100px '${family}'`).catch(() => []) : Promise.resolve([])
+    )
+  );
+  await document.fonts.ready;
+}
+
+/** Split a display heading without runtime text measurement. */
+function balancedTitleLines(text: string): string[] {
+  const words = text.trim().split(/\s+/).filter(Boolean);
+  if (words.length < 2 || text.length <= 15) return [text.trim()];
+  let best = 1;
+  let bestWidth = Number.POSITIVE_INFINITY;
+  for (let split = 1; split < words.length; split += 1) {
+    const width = Math.max(
+      words.slice(0, split).join(' ').length,
+      words.slice(split).join(' ').length
+    );
+    if (width < bestWidth) {
+      best = split;
+      bestWidth = width;
+    }
+  }
+  return [words.slice(0, best).join(' '), words.slice(best).join(' ')];
+}
+
+function clipped(text: string, length: number): string {
+  const value = text.trim();
+  return value.length <= length ? value : `${value.slice(0, length - 1).trimEnd()}…`;
+}
+
+function plural(count: number, singular: string, pluralForm = `${singular}S`): string {
+  return `${count} ${count === 1 ? singular : pluralForm}`;
+}
+
+async function paintBackdrop(
+  context: CanvasRenderingContext2D,
+  set: AdventureSet,
+  theme: CardTheme
+): Promise<void> {
+  paintFill(context, theme.body, 0, 0, POSTER_WIDTH, POSTER_HEIGHT);
+  const artwork = await loadArtwork(coverArtwork(set));
+  if (artwork) {
+    context.save();
+    context.globalAlpha = 0.42;
+    drawCover(context, artwork, 0, 0, POSTER_WIDTH, POSTER_HEIGHT);
+    context.restore();
+  }
+
+  context.save();
+  context.globalAlpha = artwork ? 0.3 : 0.16;
+  paintFill(context, theme.frame, 0, 0, POSTER_WIDTH, POSTER_HEIGHT);
+  context.restore();
+
+  context.save();
+  context.beginPath();
+  context.moveTo(0, 0);
+  context.lineTo(585, 0);
+  context.lineTo(520, POSTER_HEIGHT);
+  context.lineTo(0, POSTER_HEIGHT);
+  context.closePath();
+  context.clip();
+  context.globalAlpha = 0.94;
+  paintFill(context, theme.banner, 0, 0, 620, POSTER_HEIGHT);
+  context.restore();
+
+  context.save();
+  context.globalAlpha = 0.12;
+  context.strokeStyle = theme.bannerInk;
+  context.lineWidth = 2;
+  for (let offset = 500; offset < 1300; offset += 64) {
+    context.beginPath();
+    context.moveTo(offset, 0);
+    context.lineTo(offset - 240, POSTER_HEIGHT);
+    context.stroke();
+  }
+  context.restore();
+
+  context.fillStyle = theme.divider;
+  context.beginPath();
+  context.moveTo(566, 0);
+  context.lineTo(585, 0);
+  context.lineTo(520, POSTER_HEIGHT);
+  context.lineTo(501, POSTER_HEIGHT);
+  context.closePath();
+  context.fill();
+}
+
+function titleFor(set: AdventureSet, kind: PosterKind, heroes: readonly Character[]): string {
+  if (kind === 'single-hero' && heroes[0]) return characterLabel(heroes[0]);
+  return set.name;
+}
+
+function drawIdentity(
+  context: CanvasRenderingContext2D,
+  set: AdventureSet,
+  theme: CardTheme,
+  kind: PosterKind,
+  heroes: readonly Character[],
+  foes: readonly Character[]
+): void {
+  const kicker =
+    kind === 'single-hero'
+      ? 'MEET THE HERO'
+      : kind === 'hero-set'
+        ? 'DISCOVER THE SET'
+        : heroes.length === 0
+          ? 'FACE THE VILLAIN'
+          : 'ENTER THE ADVENTURE';
+  const fallbackTitle = kind === 'single-hero' ? 'A NEW HERO' : 'AN UNMATCHED SET';
+  const title = (titleFor(set, kind, heroes) || fallbackTitle).toUpperCase();
+  const lines = balancedTitleLines(title);
+  const titleSize = fitDisplaySize(
+    title,
+    { width: 400, height: 190 },
+    theme.displayFont,
+    88,
+    0.88
+  );
+  const stats = setStats(set);
+  const summary =
+    kind === 'single-hero'
+      ? `${plural(heroes.length, 'HERO')} · ${plural(stats.printCount, 'CARD')}`
+      : kind === 'hero-set'
+        ? `${plural(heroes.length, 'HERO')} · ${plural(stats.printCount, 'CARD')}`
+        : `${plural(heroes.length, 'HERO')} · ${plural(foes.length, 'FOE')} · ${plural(stats.printCount, 'CARD')}`;
+  const subtitle =
+    set.subtitle ||
+    (kind === 'single-hero'
+      ? 'A HERO FOR UNMATCHED'
+      : kind === 'hero-set'
+        ? `${plural(heroes.length, 'HERO')}, ONE SET`
+        : 'AN UNMATCHED ADVENTURES SET');
+
+  context.save();
+  context.fillStyle = theme.bannerInk;
+  context.textBaseline = 'top';
+  context.font = `400 22px ${COPY_FONT}`;
+  context.fillText(kicker, 70, 72, 390);
+  context.fillStyle = theme.divider;
+  context.fillRect(70, 111, 142, 8);
+
+  context.fillStyle = theme.bannerInk;
+  context.font = `${displayFontWeight(theme.displayFont)} ${titleSize}px ${displayFontStack(theme.displayFont)}`;
+  const lineHeight = titleSize * 0.88;
+  lines.forEach((line, index) => context.fillText(line, 70, 151 + index * lineHeight, 400));
+
+  context.globalAlpha = 0.78;
+  context.font = `400 25px ${COPY_FONT}`;
+  context.fillText(clipped(subtitle.toUpperCase(), 54), 70, 370, 390);
+
+  context.globalAlpha = 1;
+  context.fillStyle = theme.divider;
+  context.fillRect(70, 419, 42, 5);
+  context.fillStyle = theme.bannerInk;
+  context.font = `400 22px ${COPY_FONT}`;
+  context.fillText(summary, 70, 443, 390);
+
+  context.globalAlpha = 0.68;
+  context.font = `400 18px ${COPY_FONT}`;
+  context.fillText('UNMATCHED LABS', 70, 565, 390);
+  context.restore();
+}
+
+async function drawBlobCard(
+  context: CanvasRenderingContext2D,
+  blob: Blob,
+  placement: CardPlacement,
+  theme: CardTheme
 ): Promise<void> {
   const bitmap = await createImageBitmap(blob);
+  const height = placement.width * CARD_RATIO;
   try {
-    context.drawImage(bitmap, x, y, width, height);
+    context.save();
+    context.translate(placement.x + placement.width / 2, placement.y + height / 2);
+    context.rotate((placement.angle * Math.PI) / 180);
+    context.shadowColor = theme.frame.color;
+    context.shadowBlur = 22;
+    context.shadowOffsetX = 8;
+    context.shadowOffsetY = 12;
+    context.drawImage(bitmap, -placement.width / 2, -height / 2, placement.width, height);
+    context.restore();
   } finally {
     bitmap.close();
   }
 }
 
-/** One hero's deck back, trimmed, at the composition's own card size. */
-function heroBack(photograph: Photograph, hero: Character): Promise<Blob | null> {
-  return photograph({ card: null, cardback: hero }, CARD_FORMATS.action, {
+function characterBack(photograph: Photograph, character: Character): Promise<Blob | null> {
+  return photograph({ card: null, cardback: character }, CARD_FORMATS.action, {
     bleed: false,
-    width: CARD_WIDTH
+    width: SOURCE_CARD_WIDTH
   });
 }
 
-/** One hero's character card, trimmed, at the composition's own card size. */
 function heroCard(photograph: Photograph, hero: Character): Promise<Blob | null> {
   return photograph({ card: null, statCard: hero }, CARD_FORMATS.action, {
     bleed: false,
-    width: CARD_WIDTH
+    width: SOURCE_CARD_WIDTH
   });
 }
 
-/** Lay pictures left to right in one row, sized to fit them exactly. */
-async function composeRow(pictures: Blob[]): Promise<Blob | null> {
-  const canvas = document.createElement('canvas');
-  canvas.width = pictures.length * CARD_WIDTH + (pictures.length - 1) * GAP;
-  canvas.height = CARD_HEIGHT;
-  const context = canvas.getContext('2d');
-  if (!context) return null;
-
-  for (const [index, picture] of pictures.entries()) {
-    await drawBlobAt(context, picture, index * (CARD_WIDTH + GAP), 0, CARD_WIDTH, CARD_HEIGHT);
+async function renderBackSafely(
+  photograph: Photograph,
+  character: Character
+): Promise<Blob | null> {
+  try {
+    return await characterBack(photograph, character);
+  } catch (cause) {
+    console.warn(`Could not render ${characterLabel(character)} in the social image.`, cause);
+    return null;
   }
-  return toBlob(canvas);
 }
 
-/** Lay pictures out two to a row, as many rows as it takes. */
-async function composeGrid(pictures: Blob[]): Promise<Blob | null> {
-  const columns = Math.min(2, pictures.length);
-  const rows = Math.ceil(pictures.length / columns);
-  const canvas = document.createElement('canvas');
-  canvas.width = columns * CARD_WIDTH + (columns - 1) * GAP;
-  canvas.height = rows * CARD_HEIGHT + (rows - 1) * GAP;
-  const context = canvas.getContext('2d');
-  if (!context) return null;
+async function renderHeroCardSafely(
+  photograph: Photograph,
+  hero: Character
+): Promise<Blob | null> {
+  try {
+    return await heroCard(photograph, hero);
+  } catch (cause) {
+    console.warn(`Could not render ${characterLabel(hero)}'s character card.`, cause);
+    return null;
+  }
+}
 
-  for (const [index, picture] of pictures.entries()) {
-    const column = index % columns;
-    const row = Math.floor(index / columns);
-    await drawBlobAt(
+async function drawSingleHero(
+  context: CanvasRenderingContext2D,
+  photograph: Photograph,
+  hero: Character,
+  theme: CardTheme
+): Promise<void> {
+  /* Concurrent photographs share the hidden stage and have produced empty
+     social images during a real publish, so every call remains sequential. */
+  const back = await renderBackSafely(photograph, hero);
+  const card = await renderHeroCardSafely(photograph, hero);
+  if (back && card) {
+    await drawBlobCard(context, back, { x: 635, y: 108, width: 300, angle: -7 }, theme);
+    await drawBlobCard(context, card, { x: 855, y: 104, width: 300, angle: 6 }, theme);
+  } else {
+    const picture = back ?? card;
+    if (picture) await drawBlobCard(context, picture, { x: 775, y: 91, width: 320, angle: 2 }, theme);
+  }
+}
+
+async function drawHeroSet(
+  context: CanvasRenderingContext2D,
+  photograph: Photograph,
+  heroes: readonly Character[],
+  theme: CardTheme
+): Promise<void> {
+  const backs: Blob[] = [];
+  for (const hero of heroes.slice(0, MAX_HEROES)) {
+    const back = await renderBackSafely(photograph, hero);
+    if (back) backs.push(back);
+  }
+  if (backs.length === 0) return;
+
+  const width = backs.length === 1 ? 310 : backs.length === 2 ? 270 : 245;
+  const start = backs.length === 1 ? 785 : 570;
+  const available = 590 - width;
+  const step = backs.length === 1 ? 0 : available / (backs.length - 1);
+  for (const [index, back] of backs.entries()) {
+    const angle = backs.length === 1 ? 2 : -10 + (20 * index) / (backs.length - 1);
+    const y = 96 + Math.abs(angle) * 4.5;
+    await drawBlobCard(context, back, { x: start + index * step, y, width, angle }, theme);
+  }
+}
+
+async function drawAdventure(
+  context: CanvasRenderingContext2D,
+  photograph: Photograph,
+  heroes: readonly Character[],
+  villains: readonly Character[],
+  minions: readonly Character[],
+  theme: CardTheme
+): Promise<void> {
+  const focus = villains[0] ?? minions[0] ?? heroes[0];
+  if (!focus) return;
+  const support = (heroes.length > 0 ? heroes : minions)
+    .filter((character) => character.id !== focus.id)
+    .slice(0, 2);
+
+  const supportBacks: Blob[] = [];
+  for (const character of support) {
+    const back = await renderBackSafely(photograph, character);
+    if (back) supportBacks.push(back);
+  }
+  const focusBack = await renderBackSafely(photograph, focus);
+
+  if (supportBacks.length === 1) {
+    await drawBlobCard(context, supportBacks[0]!, { x: 650, y: 129, width: 245, angle: -9 }, theme);
+  } else if (supportBacks.length === 2) {
+    await drawBlobCard(context, supportBacks[0]!, { x: 580, y: 151, width: 230, angle: -11 }, theme);
+    await drawBlobCard(context, supportBacks[1]!, { x: 720, y: 105, width: 230, angle: -4 }, theme);
+  }
+
+  if (focusBack) {
+    await drawBlobCard(
       context,
-      picture,
-      column * (CARD_WIDTH + GAP),
-      row * (CARD_HEIGHT + GAP),
-      CARD_WIDTH,
-      CARD_HEIGHT
+      focusBack,
+      { x: supportBacks.length === 0 ? 780 : 855, y: 101, width: 300, angle: 6 },
+      theme
     );
   }
-  return toBlob(canvas);
 }
 
-/**
- * Compose the link-preview picture for a set, or fall back to the plain
- * artwork downscale where there is nothing of the set's own worth composing.
- *
- * Box art wins outright — an author who supplied one chose it to represent
- * the whole set, and a generated collage would be answering a question
- * nobody asked. A set with no heroes (villain-only, or still early) has
- * nothing this function knows how to compose either, so both cases fall
- * through to the same downscale `renderThumbnail` already does — deliberately
- * checked *before* opening a card stage, so neither case pays for one.
- */
+/** Compose a fixed landscape poster for a set or published scope. */
 export async function renderSocialImage(set: AdventureSet): Promise<Blob | null> {
+  const canvas = document.createElement('canvas');
+  canvas.width = POSTER_WIDTH;
+  canvas.height = POSTER_HEIGHT;
+  const context = canvas.getContext('2d');
+  if (!context) return renderThumbnail(set);
+
   const heroes = charactersByRole(set, 'hero');
-  if (hasArtwork(set.boxArt) || heroes.length === 0) {
-    return renderThumbnail(set);
+  const villains = charactersByRole(set, 'villain');
+  const minions = charactersByRole(set, 'minion');
+  const foes = [...villains, ...minions];
+  const kind: PosterKind =
+    set.kind === 'adventure' ? 'adventure' : heroes.length === 1 ? 'single-hero' : 'hero-set';
+  const themeCharacter =
+    kind === 'adventure'
+      ? (villains[0] ?? minions[0] ?? heroes[0] ?? null)
+      : (heroes[0] ?? set.characters[0] ?? null);
+  const theme = resolveCardTheme(
+    set.style,
+    themeCharacter?.style ?? null,
+    null,
+    'action',
+    themeCharacter?.role
+  );
+
+  await loadPosterFonts(theme);
+  await paintBackdrop(context, set, theme);
+  drawIdentity(context, set, theme, kind, heroes, foes);
+
+  if (themeCharacter) {
+    try {
+      await withCardStage(async (photograph) => {
+        if (kind === 'single-hero' && heroes[0]) {
+          await drawSingleHero(context, photograph, heroes[0], theme);
+        } else if (kind === 'hero-set') {
+          await drawHeroSet(context, photograph, heroes, theme);
+        } else {
+          await drawAdventure(context, photograph, heroes, villains, minions, theme);
+        }
+      });
+    } catch (cause) {
+      console.warn('Could not add rendered components to the social image.', cause);
+    }
   }
 
-  return withCardStage(async (photograph) => {
-    /*
-     * One `photograph` call at a time, on purpose. Every other caller of this
-     * stage (`character-cards.ts`, the TTS and PNG exporters) does the same —
-     * a `for` loop, never `Promise.all` — and that turned out not to be
-     * incidental: two concurrent calls each mount their own `CardRenderer`
-     * into their own slot, which looks independent, but a live publish with
-     * three heroes came back with a populated `thumbnail_url` and
-     * `character_cards` (both rendered by sequential callers) and an empty
-     * `social_image_url` — the one step that was calling `photograph`
-     * concurrently. Sequential is slower by a card apiece and is what every
-     * proven caller already does.
-     */
-    if (heroes.length === 1) {
-      const hero = heroes[0];
-      if (!hero) return renderThumbnail(set);
-
-      try {
-        const back = await heroBack(photograph, hero);
-        const card = await heroCard(photograph, hero);
-        const pictures = [back, card].filter((blob): blob is Blob => blob !== null);
-        if (pictures.length === 0) return renderThumbnail(set);
-        return (await composeRow(pictures)) ?? renderThumbnail(set);
-      } catch (cause) {
-        console.warn(`Could not render a social image for ${characterLabel(hero)}.`, cause);
-        return renderThumbnail(set);
-      }
-    }
-
-    try {
-      const shown = heroes.slice(0, MAX_GRID_HEROES);
-      const backs: Blob[] = [];
-      for (const hero of shown) {
-        const back = await heroBack(photograph, hero);
-        if (back) backs.push(back);
-      }
-      if (backs.length === 0) return renderThumbnail(set);
-      return (await composeGrid(backs)) ?? renderThumbnail(set);
-    } catch (cause) {
-      console.warn('Could not render a social image for the set.', cause);
-      return renderThumbnail(set);
-    }
-  });
+  try {
+    return (await toBlob(canvas)) ?? renderThumbnail(set);
+  } catch (cause) {
+    console.warn('Could not encode the social image.', cause);
+    return renderThumbnail(set);
+  }
 }
