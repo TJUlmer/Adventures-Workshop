@@ -21,6 +21,12 @@ export interface Exporter {
   readonly label: string;
   readonly format: ExportFormat;
   readonly description: string;
+  /**
+   * Whether a temporary scope/selection is meaningful to this output.
+   * A project backup must remain the complete source document; rendered
+   * outputs may deliberately use the selected subset instead.
+   */
+  readonly input: 'complete-project' | 'selected-content';
   readonly available: boolean;
   run(set: AdventureSet): Promise<ExportResult>;
 }

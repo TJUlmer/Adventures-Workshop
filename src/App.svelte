@@ -28,6 +28,7 @@
   import FiguresPanel from '$lib/components/tools/FiguresPanel.svelte';
   import MapEditor from '$lib/components/tools/MapEditor.svelte';
   import OverviewScreen from '$lib/components/tools/OverviewScreen.svelte';
+  import type { AdventureSet } from '$lib/sets/types';
   import SetSettings from '$lib/components/tools/SetSettings.svelte';
   import SymbolsPanel from '$lib/components/tools/SymbolsPanel.svelte';
   import ThreatTracker from '$lib/components/tools/ThreatTracker.svelte';
@@ -122,6 +123,23 @@
   });
 
   const currentPage = $derived(navigation.page);
+
+  /*
+   * The export panel is unmounted when creator printing leaves the set shell,
+   * so App holds the exact transient selection long enough for PrintScreen to
+   * consume it. Raw state avoids deeply proxying a potentially large document
+   * full of embedded artwork; the reference is replaced, never edited here.
+   */
+  let printSet = $state.raw<AdventureSet | null>(null);
+
+  function openPrint(set: AdventureSet): void {
+    printSet = set;
+    navigation.go('print');
+  }
+
+  $effect(() => {
+    if (currentPage !== 'print') printSet = null;
+  });
 </script>
 
 {#if sessionReady}
@@ -147,7 +165,7 @@
       {:else if currentPage === 'print'}
         <!-- The banner remains on screen, but `@media print` below removes it
              from paper so it cannot shift a sheet. -->
-        <PrintScreen />
+        <PrintScreen set={printSet ?? workshop.adventure} />
       {:else}
         <AppShell>
           {#snippet titlebar()}
@@ -180,13 +198,13 @@
             {:else if currentPage === 'symbols'}
               <SymbolsPanel />
             {:else if currentPage === 'assets'}
-              <OverviewScreen />
+              <OverviewScreen onprint={openPrint} />
             {:else if currentPage === 'contributions'}
               <ContributionsScreen />
             {:else if currentPage === 'settings'}
               <SetSettings />
             {:else}
-              <SetHome />
+              <SetHome onprint={openPrint} />
             {/if}
           {/snippet}
 

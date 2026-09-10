@@ -21,12 +21,19 @@
   import { hasArtwork } from '$lib/core/artwork';
   import { assessSet, healthSummary } from '$lib/sets/health';
   import { SET_KIND_META } from '$lib/sets/types';
+  import type { AdventureSet } from '$lib/sets/types';
   import { setLabel } from '$lib/sets/factory';
   import { threatTotal } from '$lib/threat/types';
   import { navigation } from '$lib/state/navigation.svelte';
   import { workshop } from '$lib/state/workshop.svelte';
   import { Icon } from '$lib/ui';
   import StyleCascadePanel from './StyleCascadePanel.svelte';
+
+  interface Props {
+    onprint: (set: AdventureSet) => void;
+  }
+
+  let { onprint }: Props = $props();
 
   const set = $derived(workshop.adventure);
   const outline = $derived(workshop.outline);
@@ -357,8 +364,8 @@
           claiming "everything here" is the whole set actively talks someone
           out of scrolling past it to find that.
         -->
-        <p class="panel-hint">The exports below cover the whole set.</p>
-        <ExportPanel {set} onprint={() => navigation.go('print')} />
+        <p class="panel-hint">Choose what to render below; the project backup always keeps the whole set.</p>
+        <ExportPanel {set} {onprint} />
         <SharePanel {set} />
       </section>
 

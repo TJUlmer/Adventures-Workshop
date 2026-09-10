@@ -112,7 +112,7 @@
    * would leave the shared view entirely and land on whatever set happened to
    * be open in the library.
    */
-  let printing = $state(false);
+  let printSet = $state.raw<AdventureSet | null>(null);
 
   /** The author's display name, for the credit a fork will carry. */
   let authorName = $state('');
@@ -197,6 +197,7 @@
     reportingCommentId = null;
     communityError = null;
     communityMessage = null;
+    printSet = null;
     liked = false;
     favourited = false;
     likeCount = 0;
@@ -438,8 +439,8 @@
   }
 </script>
 
-{#if printing && set}
-  <PrintScreen {set} onback={() => (printing = false)} />
+{#if printSet}
+  <PrintScreen set={printSet} onback={() => (printSet = null)} />
 {:else}
   <div class="screen">
     <header class="head">
@@ -770,7 +771,12 @@
           <p class="panel-hint">
             Shares the "Showing" pick above — change either one and the other follows.
           </p>
-          <ExportPanel set={currentSet} onprint={() => (printing = true)} bind:scope={viewScope} />
+          <ExportPanel
+            set={currentSet}
+            onprint={(selected) => (printSet = selected)}
+            bind:scope={viewScope}
+            projectFileMode="copy"
+          />
         </section>
 
         {@render commentPanel()}

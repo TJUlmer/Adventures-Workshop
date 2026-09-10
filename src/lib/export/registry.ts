@@ -4,9 +4,10 @@ import type { Exporter, ExportResult } from './types';
 
 const jsonExporter: Exporter = {
   id: 'set-json',
-  label: 'Set file (.json)',
+  label: 'Full project backup (.json)',
   format: 'json',
-  description: 'The complete, re-importable document. The format to keep backups in.',
+  description: 'The untouched, complete editable set. Export selections do not affect it.',
+  input: 'complete-project',
   available: true,
   async run(set: AdventureSet): Promise<ExportResult> {
     const contents = serializeSet(set);
