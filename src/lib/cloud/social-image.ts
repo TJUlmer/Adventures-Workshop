@@ -171,6 +171,153 @@ function plural(count: number, singular: string, pluralForm = `${singular}S`): s
   return `${count} ${count === 1 ? singular : pluralForm}`;
 }
 
+/** Copy-font wrapping from the bundled face's recorded mean advance, not a
+    runtime canvas measurement. Authored newlines remain paragraph breaks. */
+function wrappedCopy(text: string, width: number, fontSize: number, maxLines: number): string[] {
+  const maxCharacters = Math.max(8, Math.floor(width / (fontSize * 0.44)));
+  const lines: string[] = [];
+
+  for (const paragraph of text.trim().split(/\r?\n/)) {
+    const words = paragraph.trim().split(/\s+/).filter(Boolean);
+    if (words.length === 0) continue;
+    let line = '';
+    for (const word of words) {
+      const next = line ? `${line} ${word}` : word;
+      if (line && next.length > maxCharacters) {
+        lines.push(line);
+        line = word;
+      } else {
+        line = next;
+      }
+    }
+    if (line) lines.push(line);
+  }
+
+  if (lines.length <= maxLines) return lines;
+  const visible = lines.slice(0, maxLines);
+  const last = visible.length - 1;
+  visible[last] = `${(visible[last] ?? '').slice(0, maxCharacters - 1).trimEnd()}…`;
+  return visible;
+}
+
+/** Inline card symbols have no canvas equivalent here, so name them in plain
+    language; `{{name}}` still follows the hero when the roster is renamed. */
+function readableAbilityText(text: string, hero: Character): string {
+  return text.replace(/\{\{([a-zA-Z][a-zA-Z0-9:_-]*)\}\}/g, (_token, raw: string) => {
+    const name = raw.toLowerCase();
+    if (name === 'name') return characterLabel(hero);
+    if (name.startsWith('custom:')) return 'symbol';
+    return name.replace(/[_-]+/g, ' ');
+  });
+}
+
+function drawSectionLabel(
+  context: CanvasRenderingContext2D,
+  label: string,
+  y: number,
+  theme: CardTheme
+): void {
+  context.globalAlpha = 0.72;
+  context.fillStyle = theme.bannerInk;
+  context.font = `400 17px ${COPY_FONT}`;
+  context.fillText(label, 70, y, 390);
+  context.globalAlpha = 1;
+}
+
+/** A compact adaptive roster: ordinary sets stay in one generous column;
+    unusually long rosters gain a second rather than dropping names. */
+function drawNameGrid(
+  context: CanvasRenderingContext2D,
+  names: readonly string[],
+  y: number,
+  height: number,
+  theme: CardTheme,
+  columnsAfter: number,
+  maxSize: number
+): void {
+  const entries = names.length > 0 ? names : ['NONE'];
+  const columns = entries.length > columnsAfter ? 2 : 1;
+  const rows = Math.ceil(entries.length / columns);
+  const columnGap = 18;
+  const columnWidth = (390 - columnGap * (columns - 1)) / columns;
+  const rowHeight = height / rows;
+
+  context.globalAlpha = 1;
+  context.fillStyle = theme.bannerInk;
+  for (const [index, entry] of entries.entries()) {
+    const name = entry.toUpperCase();
+    const column = index % columns;
+    const row = Math.floor(index / columns);
+    const size = fitDisplaySize(
+      name,
+      { width: columnWidth, height: rowHeight * 0.86 },
+      theme.displayFont,
+      Math.min(maxSize, rowHeight * 0.86),
+      1
+    );
+    context.font = `${displayFontWeight(theme.displayFont)} ${size}px ${displayFontStack(theme.displayFont)}`;
+    context.fillText(name, 70 + column * (columnWidth + columnGap), y + row * rowHeight, columnWidth);
+  }
+}
+
+function drawSingleHeroDetails(
+  context: CanvasRenderingContext2D,
+  hero: Character,
+  theme: CardTheme
+): void {
+  const ability = hero.abilities.find((entry) => entry.name.trim() || entry.text.trim());
+  if (!ability) return;
+
+  drawSectionLabel(context, 'SPECIAL ABILITY', 350, theme);
+  let bodyY = 377;
+  if (ability.name.trim()) {
+    const name = ability.name.trim().toUpperCase();
+    const size = fitDisplaySize(
+      name,
+      { width: 390, height: 32 },
+      theme.displayFont,
+      30,
+      1
+    );
+    context.fillStyle = theme.bannerInk;
+    context.font = `${displayFontWeight(theme.displayFont)} ${size}px ${displayFontStack(theme.displayFont)}`;
+    context.fillText(name, 70, bodyY, 390);
+    bodyY += 38;
+  }
+
+  const text = readableAbilityText(ability.text, hero);
+  const fontSize = 18;
+  const lineHeight = 22;
+  const maxLines = Math.max(1, Math.floor((532 - bodyY) / lineHeight));
+  context.globalAlpha = 0.9;
+  context.font = `400 ${fontSize}px ${COPY_FONT}`;
+  for (const [index, line] of wrappedCopy(text, 390, fontSize, maxLines).entries()) {
+    context.fillText(line, 70, bodyY + index * lineHeight, 390);
+  }
+  context.globalAlpha = 1;
+}
+
+function drawHeroSetDetails(
+  context: CanvasRenderingContext2D,
+  heroes: readonly Character[],
+  theme: CardTheme
+): void {
+  drawSectionLabel(context, 'HEROES', 350, theme);
+  drawNameGrid(context, heroes.map(characterLabel), 380, 150, theme, 4, 42);
+}
+
+function drawAdventureDetails(
+  context: CanvasRenderingContext2D,
+  villains: readonly Character[],
+  minions: readonly Character[],
+  theme: CardTheme
+): void {
+  drawSectionLabel(context, 'VILLAIN', 350, theme);
+  drawNameGrid(context, villains.map(characterLabel), 377, 36, theme, 1, 31);
+  drawSectionLabel(context, 'MINION', 423, theme);
+  drawNameGrid(context, minions.map(characterLabel), 450, 80, theme, 3, 27);
+}
+
 async function paintBackdrop(
   context: CanvasRenderingContext2D,
   set: AdventureSet,
@@ -251,9 +398,9 @@ function drawIdentity(
   const lines = balancedTitleLines(title);
   const titleSize = fitDisplaySize(
     title,
-    { width: 400, height: 190 },
+    { width: 400, height: 136 },
     theme.displayFont,
-    88,
+    72,
     0.88
   );
   const stats = setStats(set);
@@ -285,19 +432,28 @@ function drawIdentity(
   lines.forEach((line, index) => context.fillText(line, 70, 151 + index * lineHeight, 400));
 
   context.globalAlpha = 0.78;
-  context.font = `400 25px ${COPY_FONT}`;
-  context.fillText(clipped(subtitle.toUpperCase(), 54), 70, 370, 390);
+  context.font = `400 21px ${COPY_FONT}`;
+  context.fillText(clipped(subtitle.toUpperCase(), 62), 70, 306, 390);
 
   context.globalAlpha = 1;
   context.fillStyle = theme.divider;
-  context.fillRect(70, 419, 42, 5);
+  context.fillRect(70, 333, 42, 5);
+
+  if (kind === 'single-hero' && heroes[0]) {
+    drawSingleHeroDetails(context, heroes[0], theme);
+  } else if (kind === 'hero-set') {
+    drawHeroSetDetails(context, heroes, theme);
+  } else {
+    drawAdventureDetails(context, villains, minions, theme);
+  }
+
   context.fillStyle = theme.bannerInk;
   context.font = `400 22px ${COPY_FONT}`;
-  context.fillText(summary, 70, 443, 390);
+  context.fillText(summary, 70, 552, 390);
 
   context.globalAlpha = 0.68;
   context.font = `400 18px ${COPY_FONT}`;
-  context.fillText('UNMATCHED LABS', 70, 565, 390);
+  context.fillText('UNMATCHED LABS', 70, 596, 390);
   context.restore();
 }
 
