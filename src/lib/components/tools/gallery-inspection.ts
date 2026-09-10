@@ -1,6 +1,9 @@
 import type { Card } from '$lib/cards/types';
 import type { Character, HeroCharacterCard } from '$lib/characters/types';
 
+/** One shared scale so the Overview and its parent-owned Explore bar cannot drift. */
+export const GALLERY_CARD_SIZE = { min: 110, max: 410, start: 260, step: 10 } as const;
+
 export type GalleryCardSide = 'front' | 'back';
 
 interface GalleryCardItemBase {

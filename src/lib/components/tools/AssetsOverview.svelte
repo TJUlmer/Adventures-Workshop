@@ -34,6 +34,7 @@
   import CardLightbox from './CardLightbox.svelte';
   import ComponentModal from './ComponentModal.svelte';
   import { figurePreviewKey, loadFigurePreview, releaseFigurePreview } from './figure-preview';
+  import { GALLERY_CARD_SIZE } from './gallery-inspection';
   import type { GalleryCardItem, GalleryCardSide } from './gallery-inspection';
 
   interface Props {
@@ -50,6 +51,8 @@
     /** The self-contained shared-set view still uses this component's slider. */
     showZoom?: boolean;
     onCardSizeChange?: (value: number) => void;
+    /** Stable section targets for a parent-owned gallery navigation bar. */
+    anchorPrefix?: string;
   }
 
   let {
@@ -59,7 +62,8 @@
     heading = true,
     cardSize,
     showZoom = true,
-    onCardSizeChange
+    onCardSizeChange,
+    anchorPrefix
   }: Props = $props();
 
   const set = $derived(given ?? workshop.adventure);
@@ -292,9 +296,12 @@
    * more closely. Keeping one range here also means the editable and shared
    * Overviews never disagree about what the same slider position means.
    */
-  const ZOOM: { min: number; max: number; start: number } = { min: 110, max: 410, start: 260 };
-  let localSize = $state(ZOOM.start);
+  let localSize = $state<number>(GALLERY_CARD_SIZE.start);
   const size = $derived(cardSize ?? localSize);
+
+  function anchorId(section: string): string | undefined {
+    return anchorPrefix ? `${anchorPrefix}-${section}` : undefined;
+  }
 
   function changeSize(value: number): void {
     localSize = value;
@@ -575,7 +582,7 @@
   </div>
 {/snippet}
 
-<div class="page scroll-y">
+<div class="page scroll-y" id={anchorId('top')}>
   {#if heading || showZoom}
     <header class="head">
       {#if heading}
@@ -591,9 +598,9 @@
           <Icon name="search" size={12} />
           <input
             type="range"
-            min={ZOOM.min}
-            max={ZOOM.max}
-            step="10"
+            min={GALLERY_CARD_SIZE.min}
+            max={GALLERY_CARD_SIZE.max}
+            step={GALLERY_CARD_SIZE.step}
             value={size}
             aria-label="Card size"
             oninput={(event) => changeSize(event.currentTarget.valueAsNumber)}
@@ -612,7 +619,7 @@
   {/if}
 
   {#if set.threat.enabled || set.map.enabled}
-    <section class="showcase battlefield">
+    <section class="showcase battlefield" id={anchorId('battlefield')}>
       <header class="section-heading">
         <div>
           <span class="section-kicker">On the table</span>
@@ -679,7 +686,7 @@
   {/if}
 
   {#if set.figures.length > 0}
-    <section class="showcase">
+    <section class="showcase" id={anchorId('components')}>
       <header class="section-heading">
         <div>
           <span class="section-kicker">Physical pieces</span>
@@ -746,7 +753,7 @@
           {@const ownedGroups = groupsFor(character)}
           {@const statCards = characterCardsFor(character)}
           {@const ownedCardCount = ownedGroups.reduce((total, group) => total + group.cards.length, 0)}
-          <article class="character-collection">
+          <article class="character-collection" id={anchorId(`character-${character.id}`)}>
             <header class="character-heading">
               <div>
                 <span class="role-badge">{CHARACTER_ROLE_META[character.role].label}</span>
@@ -775,7 +782,7 @@
   {/if}
 
   {#if setGroups.length > 0}
-    <section class="showcase set-decks">
+    <section class="showcase set-decks" id={anchorId('set-decks')}>
       <header class="section-heading">
         <div>
           <span class="section-kicker">Shared material</span>
@@ -906,6 +913,7 @@
     border-radius: var(--radius-lg);
     background: var(--surface-base);
     box-shadow: var(--shadow-sm);
+    scroll-margin-block-start: var(--space-3);
   }
 
   .section-heading,
@@ -1063,7 +1071,8 @@
 
   .gallery {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(var(--tile), 1fr));
+    /* A preferred size cannot make the review surface wider than a phone. */
+    grid-template-columns: repeat(auto-fill, minmax(min(var(--tile), 100%), 1fr));
     gap: var(--space-4);
   }
 

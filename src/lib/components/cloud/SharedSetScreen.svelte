@@ -27,9 +27,11 @@
    * a viewer sees cannot drift from what the author approved.
    */
   import { untrack } from 'svelte';
+  import { characterLabel } from '$lib/characters/factory';
   import type { CharacterId } from '$lib/characters/types';
   import ExportPanel from '$lib/components/export/ExportPanel.svelte';
   import AssetsOverview from '$lib/components/tools/AssetsOverview.svelte';
+  import { GALLERY_CARD_SIZE } from '$lib/components/tools/gallery-inspection';
   import { listContributors } from '$lib/cloud/contributions';
   import type { Contributor } from '$lib/cloud/contributions';
   import { auth } from '$lib/cloud/auth.svelte';
@@ -57,6 +59,7 @@
   import PrintScreen from '$lib/print/PrintScreen.svelte';
   import { forkSet, sourceOf } from '$lib/sets/fork';
   import { computeScopedSet, parseScopeKey, scopeKeyOf, scopeOptionsFor } from '$lib/sets/scope';
+  import { charactersByRole, setStats } from '$lib/sets/queries';
   import type { PublishScope } from '$lib/sets/scope';
   import type { AdventureSet } from '$lib/sets/types';
   import { navigation } from '$lib/state/navigation.svelte';
@@ -105,6 +108,7 @@
       characterHint ? { kind: 'hero', characterId: characterHint as CharacterId } : { kind: 'full' }
     )
   );
+  let previousScopeKey = untrack(() => scopeKeyOf(viewScope));
 
   /*
    * Print sheets are a screen, not a file, and this screen is outside the
@@ -129,6 +133,7 @@
   let forking = $state(false);
   let compactLayout = $state(false);
   let actionsDialog = $state<HTMLDialogElement | null>(null);
+  let cardSize = $state<number>(GALLERY_CARD_SIZE.start);
 
   let comments = $state<SetComment[]>([]);
   let commentsLoading = $state(false);
@@ -185,6 +190,15 @@
   });
 
   $effect(() => {
+    const nextScopeKey = scopeKeyOf(viewScope);
+    if (nextScopeKey === previousScopeKey) return;
+    previousScopeKey = nextScopeKey;
+    // ExportPanel edits this same state from the rail/sheet, so scope changes
+    // from either control reset the one shared viewing surface consistently.
+    requestAnimationFrame(() => scrollToExplore('top', false));
+  });
+
+  $effect(() => {
     const wanted = slug;
     loading = true;
     error = null;
@@ -233,6 +247,7 @@
         set = await hydratePublishedSet(found, (done, total) => {
           progress = total > 0 ? `Fetching artwork ${done} of ${total}…` : null;
         });
+        requestAnimationFrame(() => scrollToExplore('top', false));
         progress = null;
       } catch (cause) {
         error = cause instanceof Error ? cause.message : 'Could not open that set.';
@@ -437,6 +452,83 @@
   function openActions(): void {
     if (actionsDialog && !actionsDialog.open) actionsDialog.showModal();
   }
+
+  interface ExploreLink {
+    key: string;
+    label: string;
+  }
+
+  const EXPLORE_ANCHOR_PREFIX = 'shared-explore';
+
+  function exploreAnchorId(key: string): string {
+    return `${EXPLORE_ANCHOR_PREFIX}-${key}`;
+  }
+
+  /** Match the Overview's physical order so the bar reads left-to-right like the page. */
+  function exploreLinksFor(currentSet: AdventureSet): ExploreLink[] {
+    const links: ExploreLink[] = [];
+    if (currentSet.threat.enabled || currentSet.map.enabled) {
+      links.push({ key: 'battlefield', label: 'Battlefield' });
+    }
+    if (currentSet.figures.length > 0) links.push({ key: 'components', label: 'Components' });
+
+    const characters = [
+      ...charactersByRole(currentSet, 'hero'),
+      ...charactersByRole(currentSet, 'villain'),
+      ...charactersByRole(currentSet, 'minion'),
+      ...charactersByRole(currentSet, 'sidekick')
+    ];
+    for (const character of characters) {
+      links.push({ key: `character-${character.id}`, label: characterLabel(character) });
+    }
+
+    const characterIds = new Set(currentSet.characters.map((character) => character.id));
+    const sharedDeckIds = new Set(
+      currentSet.decks
+        .filter((deck) => deck.ownerId === null || !characterIds.has(deck.ownerId))
+        .map((deck) => deck.id)
+    );
+    if (currentSet.cards.some((card) => sharedDeckIds.has(card.deckId))) {
+      links.push({ key: 'set-decks', label: 'Shared decks' });
+    }
+    return links;
+  }
+
+  function scopedCounts(currentSet: AdventureSet): string {
+    const stats = setStats(currentSet);
+    const characters = stats.characterCount;
+    const cards = stats.cardCount;
+    const components = currentSet.figures.length;
+    return `${characters} ${characters === 1 ? 'character' : 'characters'} · ${cards} card ${cards === 1 ? 'design' : 'designs'} · ${components} ${components === 1 ? 'component' : 'components'}`;
+  }
+
+  function compactScopedCounts(currentSet: AdventureSet): string {
+    const stats = setStats(currentSet);
+    return `${stats.characterCount} ${stats.characterCount === 1 ? 'char' : 'chars'} · ${stats.cardCount} ${stats.cardCount === 1 ? 'design' : 'designs'} · ${currentSet.figures.length} ${currentSet.figures.length === 1 ? 'piece' : 'pieces'}`;
+  }
+
+  function scrollToExplore(key: string, animate = true): void {
+    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const behavior = animate && !reduceMotion ? 'smooth' : 'auto';
+    const scroller = document.getElementById(exploreAnchorId('top'));
+    if (key === 'top') {
+      scroller?.scrollTo({ top: 0, behavior });
+      return;
+    }
+
+    const target = document.getElementById(exploreAnchorId(key));
+    if (!target) return;
+    target.scrollIntoView({ block: 'start', behavior });
+    // A visual jump alone leaves keyboard and assistive-technology users at
+    // the toolbar. Negative tabindex makes the destination focusable without
+    // adding it to the ordinary tab order.
+    target.tabIndex = -1;
+    target.focus({ preventScroll: true });
+  }
+
+  function changeViewScope(key: string): void {
+    viewScope = parseScopeKey(key);
+  }
 </script>
 
 {#if printSet}
@@ -487,14 +579,15 @@
               class="engagement-button"
               class:active={liked}
               aria-pressed={liked}
+              aria-label={liked ? `Unlike this set. ${likeCount} likes` : `Like this set. ${likeCount} likes`}
               disabled={reactionBusy}
               onclick={() => void toggleLike()}
             >
               <Icon name="thumbUp" size={15} />
               <span class="numeric">{likeCount}</span>
-              <span>{liked ? 'Liked' : 'Like'}</span>
+              <span class="engagement-label">{liked ? 'Liked' : 'Like'}</span>
             </button>
-            <span class="engagement-count" title="Comments">
+            <span class="engagement-count" aria-label={`${commentCount} comments`}>
               <Icon name="message" size={15} />
               <span class="numeric">{commentCount}</span>
             </span>
@@ -503,33 +596,33 @@
               class="engagement-button"
               class:active={favourited}
               aria-pressed={favourited}
+              aria-label={favourited ? 'Remove from favourites' : 'Add to favourites'}
               disabled={reactionBusy}
               onclick={() => void toggleFavourite()}
             >
               <Icon name="bookmark" size={15} />
-              <span>{favourited ? 'Favourited' : 'Favourite'}</span>
+              <span class="engagement-label">{favourited ? 'Favourited' : 'Favourite'}</span>
             </button>
           </div>
         {/if}
 
         {#if set}
-          <p class="stats">
-            {set.characters.length}
-            {set.characters.length === 1 ? 'character' : 'characters'} ·
-            {set.cards.length} cards
-            {#if row?.published_at}
-              · published {new Date(row.published_at).toLocaleDateString()}
-            {/if}
-            {#if row}· updated {new Date(row.updated_at).toLocaleDateString()}{/if}
-            {#if row && row.revision > 1}· revision {row.revision}{/if}
-          </p>
+          {#if row}
+            <p class="stats header-detail">
+              {#if row.published_at}
+                Published {new Date(row.published_at).toLocaleDateString()} ·
+              {/if}
+              updated {new Date(row.updated_at).toLocaleDateString()}
+              {#if row.revision > 1}· revision {row.revision}{/if}
+            </p>
+          {/if}
 
           <!--
             What the author says changed. Shown because a revision number tells
             a reader that something moved but not whether it matters to them.
           -->
           {#if row?.change_note}
-            <p class="stats">Latest change: “{row.change_note}”</p>
+            <p class="stats header-detail">Latest change: “{row.change_note}”</p>
           {/if}
 
           <!--
@@ -538,7 +631,7 @@
             exists because their work is already sitting in the set below.
           -->
           {#if contributors.length > 0}
-            <p class="stats credit">
+            <p class="stats credit header-detail">
               With contributions from
               {#each contributors as person, index (person.id)}
                 {#if index > 0}{index === contributors.length - 1 ? ' and ' : ', '}{/if}
@@ -566,6 +659,7 @@
     {:else if set}
       {@const shown = computeScopedSet(set, viewScope)}
       {@const scopeOptions = scopeOptionsFor(set)}
+      {@const exploreLinks = exploreLinksFor(shown)}
       {#snippet commentPanel()}
         {#if row?.visibility === 'public'}
           <section class="panel community-panel">
@@ -790,31 +884,99 @@
       <div class="split">
         <div class="main">
           <!--
-            The filter, in the one place a viewer looking at the content would
-            actually check for it — not tucked into the Export rail, where it
-            was correct but easy to miss entirely (see `sets/scope.ts`'s
-            `scopeOptionsFor`, the same list `ExportPanel`'s own picker builds
-            from). Both read and write `viewScope`, so picking a character
-            here also sets what `ExportPanel` exports, and vice versa — one
-            piece of state, not two that could disagree.
+            The Overview below owns the scrollbar, so this sibling remains in
+            reach through a long set without fixed positioning or viewport
+            offsets. Scope is still the same state ExportPanel edits: what a
+            visitor sees and what they export cannot silently disagree.
           -->
-          {#if scopeOptions.length > 1}
-            <label class="filter-row">
-              <span class="filter-label">Showing</span>
-              <Select
-                value={scopeKeyOf(viewScope)}
-                options={scopeOptions}
-                onchange={(key) => (viewScope = parseScopeKey(key))}
-              />
-            </label>
-          {/if}
-          {#if compactLayout}
-            <button type="button" class="mobile-actions" onclick={openActions}>
-              <Icon name="settings" size={14} />
-              Actions
-            </button>
-          {/if}
-          <AssetsOverview set={shown} interactive={false} inspectable heading={false} />
+          <section class="explore-bar" aria-labelledby="explore-title">
+            <div class="explore-controls">
+              <div class="explore-copy">
+                <h2 id="explore-title">Explore</h2>
+                <p
+                  class="explore-counts"
+                  aria-label={scopedCounts(shown)}
+                  aria-live="polite"
+                >
+                  <span class="explore-counts-full" aria-hidden="true">{scopedCounts(shown)}</span>
+                  <span class="explore-counts-compact" aria-hidden="true">
+                    {compactScopedCounts(shown)}
+                  </span>
+                </p>
+              </div>
+
+              <label class="filter-row">
+                <span class="filter-label">Showing</span>
+                {#if scopeOptions.length > 1}
+                  <span class="filter-control">
+                    <Select
+                      value={scopeKeyOf(viewScope)}
+                      options={scopeOptions}
+                      onchange={changeViewScope}
+                    />
+                  </span>
+                {:else}
+                  <span class="scope-static">{scopeOptions[0]?.label ?? 'Whole set'}</span>
+                {/if}
+              </label>
+
+              <label class="zoom-control" title="Card size">
+                <Icon name="search" size={12} />
+                <input
+                  type="range"
+                  min={GALLERY_CARD_SIZE.min}
+                  max={GALLERY_CARD_SIZE.max}
+                  step={GALLERY_CARD_SIZE.step}
+                  value={cardSize}
+                  aria-label="Card size"
+                  oninput={(event) => (cardSize = event.currentTarget.valueAsNumber)}
+                />
+              </label>
+
+              {#if compactLayout}
+                <button
+                  type="button"
+                  class="mobile-actions"
+                  aria-label="Open set actions"
+                  aria-haspopup="dialog"
+                  aria-controls="shared-set-actions"
+                  title="Actions"
+                  onclick={openActions}
+                >
+                  <Icon name="settings" size={16} />
+                  <span class="mobile-actions-label">Actions</span>
+                </button>
+              {/if}
+            </div>
+
+            {#if exploreLinks.length > 0}
+              <nav class="jump-nav" aria-label="Explore this set">
+                <span class="jump-label">Jump to</span>
+                <div class="jump-scroll">
+                  {#each exploreLinks as link (link.key)}
+                    <button
+                      type="button"
+                      class="jump-link"
+                      aria-controls={exploreAnchorId(link.key)}
+                      onclick={() => scrollToExplore(link.key)}
+                    >
+                      {link.label}
+                    </button>
+                  {/each}
+                </div>
+              </nav>
+            {/if}
+          </section>
+
+          <AssetsOverview
+            set={shown}
+            interactive={false}
+            inspectable
+            heading={false}
+            {cardSize}
+            showZoom={false}
+            anchorPrefix={EXPLORE_ANCHOR_PREFIX}
+          />
         </div>
 
         {#if !compactLayout}
@@ -824,7 +986,12 @@
         {/if}
       </div>
 
-      <dialog bind:this={actionsDialog} class="actions-sheet" aria-labelledby="actions-sheet-title">
+      <dialog
+        id="shared-set-actions"
+        bind:this={actionsDialog}
+        class="actions-sheet"
+        aria-labelledby="actions-sheet-title"
+      >
         {#if compactLayout}
           <div class="sheet-inner scroll-y">
             <header class="sheet-head">
@@ -1049,19 +1216,141 @@
 
   /* `AssetsOverview`'s own `.page` carries `flex: 1 1 auto`, which is what
      lets it still fill the column below this rather than needing a size of
-     its own here. */
-  .filter-row {
+     its own here. The bar is a flex sibling, not an overlay, so it stays put
+     while the Overview's own scroll container moves beneath it. */
+  .explore-bar {
+    position: relative;
+    z-index: var(--z-sticky);
     flex: none;
     display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    padding: var(--space-3) var(--space-8) var(--space-2);
+    border-bottom: 1px solid var(--border-default);
+    background: var(--surface-default);
+    box-shadow: var(--shadow-xs);
+  }
+
+  .explore-controls {
+    display: grid;
+    grid-template-columns: minmax(170px, auto) minmax(200px, 1fr) auto;
+    align-items: center;
+    gap: var(--space-4);
+    min-width: 0;
+  }
+
+  .explore-copy {
+    min-width: 0;
+    overflow: hidden;
+  }
+
+  .explore-copy h2 {
+    margin: 0;
+    font-family: var(--font-display);
+    font-size: var(--text-md);
+    font-weight: var(--weight-semibold);
+    color: var(--text-primary);
+  }
+
+  .explore-counts {
+    margin: 1px 0 0;
+    overflow: hidden;
+    font-size: var(--text-2xs);
+    color: var(--text-muted);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .explore-counts-compact {
+    display: none;
+  }
+
+  .filter-row {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
     align-items: center;
     gap: var(--space-3);
-    padding: var(--space-4) var(--space-8) 0;
+    min-width: 0;
   }
 
   .filter-label {
     font-size: var(--text-xs);
     font-weight: var(--weight-semibold);
     color: var(--text-tertiary);
+  }
+
+  .filter-control {
+    display: block;
+    min-width: 0;
+  }
+
+  .scope-static {
+    min-width: 0;
+    overflow: hidden;
+    color: var(--text-secondary);
+    font-size: var(--text-sm);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .zoom-control {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    color: var(--text-muted);
+  }
+
+  .zoom-control input {
+    width: 112px;
+  }
+
+  .jump-nav {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    min-width: 0;
+  }
+
+  .jump-label {
+    flex: none;
+    font-size: var(--text-2xs);
+    font-weight: var(--weight-semibold);
+    letter-spacing: var(--tracking-caps);
+    text-transform: uppercase;
+    color: var(--text-muted);
+  }
+
+  .jump-scroll {
+    display: flex;
+    gap: var(--space-1);
+    min-width: 0;
+    overflow-x: auto;
+    overscroll-behavior-inline: contain;
+    scrollbar-width: thin;
+  }
+
+  .jump-link {
+    flex: none;
+    min-height: 30px;
+    padding: 0 var(--space-3);
+    border: 1px solid transparent;
+    border-radius: var(--radius-full);
+    background: transparent;
+    color: var(--text-secondary);
+    font: inherit;
+    font-size: var(--text-xs);
+    cursor: pointer;
+    transition:
+      border-color var(--duration-fast) var(--ease-out),
+      background var(--duration-fast) var(--ease-out),
+      color var(--duration-fast) var(--ease-out);
+  }
+
+  .jump-link:hover,
+  .jump-link:focus-visible {
+    border-color: var(--border-default);
+    background: var(--surface-selected);
+    color: var(--text-default);
   }
 
   .mobile-actions {
@@ -1239,25 +1528,189 @@
     text-wrap: pretty;
   }
 
+  /* The export rail still exists just above the phone breakpoint, leaving the
+     gallery column too narrow for three useful controls on one line. */
+  @media (min-width: 701px) and (max-width: 900px) {
+    .explore-bar {
+      padding-inline: var(--space-4);
+    }
+
+    .explore-controls {
+      grid-template-areas:
+        'copy zoom'
+        'filter filter';
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: var(--space-2) var(--space-3);
+    }
+
+    .explore-copy {
+      grid-area: copy;
+      overflow: hidden;
+    }
+
+    .explore-counts {
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .filter-row {
+      grid-area: filter;
+    }
+
+    .zoom-control {
+      grid-area: zoom;
+    }
+  }
+
   /* The content is the page on a phone. Copying and exporting are still one
      tap away, but no longer take a permanent slice out of the card overview. */
   @media (max-width: 700px) {
+    .head {
+      align-items: flex-start;
+      gap: 0;
+      padding: var(--space-3) var(--space-4) var(--space-2);
+    }
+
+    .mark,
+    .head .eyebrow,
+    .header-detail {
+      display: none;
+    }
+
+    .titles {
+      width: 100%;
+      gap: 1px;
+    }
+
+    .title {
+      font-size: var(--text-md);
+      line-height: var(--leading-tight);
+    }
+
+    .subtitle,
+    .author-link {
+      font-size: var(--text-xs);
+    }
+
+    .subtitle {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .parent-link {
+      min-height: 44px;
+      margin-top: var(--space-1);
+    }
+
+    .header-engagement {
+      gap: var(--space-1);
+      margin-top: var(--space-1);
+    }
+
+    .engagement-button,
+    .engagement-count {
+      justify-content: center;
+      min-width: 44px;
+      min-height: 44px;
+      padding-inline: var(--space-2);
+    }
+
+    .engagement-label {
+      display: none;
+    }
+
     .split {
       grid-template-columns: minmax(0, 1fr);
     }
 
+    .explore-bar {
+      gap: var(--space-2);
+      padding: var(--space-2) var(--space-4);
+    }
+
+    .explore-controls {
+      grid-template-areas:
+        'copy actions'
+        'filter zoom';
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: var(--space-2) var(--space-3);
+    }
+
+    .explore-copy {
+      grid-area: copy;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      justify-content: center;
+      gap: 0;
+    }
+
+    .explore-copy h2 {
+      flex: none;
+      font-size: var(--text-sm);
+    }
+
+    .explore-counts {
+      min-width: 0;
+      margin: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .explore-counts-full {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
+    }
+
+    .explore-counts-compact {
+      display: inline;
+    }
+
     .filter-row {
-      padding: var(--space-4) var(--space-4) 0;
+      grid-area: filter;
+      display: block;
+    }
+
+    .filter-control :global(.select) {
+      min-height: 44px;
+    }
+
+    .filter-label {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
+    }
+
+    .zoom-control {
+      grid-area: zoom;
+      min-height: 44px;
+    }
+
+    .zoom-control input {
+      width: 76px;
     }
 
     .mobile-actions {
-      flex: none;
-      display: flex;
+      grid-area: actions;
+      display: inline-flex;
       align-items: center;
       justify-content: center;
-      gap: var(--space-2);
+      width: 44px;
       min-height: 44px;
-      margin: var(--space-3) var(--space-4) 0;
       border: 1px solid var(--border-default);
       border-radius: var(--radius-sm);
       background: var(--surface-default);
@@ -1265,6 +1718,36 @@
       font: inherit;
       font-size: var(--text-sm);
       font-weight: var(--weight-semibold);
+    }
+
+    .mobile-actions-label,
+    .jump-label {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
+    }
+
+    .jump-nav {
+      gap: 0;
+    }
+
+    .jump-scroll {
+      width: 100%;
+      scrollbar-width: none;
+    }
+
+    .jump-scroll::-webkit-scrollbar {
+      display: none;
+    }
+
+    .jump-link {
+      min-height: 44px;
     }
 
     .actions-sheet {
