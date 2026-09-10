@@ -55,7 +55,8 @@
     fetchAuthorName,
     fetchParentSet,
     fetchSetBySlug,
-    hydratePublishedSet
+    hydratePublishedSet,
+    readPublishedSet
   } from '$lib/cloud/sets';
   import type { PublishedSetWithDocument } from '$lib/cloud/sets';
   import { cloudEnabled } from '$lib/cloud/config';
@@ -94,7 +95,17 @@
   const SHOW_FORK = true;
 
   let row = $state<PublishedSetWithDocument | null>(null);
+  /** Immediate URL-backed copy, promoted to embedded assets after first paint. */
   let set = $state<AdventureSet | null>(null);
+  /** Fully embedded copy required by exports, printing and offline forks. */
+  let portableSet = $state.raw<AdventureSet | null>(null);
+  let portableProgress = $state<string | null>(null);
+  let portableError = $state<string | null>(null);
+  let portableBusy = $state(false);
+  let portablePromise: Promise<AdventureSet> | null = null;
+  let loadGeneration = 0;
+  let sharedLoadController: AbortController | null = null;
+
   let error = $state<string | null>(null);
   let loading = $state(true);
   let progress = $state<string | null>(null);
@@ -152,6 +163,68 @@
   let commentCount = $state(0);
   let reactionBusy = $state(false);
   let failedMastheadArtwork = $state<string[]>([]);
+
+  function openPrint(selected: AdventureSet): void {
+    printSet = selected;
+  }
+
+  function retryPreparation(): void {
+    const published = row;
+    if (!published) return;
+    portableError = null;
+    void preparePortable(published).catch(() => {
+      // `preparePortable` leaves the useful error beside the retry control.
+    });
+  }
+
+  function preparePortable(
+    published: PublishedSetWithDocument,
+    generation = loadGeneration,
+    signal = sharedLoadController?.signal
+  ): Promise<AdventureSet> {
+    if (portableSet && row?.id === published.id) return Promise.resolve(portableSet);
+    if (portablePromise && row?.id === published.id) return portablePromise;
+
+    portableBusy = true;
+    portableError = null;
+    portableProgress = 'Preparing downloads…';
+    const task = hydratePublishedSet(
+      published,
+      (done, total) => {
+        if (generation !== loadGeneration || row?.id !== published.id) return;
+        portableProgress =
+          total > 0 ? `Preparing artwork ${done} of ${total}…` : 'Preparing downloads…';
+      },
+      signal
+    )
+      .then((hydrated) => {
+        if (generation === loadGeneration && row?.id === published.id) {
+          /* Canvas and WebGL component previews cannot safely consume the
+             public URLs used for first paint. Keep that fast paint, then
+             promote the viewer to the embedded copy once it is available. */
+          set = hydrated;
+          portableSet = hydrated;
+          portableProgress = null;
+        }
+        return hydrated;
+      })
+      .catch((cause: unknown) => {
+        if (generation === loadGeneration && row?.id === published.id) {
+          portableError =
+            cause instanceof Error ? cause.message : 'Could not prepare this set for download.';
+          portableProgress = null;
+        }
+        throw cause;
+      })
+      .finally(() => {
+        if (generation === loadGeneration && row?.id === published.id) {
+          portableBusy = false;
+          if (portablePromise === task) portablePromise = null;
+        }
+      });
+    portablePromise = task;
+    return task;
+  }
 
   const canEngage = $derived(auth.signedIn && !auth.isAnonymous);
 
@@ -375,11 +448,20 @@
   $effect(() => {
     const wanted = slug;
     const hint = characterHint;
+    const generation = ++loadGeneration;
+    const controller = new AbortController();
+    sharedLoadController = controller;
     let current = true;
+    let cancelPreparation = (): void => {};
     loading = true;
     error = null;
     row = null;
     set = null;
+    portableSet = null;
+    portablePromise = null;
+    portableProgress = null;
+    portableError = null;
+    portableBusy = false;
     authorName = '';
     contributors = [];
     progress = null;
@@ -404,7 +486,7 @@
 
     void (async () => {
       try {
-        const found = await fetchSetBySlug(wanted);
+        const found = await fetchSetBySlug(wanted, controller.signal);
         if (!current) return;
         if (found === null) {
           // Withdrawn, made private, or simply mistyped — and deliberately not
@@ -433,14 +515,34 @@
           });
         }
         if (found.visibility === 'public') void refreshComments(found.id);
-        const hydrated = await hydratePublishedSet(found, (done, total) => {
-          if (current) progress = total > 0 ? `Fetching artwork ${done} of ${total}…` : null;
-        });
+        const readable = readPublishedSet(found);
         if (!current) return;
-        viewScope = scopeForPublishedView(found, hydrated, hint);
-        set = hydrated;
+        viewScope = scopeForPublishedView(found, readable, hint);
+        set = readable;
         requestAnimationFrame(() => scrollToExplore('top', false));
         progress = null;
+
+        /* Let the masthead and first Overview placeholders paint before the
+           work needed only by export/fork begins. It still starts on its own,
+           so those actions are usually ready by the time someone reaches
+           them; an immediate click simply awaits the same promise. */
+        const beginPreparation = (): void => {
+          if (!current || generation !== loadGeneration) return;
+          void preparePortable(found, generation, controller.signal).catch(() => {
+            // `portableError` is the user-facing result of a background failure.
+          });
+        };
+        const idleWindow = window as unknown as {
+          requestIdleCallback?: Window['requestIdleCallback'];
+          cancelIdleCallback?: Window['cancelIdleCallback'];
+        };
+        if (idleWindow.requestIdleCallback) {
+          const idleId = idleWindow.requestIdleCallback(beginPreparation, { timeout: 1200 });
+          cancelPreparation = () => idleWindow.cancelIdleCallback?.(idleId);
+        } else {
+          const timeoutId = window.setTimeout(beginPreparation, 250);
+          cancelPreparation = () => window.clearTimeout(timeoutId);
+        }
       } catch (cause) {
         if (current) error = cause instanceof Error ? cause.message : 'Could not open that set.';
       } finally {
@@ -450,6 +552,9 @@
 
     return () => {
       current = false;
+      cancelPreparation();
+      controller.abort();
+      if (sharedLoadController === controller) sharedLoadController = null;
     };
   });
 
@@ -463,11 +568,14 @@
   async function fork(): Promise<void> {
     if (!set || !row || forking) return;
     forking = true;
+    portableError = null;
     try {
-      // `$state.snapshot` because `forkSet` clones, and `structuredClone`
-      // throws on a reactive proxy.
-      const copy = forkSet($state.snapshot(set), sourceOf(row, authorName));
+      const source = portableSet ?? (await preparePortable(row));
+      const copy = forkSet(source, sourceOf(row, authorName));
       if (await workshop.addSet(copy)) forked = copy.name;
+    } catch (cause) {
+      portableError =
+        cause instanceof Error ? cause.message : 'Could not prepare this set for copying.';
     } finally {
       forking = false;
     }
@@ -1051,7 +1159,7 @@
         {/if}
       {/snippet}
 
-      {#snippet actions(currentSet: AdventureSet)}
+      {#snippet actions()}
         {#if SHOW_FORK || forked}
           <section class="panel">
             <h2 class="panel-title">Build on this</h2>
@@ -1070,7 +1178,7 @@
             {:else}
               <Button variant="primary" disabled={forking} onclick={fork}>
                 <Icon name="download" size={13} />
-                Make a copy to work on
+                {forking ? 'Preparing copy…' : 'Make a copy to work on'}
               </Button>
               <p class="fineprint">
                 Yours to change{authorName ? `, credited to ${authorName}` : ''}, and
@@ -1086,12 +1194,23 @@
           <p class="panel-hint">
             Shares the "Showing" pick above — change either one and the other follows.
           </p>
-          <ExportPanel
-            set={currentSet}
-            onprint={(selected) => (printSet = selected)}
-            bind:scope={viewScope}
-            projectFileMode="copy"
-          />
+          {#if portableSet}
+            <ExportPanel
+              set={portableSet}
+              onprint={openPrint}
+              bind:scope={viewScope}
+              projectFileMode="copy"
+            />
+          {:else}
+            <p class="panel-hint" aria-live="polite">
+              {portableError ?? portableProgress ?? 'Preparing download tools…'}
+            </p>
+            {#if portableError}
+              <Button size="sm" variant="ghost" disabled={portableBusy} onclick={retryPreparation}>
+                Try again
+              </Button>
+            {/if}
+          {/if}
         </section>
 
         {@render commentPanel()}
@@ -1193,6 +1312,7 @@
             set={shown}
             interactive={false}
             inspectable
+            componentPreviewsReady={portableSet !== null}
             heading={false}
             {cardSize}
             showZoom={false}
@@ -1202,7 +1322,7 @@
 
         {#if !compactLayout}
           <aside class="rail scroll-y">
-            {@render actions(set)}
+            {@render actions()}
           </aside>
         {/if}
       </div>
@@ -1221,7 +1341,7 @@
                 Close
               </button>
             </header>
-            {@render actions(set)}
+            {@render actions()}
           </div>
         {/if}
       </dialog>

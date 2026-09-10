@@ -875,10 +875,14 @@ export async function reportSet(setId: string, reason: string): Promise<void> {
  * function is `security definer` and returns at most one row, which is what
  * makes knowing the token the only way in.
  */
-export async function fetchSetBySlug(slug: string): Promise<PublishedSetWithDocument | null> {
+export async function fetchSetBySlug(
+  slug: string,
+  signal?: AbortSignal
+): Promise<PublishedSetWithDocument | null> {
   const rows = await request<PublishedSetWithDocument[]>('/rest/v1/rpc/set_by_slug', {
     method: 'POST',
     body: { share_slug: slug.trim() },
+    signal,
     /* Anonymous for the same reason the gallery is: the function is `security
        definer` and answers the same to everyone, so a share link that stopped
        working because the *reader* had an old session would be the worst
@@ -1030,17 +1034,38 @@ export async function fetchSetSummaryBySlug(slug: string): Promise<SetSummary | 
  */
 export async function hydratePublishedSet(
   row: PublishedSetWithDocument,
-  onProgress?: (done: number, total: number) => void
+  onProgress?: (done: number, total: number) => void,
+  signal?: AbortSignal
 ): Promise<AdventureSet> {
+  assertReadableSchema(row);
+  const document = await fetchAndEmbedAssets(row.document, assetPrefix(), onProgress, signal);
+  return parsePublishedDocument(document);
+}
+
+/**
+ * Open the public document without first turning every Storage URL back into
+ * a data URL.
+ *
+ * DOM renderers can display those public URLs directly, so this is the copy a
+ * shared page uses for its first paint. Export and fork paths must continue to
+ * use `hydratePublishedSet`: their result has to survive offline and their
+ * canvases cannot safely photograph remote artwork.
+ */
+export function readPublishedSet(row: PublishedSetWithDocument): AdventureSet {
+  assertReadableSchema(row);
+  return parsePublishedDocument(row.document);
+}
+
+function assertReadableSchema(row: PublishedSetWithDocument): void {
   if (row.schema_version > SET_SCHEMA_VERSION) {
     throw new CloudError(
       `That set was published from a newer version of the app (v${row.schema_version}).`,
       0
     );
   }
+}
 
-  const document = await fetchAndEmbedAssets(row.document, assetPrefix(), onProgress);
-
+function parsePublishedDocument(document: unknown): AdventureSet {
   /*
    * Back through `parseSetFile`, so a downloaded set passes the same validation
    * and repair as one imported from a file. The server is not trusted more than

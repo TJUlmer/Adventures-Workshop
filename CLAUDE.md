@@ -2005,6 +2005,36 @@ moment a viewer could filter at all, so `SharedSetScreen` mirrors that one
 control's value into what it passes `AssetsOverview`, rather than growing a
 second selector that could disagree with the first.
 
+**Opening a shared set has two documents with two different jobs.** The
+published JSON already contains public Storage URLs, and DOM renderers can
+show those directly, so `readPublishedSet` validates/normalises that copy and
+hands it to `SharedSetScreen` as soon as the row arrives. Waiting for
+`hydratePublishedSet` first used to make the entire page wait while every
+picture and model — including everything far below the fold — was downloaded
+and converted to a data URL. Hydration now begins after the first useful paint
+and produces a separate `portableSet`. Export, Print and Make a Copy only ever
+receive that portable copy: their canvases cannot safely photograph remote
+artwork, and a fork/project file must remain usable offline. Once it is ready,
+the viewer also promotes its rendering copy to the embedded document because
+token/dial textures and attached-model previews pass through canvas/WebGL and
+cannot reliably use cross-origin Storage URLs. Their 3D preview work is gated
+until that promotion, while ordinary cards and flat artwork still get the fast
+URL-backed first paint. An immediate action awaits the same guarded promise and
+shows its artwork progress; a share-link navigation aborts the stale requests,
+and the promise is also generation-checked so it cannot replace the next set
+even if an abort arrives too late.
+
+**The Overview preserves the whole page without mounting the whole page.** A
+deck or identity gallery below the shared view's internal scrollport starts as
+light card-shaped placeholders laid out by the exact same CSS grid. Its height,
+scrollbar and section anchor are therefore truthful, but none of its
+`CardRenderer`s exists until an `IntersectionObserver` sees the gallery within
+700px of the scrollport. Once revealed it stays revealed. Component reference
+tiles remain cheap, while WebGL/model snapshots wait until their section is
+near and run sequentially. Card inspection, the interactive component viewer,
+and their model helpers are dynamic chunks loaded on first use; the actual card
+renderer and every rendered result are unchanged.
+
 ### Contributions
 
 Rung 2, and the shape of the trust is the thing to hold on to: **a contribution

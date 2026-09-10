@@ -193,7 +193,8 @@ export function totalBytes(assets: readonly EmbeddedAsset[]): number {
 export async function fetchAndEmbedAssets<T>(
   document: T,
   prefix: string,
-  onProgress?: (done: number, total: number) => void
+  onProgress?: (done: number, total: number) => void,
+  signal?: AbortSignal
 ): Promise<T> {
   const urls = prefix ? collectPublishedAssets(document, prefix) : [];
   const mapping = new Map<string, string>();
@@ -203,14 +204,16 @@ export async function fetchAndEmbedAssets<T>(
 
   async function worker(): Promise<void> {
     for (;;) {
+      if (signal?.aborted) throw signal.reason;
       const index = cursor++;
       const url = urls[index];
       if (url === undefined) return;
       try {
-        const blob = await requestBlob(url);
+        const blob = await requestBlob(url, signal);
         const bytes = new Uint8Array(await blob.arrayBuffer());
         mapping.set(url, toDataUrl(blob.type || 'application/octet-stream', bytes));
-      } catch {
+      } catch (cause) {
+        if (signal?.aborted) throw cause;
         // See doc comment above.
       }
       done += 1;

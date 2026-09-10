@@ -23,7 +23,6 @@
   import type { Deck, DeckKind } from '$lib/decks/types';
   import type { Figure } from '$lib/figures/types';
   import { figureLabel, FIGURE_KIND_LABELS } from '$lib/figures/types';
-  import { renderMeshSnapshot } from '$lib/models/snapshot';
   import { CardRenderer, MapBoard, ThreatBoard } from '$lib/renderer';
   import { initiativeSubjectForCard, resolveStyleForCard } from '$lib/sets/queries';
   import type { AdventureSet } from '$lib/sets/types';
@@ -31,9 +30,6 @@
   import { navigation } from '$lib/state/navigation.svelte';
   import { workshop } from '$lib/state/workshop.svelte';
   import { EmptyState, Icon } from '$lib/ui';
-  import CardLightbox from './CardLightbox.svelte';
-  import ComponentModal from './ComponentModal.svelte';
-  import { figurePreviewKey, loadFigurePreview, releaseFigurePreview } from './figure-preview';
   import { GALLERY_CARD_SIZE } from './gallery-inspection';
   import type { GalleryCardItem, GalleryCardSide } from './gallery-inspection';
 
@@ -44,6 +40,11 @@
     interactive?: boolean;
     /** Whether read-only card and component tiles open focused inspection. */
     inspectable?: boolean;
+    /**
+     * Whether figure assets are safe to pass through canvas/WebGL. Shared
+     * views turn this on after their public Storage URLs have been embedded.
+     */
+    componentPreviewsReady?: boolean;
     /** Off where the screen around it has already named the set. */
     heading?: boolean;
     /** Controlled card width for a parent that owns the review toolbar. */
@@ -59,6 +60,7 @@
     set: given,
     interactive = true,
     inspectable = false,
+    componentPreviewsReady = true,
     heading = true,
     cardSize,
     showZoom = true,
@@ -83,6 +85,8 @@
   const editorTile = $derived(interactive ? 'button' : 'div');
   const previewTile = $derived(interactive || inspectable ? 'button' : 'div');
   const previewControl = $derived(interactive || inspectable);
+  const figurePreviewControl = $derived(interactive || (inspectable && componentPreviewsReady));
+  const figurePreviewTile = $derived(figurePreviewControl ? 'button' : 'div');
 
   /** The villain the track names, for the board's nameplate and burst. */
   const threatVillain = $derived(
@@ -108,64 +112,126 @@
    */
   let modelSnapshots = $state<Record<string, string>>({});
   const snapshotKeys: Record<string, string> = {};
+  let figuresNear = $state(false);
+  let visibleGalleries = $state<Record<string, boolean>>({});
+  let deferredSetId = '';
+
+  type CardLightboxView = (typeof import('./CardLightbox.svelte'))['default'];
+  type ComponentModalView = (typeof import('./ComponentModal.svelte'))['default'];
+  let CardLightbox = $state.raw<CardLightboxView | null>(null);
+  let ComponentModal = $state.raw<ComponentModalView | null>(null);
 
   $effect(() => {
-    for (const figure of set.figures) {
-      /*
-       * Per figure, inside the loop, so one unreadable component does not stop
-       * the others being previewed — and so a throw here cannot take the effect
-       * down with it. An effect that throws during mount does not just lose its
-       * own work; it breaks the graph, which is how "one bad figure" became "the
-       * page does not load".
-       */
-      let key: string | null;
-      try {
-        key = figurePreviewKey(figure);
-      } catch (error) {
-        delete snapshotKeys[figure.id];
-        delete modelSnapshots[figure.id];
-        report(`The token spec for ${figureLabel(figure, figureOwnerName(figure))}`, error);
-        continue;
-      }
-      if (!key) {
-        delete snapshotKeys[figure.id];
-        delete modelSnapshots[figure.id];
-        continue;
-      }
-      if (snapshotKeys[figure.id] === key) continue;
-      snapshotKeys[figure.id] = key;
-      delete modelSnapshots[figure.id];
+    if (set.id === deferredSetId) return;
+    deferredSetId = set.id;
+    visibleGalleries = {};
+    figuresNear = false;
+  });
 
-      const figureId = figure.id;
-      void (async () => {
+  /**
+   * Reveal expensive content shortly before it enters the Overview scroller.
+   * The placeholder inside `node` gives the observer real geometry, so a long
+   * page cannot collapse and accidentally reveal every group at once.
+   */
+  function revealNear(node: HTMLElement, reveal: () => void) {
+    let currentReveal = reveal;
+    if (typeof IntersectionObserver === 'undefined') {
+      currentReveal();
+      return { update: (next: () => void) => (currentReveal = next) };
+    }
+
+    const root = node.closest<HTMLElement>('.page');
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (!entries.some((entry) => entry.isIntersecting)) return;
+        currentReveal();
+        observer.disconnect();
+      },
+      { root, rootMargin: '700px 0px' }
+    );
+    observer.observe(node);
+    return {
+      update(next: () => void) {
+        currentReveal = next;
+      },
+      destroy() {
+        observer.disconnect();
+      }
+    };
+  }
+
+  function revealGallery(key: string): void {
+    if (!visibleGalleries[key]) visibleGalleries[key] = true;
+  }
+
+  function galleryVisible(key: string): boolean {
+    return visibleGalleries[key] ?? false;
+  }
+
+  $effect(() => {
+    if (!figuresNear || !componentPreviewsReady) return;
+    const figures = set.figures;
+    let cancelled = false;
+
+    void (async () => {
+      const [{ figurePreviewKey, loadFigurePreview, releaseFigurePreview }, { renderMeshSnapshot }] =
+        await Promise.all([import('./figure-preview'), import('$lib/models/snapshot')]);
+
+      for (const figure of figures) {
+        if (cancelled) return;
         /*
-         * Caught rather than left to reject. `loadMesh` throws on a model
-         * format it does not read and `models/gl.ts` throws when the browser
-         * will not give the page a 3D context — neither is a reason for a
-         * *review* page to have a hole in it, and as an unhandled rejection
-         * neither said anything useful either. The figure simply keeps its
-         * flat reference image, which is what a figure with no model shows.
+         * Per figure, inside the loop, so one unreadable component does not
+         * stop the others. Sequential snapshots also avoid asking several WebGL
+         * contexts to initialise during the same frame.
          */
+        let key: string | null;
+        try {
+          key = figurePreviewKey(figure);
+        } catch (error) {
+          delete snapshotKeys[figure.id];
+          delete modelSnapshots[figure.id];
+          report(`The token spec for ${figureLabel(figure, figureOwnerName(figure))}`, error);
+          continue;
+        }
+        if (!key) {
+          delete snapshotKeys[figure.id];
+          delete modelSnapshots[figure.id];
+          continue;
+        }
+        if (snapshotKeys[figure.id] === key) continue;
+        snapshotKeys[figure.id] = key;
+        delete modelSnapshots[figure.id];
+
         try {
           const preview = await loadFigurePreview(figure);
-          if (!preview) return;
+          if (!preview) continue;
           let snapshot: string | null;
           try {
             snapshot = await renderMeshSnapshot(preview.mesh, preview.texture, 160);
           } finally {
             releaseFigurePreview(preview);
           }
-          if (snapshot && snapshotKeys[figureId] === key) modelSnapshots[figureId] = snapshot;
+          if (!cancelled && snapshot && snapshotKeys[figure.id] === key) {
+            modelSnapshots[figure.id] = snapshot;
+          }
         } catch (error) {
           report(`A 3D preview of ${figureLabel(figure, figureOwnerName(figure))}`, error);
         }
-      })();
-    }
+      }
+    })().catch((error: unknown) => report('The component preview tools', error));
+
+    return () => {
+      cancelled = true;
+    };
   });
 
   /** Which faces a card contributes to the gallery. Only events have two. */
   const FRONT_ONLY = ['front'] as const;
   const EVENT_SIDES = ['front', 'back'] as const;
+
+  function renderedCardCount(cards: readonly Card[]): number {
+    return cards.reduce((total, card) => total + (card.type === 'event' ? 2 : 1), 0);
+  }
 
   /** Figures in the order a set is read: who it is played as, then against. */
   const ROLE_ORDER: readonly CharacterRole[] = ['hero', 'villain', 'minion', 'sidekick'];
@@ -384,6 +450,11 @@
     lightboxIndex = activeIndex;
     lightboxCollection = collection;
     lightboxSide = side;
+    if (!CardLightbox) {
+      void import('./CardLightbox.svelte')
+        .then((module) => (CardLightbox = module.default))
+        .catch((error: unknown) => report('The card lightbox', error));
+    }
   }
 
   function openGroupCard(group: Group, card: Card, side: GalleryCardSide): void {
@@ -410,7 +481,13 @@
   }
 
   function openFigure(figure: Figure): void {
-    if (inspectable) viewingFigureId = figure.id;
+    if (!inspectable) return;
+    viewingFigureId = figure.id;
+    if (!ComponentModal) {
+      void import('./ComponentModal.svelte')
+        .then((module) => (ComponentModal = module.default))
+        .catch((error: unknown) => report('The component viewer', error));
+    }
   }
 
   /**
@@ -450,6 +527,18 @@
     <span class="broken-title">{label} could not be drawn</span>
     <span class="broken-why">{message(error)}</span>
   </div>
+{/snippet}
+
+{#snippet galleryPlaceholders(count: number)}
+  {#each Array.from({ length: count }) as _, index (index)}
+    <figure class="tile placeholder" aria-hidden="true">
+      <span class="placeholder-card"></span>
+      <figcaption class="tile-caption">
+        <span class="placeholder-line"></span>
+        <span class="placeholder-line short"></span>
+      </figcaption>
+    </figure>
+  {/each}
 {/snippet}
 
 {#snippet deckBack(character: Character)}
@@ -526,58 +615,69 @@
 {/snippet}
 
 {#snippet deckGroup(group: Group)}
+  {@const galleryKey = `${set.id}:deck:${group.key}`}
+  {@const isVisible = galleryVisible(galleryKey)}
   <div class="deck-group">
     <h3 class="deck-title">
       {group.title}
       <span class="group-count numeric">{group.cards.length}</span>
     </h3>
-    <div class="gallery" style:--tile="{size}px">
-      {#each group.cards as card (card.id)}
-        {@const sides = card.type === 'event' ? EVENT_SIDES : FRONT_ONLY}
-        {#each sides as side (side)}
-          <figure class="tile">
-            <svelte:element
-              this={previewTile}
-              class="tile-card"
-              type={previewControl ? 'button' : undefined}
-              role={previewControl ? 'button' : undefined}
-              aria-haspopup={inspectable && !interactive ? 'dialog' : undefined}
-              aria-label={previewControl
-                ? `${interactive ? 'Edit' : 'View'} ${cardLabel(card)}${side === 'back' ? ', reverse' : ''}`
-                : undefined}
-              onclick={interactive
-                ? () => workshop.selectCard(card.id)
-                : inspectable
-                  ? () => openGroupCard(group, card, side)
+    <div
+      class="gallery"
+      style:--tile="{size}px"
+      aria-busy={!isVisible}
+      use:revealNear={() => revealGallery(galleryKey)}
+    >
+      {#if isVisible}
+        {#each group.cards as card (card.id)}
+          {@const sides = card.type === 'event' ? EVENT_SIDES : FRONT_ONLY}
+          {#each sides as side (side)}
+            <figure class="tile">
+              <svelte:element
+                this={previewTile}
+                class="tile-card"
+                type={previewControl ? 'button' : undefined}
+                role={previewControl ? 'button' : undefined}
+                aria-haspopup={inspectable && !interactive ? 'dialog' : undefined}
+                aria-label={previewControl
+                  ? `${interactive ? 'Edit' : 'View'} ${cardLabel(card)}${side === 'back' ? ', reverse' : ''}`
                   : undefined}
-            >
-              <svelte:boundary onerror={(error) => report(`Card “${cardLabel(card)}”`, error)}>
-                <CardRenderer
-                  {card}
-                  character={group.owner}
-                  theme={resolveStyleForCard(set, card)}
-                  customSymbols={set.customSymbols}
-                  initiativeSubject={initiativeSubjectForCard(set, card)}
-                  {side}
-                />
-                {#snippet failed(error)}
-                  {@render broken(`Card “${cardLabel(card)}”`, error)}
-                {/snippet}
-              </svelte:boundary>
-              {#if inspectable && !interactive}
-                <span class="inspect-cue" aria-hidden="true"><Icon name="search" size={13} /></span>
-              {/if}
-            </svelte:element>
-            <figcaption class="tile-caption">
-              <span class="tile-name">{cardLabel(card)}</span>
-              <span class="tile-meta">
-                {side === 'back' ? 'Reverse' : CARD_TYPE_META[card.type].label}
-                {#if card.quantity > 1}<span class="numeric">×{card.quantity}</span>{/if}
-              </span>
-            </figcaption>
-          </figure>
+                onclick={interactive
+                  ? () => workshop.selectCard(card.id)
+                  : inspectable
+                    ? () => openGroupCard(group, card, side)
+                    : undefined}
+              >
+                <svelte:boundary onerror={(error) => report(`Card “${cardLabel(card)}”`, error)}>
+                  <CardRenderer
+                    {card}
+                    character={group.owner}
+                    theme={resolveStyleForCard(set, card)}
+                    customSymbols={set.customSymbols}
+                    initiativeSubject={initiativeSubjectForCard(set, card)}
+                    {side}
+                  />
+                  {#snippet failed(error)}
+                    {@render broken(`Card “${cardLabel(card)}”`, error)}
+                  {/snippet}
+                </svelte:boundary>
+                {#if inspectable && !interactive}
+                  <span class="inspect-cue" aria-hidden="true"><Icon name="search" size={13} /></span>
+                {/if}
+              </svelte:element>
+              <figcaption class="tile-caption">
+                <span class="tile-name">{cardLabel(card)}</span>
+                <span class="tile-meta">
+                  {side === 'back' ? 'Reverse' : CARD_TYPE_META[card.type].label}
+                  {#if card.quantity > 1}<span class="numeric">×{card.quantity}</span>{/if}
+                </span>
+              </figcaption>
+            </figure>
+          {/each}
         {/each}
-      {/each}
+      {:else}
+        {@render galleryPlaceholders(renderedCardCount(group.cards))}
+      {/if}
     </div>
   </div>
 {/snippet}
@@ -695,20 +795,20 @@
         <span class="section-count numeric">{set.figures.length}</span>
       </header>
 
-      <div class="figures">
+      <div class="figures" use:revealNear={() => (figuresNear = true)}>
         {#each set.figures as figure (figure.id)}
           <svelte:element
-            this={previewTile}
+            this={figurePreviewTile}
             class="figure"
-            type={previewControl ? 'button' : undefined}
-            role={previewControl ? 'button' : undefined}
-            aria-haspopup={inspectable && !interactive ? 'dialog' : undefined}
-            aria-label={previewControl
+            type={figurePreviewControl ? 'button' : undefined}
+            role={figurePreviewControl ? 'button' : undefined}
+            aria-haspopup={inspectable && !interactive && componentPreviewsReady ? 'dialog' : undefined}
+            aria-label={figurePreviewControl
               ? `${interactive ? 'Edit' : 'View'} ${figureLabel(figure, figureOwnerName(figure))}`
               : undefined}
             onclick={interactive
               ? () => navigation.go('figures')
-              : inspectable
+              : inspectable && componentPreviewsReady
                 ? () => openFigure(figure)
                 : undefined}
           >
@@ -723,7 +823,7 @@
               {:else}
                 <Icon name="image" size={16} />
               {/if}
-              {#if inspectable && !interactive}
+              {#if inspectable && !interactive && componentPreviewsReady}
                 <span class="inspect-cue" aria-hidden="true"><Icon name="rotate" size={14} /></span>
               {/if}
             </span>
@@ -753,6 +853,8 @@
           {@const ownedGroups = groupsFor(character)}
           {@const statCards = characterCardsFor(character)}
           {@const ownedCardCount = ownedGroups.reduce((total, group) => total + group.cards.length, 0)}
+          {@const identityKey = `${set.id}:identity:${character.id}`}
+          {@const identityVisible = galleryVisible(identityKey)}
           <article class="character-collection" id={anchorId(`character-${character.id}`)}>
             <header class="character-heading">
               <div>
@@ -764,11 +866,20 @@
 
             <div class="identity-block">
               <h4>Identity</h4>
-              <div class="gallery identity-gallery" style:--tile="{size}px">
-                {@render deckBack(character)}
-                {#each statCards as tileEntry (tileEntry.key)}
-                  {@render characterCard(tileEntry)}
-                {/each}
+              <div
+                class="gallery identity-gallery"
+                style:--tile="{size}px"
+                aria-busy={!identityVisible}
+                use:revealNear={() => revealGallery(identityKey)}
+              >
+                {#if identityVisible}
+                  {@render deckBack(character)}
+                  {#each statCards as tileEntry (tileEntry.key)}
+                    {@render characterCard(tileEntry)}
+                  {/each}
+                {:else}
+                  {@render galleryPlaceholders(1 + statCards.length)}
+                {/if}
               </div>
             </div>
 
@@ -798,7 +909,7 @@
   {/if}
 </div>
 
-{#if inspectable}
+{#if inspectable && CardLightbox}
   <CardLightbox
     open={lightboxOpen}
     {set}
@@ -811,6 +922,8 @@
     onnext={() => moveLightbox(1)}
     onsidechange={(side) => (lightboxSide = side)}
   />
+{/if}
+{#if inspectable && ComponentModal}
   <ComponentModal
     open={viewingFigure !== null}
     figure={viewingFigure}
@@ -1081,6 +1194,38 @@
     flex-direction: column;
     gap: var(--space-2);
     margin: 0;
+  }
+
+  /* Same geometry as a real card tile, without mounting any renderer. Keeping
+     the grid's height stable is what makes both the scrollbar and jump links
+     truthful while a below-the-fold deck is deferred. */
+  .placeholder-card {
+    display: block;
+    width: 100%;
+    aspect-ratio: 63 / 88;
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-sm);
+    background:
+      linear-gradient(
+        145deg,
+        color-mix(in oklab, var(--surface-active) 70%, transparent),
+        transparent 60%
+      ),
+      var(--surface-inset);
+    box-shadow: var(--shadow-xs);
+  }
+
+  .placeholder-line {
+    display: block;
+    width: 68%;
+    height: 0.65em;
+    border-radius: var(--radius-full);
+    background: var(--surface-active);
+  }
+
+  .placeholder-line.short {
+    width: 42%;
+    opacity: 0.65;
   }
 
   .tile-card {
