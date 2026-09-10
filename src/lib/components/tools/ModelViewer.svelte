@@ -14,10 +14,13 @@
     mesh: Mesh | null;
     /** Painted over the mesh when it carries texture coordinates. */
     texture?: string | null;
-    height?: number;
+    /** A number is pixels; CSS lengths let modal callers follow the viewport. */
+    height?: number | string;
+    /** Lets a larger inspection surface fall back to reference artwork. */
+    onfailure?: (message: string | null) => void;
   }
 
-  let { mesh, texture = null, height = 260 }: Props = $props();
+  let { mesh, texture = null, height = 260, onfailure }: Props = $props();
 
   let canvas = $state<HTMLCanvasElement | null>(null);
   let failure = $state<string | null>(null);
@@ -27,6 +30,14 @@
   let pitch = $state(0.5);
   let zoom = $state(1);
   let dragging = $state(false);
+
+  function setFailure(message: string | null): void {
+    if (failure === message) return;
+    failure = message;
+    const currentCanvas = canvas;
+    if (message && currentCanvas && currentCanvas === document.activeElement) currentCanvas.blur();
+    onfailure?.(message);
+  }
 
   /**
    * One draw, through the shared 3D context rather than one of this canvas's
@@ -52,9 +63,9 @@
 
     try {
       drawMeshInto(canvas, mesh, textureImage, { yaw, pitch, zoom });
-      failure = null;
+      setFailure(null);
     } catch (cause) {
-      failure = cause instanceof Error ? cause.message : 'Could not draw the model.';
+      setFailure(cause instanceof Error ? cause.message : 'Could not draw the model.');
     }
   }
 
@@ -66,9 +77,17 @@
       textureImage = null;
       return;
     }
+    textureImage = null;
     const image = new Image();
-    image.onload = () => (textureImage = image);
+    let current = true;
+    image.onload = () => {
+      if (current) textureImage = image;
+    };
     image.src = source;
+    return () => {
+      current = false;
+      image.onload = null;
+    };
   });
 
   // Redraw when anything the picture depends on moves.
@@ -97,42 +116,72 @@
   $effect(() => onContextRestored(() => draw()));
 
   function orbit(event: PointerEvent): void {
-    if (!dragging) return;
+    if (!dragging || !event.isPrimary) return;
     yaw += event.movementX * 0.01;
     // Stopped just short of the poles, where the up vector flips and the
     // model appears to spin on its own.
     pitch = Math.min(1.5, Math.max(-1.5, pitch + event.movementY * 0.01));
   }
+
+  function reset(): void {
+    yaw = 0.6;
+    pitch = 0.5;
+    zoom = 1;
+  }
+
+  function changeZoom(factor: number): void {
+    zoom = Math.min(6, Math.max(0.3, zoom * factor));
+  }
+
+  function control(event: KeyboardEvent): void {
+    if (event.key === 'ArrowLeft') yaw -= 0.12;
+    else if (event.key === 'ArrowRight') yaw += 0.12;
+    else if (event.key === 'ArrowUp') pitch = Math.max(-1.5, pitch - 0.12);
+    else if (event.key === 'ArrowDown') pitch = Math.min(1.5, pitch + 0.12);
+    else if (event.key === '+' || event.key === '=') changeZoom(1.12);
+    else if (event.key === '-' || event.key === '_') changeZoom(0.89);
+    else if (event.key === '0') reset();
+    else return;
+    event.preventDefault();
+  }
 </script>
 
-<div class="viewer" style:height="{height}px">
+<div class="viewer" style:height={typeof height === 'number' ? `${height}px` : height}>
   {#if mesh && mesh.triangles > 0}
-    <!-- Drag to turn it, wheel to zoom. There is nothing here to activate. -->
+    <!-- The canvas itself takes keyboard focus; the visible buttons mirror zoom/reset for touch. -->
     <canvas
       bind:this={canvas}
       class:dragging
-      aria-label="3D preview, {mesh.triangles.toLocaleString()} triangles"
+      tabindex={failure ? -1 : 0}
+      aria-hidden={failure ? 'true' : undefined}
+      aria-label="Interactive 3D preview, {mesh.triangles.toLocaleString()} triangles. Drag or use arrow keys to rotate; plus and minus zoom."
       onpointerdown={(event) => {
+        if (!event.isPrimary || event.button !== 0) return;
         dragging = true;
         event.currentTarget.setPointerCapture(event.pointerId);
       }}
       onpointermove={orbit}
       onpointerup={(event) => {
         dragging = false;
-        event.currentTarget.releasePointerCapture(event.pointerId);
+        if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+          event.currentTarget.releasePointerCapture(event.pointerId);
+        }
       }}
       onpointercancel={() => (dragging = false)}
       onwheel={(event) => {
         event.preventDefault();
-        zoom = Math.min(6, Math.max(0.3, zoom * (event.deltaY > 0 ? 0.9 : 1.1)));
+        changeZoom(event.deltaY > 0 ? 0.9 : 1.1);
       }}
+      onkeydown={control}
     ></canvas>
 
     <div class="meta">
       <span class="numeric">{mesh.triangles.toLocaleString()} triangles</span>
-      <button type="button" class="reset" onclick={() => { yaw = 0.6; pitch = 0.5; zoom = 1; }}>
-        Reset view
-      </button>
+      <span class="controls" inert={Boolean(failure)} aria-hidden={failure ? 'true' : undefined}>
+        <button type="button" aria-label="Zoom out" onclick={() => changeZoom(0.89)}>−</button>
+        <button type="button" class="reset" onclick={reset}>Reset view</button>
+        <button type="button" aria-label="Zoom in" onclick={() => changeZoom(1.12)}>+</button>
+      </span>
     </div>
   {:else}
     <p class="empty">Nothing to show.</p>
@@ -176,17 +225,37 @@
     pointer-events: none;
   }
 
-  .reset {
+  .controls {
+    display: flex;
+    align-items: center;
+    gap: var(--space-1);
+    padding: 2px;
+    border-radius: var(--radius-sm);
+    background: color-mix(in oklab, var(--grey-1000) 62%, transparent);
     pointer-events: auto;
+  }
+
+  .controls button {
+    pointer-events: auto;
+    min-width: 24px;
+    min-height: 24px;
     padding: 2px var(--space-2);
     border-radius: var(--radius-xs);
     font-size: var(--text-2xs);
-    color: var(--text-muted);
+    color: var(--text-secondary);
   }
 
-  .reset:hover {
+  .controls button:hover {
     color: var(--text-primary);
     background: var(--surface-hover);
+  }
+
+  @media (pointer: coarse) {
+    .controls button {
+      min-width: 44px;
+      min-height: 44px;
+      background: var(--surface-inset);
+    }
   }
 
   .empty,

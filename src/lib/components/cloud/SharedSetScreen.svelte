@@ -814,7 +814,7 @@
               Actions
             </button>
           {/if}
-          <AssetsOverview set={shown} interactive={false} heading={false} />
+          <AssetsOverview set={shown} interactive={false} inspectable heading={false} />
         </div>
 
         {#if !compactLayout}

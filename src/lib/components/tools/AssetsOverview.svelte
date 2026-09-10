@@ -9,10 +9,9 @@
    * It is also what a published set looks like to a stranger, which is why it
    * takes the set as a prop rather than only reading the store: a shared set is
    * never in the library, so there is nothing in the store to read. That view
-   * passes `interactive={false}`, and the difference is only in the wrappers —
-   * a tile that opens the editor is a button, and one belonging to somebody
-   * else's set is not a control at all. What is *drawn* is identical, which is
-   * the point: a viewer sees the set, not a summary of it.
+   * passes `interactive={false}` and `inspectable`: those tiles open a reading
+   * view instead of an editor. What is *drawn* is identical, which is the point:
+   * a viewer sees the set, not a summary of it.
    */
   import { cardLabel } from '$lib/cards/factory';
   import type { Card } from '$lib/cards/types';
@@ -22,24 +21,28 @@
   import type { Character, CharacterRole, HeroCharacterCard } from '$lib/characters/types';
   import { hasArtwork } from '$lib/core/artwork';
   import type { Deck, DeckKind } from '$lib/decks/types';
-  import { resolvedTokenSpec, tokenTextureUrl } from '$lib/export/token-model';
-  import { figureLabel, FIGURE_KIND_LABELS, generatedTokenSpec } from '$lib/figures/types';
-  import { isViewableModel, loadMesh } from '$lib/models/load';
+  import type { Figure } from '$lib/figures/types';
+  import { figureLabel, FIGURE_KIND_LABELS } from '$lib/figures/types';
   import { renderMeshSnapshot } from '$lib/models/snapshot';
-  import { buildTokenMesh } from '$lib/models/token';
   import { CardRenderer, MapBoard, ThreatBoard } from '$lib/renderer';
-  import { resolveStyleForCard } from '$lib/sets/queries';
+  import { initiativeSubjectForCard, resolveStyleForCard } from '$lib/sets/queries';
   import type { AdventureSet } from '$lib/sets/types';
   import { threatTotal } from '$lib/threat/types';
   import { navigation } from '$lib/state/navigation.svelte';
   import { workshop } from '$lib/state/workshop.svelte';
   import { EmptyState, Icon } from '$lib/ui';
+  import CardLightbox from './CardLightbox.svelte';
+  import ComponentModal from './ComponentModal.svelte';
+  import { figurePreviewKey, loadFigurePreview, releaseFigurePreview } from './figure-preview';
+  import type { GalleryCardItem, GalleryCardSide } from './gallery-inspection';
 
   interface Props {
     /** The set to lay out. The open one unless another is handed in. */
     set?: AdventureSet;
     /** Whether a tile is a way in to the editor. Off for someone else's set. */
     interactive?: boolean;
+    /** Whether read-only card and component tiles open focused inspection. */
+    inspectable?: boolean;
     /** Off where the screen around it has already named the set. */
     heading?: boolean;
     /** Controlled card width for a parent that owns the review toolbar. */
@@ -52,6 +55,7 @@
   let {
     set: given,
     interactive = true,
+    inspectable = false,
     heading = true,
     cardSize,
     showZoom = true,
@@ -72,7 +76,9 @@
    * `<svelte:element>` is a handler on an unknown tag until the role says
    * otherwise. Both are dropped in the same breath as the handler.
    */
-  const tile = $derived(interactive ? 'button' : 'div');
+  const editorTile = $derived(interactive ? 'button' : 'div');
+  const previewTile = $derived(interactive || inspectable ? 'button' : 'div');
+  const previewControl = $derived(interactive || inspectable);
 
   /** The villain the track names, for the board's nameplate and burst. */
   const threatVillain = $derived(
@@ -99,16 +105,6 @@
   let modelSnapshots = $state<Record<string, string>>({});
   const snapshotKeys: Record<string, string> = {};
 
-  /** `generatedTokenSpec`, but a malformed token answers `null` rather than throwing. */
-  function tokenSpecFor(figure: (typeof set.figures)[number]) {
-    try {
-      return generatedTokenSpec(figure);
-    } catch (error) {
-      report(`The token spec for ${figureLabel(figure, figureOwnerName(figure))}`, error);
-      return null;
-    }
-  }
-
   $effect(() => {
     for (const figure of set.figures) {
       /*
@@ -118,17 +114,23 @@
        * own work; it breaks the graph, which is how "one bad figure" became "the
        * page does not load".
        */
-      const spec = tokenSpecFor(figure);
-      const modelName = figure.model?.name ?? '';
-      const modelSource = figure.model?.source ?? null;
-      const attached = !spec && modelSource !== null && isViewableModel(modelName);
-      if (!spec && !attached) continue;
-
-      const key = spec
-        ? `token|${JSON.stringify(spec)}|${figure.reference.source ?? ''}|${figure.token.rimColor}`
-        : `model|${modelSource}|${figure.reference.source ?? ''}`;
+      let key: string | null;
+      try {
+        key = figurePreviewKey(figure);
+      } catch (error) {
+        delete snapshotKeys[figure.id];
+        delete modelSnapshots[figure.id];
+        report(`The token spec for ${figureLabel(figure, figureOwnerName(figure))}`, error);
+        continue;
+      }
+      if (!key) {
+        delete snapshotKeys[figure.id];
+        delete modelSnapshots[figure.id];
+        continue;
+      }
       if (snapshotKeys[figure.id] === key) continue;
       snapshotKeys[figure.id] = key;
+      delete modelSnapshots[figure.id];
 
       const figureId = figure.id;
       void (async () => {
@@ -141,21 +143,15 @@
          * flat reference image, which is what a figure with no model shows.
          */
         try {
-          /*
-           * Resolved rather than trusted as stored: this page reviews sets it
-           * may not be the one actively editing them in, so a silhouette's
-           * outline here has to be re-checked for staleness itself rather
-           * than assuming `FiguresPanel`'s own retrace effect already ran —
-           * see `resolvedTokenSpec`. Read-only; never writes the outline
-           * back, matching every other reader of it.
-           */
-          const resolvedSpec = spec ? await resolvedTokenSpec(figure, spec) : null;
-          const mesh = resolvedSpec
-            ? buildTokenMesh(resolvedSpec)
-            : await loadMesh(modelName, modelSource ?? '');
-          const texture = resolvedSpec ? await tokenTextureUrl(figure) : figure.reference.source;
-          const snapshot = await renderMeshSnapshot(mesh, texture, 160);
-          if (snapshot) modelSnapshots[figureId] = snapshot;
+          const preview = await loadFigurePreview(figure);
+          if (!preview) return;
+          let snapshot: string | null;
+          try {
+            snapshot = await renderMeshSnapshot(preview.mesh, preview.texture, 160);
+          } finally {
+            releaseFigurePreview(preview);
+          }
+          if (snapshot && snapshotKeys[figureId] === key) modelSnapshots[figureId] = snapshot;
         } catch (error) {
           report(`A 3D preview of ${figureLabel(figure, figureOwnerName(figure))}`, error);
         }
@@ -326,6 +322,90 @@
       set.map.enabled
   );
 
+  let lightboxItems = $state<GalleryCardItem[]>([]);
+  let lightboxIndex = $state(0);
+  let lightboxSide = $state<GalleryCardSide>('front');
+  let lightboxCollection = $state('');
+  const lightboxOpen = $derived(inspectable && lightboxItems.length > 0);
+
+  let viewingFigureId = $state<string | null>(null);
+  const viewingFigure = $derived(
+    set.figures.find((figure) => figure.id === viewingFigureId) ?? null
+  );
+
+  function cardItem(group: Group, card: Card): GalleryCardItem {
+    return {
+      kind: 'card',
+      key: card.id,
+      label: cardLabel(card),
+      meta: CARD_TYPE_META[card.type].label,
+      card,
+      character: group.owner
+    };
+  }
+
+  function identityItems(character: Character): GalleryCardItem[] {
+    return [
+      {
+        kind: 'deck-back',
+        key: `deck-back:${character.id}`,
+        label: characterLabel(character),
+        meta: 'Deck back',
+        character
+      },
+      ...characterCardsFor(character).map((entry) => ({
+        kind: 'character-card' as const,
+        key: `character-card:${entry.key}`,
+        label: entry.name,
+        meta: 'Character card',
+        character,
+        entry: entry.entry
+      }))
+    ];
+  }
+
+  function openCards(
+    items: GalleryCardItem[],
+    key: string,
+    collection: string,
+    side: GalleryCardSide = 'front'
+  ): void {
+    if (!inspectable) return;
+    const activeIndex = items.findIndex((item) => item.key === key);
+    if (activeIndex < 0) return;
+    lightboxItems = items;
+    lightboxIndex = activeIndex;
+    lightboxCollection = collection;
+    lightboxSide = side;
+  }
+
+  function openGroupCard(group: Group, card: Card, side: GalleryCardSide): void {
+    openCards(group.cards.map((entry) => cardItem(group, entry)), card.id, group.title, side);
+  }
+
+  function openIdentity(character: Character, key: string): void {
+    openCards(identityItems(character), key, `${characterLabel(character)} · Identity`);
+  }
+
+  function moveLightbox(delta: number): void {
+    const next = Math.min(lightboxItems.length - 1, Math.max(0, lightboxIndex + delta));
+    if (next === lightboxIndex) return;
+    lightboxIndex = next;
+    const nextItem = lightboxItems[next];
+    if (nextItem?.kind !== 'card' || nextItem.card.type !== 'event') lightboxSide = 'front';
+  }
+
+  function closeLightbox(): void {
+    lightboxItems = [];
+    lightboxIndex = 0;
+    lightboxSide = 'front';
+    lightboxCollection = '';
+  }
+
+  function openFigure(figure: Figure): void {
+    if (inspectable) viewingFigureId = figure.id;
+  }
+
   /**
    * One tile failing must not take the page with it.
    *
@@ -368,11 +448,19 @@
 {#snippet deckBack(character: Character)}
   <figure class="tile identity-tile">
     <svelte:element
-      this={tile}
+      this={previewTile}
       class="tile-card"
-      type={interactive ? 'button' : undefined}
-      role={interactive ? 'button' : undefined}
-      onclick={interactive ? () => workshop.selectCharacter(character.id) : undefined}
+      type={previewControl ? 'button' : undefined}
+      role={previewControl ? 'button' : undefined}
+      aria-haspopup={inspectable && !interactive ? 'dialog' : undefined}
+      aria-label={previewControl
+        ? `${interactive ? 'Edit' : 'View'} ${characterLabel(character)} deck back`
+        : undefined}
+      onclick={interactive
+        ? () => workshop.selectCharacter(character.id)
+        : inspectable
+          ? () => openIdentity(character, `deck-back:${character.id}`)
+          : undefined}
     >
       <svelte:boundary onerror={(error) => report(`${characterLabel(character)}'s deck back`, error)}>
         <CardRenderer card={null} cardback={character} />
@@ -380,6 +468,9 @@
           {@render broken(`${characterLabel(character)}'s deck back`, error)}
         {/snippet}
       </svelte:boundary>
+      {#if inspectable && !interactive}
+        <span class="inspect-cue" aria-hidden="true"><Icon name="search" size={13} /></span>
+      {/if}
     </svelte:element>
     <figcaption class="tile-caption">
       <span class="tile-name">{characterLabel(character)}</span>
@@ -391,11 +482,19 @@
 {#snippet characterCard(tileEntry: CharacterCardTile)}
   <figure class="tile identity-tile">
     <svelte:element
-      this={tile}
+      this={previewTile}
       class="tile-card"
-      type={interactive ? 'button' : undefined}
-      role={interactive ? 'button' : undefined}
-      onclick={interactive ? () => workshop.selectCharacter(tileEntry.character.id) : undefined}
+      type={previewControl ? 'button' : undefined}
+      role={previewControl ? 'button' : undefined}
+      aria-haspopup={inspectable && !interactive ? 'dialog' : undefined}
+      aria-label={previewControl
+        ? `${interactive ? 'Edit' : 'View'} ${tileEntry.name} character card`
+        : undefined}
+      onclick={interactive
+        ? () => workshop.selectCharacter(tileEntry.character.id)
+        : inspectable
+          ? () => openIdentity(tileEntry.character, `character-card:${tileEntry.key}`)
+          : undefined}
     >
       <svelte:boundary onerror={(error) => report(`${tileEntry.name}'s character card`, error)}>
         <CardRenderer
@@ -408,6 +507,9 @@
           {@render broken(`${tileEntry.name}'s character card`, error)}
         {/snippet}
       </svelte:boundary>
+      {#if inspectable && !interactive}
+        <span class="inspect-cue" aria-hidden="true"><Icon name="search" size={13} /></span>
+      {/if}
     </svelte:element>
     <figcaption class="tile-caption">
       <span class="tile-name">{tileEntry.name}</span>
@@ -428,11 +530,19 @@
         {#each sides as side (side)}
           <figure class="tile">
             <svelte:element
-              this={tile}
+              this={previewTile}
               class="tile-card"
-              type={interactive ? 'button' : undefined}
-              role={interactive ? 'button' : undefined}
-              onclick={interactive ? () => workshop.selectCard(card.id) : undefined}
+              type={previewControl ? 'button' : undefined}
+              role={previewControl ? 'button' : undefined}
+              aria-haspopup={inspectable && !interactive ? 'dialog' : undefined}
+              aria-label={previewControl
+                ? `${interactive ? 'Edit' : 'View'} ${cardLabel(card)}${side === 'back' ? ', reverse' : ''}`
+                : undefined}
+              onclick={interactive
+                ? () => workshop.selectCard(card.id)
+                : inspectable
+                  ? () => openGroupCard(group, card, side)
+                  : undefined}
             >
               <svelte:boundary onerror={(error) => report(`Card “${cardLabel(card)}”`, error)}>
                 <CardRenderer
@@ -440,12 +550,16 @@
                   character={group.owner}
                   theme={resolveStyleForCard(set, card)}
                   customSymbols={set.customSymbols}
+                  initiativeSubject={initiativeSubjectForCard(set, card)}
                   {side}
                 />
                 {#snippet failed(error)}
                   {@render broken(`Card “${cardLabel(card)}”`, error)}
                 {/snippet}
               </svelte:boundary>
+              {#if inspectable && !interactive}
+                <span class="inspect-cue" aria-hidden="true"><Icon name="search" size={13} /></span>
+              {/if}
             </svelte:element>
             <figcaption class="tile-caption">
               <span class="tile-name">{cardLabel(card)}</span>
@@ -515,7 +629,7 @@
               <span class="numeric">{threatTotal(set.threat)} total</span>
             </header>
             <svelte:element
-              this={tile}
+              this={editorTile}
               class="track-open"
               type={interactive ? 'button' : undefined}
               role={interactive ? 'button' : undefined}
@@ -545,7 +659,7 @@
               </span>
             </header>
             <svelte:element
-              this={tile}
+              this={editorTile}
               class="track-open"
               type={interactive ? 'button' : undefined}
               role={interactive ? 'button' : undefined}
@@ -577,11 +691,19 @@
       <div class="figures">
         {#each set.figures as figure (figure.id)}
           <svelte:element
-            this={tile}
+            this={previewTile}
             class="figure"
-            type={interactive ? 'button' : undefined}
-            role={interactive ? 'button' : undefined}
-            onclick={interactive ? () => navigation.go('figures') : undefined}
+            type={previewControl ? 'button' : undefined}
+            role={previewControl ? 'button' : undefined}
+            aria-haspopup={inspectable && !interactive ? 'dialog' : undefined}
+            aria-label={previewControl
+              ? `${interactive ? 'Edit' : 'View'} ${figureLabel(figure, figureOwnerName(figure))}`
+              : undefined}
+            onclick={interactive
+              ? () => navigation.go('figures')
+              : inspectable
+                ? () => openFigure(figure)
+                : undefined}
           >
             <span
               class="figure-thumb"
@@ -593,6 +715,9 @@
                 <img src={figure.reference.source} alt="" />
               {:else}
                 <Icon name="image" size={16} />
+              {/if}
+              {#if inspectable && !interactive}
+                <span class="inspect-cue" aria-hidden="true"><Icon name="rotate" size={14} /></span>
               {/if}
             </span>
             <span class="figure-name">{figureLabel(figure, figureOwnerName(figure))}</span>
@@ -665,6 +790,27 @@
     </section>
   {/if}
 </div>
+
+{#if inspectable}
+  <CardLightbox
+    open={lightboxOpen}
+    {set}
+    collection={lightboxCollection}
+    items={lightboxItems}
+    index={lightboxIndex}
+    side={lightboxSide}
+    onclose={closeLightbox}
+    onprevious={() => moveLightbox(-1)}
+    onnext={() => moveLightbox(1)}
+    onsidechange={(side) => (lightboxSide = side)}
+  />
+  <ComponentModal
+    open={viewingFigure !== null}
+    figure={viewingFigure}
+    ownerName={viewingFigure ? figureOwnerName(viewingFigure) : null}
+    onclose={() => (viewingFigureId = null)}
+  />
+{/if}
 
 <style>
   .page {
@@ -929,6 +1075,7 @@
   }
 
   .tile-card {
+    position: relative;
     display: block;
     padding: 0;
     border-radius: var(--radius-sm);
@@ -955,6 +1102,39 @@
   button.tile-card:hover {
     translate: 0 -2px;
     box-shadow: var(--shadow-lg);
+  }
+
+  .inspect-cue {
+    position: absolute;
+    top: var(--space-2);
+    right: var(--space-2);
+    display: grid;
+    place-items: center;
+    width: 28px;
+    height: 28px;
+    border: 1px solid color-mix(in oklab, var(--text-primary) 22%, transparent);
+    border-radius: var(--radius-full);
+    background: color-mix(in oklab, var(--grey-1000) 72%, transparent);
+    color: var(--text-inverse);
+    opacity: 0;
+    translate: 0 2px;
+    transition:
+      opacity var(--duration-fast) var(--ease-out),
+      translate var(--duration-fast) var(--ease-out);
+    pointer-events: none;
+  }
+
+  button:hover .inspect-cue,
+  button:focus-visible .inspect-cue {
+    opacity: 1;
+    translate: 0;
+  }
+
+  @media (pointer: coarse) {
+    .inspect-cue {
+      opacity: 1;
+      translate: 0;
+    }
   }
 
   .tile-caption {
@@ -1035,6 +1215,7 @@
   }
 
   .figure-thumb {
+    position: relative;
     display: grid;
     place-items: center;
     width: 100%;
