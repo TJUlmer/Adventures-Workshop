@@ -27,8 +27,10 @@
    * a viewer sees cannot drift from what the author approved.
    */
   import { untrack } from 'svelte';
+  import { fillCss } from '$lib/cards/style';
+  import { resolveCardTheme } from '$lib/cards/theme';
   import { characterLabel } from '$lib/characters/factory';
-  import type { CharacterId } from '$lib/characters/types';
+  import type { Character, CharacterId } from '$lib/characters/types';
   import ExportPanel from '$lib/components/export/ExportPanel.svelte';
   import AssetsOverview from '$lib/components/tools/AssetsOverview.svelte';
   import { GALLERY_CARD_SIZE } from '$lib/components/tools/gallery-inspection';
@@ -48,6 +50,7 @@
     setLiked
   } from '$lib/cloud/engagement';
   import type { FavouriteTarget, SetComment } from '$lib/cloud/engagement';
+  import { coverArtwork } from '$lib/cloud/thumbnail';
   import {
     fetchAuthorName,
     fetchParentSet,
@@ -57,6 +60,7 @@
   import type { PublishedSetWithDocument } from '$lib/cloud/sets';
   import { cloudEnabled } from '$lib/cloud/config';
   import PrintScreen from '$lib/print/PrintScreen.svelte';
+  import { displayFontStack, displayFontWeight } from '$lib/renderer/fonts';
   import { forkSet, sourceOf } from '$lib/sets/fork';
   import { computeScopedSet, parseScopeKey, scopeKeyOf, scopeOptionsFor } from '$lib/sets/scope';
   import { charactersByRole, setStats } from '$lib/sets/queries';
@@ -103,11 +107,7 @@
    * who arrived by clicking one specific hero inside a box with no listing
    * of its own.
    */
-  let viewScope = $state<PublishScope>(
-    untrack(() =>
-      characterHint ? { kind: 'hero', characterId: characterHint as CharacterId } : { kind: 'full' }
-    )
-  );
+  let viewScope = $state<PublishScope>({ kind: 'full' });
   let previousScopeKey = untrack(() => scopeKeyOf(viewScope));
 
   /*
@@ -151,8 +151,182 @@
   let likeCount = $state(0);
   let commentCount = $state(0);
   let reactionBusy = $state(false);
+  let failedMastheadArtwork = $state<string[]>([]);
 
   const canEngage = $derived(auth.signedIn && !auth.isAnonymous);
+
+  type MastheadMode = 'hero' | 'villain' | 'adventure' | 'set';
+
+  /**
+   * The masthead celebrates what the visitor is actually looking at, not
+   * merely the database row that got them here. A character-gallery click is
+   * a full-set URL plus `characterHint`, so using `set.name` alone is exactly
+   * how a Maui page kept announcing Forgotten Pantheons above Maui's cards.
+   */
+  const shownSet = $derived(set ? computeScopedSet(set, viewScope) : null);
+
+  const mastheadMode = $derived.by((): MastheadMode => {
+    if (viewScope.kind === 'hero' || (viewScope.kind === 'full' && row?.scope === 'hero')) {
+      return 'hero';
+    }
+    if (viewScope.kind === 'villain' || (viewScope.kind === 'full' && row?.scope === 'villain')) {
+      return 'villain';
+    }
+    if (!set) return row?.kind === 'adventure' ? 'adventure' : 'set';
+    if (set.kind === 'adventure') return 'adventure';
+    return charactersByRole(set, 'hero').length === 1 ? 'hero' : 'set';
+  });
+
+  const mastheadCharacter = $derived.by((): Character | null => {
+    const currentSet = set;
+    const currentScope = viewScope;
+    const currentRow = row;
+    if (!currentSet) return null;
+    if (currentScope.kind === 'hero') {
+      return (
+        currentSet.characters.find((character) => character.id === currentScope.characterId) ?? null
+      );
+    }
+    if (currentScope.kind === 'villain' || currentRow?.scope === 'villain') {
+      return charactersByRole(currentSet, 'villain')[0] ?? null;
+    }
+    if (currentRow?.scope === 'hero') {
+      return (
+        currentSet.characters.find((character) => character.id === currentRow.character_id) ??
+        charactersByRole(currentSet, 'hero')[0] ??
+        null
+      );
+    }
+    if (currentSet.kind === 'heroes' && charactersByRole(currentSet, 'hero').length === 1) {
+      return charactersByRole(currentSet, 'hero')[0] ?? null;
+    }
+    return null;
+  });
+
+  const mastheadThemeCharacter = $derived(
+    mastheadCharacter ??
+      (set ? charactersByRole(set, 'villain')[0] ?? charactersByRole(set, 'hero')[0] ?? null : null)
+  );
+  const mastheadTheme = $derived(
+    resolveCardTheme(
+      set?.style ?? null,
+      mastheadThemeCharacter?.style ?? null,
+      null,
+      'action',
+      mastheadThemeCharacter?.role
+    )
+  );
+  const mastheadAccent = $derived(
+    (mastheadMode === 'adventure' || mastheadMode === 'villain') && set?.threat.enabled
+      ? set.threat.accent
+      : fillCss(mastheadTheme.banner)
+  );
+  const mastheadCover = $derived(shownSet ? coverArtwork(shownSet) : null);
+  const mastheadSubjectIsScoped = $derived(
+    viewScope.kind !== 'full' || row?.scope === 'hero' || row?.scope === 'villain'
+  );
+  const mastheadTitle = $derived(shownSet?.name || row?.name || 'Opening…');
+  const mastheadContext = $derived(shownSet?.subtitle || row?.subtitle || '');
+  const mastheadKicker = $derived(
+    mastheadMode === 'hero'
+      ? 'Meet the hero'
+      : mastheadMode === 'villain'
+        ? 'Face the villain'
+        : mastheadMode === 'adventure'
+          ? 'Enter the adventure'
+          : 'Discover the set'
+  );
+  const mastheadCoverUrl = $derived(mastheadCover?.source ?? '');
+  const mastheadBackdropCandidates = $derived(
+    mastheadSubjectIsScoped
+      ? artworkCandidates(mastheadCoverUrl, row?.thumbnail_url, row?.cover_url)
+      : artworkCandidates(
+          row?.thumbnail_url,
+          mastheadCoverUrl,
+          row?.cover_url,
+          row?.social_image_url
+        )
+  );
+  const mastheadPosterCandidates = $derived.by(() => {
+    if (mastheadSubjectIsScoped) {
+      if (row?.scope === 'hero' && viewScope.kind === 'full') {
+        return artworkCandidates(
+          row.social_image_url,
+          mastheadCoverUrl,
+          row.thumbnail_url,
+          row.cover_url
+        );
+      }
+      return artworkCandidates(mastheadCoverUrl, row?.thumbnail_url, row?.cover_url);
+    }
+    if (mastheadMode === 'hero' || mastheadMode === 'set') {
+      return artworkCandidates(
+        row?.social_image_url,
+        mastheadCoverUrl,
+        row?.thumbnail_url,
+        row?.cover_url
+      );
+    }
+    return artworkCandidates(
+      row?.thumbnail_url,
+      mastheadCoverUrl,
+      row?.social_image_url,
+      row?.cover_url
+    );
+  });
+  const mastheadBackdropUrl = $derived(
+    mastheadBackdropCandidates.find((url) => !failedMastheadArtwork.includes(url)) ?? ''
+  );
+  const mastheadPosterUrl = $derived(
+    mastheadPosterCandidates.find((url) => !failedMastheadArtwork.includes(url)) ?? ''
+  );
+  const mastheadPosterIsComposition = $derived(
+    Boolean(row?.social_image_url && mastheadPosterUrl === row.social_image_url)
+  );
+
+  function artworkCandidates(...candidates: Array<string | null | undefined>): string[] {
+    const unique: string[] = [];
+    for (const candidate of candidates) {
+      if (candidate && !unique.includes(candidate)) unique.push(candidate);
+    }
+    return unique;
+  }
+
+  function rejectMastheadArtwork(event: Event): void {
+    const source = (event.currentTarget as HTMLImageElement).getAttribute('src');
+    if (source && !failedMastheadArtwork.includes(source)) {
+      failedMastheadArtwork = [...failedMastheadArtwork, source];
+    }
+  }
+
+  /**
+   * A gallery character hint can identify any roster role. Heroes have their
+   * own scope; a villain or minion belongs to the one combined villain side.
+   * Published slices already state their scope and therefore take priority.
+   */
+  function scopeForPublishedView(
+    published: PublishedSetWithDocument,
+    hydrated: AdventureSet,
+    hint: string | undefined
+  ): PublishScope {
+    if (published.scope === 'villain') return { kind: 'villain' };
+    if (published.scope === 'hero') {
+      const characterId = published.character_id || hint;
+      return characterId
+        ? { kind: 'hero', characterId: characterId as CharacterId }
+        : { kind: 'full' };
+    }
+    if (!hint) return { kind: 'full' };
+
+    const character = hydrated.characters.find((candidate) => candidate.id === hint);
+    if (character?.role === 'hero') {
+      return { kind: 'hero', characterId: character.id };
+    }
+    if (character?.role === 'villain' || character?.role === 'minion') {
+      return { kind: 'villain' };
+    }
+    return { kind: 'full' };
+  }
 
   /**
    * The whole set this one was sliced out of, for a hero- or villain-scoped
@@ -200,8 +374,16 @@
 
   $effect(() => {
     const wanted = slug;
+    const hint = characterHint;
+    let current = true;
     loading = true;
     error = null;
+    row = null;
+    set = null;
+    authorName = '';
+    contributors = [];
+    progress = null;
+    failedMastheadArtwork = [];
     forked = null;
     parent = null;
     comments = [];
@@ -218,11 +400,12 @@
     commentCount = 0;
     // A stale hero id from the previous set would otherwise survive the
     // navigation and quietly filter the overview down to nothing.
-    viewScope = characterHint ? { kind: 'hero', characterId: characterHint as CharacterId } : { kind: 'full' };
+    viewScope = { kind: 'full' };
 
     void (async () => {
       try {
         const found = await fetchSetBySlug(wanted);
+        if (!current) return;
         if (found === null) {
           // Withdrawn, made private, or simply mistyped — and deliberately not
           // distinguished, since telling a stranger "that one exists but is
@@ -235,26 +418,39 @@
         commentCount = found.comment_count ?? 0;
         // Fired off rather than awaited: the credit is wanted for the fork
         // button, and nothing on the page should wait on a display name.
-        void fetchAuthorName(found.owner_id).then((name) => (authorName = name));
-        void listContributors(found.id).then((people) => (contributors = people));
+        void fetchAuthorName(found.owner_id).then((name) => {
+          if (current) authorName = name;
+        });
+        void listContributors(found.id).then((people) => {
+          if (current) contributors = people;
+        });
         /* Only a slice has a box to go back to, and like the credit above this
            is fired off rather than awaited — a navigation aid must not hold up
            the set it sits over. */
         if (found.scope !== 'full') {
-          void fetchParentSet(found.owner_id, found.local_id).then((box) => (parent = box));
+          void fetchParentSet(found.owner_id, found.local_id).then((box) => {
+            if (current) parent = box;
+          });
         }
         if (found.visibility === 'public') void refreshComments(found.id);
-        set = await hydratePublishedSet(found, (done, total) => {
-          progress = total > 0 ? `Fetching artwork ${done} of ${total}…` : null;
+        const hydrated = await hydratePublishedSet(found, (done, total) => {
+          if (current) progress = total > 0 ? `Fetching artwork ${done} of ${total}…` : null;
         });
+        if (!current) return;
+        viewScope = scopeForPublishedView(found, hydrated, hint);
+        set = hydrated;
         requestAnimationFrame(() => scrollToExplore('top', false));
         progress = null;
       } catch (cause) {
-        error = cause instanceof Error ? cause.message : 'Could not open that set.';
+        if (current) error = cause instanceof Error ? cause.message : 'Could not open that set.';
       } finally {
-        loading = false;
+        if (current) loading = false;
       }
     })();
+
+    return () => {
+      current = false;
+    };
   });
 
   /**
@@ -535,36 +731,103 @@
   <PrintScreen set={printSet} onback={() => (printSet = null)} />
 {:else}
   <div class="screen">
-    <header class="head">
-      <span class="mark" aria-hidden="true"></span>
+    <header
+      class="head"
+      class:has-poster={Boolean(mastheadPosterUrl)}
+      style:--masthead-base={fillCss(mastheadTheme.frame)}
+      style:--masthead-accent={mastheadAccent}
+      style:--masthead-title-font={displayFontStack(mastheadTheme.displayFont)}
+      style:--masthead-title-weight={displayFontWeight(mastheadTheme.displayFont)}
+    >
+      <!-- The art is atmosphere rather than content; the heading below is the identity. -->
+      <div class="masthead-visual" aria-hidden="true">
+        {#if mastheadBackdropUrl}
+          <img
+            class="masthead-backdrop"
+            src={mastheadBackdropUrl}
+            alt=""
+            draggable="false"
+            onerror={rejectMastheadArtwork}
+          />
+        {/if}
+        <span class="masthead-scrim"></span>
+        <span class="masthead-lines"></span>
+        <span class="masthead-blade"></span>
+        <span class="masthead-ghost">{mastheadTitle}</span>
+      </div>
+
+      {#if mastheadPosterUrl}
+        <div
+          class="masthead-poster"
+          class:composition={mastheadPosterIsComposition}
+          aria-hidden="true"
+        >
+          <div class="masthead-poster-window">
+            <img
+              src={mastheadPosterUrl}
+              alt=""
+              draggable="false"
+              onerror={rejectMastheadArtwork}
+            />
+          </div>
+        </div>
+      {/if}
 
       <div class="titles">
-        <span class="eyebrow">Shared adventure set</span>
-        <h1 class="title">{set?.name ?? row?.name ?? 'Opening…'}</h1>
-        {#if set?.subtitle}<p class="subtitle">{set.subtitle}</p>{/if}
+        <span class="eyebrow">{mastheadKicker}</span>
+        <h1 class="title">{mastheadTitle}</h1>
+        {#if mastheadContext}<p class="subtitle">{mastheadContext}</p>{/if}
 
-        <!--
-          The creator, clearly visible at the top of their own set — not
-          buried in the fork fineprint below, which is the only place a name
-          showed before this. Bound through `@const` for the same reason the
-          box link below is: the `{#if}` cannot narrow a reactive read for a
-          callback that runs after it.
-        -->
-        {#if authorName && row}
-          {@const ownerId = row.owner_id}
-          <button type="button" class="author-link" onclick={() => navigation.openAuthor(ownerId)}>
-            By {authorName}
-          </button>
-        {/if}
+        <div class="masthead-identity-row">
+          <!--
+            The creator, clearly visible at the top of their own set — not
+            buried in the fork fineprint below. Bound through `@const` because
+            the `{#if}` cannot narrow a reactive read for a later callback.
+          -->
+          {#if authorName && row}
+            {@const ownerId = row.owner_id}
+            <button type="button" class="author-link" onclick={() => navigation.openAuthor(ownerId)}>
+              By {authorName}
+            </button>
+          {/if}
 
-        <!--
-          The box this slice came out of. Sits directly under the subtitle
-          because that is the line that already names it — "From Forgotten
-          Pantheons" as prose, then the same thing as somewhere to go.
-        -->
+          {#if row?.visibility === 'public'}
+            <div class="header-engagement">
+              <button
+                type="button"
+                class="engagement-button"
+                class:active={liked}
+                aria-pressed={liked}
+                aria-label={liked ? `Unlike this set. ${likeCount} likes` : `Like this set. ${likeCount} likes`}
+                disabled={reactionBusy}
+                onclick={() => void toggleLike()}
+              >
+                <Icon name="thumbUp" size={15} />
+                <span class="numeric">{likeCount}</span>
+                <span class="engagement-label">{liked ? 'Liked' : 'Like'}</span>
+              </button>
+              <span class="engagement-count" aria-label={`${commentCount} comments`}>
+                <Icon name="message" size={15} />
+                <span class="numeric">{commentCount}</span>
+              </span>
+              <button
+                type="button"
+                class="engagement-button"
+                class:active={favourited}
+                aria-pressed={favourited}
+                aria-label={favourited ? 'Remove from favourites' : 'Add to favourites'}
+                disabled={reactionBusy}
+                onclick={() => void toggleFavourite()}
+              >
+                <Icon name="bookmark" size={15} />
+                <span class="engagement-label">{favourited ? 'Favourited' : 'Favourite'}</span>
+              </button>
+            </div>
+          {/if}
+        </div>
+
+        <!-- The box this independently published slice came out of. -->
         {#if parent}
-          <!-- Bound through `@const`, because the `{#if}` cannot narrow a
-               reactive read for a callback that runs long after it. -->
           {@const box = parent}
           <button type="button" class="parent-link" onclick={() => navigation.openShared(box.slug)}>
             <Icon name="layers" size={13} />
@@ -572,82 +835,40 @@
           </button>
         {/if}
 
-        {#if row?.visibility === 'public'}
-          <div class="header-engagement">
-            <button
-              type="button"
-              class="engagement-button"
-              class:active={liked}
-              aria-pressed={liked}
-              aria-label={liked ? `Unlike this set. ${likeCount} likes` : `Like this set. ${likeCount} likes`}
-              disabled={reactionBusy}
-              onclick={() => void toggleLike()}
-            >
-              <Icon name="thumbUp" size={15} />
-              <span class="numeric">{likeCount}</span>
-              <span class="engagement-label">{liked ? 'Liked' : 'Like'}</span>
-            </button>
-            <span class="engagement-count" aria-label={`${commentCount} comments`}>
-              <Icon name="message" size={15} />
-              <span class="numeric">{commentCount}</span>
-            </span>
-            <button
-              type="button"
-              class="engagement-button"
-              class:active={favourited}
-              aria-pressed={favourited}
-              aria-label={favourited ? 'Remove from favourites' : 'Add to favourites'}
-              disabled={reactionBusy}
-              onclick={() => void toggleFavourite()}
-            >
-              <Icon name="bookmark" size={15} />
-              <span class="engagement-label">{favourited ? 'Favourited' : 'Favourite'}</span>
-            </button>
+        {#if set}
+          <div class="masthead-details">
+            {#if row}
+              <p class="stats header-detail">
+                {#if row.published_at}
+                  Published {new Date(row.published_at).toLocaleDateString()} ·
+                {/if}
+                updated {new Date(row.updated_at).toLocaleDateString()}
+                {#if row.revision > 1}· revision {row.revision}{/if}
+              </p>
+            {/if}
+
+            {#if row?.change_note}
+              <p class="stats header-detail">Latest change: “{row.change_note}”</p>
+            {/if}
+
+            {#if contributors.length > 0}
+              <p class="stats credit header-detail">
+                With contributions from
+                {#each contributors as person, index (person.id)}
+                  {#if index > 0}{index === contributors.length - 1 ? ' and ' : ', '}{/if}
+                  <button
+                    type="button"
+                    class="author-link inline"
+                    onclick={() => navigation.openAuthor(person.id)}
+                  >
+                    {person.display_name || 'someone'}
+                  </button>
+                {/each}
+              </p>
+            {/if}
           </div>
         {/if}
-
-        {#if set}
-          {#if row}
-            <p class="stats header-detail">
-              {#if row.published_at}
-                Published {new Date(row.published_at).toLocaleDateString()} ·
-              {/if}
-              updated {new Date(row.updated_at).toLocaleDateString()}
-              {#if row.revision > 1}· revision {row.revision}{/if}
-            </p>
-          {/if}
-
-          <!--
-            What the author says changed. Shown because a revision number tells
-            a reader that something moved but not whether it matters to them.
-          -->
-          {#if row?.change_note}
-            <p class="stats header-detail">Latest change: “{row.change_note}”</p>
-          {/if}
-
-          <!--
-            A credit, not a changelog: who helped, not what they changed. The
-            "what" stays between the owner and whoever proposed it — this only
-            exists because their work is already sitting in the set below.
-          -->
-          {#if contributors.length > 0}
-            <p class="stats credit header-detail">
-              With contributions from
-              {#each contributors as person, index (person.id)}
-                {#if index > 0}{index === contributors.length - 1 ? ' and ' : ', '}{/if}
-                <button
-                  type="button"
-                  class="author-link inline"
-                  onclick={() => navigation.openAuthor(person.id)}
-                >
-                  {person.display_name || 'someone'}
-                </button>
-              {/each}
-            </p>
-          {/if}
-        {/if}
       </div>
-
     </header>
 
     {#if !cloudEnabled()}
@@ -657,7 +878,7 @@
     {:else if error}
       <p class="message error" role="alert">{error}</p>
     {:else if set}
-      {@const shown = computeScopedSet(set, viewScope)}
+      {@const shown = shownSet ?? set}
       {@const scopeOptions = scopeOptionsFor(set)}
       {@const exploreLinks = exploreLinksFor(shown)}
       {#snippet commentPanel()}
@@ -1028,42 +1249,204 @@
   }
 
   .head {
+    position: relative;
+    isolation: isolate;
     flex: none;
     display: flex;
     align-items: center;
-    gap: var(--space-4);
-    padding: var(--space-5) var(--space-6);
+    min-height: 184px;
+    padding: var(--space-5) var(--space-8);
+    overflow: hidden;
     border-bottom: 1px solid var(--border-default);
-    background: var(--surface-default);
+    background: var(--masthead-base, var(--grey-1000));
+    color: var(--grey-50);
   }
 
-  .mark {
-    flex: none;
-    width: 28px;
-    height: 28px;
-    border-radius: var(--radius-sm);
-    background: linear-gradient(140deg, var(--accent, #c0392b), var(--grey-900, #222));
+  .masthead-visual {
+    position: absolute;
+    z-index: 0;
+    inset: 0;
+    overflow: hidden;
+    pointer-events: none;
+  }
+
+  .masthead-backdrop {
+    position: absolute;
+    inset: -8%;
+    width: 116%;
+    height: 116%;
+    max-width: none;
+    object-fit: cover;
+    opacity: 0.46;
+    filter: saturate(1.18) contrast(1.08);
+    transform: scale(1.04);
+  }
+
+  .masthead-scrim,
+  .masthead-lines,
+  .masthead-blade,
+  .masthead-ghost {
+    position: absolute;
+    pointer-events: none;
+  }
+
+  .masthead-scrim {
+    inset: 0;
+    background:
+      linear-gradient(
+        90deg,
+        color-mix(in oklab, var(--grey-1000) 98%, transparent) 0%,
+        color-mix(in oklab, var(--grey-1000) 94%, transparent) 34%,
+        color-mix(in oklab, var(--grey-1000) 68%, transparent) 62%,
+        color-mix(in oklab, var(--grey-1000) 42%, transparent) 100%
+      ),
+      linear-gradient(
+        0deg,
+        color-mix(in oklab, var(--grey-1000) 78%, transparent),
+        transparent 64%
+      );
+  }
+
+  .masthead-lines {
+    inset: 0;
+    opacity: 0.32;
+    background: repeating-linear-gradient(
+      112deg,
+      transparent 0 38px,
+      color-mix(in oklab, var(--grey-50) 10%, transparent) 38px 39px
+    );
+  }
+
+  .masthead-blade {
+    top: -35%;
+    bottom: -35%;
+    right: 37%;
+    width: clamp(18px, 2.5vw, 38px);
+    background: var(--masthead-accent, var(--accent));
+    opacity: 0.88;
+    transform: rotate(14deg);
+    box-shadow: 0 0 36px color-mix(in oklab, var(--grey-1000) 55%, transparent);
+  }
+
+  .masthead-ghost {
+    right: 29%;
+    bottom: -0.22em;
+    max-width: 90%;
+    overflow: hidden;
+    font-family: var(--masthead-title-font, var(--font-display));
+    font-size: clamp(5rem, 12vw, 11rem);
+    font-weight: var(--masthead-title-weight, var(--weight-semibold));
+    line-height: 0.74;
+    text-transform: uppercase;
+    white-space: nowrap;
+    color: var(--grey-50);
+    opacity: 0.07;
+  }
+
+  .masthead-poster {
+    position: absolute;
+    z-index: 1;
+    top: -48px;
+    right: clamp(20px, 4vw, 64px);
+    bottom: -54px;
+    width: clamp(250px, 35vw, 500px);
+    pointer-events: none;
+    transform: rotate(2.5deg);
+    filter: drop-shadow(
+      0 18px 24px color-mix(in oklab, var(--grey-1000) 68%, transparent)
+    );
+  }
+
+  .masthead-poster::before {
+    content: '';
+    position: absolute;
+    z-index: -1;
+    inset: 7px -7px -7px 7px;
+    clip-path: polygon(13% 0, 100% 0, 87% 100%, 0 100%);
+    background: var(--masthead-accent, var(--accent));
+    opacity: 0.9;
+  }
+
+  .masthead-poster-window {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    clip-path: polygon(13% 0, 100% 0, 87% 100%, 0 100%);
+    background: color-mix(in oklab, var(--grey-1000) 72%, transparent);
+  }
+
+  .masthead-poster img {
+    width: 100%;
+    height: 100%;
+    max-width: none;
+    object-fit: cover;
+  }
+
+  .masthead-poster.composition {
+    transform: rotate(1.5deg);
+  }
+
+  .masthead-poster.composition::before {
+    opacity: 0.44;
+  }
+
+  .masthead-poster.composition .masthead-poster-window {
+    clip-path: none;
+    background: transparent;
+  }
+
+  .masthead-poster.composition img {
+    object-fit: contain;
   }
 
   .titles {
+    position: relative;
+    z-index: 2;
     display: flex;
     flex-direction: column;
-    gap: 2px;
+    justify-content: center;
+    gap: var(--space-1);
+    width: 100%;
+    max-width: 780px;
     min-width: 0;
     margin-right: auto;
   }
 
+  .head.has-poster .titles {
+    max-width: min(59%, 760px);
+  }
+
   .eyebrow {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
     font-size: var(--text-xs);
+    font-weight: var(--weight-semibold);
     letter-spacing: var(--tracking-wide);
     text-transform: uppercase;
-    color: var(--text-muted);
+    color: var(--grey-300);
+  }
+
+  .eyebrow::before {
+    content: '';
+    width: 30px;
+    height: 3px;
+    flex: none;
+    background: var(--masthead-accent, var(--accent));
   }
 
   .title {
     margin: 0;
-    font-size: var(--text-lg);
+    font-family: var(--masthead-title-font, var(--font-display));
+    font-size: clamp(2.75rem, 4.8vw, 4.75rem);
+    font-weight: var(--masthead-title-weight, var(--weight-semibold));
+    line-height: 0.88;
+    letter-spacing: var(--tracking-tight);
+    text-transform: uppercase;
+    text-wrap: balance;
     overflow-wrap: anywhere;
+    color: var(--grey-50);
+    text-shadow: 0 3px 18px color-mix(in oklab, var(--grey-1000) 84%, transparent);
   }
 
   .subtitle,
@@ -1075,8 +1458,29 @@
     color: var(--text-muted);
   }
 
+  .head .subtitle {
+    max-width: 54ch;
+    color: var(--grey-200);
+  }
+
   .stats {
     font-size: var(--text-xs);
+  }
+
+  .masthead-identity-row,
+  .masthead-details {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: var(--space-1) var(--space-3);
+  }
+
+  .masthead-identity-row {
+    min-height: 30px;
+  }
+
+  .masthead-details .stats {
+    color: var(--grey-300);
   }
 
   /*
@@ -1091,10 +1495,10 @@
     gap: var(--space-2);
     margin-top: var(--space-2);
     padding: var(--space-1) var(--space-3);
-    border: 1px solid var(--border-default);
+    border: 1px solid color-mix(in oklab, var(--grey-50) 22%, transparent);
     border-radius: var(--radius-full);
-    background: transparent;
-    color: var(--text-muted);
+    background: color-mix(in oklab, var(--grey-1000) 38%, transparent);
+    color: var(--grey-200);
     font-size: var(--text-xs);
     cursor: pointer;
     transition:
@@ -1103,8 +1507,8 @@
   }
 
   .parent-link:hover {
-    border-color: var(--accent);
-    color: var(--text-default);
+    border-color: color-mix(in oklab, var(--grey-50) 58%, transparent);
+    color: var(--grey-50);
   }
 
   .credit {
@@ -1116,7 +1520,7 @@
     align-items: center;
     align-self: flex-start;
     gap: var(--space-1);
-    margin-top: var(--space-2);
+    margin: 0;
   }
 
   .engagement-button,
@@ -1127,7 +1531,7 @@
     min-height: 30px;
     padding: 0 var(--space-2);
     border-radius: var(--radius-sm);
-    color: var(--text-muted);
+    color: var(--grey-300);
     font-size: var(--text-xs);
   }
 
@@ -1141,9 +1545,9 @@
 
   .engagement-button:hover,
   .engagement-button.active {
-    border-color: var(--border-default);
-    background: var(--surface-selected);
-    color: var(--text-default);
+    border-color: color-mix(in oklab, var(--grey-50) 28%, transparent);
+    background: color-mix(in oklab, var(--grey-50) 12%, transparent);
+    color: var(--grey-50);
   }
 
   .engagement-button.active :global(svg) {
@@ -1166,7 +1570,7 @@
     padding: 0;
     border: none;
     background: transparent;
-    color: var(--text-muted);
+    color: var(--grey-200);
     font-size: var(--text-sm);
     text-align: left;
     cursor: pointer;
@@ -1176,7 +1580,7 @@
   }
 
   .author-link:hover {
-    color: var(--text-default);
+    color: var(--grey-50);
     text-decoration-color: currentcolor;
   }
 
@@ -1184,7 +1588,7 @@
   .author-link.inline {
     display: inline;
     font-size: inherit;
-    color: var(--text-secondary);
+    color: var(--grey-200);
   }
 
   .message {
@@ -1566,25 +1970,87 @@
      tap away, but no longer take a permanent slice out of the card overview. */
   @media (max-width: 700px) {
     .head {
-      align-items: flex-start;
-      gap: 0;
-      padding: var(--space-3) var(--space-4) var(--space-2);
+      align-items: center;
+      min-height: 168px;
+      padding: var(--space-3) var(--space-4);
     }
 
-    .mark,
-    .head .eyebrow,
     .header-detail {
       display: none;
     }
 
+    .masthead-backdrop {
+      opacity: 0.5;
+    }
+
+    .masthead-scrim {
+      background:
+        linear-gradient(
+          90deg,
+          color-mix(in oklab, var(--grey-1000) 98%, transparent) 0%,
+          color-mix(in oklab, var(--grey-1000) 92%, transparent) 54%,
+          color-mix(in oklab, var(--grey-1000) 66%, transparent) 100%
+        ),
+        linear-gradient(
+          0deg,
+          color-mix(in oklab, var(--grey-1000) 84%, transparent),
+          transparent 72%
+        );
+    }
+
+    .masthead-lines {
+      opacity: 0.2;
+    }
+
+    .masthead-blade {
+      right: 18%;
+      width: 22px;
+      opacity: 0.74;
+    }
+
+    .masthead-ghost {
+      right: 0;
+      bottom: -0.08em;
+      max-width: 100%;
+      font-size: clamp(4rem, 23vw, 7rem);
+      opacity: 0.055;
+    }
+
+    .masthead-poster {
+      top: -24px;
+      right: -5%;
+      bottom: -32px;
+      width: 48%;
+      opacity: 0.48;
+      filter: drop-shadow(
+        0 10px 18px color-mix(in oklab, var(--grey-1000) 62%, transparent)
+      );
+    }
+
     .titles {
       width: 100%;
-      gap: 1px;
+      max-width: 100%;
+      gap: var(--space-1);
+    }
+
+    .head.has-poster .titles {
+      max-width: 100%;
+    }
+
+    .eyebrow {
+      gap: var(--space-1);
+      font-size: var(--text-2xs);
+    }
+
+    .eyebrow::before {
+      width: 22px;
+      height: 2px;
     }
 
     .title {
-      font-size: var(--text-md);
-      line-height: var(--leading-tight);
+      max-width: 88%;
+      font-size: clamp(2.35rem, 11vw, 3.5rem);
+      line-height: 0.88;
     }
 
     .subtitle,
@@ -1598,6 +2064,10 @@
       white-space: nowrap;
     }
 
+    .masthead-identity-row {
+      gap: var(--space-1) var(--space-2);
+    }
+
     .parent-link {
       min-height: 44px;
       margin-top: var(--space-1);
@@ -1605,7 +2075,6 @@
 
     .header-engagement {
       gap: var(--space-1);
-      margin-top: var(--space-1);
     }
 
     .engagement-button,
