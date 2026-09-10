@@ -1920,19 +1920,21 @@ reads that form *and* the old hash form, so a link already pasted somewhere
 keeps working, and every in-app navigation still only ever writes the hash —
 `shareUrl` is the one place that writes the path form at all.
 
-`middleware.ts` is a Vercel Edge Middleware matching `/shared/:slug`,
-deliberately self-contained rather than importing from `src/lib/cloud/` — it
-runs outside Vite entirely, so `$lib` does not resolve there, and the one
-PostgREST call it needs (the same anonymous `set_by_slug` RPC `fetchSetBySlug`
-already makes, read `VITE_SUPABASE_URL`/`VITE_SUPABASE_PUBLISHABLE_KEY` out of
-`process.env` — already-configured Environment Variables, since the client
-build needs them too; Vite's `VITE_` prefix only gates what reaches the
-browser bundle, not what a server-side function may read) is small enough
-that duplicating it beats a shared build step for it. It only ever answers a
-request whose User-Agent names a known unfurling bot, with a tiny hand-written
-HTML page carrying `og:title`/`og:description`/`og:image` — the image is
-`thumbnail_url`, already sitting on the row from `publishSet`, so nothing here
-renders a picture, it only ever echoes one that already exists. Every other
+`middleware.ts` is a Vercel Edge Middleware matching `/shared/:slug`. It runs
+outside Vite entirely, so `$lib` does not resolve there: the two small HTTP
+calls stay local, while one pure relative import from
+`cloud/social-metadata.ts` keeps the title, description, type, author credit
+and image choice identical to the creator-visible unfurl card in
+`SharePanel`. The middleware makes the same anonymous `set_by_slug` RPC
+`fetchSetBySlug` already makes, then a best-effort public profile lookup, and
+reads `VITE_SUPABASE_URL`/`VITE_SUPABASE_PUBLISHABLE_KEY` out of `process.env`
+— already-configured Environment Variables, since the client build needs them
+too; Vite's `VITE_` prefix only gates what reaches the browser bundle, not
+what a server-side function may read. It only ever answers a request whose
+User-Agent names a known unfurling bot, with a tiny hand-written HTML page
+carrying full Open Graph and Twitter metadata (canonical URL, site, title,
+description, image and accessible image text). Nothing here renders a picture;
+it only echoes `social_image_url`, falling back to `thumbnail_url`. Every other
 request — every real visitor — falls through untouched to `vercel.json`'s
 rewrite, which serves the ordinary SPA exactly as if this file did not exist.
 Untestable via `vite dev`, which has no Edge Runtime to run it in: verifying
@@ -1979,6 +1981,15 @@ this shipped simply keeps `social_image_url = ''` until its author
 re-publishes, and `middleware.ts` falls back to `thumbnail_url` whenever it
 is empty — an old link's preview does not regress, it just stays what it
 already was.
+
+An author can see that exact unfurl in `SharePanel` once a scope is published.
+It uses the stored `social_image_url` (or the same thumbnail fallback), not a
+fresh local render that could disagree with the public snapshot, and labels an
+older fallback explicitly. `cloud/social-metadata.ts` is deliberately pure and
+structural so both the Svelte panel and Edge middleware can call it; changes to
+the title, description or image priority belong there rather than in either
+consumer. Private rows still show the author what is ready, but say plainly
+that a private link itself does not unfurl.
 
 **The shared-set screen's character filter is not a second picker.** It
 reads as one — pick a hero and the overview above narrows to just their

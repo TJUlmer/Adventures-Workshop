@@ -11,6 +11,7 @@
   import { auth } from '$lib/cloud/auth.svelte';
   import { cloudEnabled } from '$lib/cloud/config';
   import {
+    fetchAuthorName,
     listMyPublishedSets,
     publishSet,
     publishSize,
@@ -19,6 +20,7 @@
     unpublishSet
   } from '$lib/cloud/sets';
   import type { PublishedSet, Visibility } from '$lib/cloud/sets';
+  import { socialMetadata } from '$lib/cloud/social-metadata';
   import { charactersByRole } from '$lib/sets/queries';
   import { parseScopeKey, scopeKeyOf } from '$lib/sets/scope';
   import type { PublishScope } from '$lib/sets/scope';
@@ -46,6 +48,8 @@
   let copied = $state(false);
   let size = $state<{ assets: number; bytes: number } | null>(null);
   let changeNote = $state('');
+  let previewAuthorName = $state('');
+  let previewImageFailed = $state(false);
 
   const heroes = $derived(charactersByRole(set, 'hero'));
   /* Villain-side content — the villain, its minions, the threat track, the
@@ -83,6 +87,29 @@
         row.character_id === (selectedScope.kind === 'hero' ? selectedScope.characterId : '')
     ) ?? null
   );
+  const preview = $derived(socialMetadata(published, previewAuthorName));
+  const previewUsesThumbnail = $derived(
+    Boolean(published && !published.social_image_url && published.thumbnail_url)
+  );
+
+  $effect(() => {
+    const ownerId = published?.owner_id ?? '';
+    let current = true;
+    previewAuthorName = '';
+    if (ownerId) {
+      void fetchAuthorName(ownerId).then((name) => {
+        if (current) previewAuthorName = name;
+      });
+    }
+    return () => {
+      current = false;
+    };
+  });
+
+  $effect(() => {
+    void preview.image;
+    previewImageFailed = false;
+  });
 
   /**
    * A throwaway account may share by link but not post to the gallery. The
@@ -296,6 +323,53 @@
           <Button size="sm" onclick={copyLink}>{copied ? 'Copied' : 'Copy'}</Button>
         </div>
 
+        <section class="social-preview" aria-labelledby="social-preview-title">
+          <div class="preview-heading">
+            <div>
+              <h4 id="social-preview-title">Link preview</h4>
+              <p>What Discord and other services receive when somebody shares this link.</p>
+            </div>
+            <span class="preview-kind">{preview.typeLabel}</span>
+          </div>
+
+          <div class="preview-card">
+            {#if preview.image && !previewImageFailed}
+              <div class="preview-media">
+                <img
+                  src={preview.image}
+                  alt={preview.imageAlt}
+                  onerror={() => (previewImageFailed = true)}
+                />
+              </div>
+            {:else}
+              <div class="preview-empty" aria-hidden="true">
+                <Icon name="image" size={24} />
+                <span>No preview image</span>
+              </div>
+            {/if}
+            <div class="preview-copy">
+              <span class="preview-site">Unmatched Labs</span>
+              <strong>{preview.title}</strong>
+              <p>{preview.description}</p>
+            </div>
+          </div>
+
+          {#if published.visibility === 'private'}
+            <p class="preview-note">
+              Private links do not unfurl. This is how it will look after link access is enabled.
+            </p>
+          {:else if previewUsesThumbnail}
+            <p class="preview-note">
+              This publish predates the richer social image, so its gallery thumbnail is used.
+              Update the published copy to generate the new image.
+            </p>
+          {:else}
+            <p class="preview-note">
+              Services frame previews differently, and some cache an older preview for the same URL.
+            </p>
+          {/if}
+        </section>
+
         <label class="option">
           <span class="option-label">Who can see it</span>
           <Select
@@ -455,6 +529,114 @@
     font-family: var(--font-mono, monospace);
   }
 
+  .social-preview {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    padding: var(--space-3);
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-md);
+    background: var(--surface-default);
+  }
+
+  .preview-heading {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: var(--space-3);
+  }
+
+  .preview-heading h4,
+  .preview-heading p,
+  .preview-copy p,
+  .preview-note {
+    margin: 0;
+  }
+
+  .preview-heading h4 {
+    font-size: var(--text-xs);
+    font-weight: var(--weight-semibold);
+  }
+
+  .preview-heading p,
+  .preview-note {
+    margin-top: 2px;
+    font-size: var(--text-2xs);
+    line-height: var(--leading-normal);
+    color: var(--text-muted);
+  }
+
+  .preview-kind {
+    flex: none;
+    padding: 2px var(--space-2);
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-full);
+    color: var(--text-secondary);
+    font-size: var(--text-2xs);
+    line-height: var(--leading-normal);
+  }
+
+  .preview-card {
+    overflow: hidden;
+    border: 1px solid var(--border-default);
+    border-left: 4px solid var(--accent);
+    border-radius: var(--radius-sm);
+    background: var(--surface-sunken);
+    box-shadow: var(--shadow-sm);
+  }
+
+  .preview-media {
+    display: grid;
+    max-height: 320px;
+    overflow: hidden;
+    place-items: center;
+    border-bottom: 1px solid var(--border-default);
+    background: var(--surface-default);
+  }
+
+  .preview-media img {
+    display: block;
+    width: 100%;
+    max-height: 320px;
+    object-fit: contain;
+  }
+
+  .preview-empty {
+    display: flex;
+    min-height: 132px;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-2);
+    border-bottom: 1px solid var(--border-default);
+    color: var(--text-muted);
+    font-size: var(--text-xs);
+  }
+
+  .preview-copy {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    padding: var(--space-3);
+  }
+
+  .preview-site {
+    font-size: var(--text-2xs);
+    letter-spacing: var(--tracking-wide);
+    text-transform: uppercase;
+    color: var(--text-muted);
+  }
+
+  .preview-copy strong {
+    font-size: var(--text-sm);
+    line-height: var(--leading-tight);
+  }
+
+  .preview-copy p {
+    font-size: var(--text-xs);
+    line-height: var(--leading-normal);
+    color: var(--text-secondary);
+  }
+
   .option {
     display: flex;
     flex-direction: column;
@@ -488,5 +670,17 @@
     margin: 0;
     font-size: var(--text-xs);
     color: var(--danger);
+  }
+
+  @media (max-width: 520px) {
+    .preview-heading {
+      flex-direction: column;
+      gap: var(--space-2);
+    }
+
+    .preview-media,
+    .preview-media img {
+      max-height: 240px;
+    }
   }
 </style>
