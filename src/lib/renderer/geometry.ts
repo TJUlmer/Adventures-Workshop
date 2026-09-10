@@ -1716,10 +1716,11 @@ export const CARDBACK = {
 
 /**
  * A hero's own back, at the action card's bleed canvas — see
- * `HeroCardbackFace`. The UMLABS frame carries a thin rounded line plus its
- * upper-left logo badge, not a ring like the villain/minion template, so
- * this back's own art is never boxed in behind it. `frame` records the outer
- * rounded line, excluding the badge that rises above it; the name remains
+ * `HeroCardbackFace`. `UMLabs_Cardback_Template.png` carries a thin rounded
+ * line plus its upper-left logo badge, not a ring like the villain/minion
+ * template, so this back's own art is never boxed in behind it. The renderer
+ * reads the two-tone source as two colour layers; `frame` records the outer
+ * rounded line, excluding the badge that rises above it, and the name remains
  * placed against its lower-right corner.
  */
 export const HERO_CARDBACK = {
