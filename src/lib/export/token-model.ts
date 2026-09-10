@@ -6,7 +6,7 @@
  * import dialogue asks for a URL and offers no clue about which file is which.
  */
 import { shortHash } from '$lib/core/hash';
-import { HEALTH_DIAL_RIM } from '$lib/figures/health-dial';
+import { HEALTH_DIAL_INK, HEALTH_DIAL_RIM } from '$lib/figures/health-dial';
 import type { Figure } from '$lib/figures/types';
 import { figureLabel, generatedTokenSpec, tokenSpecOf } from '$lib/figures/types';
 import {
@@ -17,7 +17,7 @@ import {
   tokenMtl,
   tokenObj
 } from '$lib/models/token';
-import type { TokenArtLayout, TokenSpec } from '$lib/models/token';
+import type { TokenArtLayout, TokenMesh, TokenSpec } from '$lib/models/token';
 import { outlineKey, traceSilhouette } from '$lib/models/silhouette';
 import type { TokenOutline } from '$lib/models/silhouette';
 import { slugify } from './json';
@@ -272,6 +272,86 @@ export function buildTokenArt(figure: Figure, size = 1024): Promise<Blob> {
 }
 
 /**
+ * The generated mesh as a preview reads it.
+ *
+ * A dial's preview texture is two complete copies side by side: the left has
+ * the controls TTS floats over its top face and the right is clean. Generated
+ * prisms are unindexed and flat-shaded, so their object-space Y normal says
+ * which copy each vertex should sample without making the renderer understand
+ * what a dial is. The rim follows the clean copy too, preserving the real
+ * one-sided rim band or two-sided seam rather than inventing preview geometry.
+ */
+export function buildTokenPreviewMesh(figure: Figure, spec: TokenSpec): TokenMesh {
+  const mesh = buildTokenMesh(spec);
+  if (figure.kind !== 'dial' || !mesh.uvs) return mesh;
+
+  const uvs = new Float32Array(mesh.uvs);
+  const vertices = mesh.positions.length / 3;
+  for (let vertex = 0; vertex < vertices; vertex += 1) {
+    const uvIndex = vertex * 2;
+    const u = uvs[uvIndex] as number;
+    const normalY = mesh.normals[vertex * 3 + 1] as number;
+    uvs[uvIndex] = normalY > 0.5 ? u / 2 : 0.5 + u / 2;
+  }
+
+  return { ...mesh, uvs };
+}
+
+/**
+ * The controls TTS's Lua floats over a dial, painted into a preview-only atlas
+ * so they stay attached while the browser's model is rotated.
+ *
+ * Both halves begin as the production texture, retaining its one- or
+ * two-sided layout exactly. Only the left copy receives the controls; paired
+ * with `buildTokenPreviewMesh`, the top face samples that copy while the back
+ * and rim sample the untouched one. The trigger centres are the script's
+ * +/-0.6 of the disc radius.
+ */
+async function buildDialPreviewArt(figure: Figure, size: number): Promise<Blob> {
+  const texture = await buildTokenArt(figure, size);
+  const source = URL.createObjectURL(texture);
+
+  try {
+    const image = await loadImage(source);
+    const spec = generatedTokenSpec(figure) ?? tokenSpecOf(figure.token);
+    const layout = tokenArtLayout(spec, size);
+    const canvas = document.createElement('canvas');
+    canvas.width = layout.canvasWidth * 2;
+    canvas.height = layout.canvasHeight;
+    const context = canvas.getContext('2d');
+    if (!context) throw new Error('Could not get a drawing context.');
+
+    context.drawImage(image, 0, 0);
+    context.drawImage(image, layout.canvasWidth, 0);
+
+    const radius = layout.artWidth / 2;
+    const centreX = radius;
+    const centreY = layout.artHeight / 2;
+    const triggerOffset = radius * 0.6;
+    const fontSize = layout.artWidth * 0.3;
+
+    context.save();
+    context.textAlign = 'center';
+    context.textBaseline = 'middle';
+    context.font = `700 ${fontSize}px Arial, sans-serif`;
+    context.fillStyle = HEALTH_DIAL_INK;
+
+    for (const [label, x] of [
+      ['<', centreX - triggerOffset],
+      [String(Math.round(figure.dialRange.max)), centreX],
+      ['>', centreX + triggerOffset]
+    ] as const) {
+      context.fillText(label, x, centreY);
+    }
+    context.restore();
+
+    return encodePng(canvas);
+  } finally {
+    URL.revokeObjectURL(source);
+  }
+}
+
+/**
  * The art region's own size for tracing, well below the 1024 the printed
  * texture uses. `tokenArtLayout` at this size is proportionally identical to
  * `tokenArtLayout` at 1024 — the fit maths is scale-invariant — so this
@@ -503,13 +583,18 @@ export async function exportTokenModel(figure: Figure): Promise<ExportResult> {
 }
 
 /**
- * The same texture the export writes, for showing the token on screen.
+ * The texture for showing a generated component on screen.
  *
- * Only a dial needs an early exit here — everything else always has *some*
- * texture to show now, an image or a flat fill of its rim colour.
+ * Ordinary tokens show the same paint an export receives. A dial adds the
+ * value and triggers that TTS creates from Lua instead, solely to this preview
+ * copy; keeping them out of `buildTokenArt` avoids drawing the controls twice
+ * after the exported object loads. Only a dial needs an early exit here —
+ * everything else always has some texture, even without an image.
  */
 export async function tokenTextureUrl(figure: Figure): Promise<string | null> {
   if (figure.kind === 'dial' && !figure.reference.source) return null;
-  const blob = await buildTokenArt(figure, 512);
+  const blob = figure.kind === 'dial'
+    ? await buildDialPreviewArt(figure, 512)
+    : await buildTokenArt(figure, 512);
   return URL.createObjectURL(blob);
 }

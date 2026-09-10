@@ -23,6 +23,7 @@
   let viewerShell = $state<HTMLDivElement | null>(null);
   let mesh = $state<Mesh | null>(null);
   let texture = $state<string | null>(null);
+  let millimetresPerUnit = $state<number | null>(null);
   let loading = $state(false);
   let failure = $state<string | null>(null);
   let warning = $state<string | null>(null);
@@ -46,6 +47,7 @@
     let preview: FigurePreviewModel | null = null;
     mesh = null;
     texture = null;
+    millimetresPerUnit = null;
     failure = null;
     warning = null;
     viewerFailure = null;
@@ -71,6 +73,7 @@
         if (!preview) return;
         mesh = preview.mesh;
         texture = preview.texture;
+        millimetresPerUnit = preview.millimetresPerUnit;
         warning = preview.warning;
       })
       .catch((error: unknown) => {
@@ -156,6 +159,7 @@
                 <ModelViewer
                   {mesh}
                   {texture}
+                  {millimetresPerUnit}
                   height="min(62dvh, 620px)"
                   onfailure={onViewerFailure}
                 />

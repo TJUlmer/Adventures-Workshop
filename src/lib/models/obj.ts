@@ -16,7 +16,16 @@ function resolve(token: string, length: number): number {
   return index > 0 ? index - 1 : length + index;
 }
 
-export function parseObj(text: string): Mesh {
+export interface ParseObjOptions {
+  /** Stop before expanding more triangles into the unindexed preview mesh. */
+  readonly maxTriangles?: number;
+}
+
+export function parseObj(text: string, options: ParseObjOptions = {}): Mesh {
+  const maxTriangles =
+    options.maxTriangles !== undefined && Number.isFinite(options.maxTriangles)
+      ? Math.max(0, Math.floor(options.maxTriangles))
+      : null;
   const vertices: number[] = [];
   const texcoords: number[] = [];
   const normals: number[] = [];
@@ -79,6 +88,15 @@ export function parseObj(text: string): Mesh {
       const face = parts.slice(1).filter(Boolean);
       // Fan from the first corner: 4 corners become 2 triangles, 5 become 3.
       for (let i = 1; i + 1 < face.length; i += 1) {
+        /* OBJ indices are compact; the unindexed arrays they expand into are
+           not. Enforce a caller's preview budget before pushing any corner of
+           the next triangle, rather than discovering the problem only after
+           the allocation has already happened. */
+        if (maxTriangles !== null && outPositions.length / 9 >= maxTriangles) {
+          throw new Error(
+            `The OBJ model exceeds the ${maxTriangles.toLocaleString()}-triangle preview limit.`
+          );
+        }
         const before = outPositions.length;
         const ok =
           corner(face[0] as string) && corner(face[i] as string) && corner(face[i + 1] as string);

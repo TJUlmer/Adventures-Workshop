@@ -8,22 +8,51 @@
    * carry for "show me the thing I attached".
    */
   import type { Mesh } from '$lib/models/mesh';
-  import { drawMeshInto, onContextRestored } from '$lib/models/gl';
+  import { drawMeshInto, onContextRestored, projectedPixelsPerUnit } from '$lib/models/gl';
+
+  const GRID_MINOR_MM = 10;
+  const GRID_MAJOR_MM = 50;
+  /** Below this pitch the fine lattice aliases into a flickering grey wash. */
+  const MIN_MINOR_GRID_PX = 6;
 
   interface Props {
     mesh: Mesh | null;
     /** Painted over the mesh when it carries texture coordinates. */
     texture?: string | null;
+    /** Physical calibration of the mesh; absent for unitless STL/OBJ files. */
+    millimetresPerUnit?: number | null;
+    /** TTS world units are nominally, but not metrologically, one inch. */
+    approximateScale?: boolean;
     /** A number is pixels; CSS lengths let modal callers follow the viewport. */
     height?: number | string;
     /** Lets a larger inspection surface fall back to reference artwork. */
     onfailure?: (message: string | null) => void;
   }
 
-  let { mesh, texture = null, height = 260, onfailure }: Props = $props();
+  let {
+    mesh,
+    texture = null,
+    millimetresPerUnit = null,
+    approximateScale = false,
+    height = 260,
+    onfailure
+  }: Props = $props();
 
   let canvas = $state<HTMLCanvasElement | null>(null);
   let failure = $state<string | null>(null);
+  let minorGridPixels = $state<number | null>(null);
+  const showMinorGrid = $derived(
+    minorGridPixels !== null && minorGridPixels >= MIN_MINOR_GRID_PX
+  );
+  const showGrid = $derived(
+    minorGridPixels !== null &&
+      minorGridPixels * (GRID_MAJOR_MM / GRID_MINOR_MM) >= MIN_MINOR_GRID_PX
+  );
+  const gridLabel = $derived(
+    !showGrid
+      ? null
+      : `${approximateScale ? '~' : ''}${showMinorGrid ? '10' : '50'} mm grid`
+  );
 
   /** Camera, in the only two terms an orbit needs. */
   let yaw = $state(0.6);
@@ -61,8 +90,22 @@
     canvas.width = Math.round(width * dpr);
     canvas.height = Math.round(displayHeight * dpr);
 
+    const camera = { yaw, pitch, zoom };
+    if (
+      millimetresPerUnit !== null &&
+      Number.isFinite(millimetresPerUnit) &&
+      millimetresPerUnit > 0
+    ) {
+      const pixels =
+        projectedPixelsPerUnit(mesh, camera, displayHeight) *
+        (GRID_MINOR_MM / millimetresPerUnit);
+      minorGridPixels = Number.isFinite(pixels) && pixels > 0 ? pixels : null;
+    } else {
+      minorGridPixels = null;
+    }
+
     try {
-      drawMeshInto(canvas, mesh, textureImage, { yaw, pitch, zoom });
+      drawMeshInto(canvas, mesh, textureImage, camera);
       setFailure(null);
     } catch (cause) {
       setFailure(cause instanceof Error ? cause.message : 'Could not draw the model.');
@@ -97,6 +140,7 @@
     void yaw;
     void pitch;
     void zoom;
+    void millimetresPerUnit;
     draw();
   });
 
@@ -148,6 +192,18 @@
 
 <div class="viewer" style:height={typeof height === 'number' ? `${height}px` : height}>
   {#if mesh && mesh.triangles > 0}
+    {#if showGrid && minorGridPixels !== null}
+      <!-- A view-plane ruler: it stays still while the object orbits, and its
+           pitch follows the exact perspective scale at the model's centre. -->
+      <span
+        class="scale-grid"
+        class:with-minor={showMinorGrid}
+        style:--grid-minor-size="{minorGridPixels}px"
+        style:--grid-major-size="{minorGridPixels * (GRID_MAJOR_MM / GRID_MINOR_MM)}px"
+        aria-hidden="true"
+      ></span>
+    {/if}
+
     <!-- The canvas itself takes keyboard focus; the visible buttons mirror zoom/reset for touch. -->
     <canvas
       bind:this={canvas}
@@ -176,7 +232,10 @@
     ></canvas>
 
     <div class="meta">
-      <span class="numeric">{mesh.triangles.toLocaleString()} triangles</span>
+      <span>
+        <span class="numeric">{mesh.triangles.toLocaleString()}</span> triangles
+        {#if gridLabel} · {gridLabel}{/if}
+      </span>
       <span class="controls" inert={Boolean(failure)} aria-hidden={failure ? 'true' : undefined}>
         <button type="button" aria-label="Zoom out" onclick={() => changeZoom(0.89)}>−</button>
         <button type="button" class="reset" onclick={reset}>Reset view</button>
@@ -200,7 +259,79 @@
     overflow: hidden;
   }
 
+  .scale-grid {
+    --grid-minor-colour: color-mix(in oklab, var(--grey-300) 10%, transparent);
+    --grid-major-colour: color-mix(in oklab, var(--grey-300) 24%, transparent);
+
+    position: absolute;
+    z-index: 0;
+    inset: 0;
+    pointer-events: none;
+    background-image:
+      linear-gradient(
+        to right,
+        transparent calc(50% - 0.5px),
+        var(--grid-major-colour) calc(50% - 0.5px),
+        var(--grid-major-colour) calc(50% + 0.5px),
+        transparent calc(50% + 0.5px)
+      ),
+      linear-gradient(
+        to bottom,
+        transparent calc(50% - 0.5px),
+        var(--grid-major-colour) calc(50% - 0.5px),
+        var(--grid-major-colour) calc(50% + 0.5px),
+        transparent calc(50% + 0.5px)
+      );
+    background-position: center;
+    background-size: var(--grid-major-size) var(--grid-major-size);
+    -webkit-mask-image: radial-gradient(
+      ellipse at 50% 45%,
+      var(--grey-100) 32%,
+      transparent 84%
+    );
+    mask-image: radial-gradient(ellipse at 50% 45%, var(--grey-100) 32%, transparent 84%);
+  }
+
+  .scale-grid.with-minor {
+    background-image:
+      linear-gradient(
+        to right,
+        transparent calc(50% - 0.5px),
+        var(--grid-major-colour) calc(50% - 0.5px),
+        var(--grid-major-colour) calc(50% + 0.5px),
+        transparent calc(50% + 0.5px)
+      ),
+      linear-gradient(
+        to bottom,
+        transparent calc(50% - 0.5px),
+        var(--grid-major-colour) calc(50% - 0.5px),
+        var(--grid-major-colour) calc(50% + 0.5px),
+        transparent calc(50% + 0.5px)
+      ),
+      linear-gradient(
+        to right,
+        transparent calc(50% - 0.5px),
+        var(--grid-minor-colour) calc(50% - 0.5px),
+        var(--grid-minor-colour) calc(50% + 0.5px),
+        transparent calc(50% + 0.5px)
+      ),
+      linear-gradient(
+        to bottom,
+        transparent calc(50% - 0.5px),
+        var(--grid-minor-colour) calc(50% - 0.5px),
+        var(--grid-minor-colour) calc(50% + 0.5px),
+        transparent calc(50% + 0.5px)
+      );
+    background-size:
+      var(--grid-major-size) var(--grid-major-size),
+      var(--grid-major-size) var(--grid-major-size),
+      var(--grid-minor-size) var(--grid-minor-size),
+      var(--grid-minor-size) var(--grid-minor-size);
+  }
+
   canvas {
+    position: relative;
+    z-index: 1;
     display: block;
     width: 100%;
     height: 100%;
@@ -214,6 +345,7 @@
 
   .meta {
     position: absolute;
+    z-index: 2;
     left: var(--space-3);
     right: var(--space-3);
     bottom: var(--space-2);
@@ -270,6 +402,7 @@
 
   .failure {
     position: absolute;
+    z-index: 3;
     inset: 0;
     padding: var(--space-4);
     text-align: center;

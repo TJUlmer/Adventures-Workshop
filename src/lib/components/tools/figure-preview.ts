@@ -1,13 +1,15 @@
-import { resolvedTokenSpec, tokenTextureUrl } from '$lib/export/token-model';
+import { buildTokenPreviewMesh, resolvedTokenSpec, tokenTextureUrl } from '$lib/export/token-model';
 import type { Figure } from '$lib/figures/types';
 import { generatedTokenSpec } from '$lib/figures/types';
 import { isViewableModel, loadMesh } from '$lib/models/load';
 import type { Mesh } from '$lib/models/mesh';
-import { buildTokenMesh } from '$lib/models/token';
+import { MM_PER_TTS_UNIT } from '$lib/models/token';
 
 export interface FigurePreviewModel {
   mesh: Mesh;
   texture: string | null;
+  /** Physical calibration for the viewer grid; null for unitless attached meshes. */
+  millimetresPerUnit: number | null;
   /** A useful mesh can still be shown when only its generated paint failed. */
   warning: string | null;
 }
@@ -26,7 +28,8 @@ export function figurePreviewKey(figure: Figure): string | null {
       figure.reference.source ?? '',
       figure.reference.transform.scale,
       figure.token.outlineDetail,
-      figure.token.rimColor
+      figure.token.rimColor,
+      figure.kind === 'dial' ? figure.dialRange.max : ''
     ].join('|');
   }
 
@@ -46,18 +49,20 @@ export async function loadFigurePreview(figure: Figure): Promise<FigurePreviewMo
   const spec = generatedTokenSpec(figure);
   if (spec) {
     const resolved = await resolvedTokenSpec(figure, spec);
-    const mesh = buildTokenMesh(resolved);
+    const mesh = buildTokenPreviewMesh(figure, resolved);
     if (mesh.triangles === 0) throw new Error('The generated component contains no triangles.');
     try {
       return {
         mesh,
         texture: await tokenTextureUrl(figure),
+        millimetresPerUnit: MM_PER_TTS_UNIT,
         warning: null
       };
     } catch (error) {
       return {
         mesh,
         texture: null,
+        millimetresPerUnit: MM_PER_TTS_UNIT,
         warning: error instanceof Error ? error.message : String(error)
       };
     }
@@ -71,6 +76,7 @@ export async function loadFigurePreview(figure: Figure): Promise<FigurePreviewMo
   return {
     mesh,
     texture: figure.reference.source,
+    millimetresPerUnit: null,
     warning: null
   };
 }
