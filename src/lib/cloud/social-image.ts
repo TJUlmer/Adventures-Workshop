@@ -282,8 +282,8 @@ function drawSingleHeroDetails(
   }
 
   const text = readableAbilityText(ability.text, hero);
-  const fontSize = 18;
-  const lineHeight = 22;
+  const fontSize = 20;
+  const lineHeight = 24;
   const maxLines = Math.max(1, Math.floor((532 - bodyY) / lineHeight));
   context.globalAlpha = 0.9;
   context.font = `400 ${fontSize}px ${COPY_FONT}`;
@@ -415,14 +415,14 @@ function drawIdentity(
   context.fillStyle = theme.bannerInk;
   context.textBaseline = 'top';
   context.font = `400 22px ${COPY_FONT}`;
-  context.fillText(kicker, 70, 72, 390);
+  context.fillText(kicker, 70, 50, 390);
   context.fillStyle = theme.divider;
-  context.fillRect(70, 111, 142, 8);
+  context.fillRect(70, 89, 142, 8);
 
   context.fillStyle = theme.bannerInk;
   context.font = `${displayFontWeight(theme.displayFont)} ${titleSize}px ${displayFontStack(theme.displayFont)}`;
   const lineHeight = titleSize * 0.88;
-  lines.forEach((line, index) => context.fillText(line, 70, 151 + index * lineHeight, 400));
+  lines.forEach((line, index) => context.fillText(line, 70, 129 + index * lineHeight, 400));
 
   if (subtitle) {
     context.globalAlpha = 0.78;
