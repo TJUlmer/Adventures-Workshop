@@ -1325,6 +1325,7 @@
             inspectable
             componentPreviewsReady={portableSet !== null}
             cardPreviews={publishedCardPreviews}
+            publishedPngsOnly
             heading={false}
             {cardSize}
             showZoom={false}

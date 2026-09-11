@@ -39,6 +39,9 @@ import { renderThumbnail } from './thumbnail';
 import { ASSET_BUCKET, cloudConfig } from './config';
 import { CloudError, endpoint, headers, request } from './http';
 
+/** Enough parallel requests to hide Storage latency without flooding it with a large set. */
+const CARD_PREVIEW_UPLOAD_CONCURRENCY = 4;
+
 export type Visibility = 'private' | 'unlisted' | 'public';
 
 /** A published set as the browse list and the author's shelf want it. */
@@ -317,17 +320,46 @@ async function createCardPreviewManifest(
     onProgress?.(done, total * 2);
   });
   const manifest: CardPreviewManifest = {};
+  const uploads = [...rendered.entries()];
+  const failures: Array<{ cause: unknown }> = [];
+  let cursor = 0;
+  let uploaded = 0;
 
-  for (const [index, [key, image]] of [...rendered.entries()].entries()) {
-    const keyHash = await shortHash(new TextEncoder().encode(key));
-    manifest[key] = await uploadBlob(
-      image,
-      userId,
-      storageSetId,
-      `card-preview-${keyHash}`
-    );
-    onProgress?.(renderTotal + index + 1, renderTotal * 2);
+  async function worker(): Promise<void> {
+    for (;;) {
+      /* Uploads already in flight are allowed to finish after one fails, but
+         no worker starts another. Waiting for all of them avoids a retry racing
+         requests left behind by the rejected publication. */
+      if (failures.length > 0) return;
+      const entry = uploads[cursor++];
+      if (!entry) return;
+      const [key, image] = entry;
+
+      try {
+        const keyHash = await shortHash(new TextEncoder().encode(key));
+        manifest[key] = await uploadBlob(
+          image,
+          userId,
+          storageSetId,
+          `card-preview-${keyHash}`
+        );
+      } catch (cause) {
+        if (failures.length === 0) failures.push({ cause });
+        return;
+      }
+
+      uploaded += 1;
+      onProgress?.(renderTotal + uploaded, renderTotal * 2);
+    }
   }
+
+  await Promise.all(
+    Array.from({ length: Math.min(CARD_PREVIEW_UPLOAD_CONCURRENCY, uploads.length) }, () =>
+      worker()
+    )
+  );
+  const failure = failures[0];
+  if (failure) throw failure.cause;
 
   return manifest;
 }

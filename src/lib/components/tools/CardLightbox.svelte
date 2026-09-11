@@ -4,8 +4,8 @@
    *
    * The native dialog supplies the focus trap, Escape handling and inert
    * background. A shared publication supplies the lossless image approved at
-   * publish time; `CardRenderer` remains the compatibility fallback for an old
-   * row or a failed image request.
+   * publish time. Missing publication pixels are reported rather than replaced
+   * with a live reconstruction that may differ from the author's PNG.
    */
   import { CARD_TYPE_META } from '$lib/cards/types';
   import { CardRenderer } from '$lib/renderer';
@@ -21,6 +21,7 @@
     items: readonly GalleryCardItem[];
     index: number;
     side: GalleryCardSide;
+    publishedPngsOnly?: boolean;
     onclose: () => void;
     onprevious: () => void;
     onnext: () => void;
@@ -34,6 +35,7 @@
     items,
     index,
     side,
+    publishedPngsOnly = false,
     onclose,
     onprevious,
     onnext,
@@ -173,6 +175,12 @@
                 alt={item.label}
                 onerror={() => (failedPreviewUrl = previewSrc)}
               />
+            {:else if publishedPngsOnly}
+              <div class="published-unavailable" role="alert">
+                <Icon name="image" size={26} />
+                <strong>Preview temporarily unavailable</strong>
+                <span>This published card image needs to be regenerated.</span>
+              </div>
             {:else}
               <svelte:boundary onerror={report}>
                 {#if item.kind === 'card'}
@@ -366,6 +374,35 @@
     width: 100%;
     height: auto;
     border-radius: var(--radius-sm);
+  }
+
+  .published-unavailable {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-2);
+    width: 100%;
+    aspect-ratio: 63 / 88;
+    padding: var(--space-5);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-md);
+    background: var(--surface-inset);
+    color: var(--text-muted);
+    text-align: center;
+  }
+
+  .card-view.landscape .published-unavailable {
+    aspect-ratio: 88 / 63;
+  }
+
+  .card-view.miniature .published-unavailable {
+    aspect-ratio: 44 / 67;
+  }
+
+  .published-unavailable span {
+    font-size: var(--text-xs);
+    color: var(--text-muted);
   }
 
   .step {

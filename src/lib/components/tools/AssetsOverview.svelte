@@ -56,6 +56,8 @@
     componentPreviewsReady?: boolean;
     /** Fixed publication pixels. Omitted by the editable Overview. */
     cardPreviews?: CardPreviewManifest;
+    /** A shared publication must never substitute a live reconstructed card. */
+    publishedPngsOnly?: boolean;
     /** Off where the screen around it has already named the set. */
     heading?: boolean;
     /** Controlled card width for a parent that owns the review toolbar. */
@@ -73,6 +75,7 @@
     inspectable = false,
     componentPreviewsReady = true,
     cardPreviews,
+    publishedPngsOnly = false,
     heading = true,
     cardSize,
     showZoom = true,
@@ -561,6 +564,17 @@
   </div>
 {/snippet}
 
+{#snippet unavailablePublishedCard(label: string, shape: 'portrait' | 'landscape' | 'miniature' = 'portrait')}
+  <div
+    class="published-unavailable {shape}"
+    role="img"
+    aria-label={`${label} image temporarily unavailable`}
+  >
+    <Icon name="image" size={22} />
+    <span>Preview temporarily unavailable</span>
+  </div>
+{/snippet}
+
 {#snippet galleryPlaceholders(count: number)}
   {#each Array.from({ length: count }) as _, index (index)}
     <figure class="tile placeholder" aria-hidden="true">
@@ -598,6 +612,8 @@
           alt=""
           onerror={() => rejectPublishedPreview(previewSrc)}
         />
+      {:else if publishedPngsOnly}
+        {@render unavailablePublishedCard(`${characterLabel(character)} deck back`)}
       {:else}
         <svelte:boundary onerror={(error) => report(`${characterLabel(character)}'s deck back`, error)}>
           <CardRenderer card={null} cardback={character} />
@@ -642,6 +658,8 @@
           alt=""
           onerror={() => rejectPublishedPreview(previewSrc)}
         />
+      {:else if publishedPngsOnly}
+        {@render unavailablePublishedCard(`${tileEntry.name} character card`)}
       {:else}
         <svelte:boundary onerror={(error) => report(`${tileEntry.name}'s character card`, error)}>
           <CardRenderer
@@ -708,6 +726,15 @@
                     alt=""
                     onerror={() => rejectPublishedPreview(previewSrc)}
                   />
+                {:else if publishedPngsOnly}
+                  {@render unavailablePublishedCard(
+                    `${cardLabel(card)}${side === 'back' ? ' reverse' : ''}`,
+                    card.type === 'event' || (card.type === 'rules' && card.landscape)
+                      ? 'landscape'
+                      : card.type === 'initiative'
+                        ? 'miniature'
+                        : 'portrait'
+                  )}
                 {:else}
                   <svelte:boundary onerror={(error) => report(`Card “${cardLabel(card)}”`, error)}>
                     <CardRenderer
@@ -988,6 +1015,7 @@
     onprevious={() => moveLightbox(-1)}
     onnext={() => moveLightbox(1)}
     onsidechange={(side) => (lightboxSide = side)}
+    {publishedPngsOnly}
   />
 {/if}
 {#if inspectable && ComponentModal}
@@ -1340,6 +1368,36 @@
     width: 100%;
     height: auto;
     border-radius: inherit;
+  }
+
+  .published-unavailable {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-2);
+    width: 100%;
+    aspect-ratio: 63 / 88;
+    padding: var(--space-3);
+    border: 1px solid var(--border-subtle);
+    border-radius: inherit;
+    background: var(--surface-inset);
+    color: var(--text-muted);
+    text-align: center;
+  }
+
+  .published-unavailable.landscape {
+    aspect-ratio: 88 / 63;
+  }
+
+  .published-unavailable.miniature {
+    aspect-ratio: 44 / 67;
+  }
+
+  .published-unavailable span {
+    max-width: 16ch;
+    font-size: var(--text-2xs);
+    line-height: var(--leading-snug);
   }
 
   .inspect-cue {
