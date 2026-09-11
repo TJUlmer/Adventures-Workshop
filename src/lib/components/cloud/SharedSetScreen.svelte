@@ -393,6 +393,13 @@
 
     const character = hydrated.characters.find((candidate) => candidate.id === hint);
     if (character?.role === 'hero') {
+      /* A one-hero heroes set already is that hero's complete product. Slicing
+         it only removes unassigned companion pieces — sidekick dials and
+         tokens have no separate character id to attach to — and swaps the
+         set's current social composition for its fallback artwork. */
+      if (hydrated.kind === 'heroes' && charactersByRole(hydrated, 'hero').length === 1) {
+        return { kind: 'full' };
+      }
       return { kind: 'hero', characterId: character.id };
     }
     if (character?.role === 'villain' || character?.role === 'minion') {

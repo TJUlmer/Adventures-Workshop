@@ -22,7 +22,7 @@
   import HomeScreen from '$lib/components/library/HomeScreen.svelte';
   import PrintScreen from '$lib/print/PrintScreen.svelte';
   import { auth } from '$lib/cloud/auth.svelte';
-  import { readSharedSlug } from '$lib/state/navigation.svelte';
+  import { readSharedCharacterHint, readSharedSlug } from '$lib/state/navigation.svelte';
   import PreviewPanel from '$lib/components/preview/PreviewPanel.svelte';
   import SetSidebar from '$lib/components/sidebar/SetSidebar.svelte';
   import FiguresPanel from '$lib/components/tools/FiguresPanel.svelte';
@@ -88,7 +88,7 @@
    */
   const openDeepLink = (): void => {
     const slug = readSharedSlug();
-    if (slug) navigation.openShared(slug);
+    if (slug) navigation.openShared(slug, readSharedCharacterHint());
   };
 
   let sessionReady = $state(false);
@@ -114,7 +114,7 @@
       const slug = readSharedSlug();
       if (slug) {
         if (navigation.inSet && !(await workshop.saveNow())) return;
-        navigation.openShared(slug);
+        navigation.openShared(slug, readSharedCharacterHint());
       }
       else if (navigation.view.kind === 'shared') navigation.leaveShared();
     };
