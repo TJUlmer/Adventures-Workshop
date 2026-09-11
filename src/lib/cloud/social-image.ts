@@ -12,6 +12,9 @@ import type { Character } from '$lib/characters/types';
 import type { Artwork } from '$lib/core/artwork';
 import type { Photograph } from '$lib/export/card-stage';
 import { withCardStage } from '$lib/export/card-stage';
+import type { Figure } from '$lib/figures/types';
+import { loadFigurePreview, releaseFigurePreview } from '$lib/components/tools/figure-preview';
+import { renderMeshSnapshot } from '$lib/models/snapshot';
 import { displayFontStack, displayFontWeight, fitDisplaySize } from '$lib/renderer/fonts';
 import { CARD_FORMATS } from '$lib/renderer/geometry';
 import { charactersByRole, setStats } from '$lib/sets/queries';
@@ -92,9 +95,13 @@ function settled(image: HTMLImageElement): Promise<boolean> {
 
 async function loadArtwork(artwork: Artwork | null): Promise<HTMLImageElement | null> {
   if (!artwork?.source) return null;
+  return loadImageSource(artwork.source);
+}
+
+async function loadImageSource(source: string): Promise<HTMLImageElement | null> {
   const image = new Image();
-  if (/^https?:/i.test(artwork.source)) image.crossOrigin = 'anonymous';
-  image.src = artwork.source;
+  if (/^https?:/i.test(source)) image.crossOrigin = 'anonymous';
+  image.src = source;
   return (await settled(image)) ? image : null;
 }
 
@@ -558,6 +565,105 @@ async function drawSingleHero(
   }
 }
 
+async function figureAccentSource(figure: Figure): Promise<HTMLImageElement | null> {
+  let preview = null;
+  try {
+    preview = await loadFigurePreview(figure);
+    if (preview) {
+      const snapshot = await renderMeshSnapshot(preview.mesh, preview.texture, 320);
+      if (snapshot) return loadImageSource(snapshot);
+    }
+  } catch {
+    // Reference art is still a useful quiet accent when a supplied mesh fails.
+  } finally {
+    releaseFigurePreview(preview);
+  }
+  return loadArtwork(figure.reference);
+}
+
+function drawFigureAccent(
+  context: CanvasRenderingContext2D,
+  image: HTMLImageElement,
+  left: number,
+  top: number,
+  size: number,
+  theme: CardTheme
+): void {
+  const ratio = image.naturalWidth / image.naturalHeight;
+  const width = ratio >= 1 ? size : size * ratio;
+  const height = ratio >= 1 ? size / ratio : size;
+  const x = left + (size - width) / 2;
+  const y = top + (size - height) / 2;
+
+  context.save();
+  context.globalAlpha = 0.22;
+  context.fillStyle = canvasFill(
+    context,
+    theme.frame,
+    left + 18,
+    top + size - 28,
+    size - 36,
+    20
+  );
+  context.beginPath();
+  context.ellipse(
+    left + size / 2,
+    top + size - size * 0.107,
+    size * 0.343,
+    size * 0.071,
+    0,
+    0,
+    Math.PI * 2
+  );
+  context.fill();
+  context.globalAlpha = 0.96;
+  context.shadowColor = theme.frame.color;
+  context.shadowBlur = 14;
+  context.shadowOffsetY = 7;
+  context.drawImage(image, x, y, width, height);
+  context.restore();
+}
+
+/** Miniatures are supporting evidence, not another headline. One keeps the
+    corner placement; several overlap into a compact foreground lineup. */
+async function drawFigureLineup(
+  context: CanvasRenderingContext2D,
+  set: AdventureSet,
+  characters: readonly Character[],
+  theme: CardTheme,
+  limit: number
+): Promise<void> {
+  const figures: Figure[] = [];
+  for (const character of characters) {
+    for (const figure of set.figures) {
+      if (
+        figures.length < limit &&
+        figure.kind === 'figure' &&
+        figure.characterId === character.id &&
+        !figures.includes(figure)
+      ) {
+        figures.push(figure);
+      }
+    }
+  }
+
+  const images: HTMLImageElement[] = [];
+  for (const figure of figures) {
+    const image = await figureAccentSource(figure);
+    if (image) images.push(image);
+  }
+  if (images.length === 0) return;
+
+  const size = images.length === 1 ? 140 : images.length === 2 ? 128 : images.length === 3 ? 118 : 110;
+  const step = size * 0.82;
+  const totalWidth = size + step * (images.length - 1);
+  const left = 1188 - totalWidth;
+  const top = 612 - size;
+  for (const [index, image] of images.entries()) {
+    drawFigureAccent(context, image, left + index * step, top, size, theme);
+  }
+}
+
 async function drawHeroSet(
   context: CanvasRenderingContext2D,
   photograph: Photograph,
@@ -663,6 +769,20 @@ export async function renderSocialImage(set: AdventureSet): Promise<Blob | null>
     } catch (cause) {
       console.warn('Could not add rendered components to the social image.', cause);
     }
+  }
+
+  try {
+    const accentCharacters =
+      kind === 'single-hero'
+        ? heroes.slice(0, 1)
+        : kind === 'hero-set'
+          ? heroes
+          : villains.length > 0 || minions.length > 0
+            ? [...minions, ...villains]
+            : heroes;
+    await drawFigureLineup(context, set, accentCharacters, theme, kind === 'single-hero' ? 1 : 4);
+  } catch (cause) {
+    console.warn('Could not add figure accents to the social image.', cause);
   }
 
   try {
