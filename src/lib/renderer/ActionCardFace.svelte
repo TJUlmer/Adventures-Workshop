@@ -438,41 +438,42 @@
     because a ribbon's stroke sits flush with its outer edge on both layouts:
     380..399 of the hero's 147..399, and 345..362 of the villain's 132..362.
   -->
-  {#if card.showRibbonSymbol}
+  <!-- The foot is structural rather than optional: without it, a body panel
+       that rises for longer copy leaves an expanding hole between the ribbon
+       and its divider. `showRibbonSymbol` governs only the optional glyph. -->
+  <div
+    class="ribbon-foot"
+    style:left={pu(footLeft)}
+    style:width={pu(footWidth)}
+    style:height={pu(INTERIOR.height)}
+    style:background={fillCss(theme.ribbonFoot)}
+  >
     <div
-      class="ribbon-foot"
-      style:left={pu(footLeft)}
-      style:width={pu(footWidth)}
-      style:height={pu(INTERIOR.height)}
-      style:background={fillCss(theme.ribbonFoot)}
-    >
-      <div
-        class="ribbon-foot-edge"
-        style:width={pu(footEdgeWidth)}
-        style:background={theme.divider}
-      ></div>
-      {#if ribbonSymbolSrc}
-        <!--
-          A plain `<img>`, not a mask over a fill — tried once, reverted.
-          Every *other* themed glyph in this file is a single-colour shape on
-          transparency, which is what makes masking it work at all; a combat
-          symbol is a small multi-colour illustration with an opaque
-          background, so masking it just filled a rectangle with the chosen
-          colour and hid the art entirely. `ribbonFoot` (below) is the actual
-          author-facing colour choice here — the strip behind the symbol, not
-          the symbol itself.
-        -->
-        <img
-          class="ribbon-foot-symbol"
-          src={ribbonSymbolSrc}
-          alt=""
-          style:left={pu(footAxis - footLeft)}
-          style:bottom={pu(RIBBON_FOOT.gap)}
-          style:height={pu(theme.ribbonSymbolSize)}
-        />
-      {/if}
-    </div>
-  {/if}
+      class="ribbon-foot-edge"
+      style:width={pu(footEdgeWidth)}
+      style:background={theme.divider}
+    ></div>
+    {#if ribbonSymbolSrc}
+      <!--
+        A plain `<img>`, not a mask over a fill — tried once, reverted.
+        Every *other* themed glyph in this file is a single-colour shape on
+        transparency, which is what makes masking it work at all; a combat
+        symbol is a small multi-colour illustration with an opaque
+        background, so masking it just filled a rectangle with the chosen
+        colour and hid the art entirely. `ribbonFoot` (below) is the actual
+        author-facing colour choice here — the strip behind the symbol, not
+        the symbol itself.
+      -->
+      <img
+        class="ribbon-foot-symbol"
+        src={ribbonSymbolSrc}
+        alt=""
+        style:left={pu(footAxis - footLeft)}
+        style:bottom={pu(RIBBON_FOOT.gap)}
+        style:height={pu(theme.ribbonSymbolSize)}
+      />
+    {/if}
+  </div>
 
   <!--
     The divider, drawn rather than masked: it is a plain bar in the art. Only

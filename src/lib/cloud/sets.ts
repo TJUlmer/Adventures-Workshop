@@ -29,6 +29,11 @@ import type { EmbeddedAsset } from './assets';
 import { auth } from './auth.svelte';
 import { shortHash } from '$lib/core/hash';
 import { renderCharacterCards } from './character-cards';
+import {
+  CARD_PREVIEW_RENDERER_VERSION,
+  renderCardPreviews
+} from './card-previews';
+import type { CardPreviewManifest } from './card-previews';
 import { renderSocialImage, SOCIAL_IMAGE_RENDERER_VERSION } from './social-image';
 import { renderThumbnail } from './thumbnail';
 import { ASSET_BUCKET, cloudConfig } from './config';
@@ -167,6 +172,10 @@ export interface GallerySet extends PublishedSet {
 /** The same row with the document attached. Only ever fetched one at a time. */
 export interface PublishedSetWithDocument extends PublishedSet {
   document: unknown;
+  /** Lossless gallery faces keyed by entity and side. Empty on legacy rows. */
+  card_previews: CardPreviewManifest;
+  /** Renderer revision used to create `card_previews`; zero means legacy. */
+  card_preview_version: number;
 }
 
 /** Columns for a listing. Never `document` — that is the whole point of them. */
@@ -208,7 +217,7 @@ export function assetPrefix(): string {
 
 export interface PublishProgress {
   /** What is happening, for a status line. */
-  stage: 'assets' | 'document';
+  stage: 'assets' | 'previews' | 'document';
   done: number;
   total: number;
 }
@@ -289,10 +298,38 @@ async function uploadBlob(
   });
 
   if (!response.ok && response.status !== 409) {
-    throw new CloudError(`Could not upload the thumbnail (${response.status}).`, response.status);
+    throw new CloudError(`Could not upload a generated image (${response.status}).`, response.status);
   }
 
   return `${assetPrefix()}${path}`;
+}
+
+/** Render and upload one complete, immutable gallery-preview manifest. */
+async function createCardPreviewManifest(
+  set: AdventureSet,
+  userId: string,
+  storageSetId: string,
+  onProgress?: (done: number, total: number) => void
+): Promise<CardPreviewManifest> {
+  let renderTotal = 0;
+  const rendered = await renderCardPreviews(set, (done, total) => {
+    renderTotal = total;
+    onProgress?.(done, total * 2);
+  });
+  const manifest: CardPreviewManifest = {};
+
+  for (const [index, [key, image]] of [...rendered.entries()].entries()) {
+    const keyHash = await shortHash(new TextEncoder().encode(key));
+    manifest[key] = await uploadBlob(
+      image,
+      userId,
+      storageSetId,
+      `card-preview-${keyHash}`
+    );
+    onProgress?.(renderTotal + index + 1, renderTotal * 2);
+  }
+
+  return manifest;
 }
 
 /**
@@ -351,7 +388,19 @@ export async function publishSet(
   }
 
   const document = substituteStrings(envelope, mapping);
-  options.onProgress?.({ stage: 'document', done: 0, total: 1 });
+
+  /*
+   * Public card surfaces are fixed pixels, not a reconstruction in each
+   * visitor's browser. This step is required rather than best-effort: the row
+   * is written only after every face has rendered and uploaded, so a failed
+   * preview can never replace the previous complete published revision.
+   */
+  const cardPreviews = await createCardPreviewManifest(
+    scoped,
+    user.id,
+    set.id,
+    (done, total) => options.onProgress?.({ stage: 'previews', done, total })
+  );
 
   /*
    * The tile picture, and a failure here must not fail the publish: a set with
@@ -425,6 +474,8 @@ export async function publishSet(
     thumbnail_url: thumbnailUrl,
     social_image_url: socialImageUrl,
     social_image_version: socialImageVersion,
+    card_previews: cardPreviews,
+    card_preview_version: CARD_PREVIEW_RENDERER_VERSION,
     character_cards: characterCards,
     /* Trimmed and capped here as well as in the field: a note is printed under
        someone else's set, so its length is not the author's alone to decide. */
@@ -473,6 +524,7 @@ export async function publishSet(
    *
    * `slug` is left out of the payload on purpose so the existing one survives.
    */
+  options.onProgress?.({ stage: 'document', done: 0, total: 1 });
   const [published] = await request<PublishedSet[]>(
     '/rest/v1/sets?on_conflict=owner_id,local_id,scope,character_id',
     {
@@ -695,6 +747,61 @@ export async function refreshPublishedSocialPreview(targetId: string): Promise<b
       target: row.id,
       preview_url: imageUrl,
       preview_version: SOCIAL_IMAGE_RENDERER_VERSION
+    }
+  });
+  return true;
+}
+
+/** One lightweight queue entry for a published row without current card pixels. */
+export interface CardPreviewRefreshTarget {
+  id: string;
+  name: string;
+  scope: PublishedSet['scope'];
+  visibility: Visibility;
+  card_preview_version: number;
+}
+
+/** Published rows whose card-image manifest predates the current renderer. */
+export async function listOutdatedCardPreviews(): Promise<CardPreviewRefreshTarget[]> {
+  await auth.ensureFresh();
+  if (!auth.user) return [];
+
+  return request<CardPreviewRefreshTarget[]>(
+    '/rest/v1/sets?select=id,name,scope,visibility,card_preview_version' +
+      `&card_preview_version=lt.${CARD_PREVIEW_RENDERER_VERSION}&order=created_at.asc`
+  );
+}
+
+/**
+ * Backfill one immutable published snapshot without moving its content revision.
+ *
+ * The narrow database RPC verifies every uploaded PNG and changes only the
+ * derived manifest/version columns. A failure leaves the old row untouched.
+ */
+export async function refreshPublishedCardPreviews(
+  targetId: string,
+  onProgress?: (done: number, total: number) => void
+): Promise<boolean> {
+  await auth.ensureFresh();
+  const user = auth.user;
+  if (!user) throw new CloudError('Sign in to refresh gallery card previews.', 401);
+
+  const rows = await request<PublishedSetWithDocument[]>(
+    `/rest/v1/sets?select=${SUMMARY_COLUMNS},document,card_previews,card_preview_version` +
+      `&id=eq.${encodeURIComponent(targetId)}` +
+      `&card_preview_version=lt.${CARD_PREVIEW_RENDERER_VERSION}&limit=1`
+  );
+  const row = rows[0];
+  if (!row) return false;
+
+  const set = await hydratePublishedSet(row);
+  const manifest = await createCardPreviewManifest(set, user.id, row.id, onProgress);
+  await request('/rest/v1/rpc/refresh_set_card_previews', {
+    method: 'POST',
+    body: {
+      target: row.id,
+      preview_manifest: manifest,
+      preview_version: CARD_PREVIEW_RENDERER_VERSION
     }
   });
   return true;

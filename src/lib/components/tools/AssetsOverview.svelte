@@ -4,7 +4,9 @@
    *
    * This is the review page — the one you scroll before calling a set done, and
    * the source for a future set-overview sheet. Cards render through the same
-   * component the editor previews, so what is here is what prints.
+   * component the editor previews, so what is here is what prints. A shared
+   * publication supplies lossless pictures made by that renderer instead of
+   * reconstructing cards in the visitor's browser.
    *
    * It is also what a published set looks like to a stranger, which is why it
    * takes the set as a prop rather than only reading the store: a shared set is
@@ -23,6 +25,13 @@
   import type { Deck, DeckKind } from '$lib/decks/types';
   import type { Figure } from '$lib/figures/types';
   import { figureLabel, FIGURE_KIND_LABELS } from '$lib/figures/types';
+  import {
+    cardPreviewUrl,
+    characterCardPreviewKey,
+    deckBackPreviewKey,
+    printedCardPreviewKey
+  } from '$lib/cloud/card-previews';
+  import type { CardPreviewManifest } from '$lib/cloud/card-previews';
   import { CardRenderer, MapBoard, ThreatBoard } from '$lib/renderer';
   import { initiativeSubjectForCard, resolveStyleForCard } from '$lib/sets/queries';
   import type { AdventureSet } from '$lib/sets/types';
@@ -45,6 +54,8 @@
      * views turn this on after their public Storage URLs have been embedded.
      */
     componentPreviewsReady?: boolean;
+    /** Fixed publication pixels. Omitted by the editable Overview. */
+    cardPreviews?: CardPreviewManifest;
     /** Off where the screen around it has already named the set. */
     heading?: boolean;
     /** Controlled card width for a parent that owns the review toolbar. */
@@ -61,6 +72,7 @@
     interactive = true,
     inspectable = false,
     componentPreviewsReady = true,
+    cardPreviews,
     heading = true,
     cardSize,
     showZoom = true,
@@ -69,6 +81,16 @@
   }: Props = $props();
 
   const set = $derived(given ?? workshop.adventure);
+  let failedCardPreviewUrls = $state<Set<string>>(new Set());
+
+  function publishedPreview(key: string): string {
+    const url = cardPreviewUrl(cardPreviews, key);
+    return url && !failedCardPreviewUrls.has(url) ? url : '';
+  }
+
+  function rejectPublishedPreview(url: string): void {
+    failedCardPreviewUrls = new Set([...failedCardPreviewUrls, url]);
+  }
 
   /*
    * A tile that goes nowhere is not a button.
@@ -407,13 +429,17 @@
   );
 
   function cardItem(group: Group, card: Card): GalleryCardItem {
+    const front = publishedPreview(printedCardPreviewKey(card.id, 'front'));
+    const back =
+      card.type === 'event' ? publishedPreview(printedCardPreviewKey(card.id, 'back')) : '';
     return {
       kind: 'card',
       key: card.id,
       label: cardLabel(card),
       meta: CARD_TYPE_META[card.type].label,
       card,
-      character: group.owner
+      character: group.owner,
+      previews: { ...(front ? { front } : {}), ...(back ? { back } : {}) }
     };
   }
 
@@ -424,7 +450,10 @@
         key: `deck-back:${character.id}`,
         label: characterLabel(character),
         meta: 'Deck back',
-        character
+        character,
+        previews: {
+          front: publishedPreview(deckBackPreviewKey(character.id)) || undefined
+        }
       },
       ...characterCardsFor(character).map((entry) => ({
         kind: 'character-card' as const,
@@ -432,7 +461,10 @@
         label: entry.name,
         meta: 'Character card',
         character,
-        entry: entry.entry
+        entry: entry.entry,
+        previews: {
+          front: publishedPreview(characterCardPreviewKey(entry.key)) || undefined
+        }
       }))
     ];
   }
@@ -542,6 +574,7 @@
 {/snippet}
 
 {#snippet deckBack(character: Character)}
+  {@const previewSrc = publishedPreview(deckBackPreviewKey(character.id))}
   <figure class="tile identity-tile">
     <svelte:element
       this={previewTile}
@@ -558,12 +591,21 @@
           ? () => openIdentity(character, `deck-back:${character.id}`)
           : undefined}
     >
-      <svelte:boundary onerror={(error) => report(`${characterLabel(character)}'s deck back`, error)}>
-        <CardRenderer card={null} cardback={character} />
-        {#snippet failed(error)}
-          {@render broken(`${characterLabel(character)}'s deck back`, error)}
-        {/snippet}
-      </svelte:boundary>
+      {#if previewSrc}
+        <img
+          class="published-card-preview"
+          src={previewSrc}
+          alt=""
+          onerror={() => rejectPublishedPreview(previewSrc)}
+        />
+      {:else}
+        <svelte:boundary onerror={(error) => report(`${characterLabel(character)}'s deck back`, error)}>
+          <CardRenderer card={null} cardback={character} />
+          {#snippet failed(error)}
+            {@render broken(`${characterLabel(character)}'s deck back`, error)}
+          {/snippet}
+        </svelte:boundary>
+      {/if}
       {#if inspectable && !interactive}
         <span class="inspect-cue" aria-hidden="true"><Icon name="search" size={13} /></span>
       {/if}
@@ -576,6 +618,7 @@
 {/snippet}
 
 {#snippet characterCard(tileEntry: CharacterCardTile)}
+  {@const previewSrc = publishedPreview(characterCardPreviewKey(tileEntry.key))}
   <figure class="tile identity-tile">
     <svelte:element
       this={previewTile}
@@ -592,17 +635,26 @@
           ? () => openIdentity(tileEntry.character, `character-card:${tileEntry.key}`)
           : undefined}
     >
-      <svelte:boundary onerror={(error) => report(`${tileEntry.name}'s character card`, error)}>
-        <CardRenderer
-          card={null}
-          statCard={tileEntry.character}
-          statCardEntry={tileEntry.entry}
-          customSymbols={set.customSymbols}
+      {#if previewSrc}
+        <img
+          class="published-card-preview"
+          src={previewSrc}
+          alt=""
+          onerror={() => rejectPublishedPreview(previewSrc)}
         />
-        {#snippet failed(error)}
-          {@render broken(`${tileEntry.name}'s character card`, error)}
-        {/snippet}
-      </svelte:boundary>
+      {:else}
+        <svelte:boundary onerror={(error) => report(`${tileEntry.name}'s character card`, error)}>
+          <CardRenderer
+            card={null}
+            statCard={tileEntry.character}
+            statCardEntry={tileEntry.entry}
+            customSymbols={set.customSymbols}
+          />
+          {#snippet failed(error)}
+            {@render broken(`${tileEntry.name}'s character card`, error)}
+          {/snippet}
+        </svelte:boundary>
+      {/if}
       {#if inspectable && !interactive}
         <span class="inspect-cue" aria-hidden="true"><Icon name="search" size={13} /></span>
       {/if}
@@ -632,6 +684,7 @@
         {#each group.cards as card (card.id)}
           {@const sides = card.type === 'event' ? EVENT_SIDES : FRONT_ONLY}
           {#each sides as side (side)}
+            {@const previewSrc = publishedPreview(printedCardPreviewKey(card.id, side))}
             <figure class="tile">
               <svelte:element
                 this={previewTile}
@@ -648,19 +701,28 @@
                     ? () => openGroupCard(group, card, side)
                     : undefined}
               >
-                <svelte:boundary onerror={(error) => report(`Card “${cardLabel(card)}”`, error)}>
-                  <CardRenderer
-                    {card}
-                    character={group.owner}
-                    theme={resolveStyleForCard(set, card)}
-                    customSymbols={set.customSymbols}
-                    initiativeSubject={initiativeSubjectForCard(set, card)}
-                    {side}
+                {#if previewSrc}
+                  <img
+                    class="published-card-preview"
+                    src={previewSrc}
+                    alt=""
+                    onerror={() => rejectPublishedPreview(previewSrc)}
                   />
-                  {#snippet failed(error)}
-                    {@render broken(`Card “${cardLabel(card)}”`, error)}
-                  {/snippet}
-                </svelte:boundary>
+                {:else}
+                  <svelte:boundary onerror={(error) => report(`Card “${cardLabel(card)}”`, error)}>
+                    <CardRenderer
+                      {card}
+                      character={group.owner}
+                      theme={resolveStyleForCard(set, card)}
+                      customSymbols={set.customSymbols}
+                      initiativeSubject={initiativeSubjectForCard(set, card)}
+                      {side}
+                    />
+                    {#snippet failed(error)}
+                      {@render broken(`Card “${cardLabel(card)}”`, error)}
+                    {/snippet}
+                  </svelte:boundary>
+                {/if}
                 {#if inspectable && !interactive}
                   <span class="inspect-cue" aria-hidden="true"><Icon name="search" size={13} /></span>
                 {/if}
@@ -1261,6 +1323,13 @@
   button.tile-card:hover {
     translate: 0 -2px;
     box-shadow: var(--shadow-lg);
+  }
+
+  .published-card-preview {
+    display: block;
+    width: 100%;
+    height: auto;
+    border-radius: inherit;
   }
 
   .inspect-cue {

@@ -235,7 +235,9 @@
           status =
             progress.stage === 'assets'
               ? `Uploading artwork ${progress.done} of ${progress.total}…`
-              : 'Saving the set…';
+              : progress.stage === 'previews'
+                ? `Preparing gallery cards ${progress.done} of ${progress.total}…`
+                : 'Saving the set…';
         }
       });
       // Replace this scope's row if it already had one, otherwise add it —

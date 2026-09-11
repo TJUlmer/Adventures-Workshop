@@ -50,6 +50,7 @@
     setLiked
   } from '$lib/cloud/engagement';
   import type { FavouriteTarget, SetComment } from '$lib/cloud/engagement';
+  import { CARD_PREVIEW_RENDERER_VERSION } from '$lib/cloud/card-previews';
   import { coverArtwork } from '$lib/cloud/thumbnail';
   import {
     fetchAuthorName,
@@ -145,6 +146,9 @@
   let compactLayout = $state(false);
   let actionsDialog = $state<HTMLDialogElement | null>(null);
   let cardSize = $state<number>(GALLERY_CARD_SIZE.start);
+  const publishedCardPreviews = $derived(
+    row?.card_preview_version === CARD_PREVIEW_RENDERER_VERSION ? row.card_previews : undefined
+  );
 
   let comments = $state<SetComment[]>([]);
   let commentsLoading = $state(false);
@@ -1320,6 +1324,7 @@
             interactive={false}
             inspectable
             componentPreviewsReady={portableSet !== null}
+            cardPreviews={publishedCardPreviews}
             heading={false}
             {cardSize}
             showZoom={false}

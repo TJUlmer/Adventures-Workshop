@@ -797,12 +797,13 @@ would otherwise silently drop a chosen frame colour back to that default.
 ### The ribbon's foot
 
 The strip between a name ribbon's point and the divider, filled so the ribbon's
-stroke and the divider bar read as one continuous line, with a symbol standing
-in it — `ActionCard.showRibbonSymbol`/`ribbonSymbol`, drawn by
-`ActionCardFace`'s `.ribbon-foot`. Modelled on `AbilityBlocks.bonusIcon`: the
-symbol is a token string resolved through the same `parseAbilityText` lookup,
-so a built-in and an author's own glyph are the same kind of thing, and its
-size is a themed key (`CardTheme.ribbonSymbolSize`) rather than card data.
+stroke and the divider bar read as one continuous line, is drawn by
+`ActionCardFace`'s `.ribbon-foot` on every action card. A symbol may stand in it
+through `ActionCard.showRibbonSymbol`/`ribbonSymbol`. Modelled on
+`AbilityBlocks.bonusIcon`, the symbol is a token string resolved through the
+same `parseAbilityText` lookup, so a built-in and an author's own glyph are the
+same kind of thing, and its size is a themed key
+(`CardTheme.ribbonSymbolSize`) rather than card data.
 
 **The symbol itself is not recolourable, and that was tried and reverted.**
 Every other themed shape in this file — the frame, the ribbon, the boost ring
@@ -816,10 +817,11 @@ strip's own fill, already one of `StylePanel`'s "Surfaces" — and
 bound to that same field, a shortcut so changing it does not mean a trip to
 Design for one colour. Same field, same cascade, two places to reach it.
 
-**It has its own toggle rather than being "on when a symbol is chosen."** The
-filled strip is the visible half of the idea — a card can want the unbroken
-line with no glyph in it — so `ribbonSymbol: ''` means an empty foot, not the
-absence of one.
+**The strip is structural; only its symbol has a toggle.** A body panel rises
+with its copy, so omitting the foot when that toggle is off leaves a growing
+hole between the ribbon and divider on text-heavy cards. The strip therefore
+always carries the ribbon down, while `showRibbonSymbol: false` or
+`ribbonSymbol: ''` leaves it empty.
 
 **The strip has no measurable size, which is what dictates how it is drawn.**
 Its top is wherever the ribbon's contents ended (the ribbon's length *is* its
@@ -2002,6 +2004,31 @@ the title, description or image priority belong there rather than in either
 consumer. Private rows still show the author what is ready, but say plainly
 that a private link itself does not unfurl.
 
+**Shared card galleries use authoritative publication PNGs.** Rebuilding cards
+from the document in every visitor's browser is a useful legacy fallback, but
+it is not a reliable public proof of what the author approved: a later renderer
+change can alter an old publication. `cloud/card-previews.ts` therefore mounts
+the ordinary `CardRenderer` through `withCardStage` during publication and
+photographs every printed face, deck back and hero character card as a lossless
+900px-wide PNG. `sets.card_previews` is a JSON object keyed by entity and side;
+`sets.card_preview_version` records the renderer revision. Both fields are
+derived publication data outside the authored document, so they do not affect
+document revisions or contribution fingerprints. A publish uploads the whole
+manifest before replacing the database row: a failed face leaves the previous
+published revision intact rather than exposing a partial gallery.
+
+`SharedSetScreen` gives `AssetsOverview` a manifest only when its version equals
+`CARD_PREVIEW_RENDERER_VERSION`. Tiles and `CardLightbox` then show those exact
+pixels; a missing, stale or failed URL falls back to the live renderer so legacy
+rows remain viewable. Bumping that constant queues every older row for the
+administrator-only backfill in `AccountMenu`. Migration 0020's narrow RPC
+verifies that each URL names a real PNG beneath the administrator's Storage
+prefix and changes only the manifest/version. It also excludes those columns
+from `touch_updated_at`, so refreshing derived pixels neither masquerades as a
+republish nor requires the original author. The existing orphan sweep already
+walks every string in `to_jsonb(sets)`, so manifest URLs stay referenced without
+a parallel cleanup path.
+
 **The shared-set screen's character filter is not a second picker.** It
 reads as one — pick a hero and the overview above narrows to just their
 content — but it is wired entirely through `ExportPanel`'s own scope
@@ -2026,7 +2053,8 @@ the viewer also promotes its rendering copy to the embedded document because
 token/dial textures and attached-model previews pass through canvas/WebGL and
 cannot reliably use cross-origin Storage URLs. Their 3D preview work is gated
 until that promotion, while ordinary cards and flat artwork still get the fast
-URL-backed first paint. An immediate action awaits the same guarded promise and
+URL-backed first paint. Published card PNGs are already safe remote images and
+do not wait for hydration. An immediate action awaits the same guarded promise and
 shows its artwork progress; a share-link navigation aborts the stale requests,
 and the promise is also generation-checked so it cannot replace the next set
 even if an abort arrives too late.
@@ -2034,9 +2062,9 @@ even if an abort arrives too late.
 **The Overview preserves the whole page without mounting the whole page.** A
 deck or identity gallery below the shared view's internal scrollport starts as
 light card-shaped placeholders laid out by the exact same CSS grid. Its height,
-scrollbar and section anchor are therefore truthful, but none of its
-`CardRenderer`s exists until an `IntersectionObserver` sees the gallery within
-700px of the scrollport. Once revealed it stays revealed. Component reference
+scrollbar and section anchor are therefore truthful, but none of its preview
+images or legacy `CardRenderer`s exists until an `IntersectionObserver` sees the
+gallery within 700px of the scrollport. Once revealed it stays revealed. Component reference
 tiles remain cheap, while WebGL/model snapshots wait until their section is
 near and run sequentially. Card inspection, the interactive component viewer,
 and their model helpers are dynamic chunks loaded on first use; the actual card

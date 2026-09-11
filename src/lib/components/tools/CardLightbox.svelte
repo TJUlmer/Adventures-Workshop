@@ -3,8 +3,9 @@
    * A reading view over one semantic pile of card designs.
    *
    * The native dialog supplies the focus trap, Escape handling and inert
-   * background. The face itself remains `CardRenderer`, so inspecting a card
-   * cannot drift from the image that the same set exports.
+   * background. A shared publication supplies the lossless image approved at
+   * publish time; `CardRenderer` remains the compatibility fallback for an old
+   * row or a failed image request.
    */
   import { CARD_TYPE_META } from '$lib/cards/types';
   import { CardRenderer } from '$lib/renderer';
@@ -41,6 +42,7 @@
 
   let dialog = $state<HTMLDialogElement | null>(null);
   let swipe = $state<{ x: number; y: number; id: number } | null>(null);
+  let failedPreviewUrl = $state('');
 
   const item = $derived(items[index] ?? null);
   const first = $derived(index <= 0);
@@ -51,6 +53,8 @@
       (item.card.type === 'event' || (item.card.type === 'rules' && item.card.landscape))
   );
   const miniature = $derived(item?.kind === 'card' && item.card.type === 'initiative');
+  const previewSrc = $derived(item?.previews?.[event && side === 'back' ? 'back' : 'front'] ?? '');
+  const usePublishedPreview = $derived(Boolean(previewSrc && previewSrc !== failedPreviewUrl));
   const faceMeta = $derived(
     event && side === 'back'
       ? 'Reverse'
@@ -162,35 +166,44 @@
 
         <div class="card-view" class:landscape class:miniature>
           {#key `${item.key}:${event ? side : 'front'}`}
-            <svelte:boundary onerror={report}>
-              {#if item.kind === 'card'}
-                <CardRenderer
-                  card={item.card}
-                  character={item.character}
-                  theme={resolveStyleForCard(set, item.card)}
-                  customSymbols={set.customSymbols}
-                  initiativeSubject={initiativeSubjectForCard(set, item.card)}
-                  side={event ? side : 'front'}
-                />
-              {:else if item.kind === 'deck-back'}
-                <CardRenderer card={null} cardback={item.character} />
-              {:else}
-                <CardRenderer
-                  card={null}
-                  statCard={item.character}
-                  statCardEntry={item.entry}
-                  customSymbols={set.customSymbols}
-                />
-              {/if}
+            {#if usePublishedPreview}
+              <img
+                class="published-card-preview"
+                src={previewSrc}
+                alt={item.label}
+                onerror={() => (failedPreviewUrl = previewSrc)}
+              />
+            {:else}
+              <svelte:boundary onerror={report}>
+                {#if item.kind === 'card'}
+                  <CardRenderer
+                    card={item.card}
+                    character={item.character}
+                    theme={resolveStyleForCard(set, item.card)}
+                    customSymbols={set.customSymbols}
+                    initiativeSubject={initiativeSubjectForCard(set, item.card)}
+                    side={event ? side : 'front'}
+                  />
+                {:else if item.kind === 'deck-back'}
+                  <CardRenderer card={null} cardback={item.character} />
+                {:else}
+                  <CardRenderer
+                    card={null}
+                    statCard={item.character}
+                    statCardEntry={item.entry}
+                    customSymbols={set.customSymbols}
+                  />
+                {/if}
 
-              {#snippet failed(error)}
-                <div class="broken" role="alert">
-                  <Icon name="skull" size={22} />
-                  <strong>This card could not be drawn</strong>
-                  <span>{message(error)}</span>
-                </div>
-              {/snippet}
-            </svelte:boundary>
+                {#snippet failed(error)}
+                  <div class="broken" role="alert">
+                    <Icon name="skull" size={22} />
+                    <strong>This card could not be drawn</strong>
+                    <span>{message(error)}</span>
+                  </div>
+                {/snippet}
+              </svelte:boundary>
+            {/if}
           {/key}
         </div>
 
@@ -346,6 +359,13 @@
 
   .card-view.miniature {
     width: min(430px, 58vw, 47dvh);
+  }
+
+  .published-card-preview {
+    display: block;
+    width: 100%;
+    height: auto;
+    border-radius: var(--radius-sm);
   }
 
   .step {

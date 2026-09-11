@@ -20,10 +20,12 @@
   import { draftRollout } from '$lib/persistence/rollout.svelte';
   import { fetchOwnProfile, updateOwnDisplayName } from '$lib/cloud/profile';
   import {
+    listOutdatedCardPreviews,
     listOutdatedSocialPreviews,
+    refreshPublishedCardPreviews,
     refreshPublishedSocialPreview
   } from '$lib/cloud/sets';
-  import type { SocialPreviewRefreshTarget } from '$lib/cloud/sets';
+  import type { CardPreviewRefreshTarget, SocialPreviewRefreshTarget } from '$lib/cloud/sets';
   import { Button, Icon, TextInput } from '$lib/ui';
   import SignInPanel from './SignInPanel.svelte';
 
@@ -54,6 +56,16 @@
   let previewCurrent = $state('');
   let previewFailures = $state<string[]>([]);
   let previewError = $state<string | null>(null);
+  let cardPreviewQueue = $state<CardPreviewRefreshTarget[]>([]);
+  let cardPreviewQueueLoading = $state(false);
+  let cardPreviewRefreshing = $state(false);
+  let cardPreviewCompleted = $state(0);
+  let cardPreviewTotal = $state(0);
+  let cardPreviewCurrent = $state('');
+  let cardPreviewFaceDone = $state(0);
+  let cardPreviewFaceTotal = $state(0);
+  let cardPreviewFailures = $state<string[]>([]);
+  let cardPreviewError = $state<string | null>(null);
 
   const dirty = $derived(displayName.trim() !== saved);
 
@@ -75,6 +87,7 @@
       saved = '';
       isAdmin = false;
       previewQueue = [];
+      cardPreviewQueue = [];
       return;
     }
 
@@ -87,7 +100,10 @@
         displayName = profile.displayName;
         saved = profile.displayName;
         isAdmin = profile.isAdmin;
-        if (profile.isAdmin) void loadPreviewQueue();
+        if (profile.isAdmin) {
+          void loadPreviewQueue();
+          void loadCardPreviewQueue();
+        }
       })
       .catch((cause) => {
         if (!cancelled) error = cause instanceof Error ? cause.message : 'Could not load your profile.';
@@ -115,7 +131,7 @@
   }
 
   async function refreshSocialPreviews(): Promise<void> {
-    if (previewRefreshing || previewQueue.length === 0) return;
+    if (previewRefreshing || cardPreviewRefreshing || previewQueue.length === 0) return;
 
     const queue = [...previewQueue];
     previewRefreshing = true;
@@ -139,6 +155,53 @@
     previewCurrent = '';
     previewRefreshing = false;
     await loadPreviewQueue();
+  }
+
+  async function loadCardPreviewQueue(): Promise<void> {
+    cardPreviewQueueLoading = true;
+    cardPreviewError = null;
+    try {
+      cardPreviewQueue = await listOutdatedCardPreviews();
+    } catch (cause) {
+      cardPreviewError =
+        cause instanceof Error ? cause.message : 'Could not check the gallery-card queue.';
+    } finally {
+      cardPreviewQueueLoading = false;
+    }
+  }
+
+  async function refreshCardPreviews(): Promise<void> {
+    if (cardPreviewRefreshing || previewRefreshing || cardPreviewQueue.length === 0) return;
+
+    const queue = [...cardPreviewQueue];
+    cardPreviewRefreshing = true;
+    cardPreviewCompleted = 0;
+    cardPreviewTotal = queue.length;
+    cardPreviewFailures = [];
+    cardPreviewError = null;
+
+    for (const target of queue) {
+      cardPreviewCurrent = target.name;
+      cardPreviewFaceDone = 0;
+      cardPreviewFaceTotal = 0;
+      try {
+        await refreshPublishedCardPreviews(target.id, (done, total) => {
+          cardPreviewFaceDone = done;
+          cardPreviewFaceTotal = total;
+        });
+      } catch (cause) {
+        const message = cause instanceof Error ? cause.message : 'Unknown error';
+        cardPreviewFailures = [...cardPreviewFailures, `${target.name}: ${message}`];
+      } finally {
+        cardPreviewCompleted += 1;
+      }
+    }
+
+    cardPreviewCurrent = '';
+    cardPreviewFaceDone = 0;
+    cardPreviewFaceTotal = 0;
+    cardPreviewRefreshing = false;
+    await loadCardPreviewQueue();
   }
 
   async function save(): Promise<void> {
@@ -324,7 +387,7 @@
                 <Button
                   size="sm"
                   variant="ghost"
-                  disabled={previewQueueLoading || previewQueue.length === 0}
+                  disabled={previewQueueLoading || previewQueue.length === 0 || cardPreviewRefreshing}
                   onclick={refreshSocialPreviews}
                 >
                   Refresh outdated previews
@@ -337,6 +400,54 @@
                 </small>
               {/if}
               {#if previewError}<p class="error" role="alert">{previewError}</p>{/if}
+            </section>
+
+            <section class="preview-maintenance">
+              <div>
+                <strong>Gallery card images</strong>
+                {#if cardPreviewQueueLoading && !cardPreviewRefreshing}
+                  <small>Checking published card images…</small>
+                {:else if cardPreviewRefreshing}
+                  <small>
+                    Refreshing {Math.min(cardPreviewCompleted + 1, cardPreviewTotal)} of
+                    {cardPreviewTotal}: {cardPreviewCurrent}
+                    {#if cardPreviewFaceTotal > 0}
+                      ({cardPreviewFaceDone} of {cardPreviewFaceTotal})
+                    {/if}
+                  </small>
+                {:else if cardPreviewQueue.length > 0}
+                  <small>
+                    {cardPreviewQueue.length} published
+                    {cardPreviewQueue.length === 1 ? 'set needs' : 'sets need'} authoritative card
+                    images.
+                  </small>
+                {:else}
+                  <small>Every published set has current gallery card images.</small>
+                {/if}
+              </div>
+
+              {#if cardPreviewRefreshing}
+                <progress max={cardPreviewTotal} value={cardPreviewCompleted}>
+                  {cardPreviewCompleted} of {cardPreviewTotal}
+                </progress>
+              {:else}
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  disabled={cardPreviewQueueLoading || cardPreviewQueue.length === 0 || previewRefreshing}
+                  onclick={refreshCardPreviews}
+                >
+                  Generate missing card images
+                </Button>
+              {/if}
+
+              {#if cardPreviewFailures.length > 0}
+                <small class="preview-failures">
+                  {cardPreviewFailures.length} failed and remain in the queue.
+                  {cardPreviewFailures[0]}
+                </small>
+              {/if}
+              {#if cardPreviewError}<p class="error" role="alert">{cardPreviewError}</p>{/if}
             </section>
           {/if}
 

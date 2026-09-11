@@ -11,6 +11,8 @@ interface GalleryCardItemBase {
   key: string;
   label: string;
   meta: string;
+  /** Authoritative published pixels. Absent in the editable Overview and on legacy rows. */
+  previews?: Partial<Record<GalleryCardSide, string>>;
 }
 
 export interface GalleryPrintedCardItem extends GalleryCardItemBase {
