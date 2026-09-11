@@ -23,6 +23,11 @@
   import { draftDiagnostics } from '$lib/persistence/diagnostics.svelte';
   import { draftRollout } from '$lib/persistence/rollout.svelte';
   import { fetchOwnProfile, updateOwnDisplayName } from '$lib/cloud/profile';
+  import {
+    listOutdatedSocialPreviews,
+    refreshPublishedSocialPreview
+  } from '$lib/cloud/sets';
+  import type { SocialPreviewRefreshTarget } from '$lib/cloud/sets';
   import { Button, Icon, TextInput } from '$lib/ui';
   import SignInPanel from './SignInPanel.svelte';
 
@@ -36,6 +41,15 @@
   let saving = $state(false);
   let error = $state<string | null>(null);
   let justSaved = $state(false);
+  let isAdmin = $state(false);
+  let previewQueue = $state<SocialPreviewRefreshTarget[]>([]);
+  let previewQueueLoading = $state(false);
+  let previewRefreshing = $state(false);
+  let previewCompleted = $state(0);
+  let previewTotal = $state(0);
+  let previewCurrent = $state('');
+  let previewFailures = $state<string[]>([]);
+  let previewError = $state<string | null>(null);
 
   const dirty = $derived(displayName.trim() !== saved);
 
@@ -48,6 +62,8 @@
     if (!cloudEnabled() || !auth.signedIn) {
       displayName = '';
       saved = '';
+      isAdmin = false;
+      previewQueue = [];
       return;
     }
 
@@ -59,6 +75,8 @@
         if (cancelled || !profile) return;
         displayName = profile.displayName;
         saved = profile.displayName;
+        isAdmin = profile.isAdmin;
+        if (profile.isAdmin) void loadPreviewQueue();
       })
       .catch((cause) => {
         if (!cancelled) error = cause instanceof Error ? cause.message : 'Could not load your profile.';
@@ -71,6 +89,46 @@
       cancelled = true;
     };
   });
+
+  async function loadPreviewQueue(): Promise<void> {
+    previewQueueLoading = true;
+    previewError = null;
+    try {
+      previewQueue = await listOutdatedSocialPreviews();
+    } catch (cause) {
+      previewError =
+        cause instanceof Error ? cause.message : 'Could not check the social-preview queue.';
+    } finally {
+      previewQueueLoading = false;
+    }
+  }
+
+  async function refreshSocialPreviews(): Promise<void> {
+    if (previewRefreshing || previewQueue.length === 0) return;
+
+    const queue = [...previewQueue];
+    previewRefreshing = true;
+    previewCompleted = 0;
+    previewTotal = queue.length;
+    previewFailures = [];
+    previewError = null;
+
+    for (const target of queue) {
+      previewCurrent = target.name;
+      try {
+        await refreshPublishedSocialPreview(target.id);
+      } catch (cause) {
+        const message = cause instanceof Error ? cause.message : 'Unknown error';
+        previewFailures = [...previewFailures, `${target.name}: ${message}`];
+      } finally {
+        previewCompleted += 1;
+      }
+    }
+
+    previewCurrent = '';
+    previewRefreshing = false;
+    await loadPreviewQueue();
+  }
 
   async function save(): Promise<void> {
     const next = displayName.trim();
@@ -209,6 +267,51 @@
 
           {/if}
 
+          {#if isAdmin}
+            <section class="preview-maintenance">
+              <div>
+                <strong>Social preview styles</strong>
+                {#if previewQueueLoading && !previewRefreshing}
+                  <small>Checking published previews…</small>
+                {:else if previewRefreshing}
+                  <small>
+                    Refreshing {Math.min(previewCompleted + 1, previewTotal)} of {previewTotal}:
+                    {previewCurrent}
+                  </small>
+                {:else if previewQueue.length > 0}
+                  <small>
+                    {previewQueue.length} published
+                    {previewQueue.length === 1 ? 'preview uses' : 'previews use'} an older composition.
+                  </small>
+                {:else}
+                  <small>Every published preview uses the current composition.</small>
+                {/if}
+              </div>
+
+              {#if previewRefreshing}
+                <progress max={previewTotal} value={previewCompleted}>
+                  {previewCompleted} of {previewTotal}
+                </progress>
+              {:else}
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  disabled={previewQueueLoading || previewQueue.length === 0}
+                  onclick={refreshSocialPreviews}
+                >
+                  Refresh outdated previews
+                </Button>
+              {/if}
+
+              {#if previewFailures.length > 0}
+                <small class="preview-failures">
+                  {previewFailures.length} failed and remain in the queue. {previewFailures[0]}
+                </small>
+              {/if}
+              {#if previewError}<p class="error" role="alert">{previewError}</p>{/if}
+            </section>
+          {/if}
+
           {#if error}<p class="error" role="alert">{error}</p>{/if}
 
           <div class="row">
@@ -285,6 +388,7 @@
   }
 
   .draft-rollout,
+  .preview-maintenance,
   .support-report {
     display: flex;
     flex-direction: column;
@@ -302,23 +406,36 @@
 
   .draft-rollout strong,
   .draft-rollout small,
+  .preview-maintenance strong,
+  .preview-maintenance small,
   .support-report strong,
   .support-report small {
     display: block;
   }
 
   .draft-rollout strong,
+  .preview-maintenance strong,
   .support-report strong {
     font-size: var(--text-xs);
     color: var(--text-primary);
   }
 
   .draft-rollout small,
+  .preview-maintenance small,
   .support-report small {
     margin-top: var(--space-1);
     font-size: var(--text-2xs);
     line-height: var(--leading-normal);
     color: var(--text-muted);
+  }
+
+  .preview-maintenance progress {
+    width: 100%;
+    accent-color: var(--accent);
+  }
+
+  .preview-failures {
+    color: var(--danger) !important;
   }
 
   .error {

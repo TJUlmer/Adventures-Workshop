@@ -29,7 +29,7 @@ import type { EmbeddedAsset } from './assets';
 import { auth } from './auth.svelte';
 import { shortHash } from '$lib/core/hash';
 import { renderCharacterCards } from './character-cards';
-import { renderSocialImage } from './social-image';
+import { renderSocialImage, SOCIAL_IMAGE_RENDERER_VERSION } from './social-image';
 import { renderThumbnail } from './thumbnail';
 import { ASSET_BUCKET, cloudConfig } from './config';
 import { CloudError, endpoint, headers, request } from './http';
@@ -60,6 +60,8 @@ export interface PublishedSet {
    * `thumbnail_url` either way.
    */
   social_image_url: string;
+  /** Composition revision used to render `social_image_url`; zero means legacy or failed. */
+  social_image_version: number;
   /**
    * A full-size picture out of the document, derived on the row by the
    * database (`set_cover_image`, `0007_gallery_browse.sql`).
@@ -170,7 +172,8 @@ export interface PublishedSetWithDocument extends PublishedSet {
 /** Columns for a listing. Never `document` — that is the whole point of them. */
 const SUMMARY_COLUMNS =
   'id,owner_id,local_id,slug,name,subtitle,card_count,character_count,schema_version,' +
-  'revision,visibility,created_at,updated_at,thumbnail_url,social_image_url,cover_url,cover_bleeds,' +
+  'revision,visibility,created_at,updated_at,thumbnail_url,social_image_url,social_image_version,' +
+  'cover_url,cover_bleeds,' +
   'published_at,view_count,like_count,comment_count,change_note,forked_from,forked_from_revision,' +
   'scope,character_id,kind,hero_count';
 
@@ -370,11 +373,16 @@ export async function publishSet(
    * not a publish that should not have happened.
    */
   let socialImageUrl = '';
+  let socialImageVersion = 0;
   try {
     const social = await renderSocialImage(scoped);
-    if (social) socialImageUrl = await uploadBlob(social, user.id, set.id, 'social');
+    if (social) {
+      socialImageUrl = await uploadBlob(social, user.id, set.id, 'social');
+      socialImageVersion = SOCIAL_IMAGE_RENDERER_VERSION;
+    }
   } catch {
     socialImageUrl = '';
+    socialImageVersion = 0;
   }
 
   /*
@@ -416,6 +424,7 @@ export async function publishSet(
     document,
     thumbnail_url: thumbnailUrl,
     social_image_url: socialImageUrl,
+    social_image_version: socialImageVersion,
     character_cards: characterCards,
     /* Trimmed and capped here as well as in the field: a note is printed under
        someone else's set, so its length is not the author's alone to decide. */
@@ -621,6 +630,74 @@ function gallerySetQueryParts(query: GalleryQuery): string[] {
   if (heroes) parts.push(heroes === 'single' ? 'hero_count=eq.1' : 'hero_count=gt.1');
 
   return parts;
+}
+
+// -- Social-preview maintenance ----------------------------------------
+
+/** One lightweight queue entry; the document is deliberately fetched only while processing it. */
+export interface SocialPreviewRefreshTarget {
+  id: string;
+  name: string;
+  scope: PublishedSet['scope'];
+  visibility: Visibility;
+  social_image_version: number;
+}
+
+/**
+ * Every published row whose stored bitmap predates the current composition.
+ *
+ * RLS makes this an admin queue: a moderator may read every row, while an
+ * ordinary account cannot turn this into a catalogue-wide document listing.
+ * The UI additionally hides the operation unless `profiles.is_admin` is true.
+ */
+export async function listOutdatedSocialPreviews(): Promise<SocialPreviewRefreshTarget[]> {
+  await auth.ensureFresh();
+  if (!auth.user) return [];
+
+  return request<SocialPreviewRefreshTarget[]>(
+    '/rest/v1/sets?select=id,name,scope,visibility,social_image_version' +
+      `&social_image_version=lt.${SOCIAL_IMAGE_RENDERER_VERSION}&order=created_at.asc`
+  );
+}
+
+/**
+ * Re-render one already-published snapshot without publishing its document.
+ *
+ * The image first lands under the signed-in admin's own protected Storage
+ * prefix. A narrow security-definer RPC verifies that exact object before it
+ * changes only the row's social-image URL and renderer version. The set's
+ * document, revision, change note, visibility, and publication timestamps are
+ * never sent by this path.
+ */
+export async function refreshPublishedSocialPreview(targetId: string): Promise<boolean> {
+  await auth.ensureFresh();
+  const user = auth.user;
+  if (!user) throw new CloudError('Sign in to refresh social previews.', 401);
+
+  const rows = await request<PublishedSetWithDocument[]>(
+    `/rest/v1/sets?select=${SUMMARY_COLUMNS},document&id=eq.${encodeURIComponent(targetId)}` +
+      `&social_image_version=lt.${SOCIAL_IMAGE_RENDERER_VERSION}&limit=1`
+  );
+  const row = rows[0];
+  // Another admin or tab may have completed it after the queue was loaded.
+  if (!row) return false;
+
+  const set = await hydratePublishedSet(row);
+  const image = await renderSocialImage(set);
+  if (!image) throw new CloudError(`Could not render a social preview for ${row.name}.`, 0);
+
+  // The published row id, rather than its author's local document id, lets the
+  // RPC prove this newly uploaded object was intended for this exact target.
+  const imageUrl = await uploadBlob(image, user.id, row.id, 'social');
+  await request('/rest/v1/rpc/refresh_set_social_image', {
+    method: 'POST',
+    body: {
+      target: row.id,
+      preview_url: imageUrl,
+      preview_version: SOCIAL_IMAGE_RENDERER_VERSION
+    }
+  });
+  return true;
 }
 
 /**

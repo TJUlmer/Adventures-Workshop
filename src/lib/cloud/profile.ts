@@ -21,6 +21,8 @@ import { request } from './http';
 export interface OwnProfile {
   displayName: string;
   avatarUrl: string;
+  /** Server-owned; selected only to decide whether admin tools are shown. */
+  isAdmin: boolean;
 }
 
 /**
@@ -37,11 +39,13 @@ export async function fetchOwnProfile(): Promise<OwnProfile | null> {
   if (!id) return null;
 
   await auth.ensureFresh();
-  const rows = await request<{ display_name: string; avatar_url: string }[]>(
-    `/rest/v1/profiles?id=eq.${encodeURIComponent(id)}&select=display_name,avatar_url&limit=1`
+  const rows = await request<{ display_name: string; avatar_url: string; is_admin: boolean }[]>(
+    `/rest/v1/profiles?id=eq.${encodeURIComponent(id)}&select=display_name,avatar_url,is_admin&limit=1`
   );
   const row = rows[0];
-  return row ? { displayName: row.display_name, avatarUrl: row.avatar_url } : null;
+  return row
+    ? { displayName: row.display_name, avatarUrl: row.avatar_url, isAdmin: row.is_admin }
+    : null;
 }
 
 /**

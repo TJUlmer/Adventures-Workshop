@@ -33,6 +33,14 @@ const SINGLE_HERO_ABILITY_FONT_SIZE = 25;
 const SINGLE_HERO_ABILITY_LINE_HEIGHT = 24;
 const SINGLE_HERO_DETAILS_BOTTOM = 532;
 
+/**
+ * Bump whenever a deployed composition change should be rolled out to images
+ * already attached to published rows. The admin refresh queue compares this
+ * value with `sets.social_image_version`; changing drawing implementation
+ * without changing its output does not need a new version.
+ */
+export const SOCIAL_IMAGE_RENDERER_VERSION = 1;
+
 type PosterKind = 'single-hero' | 'hero-set' | 'adventure';
 
 interface CardPlacement {
