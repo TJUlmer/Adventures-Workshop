@@ -114,6 +114,8 @@
     offsetX: number;
     offsetY: number;
   } | null>(null);
+  /** A held pointer that never moves is selection, not an edit. */
+  let dragChanged = false;
   let board = $state<HTMLDivElement | null>(null);
   let artInput = $state<HTMLInputElement | null>(null);
   let artError = $state<string | null>(null);
@@ -510,6 +512,8 @@
         /* Keep the grabbed pixel beneath the pointer. Snapping the image's
            centre to the cursor makes a large scene piece jump on first move. */
         selectEnvironment(environmentPiece.id);
+        workshop.beginMapEdit();
+        dragChanged = false;
         draggingEnvironment = {
           id: environmentPiece.id,
           offsetX: point.x - environmentPiece.x,
@@ -528,6 +532,8 @@
         // never moves is indistinguishable from a plain select.
         selectSpace(hit, event.shiftKey);
         if (!event.shiftKey) {
+          workshop.beginMapEdit();
+          dragChanged = false;
           dragging = hit;
           (event.target as Element).setPointerCapture?.(event.pointerId);
         }
@@ -550,6 +556,8 @@
         /* Keep the point an author grabbed beneath the pointer. A label's
            anchor is not necessarily its visual centre, so snapping it there
            would make the text jump before the first move. */
+        workshop.beginMapEdit();
+        dragChanged = false;
         draggingNote = {
           id: noteAtPointer.id,
           offsetX: point.x - noteAtPointer.x,
@@ -611,6 +619,7 @@
         mapHeight(map),
         Math.max(0, point.y - draggingEnvironment.offsetY)
       );
+      dragChanged = true;
       return;
     }
 
@@ -620,6 +629,7 @@
       if (!point || !note) return;
       note.x = Math.min(1, Math.max(0, point.x - draggingNote.offsetX));
       note.y = Math.min(mapHeight(map), Math.max(0, point.y - draggingNote.offsetY));
+      dragChanged = true;
       return;
     }
 
@@ -631,25 +641,78 @@
     // the only way back would be to edit the file by hand.
     space.x = Math.min(1, Math.max(0, point.x));
     space.y = Math.min(mapHeight(map), Math.max(0, point.y));
+    dragChanged = true;
   }
 
   function onPointerUp(): void {
+    const wasDragging =
+      draggingEnvironment !== null || draggingNote !== null || dragging !== null;
     if (draggingEnvironment !== null) {
       draggingEnvironment = null;
-      // Like a space drag, one pointer gesture is one persisted edit.
-      workshop.editMap(() => {});
     }
     if (draggingNote !== null) {
       draggingNote = null;
-      // Like a space drag, one pointer gesture is one persisted edit.
-      workshop.editMap(() => {});
     }
     if (dragging !== null) {
       dragging = null;
-      // Marked dirty once on release, not on every move: a drag is one edit.
-      workshop.editMap(() => {});
+    }
+    if (!wasDragging) return;
+    if (dragChanged) workshop.commitMapEdit();
+    else workshop.cancelMapEdit();
+    dragChanged = false;
+  }
+
+  /** Keep inspector selections valid when undo removes the thing they name. */
+  function undoMap(): void {
+    if (!workshop.undoMap()) return;
+    dragging = null;
+    draggingNote = null;
+    draggingEnvironment = null;
+    dragChanged = false;
+
+    const spaceIds = new Set(map.spaces.map((space) => space.id));
+    if (selected && !spaceIds.has(selected)) selected = null;
+    colorSelection = new Set([...colorSelection].filter((id) => spaceIds.has(id)));
+    if (linkFrom && !spaceIds.has(linkFrom)) linkFrom = null;
+    if (selectedNote && !map.notes.some((note) => note.id === selectedNote)) selectedNote = null;
+    if (
+      selectedEnvironment &&
+      !map.environment.some((piece) => piece.id === selectedEnvironment)
+    ) {
+      selectedEnvironment = null;
+    }
+    if (
+      selectedZoneColor &&
+      !spaceZoneColors(map).some(
+        (zone) => zone.color.toLowerCase() === selectedZoneColor?.toLowerCase()
+      )
+    ) {
+      selectedZoneColor = null;
     }
   }
+
+  function onKeyDown(event: KeyboardEvent): void {
+    if (!(event.ctrlKey || event.metaKey) || event.shiftKey || event.key.toLowerCase() !== 'z') {
+      return;
+    }
+    const target = event.target;
+    if (
+      target instanceof HTMLInputElement ||
+      target instanceof HTMLTextAreaElement ||
+      target instanceof HTMLSelectElement ||
+      (target instanceof HTMLElement && target.isContentEditable)
+    ) {
+      return;
+    }
+    if (!workshop.canUndoMap) return;
+    event.preventDefault();
+    undoMap();
+  }
+
+  $effect(() => () => {
+    if (dragChanged) workshop.commitMapEdit();
+    else workshop.cancelMapEdit();
+  });
 
   function removeSelected(): void {
     if (selected === null) return;
@@ -1049,6 +1112,8 @@
   }
 </script>
 
+<svelte:window onkeydown={onKeyDown} />
+
 <div class="page scroll-y">
   <header class="head">
     <div class="titles">
@@ -1061,10 +1126,21 @@
       an export must not depend on this page being the one open, and the copy is
       the same component the overview and any future print will draw.
     -->
-    <Button size="sm" disabled={!map.enabled || exporting} onclick={exportMap}>
-      <Icon name="download" size={13} />
-      {exporting ? 'Rendering…' : 'Export PNG'}
-    </Button>
+    <div class="head-actions">
+      <Button
+        size="sm"
+        disabled={!workshop.canUndoMap}
+        title="Undo last map change (Ctrl+Z)"
+        onclick={undoMap}
+      >
+        <Icon name="undo" size={13} />
+        Undo
+      </Button>
+      <Button size="sm" disabled={!map.enabled || exporting} onclick={exportMap}>
+        <Icon name="download" size={13} />
+        {exporting ? 'Rendering…' : 'Export PNG'}
+      </Button>
+    </div>
   </header>
 
   {#if exportError}<p class="error" role="alert">{exportError}</p>{/if}
@@ -2415,6 +2491,12 @@
     column-gap: var(--space-4);
     row-gap: var(--space-4);
     align-items: start;
+  }
+
+  .head-actions {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
   }
 
   .map-col {
