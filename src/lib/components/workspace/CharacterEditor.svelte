@@ -682,44 +682,49 @@
           (abilityIndex) => removeAbilityFrom(extra.abilities, abilityIndex)
         )}
 
-        <div class="tiles quote-fields">
-          <Field label="Quote">
-            <TextArea bind:value={extra.quote.text} rows={2} placeholder="A memorable line goes here." />
-          </Field>
-          <Field label="Attribution">
-            <TextInput bind:value={extra.quote.attribution} placeholder="Who said it" />
-          </Field>
-          <FillEditor
-            label="Quote colour"
-            value={extra.characterCard.quoteInk}
-            origin="the template"
-            overridden={!sameFill(extra.characterCard.quoteInk, createCharacterCard().quoteInk)}
-            resetTitle="Back to the template’s own colour"
-            onchange={(quoteInk: Fill) =>
-              workshop.editCharacterCard(character.id, (card) => (card.quoteInk = quoteInk), extra.id)}
-            onreset={() =>
-              workshop.editCharacterCard(
-                character.id,
-                (card) => (card.quoteInk = { ...createCharacterCard().quoteInk }),
-                extra.id
-              )}
-          />
-          <Slider
-            label="Quote text size"
-            value={extra.characterCard.quoteScale}
-            min={0.6}
-            max={1.6}
-            step={0.02}
-            neutral={1}
-            format={(scale) => `${Math.round(scale * 100)}%`}
-            onchange={(quoteScale) =>
-              workshop.editCharacterCard(
-                character.id,
-                (card) => (card.quoteScale = quoteScale),
-                extra.id
-              )}
-          />
-        </div>
+        <Section
+          title="Quote"
+          description="The lower block on this character card when it has no sidekick."
+        >
+          <div class="tiles quote-fields">
+            <Field label="Quote">
+              <TextArea bind:value={extra.quote.text} rows={2} placeholder="A memorable line goes here." />
+            </Field>
+            <Field label="Attribution">
+              <TextInput bind:value={extra.quote.attribution} placeholder="Who said it" />
+            </Field>
+            <FillEditor
+              label="Quote colour"
+              value={extra.characterCard.quoteInk}
+              origin="the template"
+              overridden={!sameFill(extra.characterCard.quoteInk, createCharacterCard().quoteInk)}
+              resetTitle="Back to the template’s own colour"
+              onchange={(quoteInk: Fill) =>
+                workshop.editCharacterCard(character.id, (card) => (card.quoteInk = quoteInk), extra.id)}
+              onreset={() =>
+                workshop.editCharacterCard(
+                  character.id,
+                  (card) => (card.quoteInk = { ...createCharacterCard().quoteInk }),
+                  extra.id
+                )}
+            />
+            <Slider
+              label="Quote text size"
+              value={extra.characterCard.quoteScale}
+              min={0.6}
+              max={1.6}
+              step={0.02}
+              neutral={1}
+              format={(scale) => `${Math.round(scale * 100)}%`}
+              onchange={(quoteScale) =>
+                workshop.editCharacterCard(
+                  character.id,
+                  (card) => (card.quoteScale = quoteScale),
+                  extra.id
+                )}
+            />
+          </div>
+        </Section>
 
         <CharacterCardPanel characterId={character.id} design={extra.characterCard} cardId={extra.id} />
       {/if}
