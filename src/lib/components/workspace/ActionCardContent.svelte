@@ -472,7 +472,7 @@
   <div class="effect-option">
     <Switch
       label="Ribbon symbol"
-      hint="Places an optional symbol in the strip between the ribbon and divider."
+      hint="Carries the ribbon down to the divider, with a symbol standing at its foot."
       checked={card.showRibbonSymbol}
       onchange={(show) => edit((target) => (target.showRibbonSymbol = show))}
     />

@@ -797,13 +797,12 @@ would otherwise silently drop a chosen frame colour back to that default.
 ### The ribbon's foot
 
 The strip between a name ribbon's point and the divider, filled so the ribbon's
-stroke and the divider bar read as one continuous line, is drawn by
-`ActionCardFace`'s `.ribbon-foot` on every action card. A symbol may stand in it
-through `ActionCard.showRibbonSymbol`/`ribbonSymbol`. Modelled on
-`AbilityBlocks.bonusIcon`, the symbol is a token string resolved through the
-same `parseAbilityText` lookup, so a built-in and an author's own glyph are the
-same kind of thing, and its size is a themed key
-(`CardTheme.ribbonSymbolSize`) rather than card data.
+stroke and the divider bar read as one continuous line, with a symbol standing
+in it — `ActionCard.showRibbonSymbol`/`ribbonSymbol`, drawn by
+`ActionCardFace`'s `.ribbon-foot`. Modelled on `AbilityBlocks.bonusIcon`: the
+symbol is a token string resolved through the same `parseAbilityText` lookup,
+so a built-in and an author's own glyph are the same kind of thing, and its
+size is a themed key (`CardTheme.ribbonSymbolSize`) rather than card data.
 
 **The symbol itself is not recolourable, and that was tried and reverted.**
 Every other themed shape in this file — the frame, the ribbon, the boost ring
@@ -816,12 +815,6 @@ strip's own fill, already one of `StylePanel`'s "Surfaces" — and
 `ActionCardContent`'s "Special card effects" section carries a second `FillEditor`
 bound to that same field, a shortcut so changing it does not mean a trip to
 Design for one colour. Same field, same cascade, two places to reach it.
-
-**The strip is structural; only its symbol has a toggle.** A body panel rises
-with its copy, so omitting the foot when that toggle is off leaves a growing
-hole between the ribbon and divider on text-heavy cards. The strip therefore
-always carries the ribbon down, while `showRibbonSymbol: false` or
-`ribbonSymbol: ''` leaves it empty.
 
 **The strip has no measurable size, which is what dictates how it is drawn.**
 Its top is wherever the ribbon's contents ended (the ribbon's length *is* its
