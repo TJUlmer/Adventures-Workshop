@@ -26,6 +26,9 @@ const MAX_HEROES = 4;
 const CARD_RATIO = CARD_FORMATS.action.mm.height / CARD_FORMATS.action.mm.width;
 const COPY_FONT = `'Oswald Custom Junior', 'Haettenschweiler', 'Arial Narrow', sans-serif`;
 const JUNIOR_MEAN_ADVANCE = 0.4322;
+const SINGLE_HERO_ABILITY_FONT_SIZE = 25;
+const SINGLE_HERO_ABILITY_LINE_HEIGHT = 24;
+const SINGLE_HERO_DETAILS_BOTTOM = 532;
 
 type PosterKind = 'single-hero' | 'hero-set' | 'adventure';
 
@@ -212,6 +215,24 @@ function readableAbilityText(text: string, hero: Character): string {
   });
 }
 
+/** Pull a long ability upward into the space left by a short hero name. The
+    title remains the hard upper boundary, so a two-line name still wins. */
+function singleHeroDetailsTop(hero: Character, defaultTop: number, minimumTop: number): number {
+  const ability = hero.abilities.find((entry) => entry.name.trim() || entry.text.trim());
+  if (!ability) return defaultTop;
+  const bodyLines = wrappedCopy(
+    readableAbilityText(ability.text, hero),
+    390,
+    SINGLE_HERO_ABILITY_FONT_SIZE,
+    Number.MAX_SAFE_INTEGER
+  ).length;
+  const requiredHeight =
+    27 +
+    (ability.name.trim() ? 38 : 0) +
+    bodyLines * SINGLE_HERO_ABILITY_LINE_HEIGHT;
+  return Math.max(minimumTop, Math.min(defaultTop, SINGLE_HERO_DETAILS_BOTTOM - requiredHeight));
+}
+
 function drawSectionLabel(
   context: CanvasRenderingContext2D,
   label: string,
@@ -282,9 +303,9 @@ function drawSingleHeroDetails(
   }
 
   const text = readableAbilityText(ability.text, hero);
-  const fontSize = 20;
-  const lineHeight = 24;
-  const maxLines = Math.max(1, Math.floor((532 - bodyY) / lineHeight));
+  const fontSize = SINGLE_HERO_ABILITY_FONT_SIZE;
+  const lineHeight = SINGLE_HERO_ABILITY_LINE_HEIGHT;
+  const maxLines = Math.max(2, Math.floor((SINGLE_HERO_DETAILS_BOTTOM - bodyY) / lineHeight));
   context.globalAlpha = 0.9;
   context.font = `400 ${fontSize}px ${COPY_FONT}`;
   for (const [index, line] of wrappedCopy(text, 390, fontSize, maxLines).entries()) {
@@ -408,7 +429,12 @@ function drawIdentity(
         ? `${plural(heroes.length, 'HERO', 'HEROES')} · ${plural(stats.printCount, 'CARD')}`
         : `${plural(villains.length, 'VILLAIN')} · ${plural(heroes.length, 'HERO', 'HEROES')} · ${plural(minions.length, 'MINION')} · ${plural(stats.printCount, 'CARD')}`;
   const subtitle = kind === 'adventure' ? set.subtitle || 'AN UNMATCHED ADVENTURES SET' : '';
-  const detailsTop = kind === 'adventure' ? 350 : 323;
+  const defaultDetailsTop = kind === 'adventure' ? 350 : 313;
+  const titleBottom = 129 + (lines.length - 1) * titleSize * 0.88 + titleSize;
+  const detailsTop =
+    kind === 'single-hero' && heroes[0]
+      ? singleHeroDetailsTop(heroes[0], defaultDetailsTop, Math.ceil(titleBottom + 35))
+      : defaultDetailsTop;
   const dividerTop = detailsTop - 17;
 
   context.save();
