@@ -25,6 +25,7 @@ const QUALITY = 0.85;
 const MAX_HEROES = 4;
 const CARD_RATIO = CARD_FORMATS.action.mm.height / CARD_FORMATS.action.mm.width;
 const COPY_FONT = `'Oswald Custom Junior', 'Haettenschweiler', 'Arial Narrow', sans-serif`;
+const JUNIOR_MEAN_ADVANCE = 0.4322;
 
 type PosterKind = 'single-hero' | 'hero-set' | 'adventure';
 
@@ -263,24 +264,19 @@ function drawNameGrid(
 function drawSingleHeroDetails(
   context: CanvasRenderingContext2D,
   hero: Character,
-  theme: CardTheme
+  theme: CardTheme,
+  top: number
 ): void {
   const ability = hero.abilities.find((entry) => entry.name.trim() || entry.text.trim());
   if (!ability) return;
 
-  drawSectionLabel(context, 'SPECIAL ABILITY', 350, theme);
-  let bodyY = 377;
+  drawSectionLabel(context, 'SPECIAL ABILITY', top, theme);
+  let bodyY = top + 27;
   if (ability.name.trim()) {
     const name = ability.name.trim().toUpperCase();
-    const size = fitDisplaySize(
-      name,
-      { width: 390, height: 32 },
-      theme.displayFont,
-      30,
-      1
-    );
+    const size = Math.min(30, 390 / Math.max(1, name.length * JUNIOR_MEAN_ADVANCE));
     context.fillStyle = theme.bannerInk;
-    context.font = `${displayFontWeight(theme.displayFont)} ${size}px ${displayFontStack(theme.displayFont)}`;
+    context.font = `400 ${size}px ${COPY_FONT}`;
     context.fillText(name, 70, bodyY, 390);
     bodyY += 38;
   }
@@ -300,10 +296,11 @@ function drawSingleHeroDetails(
 function drawHeroSetDetails(
   context: CanvasRenderingContext2D,
   heroes: readonly Character[],
-  theme: CardTheme
+  theme: CardTheme,
+  top: number
 ): void {
-  drawSectionLabel(context, 'HEROES', 350, theme);
-  drawNameGrid(context, heroes.map(characterLabel), 380, 150, theme, 4, 42);
+  drawSectionLabel(context, 'HEROES', top, theme);
+  drawNameGrid(context, heroes.map(characterLabel), top + 30, 530 - (top + 30), theme, 4, 42);
 }
 
 function drawAdventureDetails(
@@ -410,13 +407,9 @@ function drawIdentity(
       : kind === 'hero-set'
         ? `${plural(heroes.length, 'HERO', 'HEROES')} · ${plural(stats.printCount, 'CARD')}`
         : `${plural(villains.length, 'VILLAIN')} · ${plural(heroes.length, 'HERO', 'HEROES')} · ${plural(minions.length, 'MINION')} · ${plural(stats.printCount, 'CARD')}`;
-  const subtitle =
-    set.subtitle ||
-    (kind === 'single-hero'
-      ? 'A HERO FOR UNMATCHED'
-      : kind === 'hero-set'
-        ? `${plural(heroes.length, 'HERO', 'HEROES')}, ONE SET`
-        : 'AN UNMATCHED ADVENTURES SET');
+  const subtitle = kind === 'adventure' ? set.subtitle || 'AN UNMATCHED ADVENTURES SET' : '';
+  const detailsTop = kind === 'adventure' ? 350 : 323;
+  const dividerTop = detailsTop - 17;
 
   context.save();
   context.fillStyle = theme.bannerInk;
@@ -431,18 +424,20 @@ function drawIdentity(
   const lineHeight = titleSize * 0.88;
   lines.forEach((line, index) => context.fillText(line, 70, 151 + index * lineHeight, 400));
 
-  context.globalAlpha = 0.78;
-  context.font = `400 21px ${COPY_FONT}`;
-  context.fillText(clipped(subtitle.toUpperCase(), 62), 70, 306, 390);
+  if (subtitle) {
+    context.globalAlpha = 0.78;
+    context.font = `400 21px ${COPY_FONT}`;
+    context.fillText(clipped(subtitle.toUpperCase(), 62), 70, 306, 390);
+  }
 
   context.globalAlpha = 1;
   context.fillStyle = theme.divider;
-  context.fillRect(70, 333, 42, 5);
+  context.fillRect(70, dividerTop, 42, 5);
 
   if (kind === 'single-hero' && heroes[0]) {
-    drawSingleHeroDetails(context, heroes[0], theme);
+    drawSingleHeroDetails(context, heroes[0], theme, detailsTop);
   } else if (kind === 'hero-set') {
-    drawHeroSetDetails(context, heroes, theme);
+    drawHeroSetDetails(context, heroes, theme, detailsTop);
   } else {
     drawAdventureDetails(context, villains, minions, theme);
   }
