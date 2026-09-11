@@ -282,13 +282,14 @@ class Auth {
    * The route that made the gallery possible. Email one-time codes need a
    * verified sending domain, and until there is one nobody can get a permanent
    * account at all; OAuth needs no mail to leave the building. It also arrives
-   * carrying the two things a gallery wants anyway — a display name and an
-   * avatar — which `handle_new_user` copies into `profiles` on first sign-in.
+   * carrying an avatar, which `handle_new_user` copies into `profiles` on first
+   * sign-in. Its real-name metadata is deliberately not used as a public
+   * display name; the profile starts from the email prefix instead.
    *
    * This *leaves the page*, which is the one thing the emailed-code flow was
    * chosen to avoid. It is acceptable here and was not there: a code is typed
    * mid-edit, where losing the tab would lose the work, whereas signing in to
-   * publish is a deliberate detour and the document is in `localStorage` when
+   * publish is a deliberate detour and the document is in IndexedDB when
    * the redirect comes back.
    */
   /**

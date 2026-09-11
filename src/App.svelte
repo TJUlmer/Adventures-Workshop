@@ -74,7 +74,7 @@
    * `captureRedirect` also strips them from the address bar, because an access
    * token sitting in a URL is one shared link away from being someone else's.
    */
-  auth.captureRedirect();
+  const openAccountAfterSignIn = auth.captureRedirect();
 
   // Which sign-in buttons to show. Fire and forget: the panel starts with none.
   void auth.loadProviders();
@@ -149,7 +149,7 @@
     where it applies, the deep link it defers to) has actually run.
   -->
   <div class="app-frame">
-    <header class="global-banner"><GlobalHeader /></header>
+    <header class="global-banner"><GlobalHeader openAccountOnStart={openAccountAfterSignIn} /></header>
 
     <div class="app-view">
       {#if navigation.view.kind === 'shared'}

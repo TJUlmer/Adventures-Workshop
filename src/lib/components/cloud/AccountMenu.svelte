@@ -2,13 +2,9 @@
   /**
    * The one place an author's display name can be changed.
    *
-   * It exists because of where that name comes from: signing in with Google
-   * seeds `profiles.display_name` from the account's real name, at the moment
-   * the account is created — see `handle_new_user` in
-   * `supabase/migrations/0002_gallery.sql` — and nothing before this asked
-   * whether that was the name someone wanted printed under a published set.
-   * The trigger only ever runs once, so this is not fighting it on every
-   * load; it is the only way to overwrite what it wrote.
+   * A new account starts with the part of its email before `@`, rather than a
+   * real name copied from OAuth. This remains the place to choose something
+   * else, or nothing at all, before that name is printed under public work.
    *
    * Also the one entry point into signing in that is not tied to sharing or
    * contributing — findable from the corner at any time, not only at the
@@ -31,7 +27,15 @@
   import { Button, Icon, TextInput } from '$lib/ui';
   import SignInPanel from './SignInPanel.svelte';
 
+  interface Props {
+    /** A completed provider redirect should put the public-name choice in view. */
+    openOnStart?: boolean;
+  }
+
+  let { openOnStart = false }: Props = $props();
   let open = $state(false);
+  let showNameReview = $state(false);
+  let appliedOpenOnStart = $state(false);
   let host = $state<HTMLDivElement | null>(null);
 
   let loading = $state(false);
@@ -52,6 +56,13 @@
   let previewError = $state<string | null>(null);
 
   const dirty = $derived(displayName.trim() !== saved);
+
+  $effect(() => {
+    if (!openOnStart || appliedOpenOnStart) return;
+    appliedOpenOnStart = true;
+    open = true;
+    showNameReview = true;
+  });
 
   /**
    * Loads once per sign-in rather than once per open, so switching accounts —
@@ -139,6 +150,7 @@
       saved = next;
       displayName = next;
       justSaved = true;
+      showNameReview = false;
       setTimeout(() => (justSaved = false), 2000);
     } catch (cause) {
       error = cause instanceof Error ? cause.message : 'Could not save that.';
@@ -149,6 +161,7 @@
 
   async function signOut(): Promise<void> {
     open = false;
+    showNameReview = false;
     await auth.signOut();
   }
 
@@ -164,10 +177,16 @@
   $effect(() => {
     if (!open) return;
     const onPointerDown = (event: PointerEvent) => {
-      if (host && !host.contains(event.target as Node)) open = false;
+      if (host && !host.contains(event.target as Node)) {
+        open = false;
+        showNameReview = false;
+      }
     };
     const onKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') open = false;
+      if (event.key === 'Escape') {
+        open = false;
+        showNameReview = false;
+      }
     };
     document.addEventListener('pointerdown', onPointerDown);
     document.addEventListener('keydown', onKey);
@@ -188,7 +207,10 @@
       aria-expanded={open}
       aria-label="Account"
       title={auth.signedIn ? (auth.isAnonymous ? 'Sharing anonymously' : auth.user?.email) : 'Sign in'}
-      onclick={() => (open = !open)}
+      onclick={() => {
+        open = !open;
+        if (!open) showNameReview = false;
+      }}
     >
       <Icon name="user" size={14} />
     </Button>
@@ -202,6 +224,12 @@
               : 'Sign in to try private drafts across browsers and publish when you choose.'}
           />
         {:else}
+          {#if showNameReview && !auth.isAnonymous}
+            <p class="name-review">
+              Choose the display name shown publicly with your sets and contributions.
+            </p>
+          {/if}
+
           <p class="who">
             {#if auth.isAnonymous}
               Sharing anonymously, from this browser.
@@ -219,9 +247,9 @@
             />
           </label>
           <p class="fineprint">
-            Shown under any set you publish and on any contribution you offer. A
-            Google sign-in starts this as your account's real name — change or
-            clear it any time; blank shows as “Anonymous”.
+            Shown under any set you publish and on any contribution you offer. New
+            accounts start with the part of their email before @. Change or clear
+            it any time; blank shows as “Anonymous”.
           </p>
 
           {#if !auth.isAnonymous}
@@ -364,6 +392,17 @@
     margin: 0;
     font-size: var(--text-xs);
     color: var(--text-tertiary);
+  }
+
+  .name-review {
+    margin: 0;
+    padding: var(--space-2) var(--space-3);
+    border: 1px solid color-mix(in oklab, var(--accent) 44%, var(--border-default));
+    border-radius: var(--radius-sm);
+    background: color-mix(in oklab, var(--accent) 10%, var(--surface-sunken));
+    font-size: var(--text-xs);
+    line-height: var(--leading-normal);
+    color: var(--text-primary);
   }
 
   .field {

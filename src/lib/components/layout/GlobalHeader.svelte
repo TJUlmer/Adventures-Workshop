@@ -18,6 +18,13 @@
   import AccountMenu from '$lib/components/cloud/AccountMenu.svelte';
   import { Icon, ThemeToggle } from '$lib/ui';
 
+  interface Props {
+    /** Reveal the public-name editor after an OAuth redirect. */
+    openAccountOnStart?: boolean;
+  }
+
+  let { openAccountOnStart = false }: Props = $props();
+
   let storage = $state<StorageEstimate | null>(null);
   let continueCover = $state<string | null>(null);
   let coverRequest = 0;
@@ -181,7 +188,7 @@
       <span class="nav-label">Browse Gallery</span>
     </button>
     <ThemeToggle />
-    <AccountMenu />
+    <AccountMenu openOnStart={openAccountOnStart} />
   </nav>
 </div>
 
