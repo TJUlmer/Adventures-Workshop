@@ -1251,8 +1251,18 @@
 
   .gallery {
     display: grid;
-    /* A preferred size cannot make the review surface wider than a phone. */
-    grid-template-columns: repeat(auto-fill, minmax(min(var(--tile), 100%), 1fr));
+    /*
+     * The control names an actual card width, not a minimum. Letting `1fr`
+     * absorb leftover row space produced fractional widths (269.59375px in the
+     * reported gallery), so independently masked frame/ribbon edges could land
+     * on different device pixels. Fixed tracks keep the renderer on the exact
+     * integer size the author/viewer selected, while `min()` still protects a
+     * phone narrower than one card.
+     */
+    grid-template-columns: repeat(
+      auto-fill,
+      minmax(min(var(--tile), 100%), min(var(--tile), 100%))
+    );
     gap: var(--space-4);
   }
 

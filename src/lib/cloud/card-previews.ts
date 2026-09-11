@@ -22,13 +22,7 @@ import {
 import type { AdventureSet } from '$lib/sets/types';
 
 /** Bump whenever a renderer change makes the stored pixels stale. */
-export const CARD_PREVIEW_RENDERER_VERSION = 1;
-
-/**
- * Wide enough for the Overview's 410px maximum at two-times pixel density,
- * with a little headroom for the lightbox. PNG keeps the render lossless.
- */
-export const CARD_PREVIEW_WIDTH = 900;
+export const CARD_PREVIEW_RENDERER_VERSION = 2;
 
 export type CardPreviewSide = 'front' | 'back';
 export type CardPreviewManifest = Record<string, string>;
@@ -148,8 +142,7 @@ export async function renderCardPreviews(
   await withCardStage(async (photograph) => {
     for (const [index, job] of jobs.entries()) {
       const image = await photograph(job.stage, job.format, {
-        bleed: false,
-        width: CARD_PREVIEW_WIDTH
+        bleed: false
       });
       if (!image) throw new Error(`Could not render ${job.label} for the published gallery.`);
       rendered.set(job.key, image);

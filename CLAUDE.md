@@ -2010,7 +2010,7 @@ it is not a reliable public proof of what the author approved: a later renderer
 change can alter an old publication. `cloud/card-previews.ts` therefore mounts
 the ordinary `CardRenderer` through `withCardStage` during publication and
 photographs every printed face, deck back and hero character card as a lossless
-900px-wide PNG. `sets.card_previews` is a JSON object keyed by entity and side;
+PNG at the renderer's native trimmed export resolution. `sets.card_previews` is a JSON object keyed by entity and side;
 `sets.card_preview_version` records the renderer revision. Both fields are
 derived publication data outside the authored document, so they do not affect
 document revisions or contribution fingerprints. A publish uploads the whole

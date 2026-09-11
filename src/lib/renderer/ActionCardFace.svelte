@@ -318,12 +318,23 @@
    * Offsets are relative to `.interior`, which is what the strip lives in.
    *
    * A villain's ribbon starts left of the interior, so `footLeft` is negative
-   * there. That is correct and not a clamp waiting to happen: the strip is
-   * exactly as wide as the ribbon above it, and `.interior` crops the overhang
-   * the printed frame covers anyway.
+   * there. The hero's begins four pixels inside it, so the strip extends those
+   * four pixels back under the frame. In both cases `.interior` and the painted
+   * frame crop the overhang while the measured right edge stays unchanged.
    */
-  const footLeft = $derived((isHero ? HERO_RIBBON.x : BANNER.x) - INTERIOR.x);
-  const footWidth = $derived(isHero ? HERO_RIBBON.width : BANNER.width);
+  const ribbonLeft = $derived((isHero ? HERO_RIBBON.x : BANNER.x) - INTERIOR.x);
+  const ribbonRight = $derived(
+    (isHero ? HERO_RIBBON.x + HERO_RIBBON.width : BANNER.x + BANNER.width) - INTERIOR.x
+  );
+  /*
+   * The hero ribbon begins four bleed pixels inside `.interior`. The frame
+   * covers those pixels at export scale, but its antialiased mask can expose a
+   * subpixel of the panel when the live card is reduced to a gallery tile.
+   * Paint the foot underneath the frame instead; its right edge remains at the
+   * ribbon's measured coordinate, so the visible geometry does not change.
+   */
+  const footLeft = $derived(Math.min(ribbonLeft, 0));
+  const footWidth = $derived(ribbonRight - footLeft);
   const footAxis = $derived(
     (isHero ? HERO_RIBBON.centerX : BANNER.x + BANNER.width / 2) - INTERIOR.x
   );
