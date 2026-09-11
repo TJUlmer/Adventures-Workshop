@@ -505,6 +505,31 @@ export class WorkshopStore {
   }
 
   /**
+   * Persist a complete replacement before exposing it to the reactive editor.
+   *
+   * The caller has already downloaded and hydrated the published snapshot.
+   * Keeping the old document active until this write succeeds means a failed
+   * download, asset fetch, or IndexedDB write cannot leave a half-updated copy.
+   */
+  async replaceOpenSet(set: AdventureSet): Promise<boolean> {
+    this.libraryActionError = null;
+    if (set.id !== this.adventure.id) {
+      this.libraryActionError = 'The open set changed before the update could be saved.';
+      return false;
+    }
+
+    if (!(await persistenceCoordinator.flush(set, serializeSet(set)))) {
+      this.libraryActionError = 'Could not save the updated copy. Your current copy was not changed.';
+      return false;
+    }
+
+    this.load(set);
+    this.markSaved(set.meta.updatedAt);
+    await this.refreshLibrary();
+    return true;
+  }
+
+  /**
    * Create a set, put it in the library, and open it.
    *
    * `name` defaults to undefined rather than to a string, so `createEmptySet`
