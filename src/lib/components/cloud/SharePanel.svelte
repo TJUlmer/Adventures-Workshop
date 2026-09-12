@@ -7,11 +7,11 @@
    * working draft is private, publishing copies it into a separate snapshot,
    * and nothing here ever writes back into the set the author is editing.
    */
+  import { onDestroy } from 'svelte';
   import { characterLabel } from '$lib/characters/factory';
   import { auth } from '$lib/cloud/auth.svelte';
   import { cloudEnabled } from '$lib/cloud/config';
   import {
-    fetchAuthorName,
     listMyPublishedSets,
     publishSet,
     publishSize,
@@ -20,9 +20,9 @@
     unpublishSet
   } from '$lib/cloud/sets';
   import type { PublishedSet, Visibility } from '$lib/cloud/sets';
-  import { socialMetadata } from '$lib/cloud/social-metadata';
+  import { renderSocialImage } from '$lib/cloud/social-image';
   import { charactersByRole } from '$lib/sets/queries';
-  import { parseScopeKey, scopeKeyOf } from '$lib/sets/scope';
+  import { computeScopedSet, parseScopeKey, scopeKeyOf } from '$lib/sets/scope';
   import type { PublishScope } from '$lib/sets/scope';
   import type { AdventureSet } from '$lib/sets/types';
   import { Button, Icon, Select, TextInput } from '$lib/ui';
@@ -48,8 +48,12 @@
   let copied = $state(false);
   let size = $state<{ assets: number; bytes: number } | null>(null);
   let changeNote = $state('');
-  let previewAuthorName = $state('');
-  let previewImageFailed = $state(false);
+  let draftPreviewUrl = $state('');
+  let draftPreviewBusy = $state(false);
+  let draftPreviewError = $state<string | null>(null);
+  let draftPreviewKind = $state('');
+  let draftPreviewRun = 0;
+  let draftPreviewSetId = '';
 
   const heroes = $derived(charactersByRole(set, 'hero'));
   /* Villain-side content — the villain, its minions, the threat track, the
@@ -73,8 +77,14 @@
    * would otherwise persist), or the hero it named was deleted mid-session.
    */
   $effect(() => {
+    const currentSetId = set.id;
     const key = scopeKeyOf(selectedScope);
+    if (draftPreviewSetId !== currentSetId) {
+      draftPreviewSetId = currentSetId;
+      discardDraftPreview();
+    }
     if (!scopeOptions.some((option) => option.value === key)) {
+      discardDraftPreview();
       selectedScope = { kind: 'full' };
     }
   });
@@ -87,29 +97,49 @@
         row.character_id === (selectedScope.kind === 'hero' ? selectedScope.characterId : '')
     ) ?? null
   );
-  const preview = $derived(socialMetadata(published, previewAuthorName));
-  const previewUsesThumbnail = $derived(
-    Boolean(published && !published.social_image_url && published.thumbnail_url)
-  );
+  function discardDraftPreview(): void {
+    draftPreviewRun += 1;
+    if (draftPreviewUrl) URL.revokeObjectURL(draftPreviewUrl);
+    draftPreviewUrl = '';
+    draftPreviewError = null;
+    draftPreviewKind = '';
+    draftPreviewBusy = false;
+  }
 
-  $effect(() => {
-    const ownerId = published?.owner_id ?? '';
-    let current = true;
-    previewAuthorName = '';
-    if (ownerId) {
-      void fetchAuthorName(ownerId).then((name) => {
-        if (current) previewAuthorName = name;
-      });
+  function chooseScope(key: string): void {
+    discardDraftPreview();
+    selectedScope = parseScopeKey(key);
+  }
+
+  async function refreshDraftPreview(): Promise<void> {
+    const run = ++draftPreviewRun;
+    draftPreviewBusy = true;
+    draftPreviewError = null;
+    try {
+      const scoped = computeScopedSet(set, selectedScope);
+      const image = await renderSocialImage(scoped);
+      if (run !== draftPreviewRun) return;
+      if (!image) throw new Error('The preview image could not be rendered.');
+      if (draftPreviewUrl) URL.revokeObjectURL(draftPreviewUrl);
+      draftPreviewUrl = URL.createObjectURL(image);
+      const scopedHeroes = charactersByRole(scoped, 'hero');
+      draftPreviewKind =
+        scoped.kind === 'adventure'
+          ? 'Adventures set'
+          : scopedHeroes.length === 1
+            ? 'Single hero'
+            : 'Heroes set';
+    } catch (cause) {
+      if (run === draftPreviewRun) {
+        draftPreviewError =
+          cause instanceof Error ? cause.message : 'The preview image could not be rendered.';
+      }
+    } finally {
+      if (run === draftPreviewRun) draftPreviewBusy = false;
     }
-    return () => {
-      current = false;
-    };
-  });
+  }
 
-  $effect(() => {
-    void preview.image;
-    previewImageFailed = false;
-  });
+  onDestroy(discardDraftPreview);
 
   /**
    * A throwaway account may share by link but not post to the gallery. The
@@ -282,30 +312,60 @@
   <section class="share">
     <h3 class="title">Share this set</h3>
 
+    <!--
+      Previewing is local and useful before sign-in or first publication. The
+      same scope then flows into publishing, so what was checked is what leaves.
+    -->
+    {#if scopeOptions.length > 1}
+      <label class="option">
+        <span class="option-label">Preview and publish</span>
+        <Select
+          value={scopeKeyOf(selectedScope)}
+          options={scopeOptions}
+          disabled={busy}
+          onchange={chooseScope}
+        />
+      </label>
+    {/if}
+
+    <section class="social-preview" aria-labelledby="draft-social-preview-title">
+      <div class="preview-heading">
+        <div>
+          <h4 id="draft-social-preview-title">Draft composition</h4>
+          <p>Rendered locally from the open draft. Nothing is published or uploaded.</p>
+        </div>
+        {#if draftPreviewKind}<span class="preview-kind">{draftPreviewKind}</span>{/if}
+      </div>
+
+      {#if draftPreviewUrl}
+        <div class="preview-media draft-preview-media">
+          <img src={draftPreviewUrl} alt="Current draft social preview" />
+        </div>
+      {:else}
+        <div class="preview-empty draft-preview-empty" aria-hidden="true">
+          <Icon name="image" size={24} />
+          <span>Refresh to render the current composition</span>
+        </div>
+      {/if}
+
+      <div class="draft-preview-actions">
+        <Button
+          size="sm"
+          disabled={busy || draftPreviewBusy}
+          onclick={() => void refreshDraftPreview()}
+        >
+          {draftPreviewBusy ? 'Rendering…' : 'Refresh preview'}
+        </Button>
+        {#if draftPreviewError}<p class="error" role="alert">{draftPreviewError}</p>{/if}
+      </div>
+    </section>
+
     {#if !auth.signedIn}
       <SignInPanel
         reason="Publishing puts a copy online and gives you a link to hand out. Your set stays in your library either side of it."
         onsignedin={refresh}
       />
     {:else}
-      <!--
-        Only worth showing once there is an actual choice — a set with no
-        hero and no villain has nothing to slice, and a single-item picker is
-        clutter over a fact. `scopeKeyOf`/`selectedScope` still default to the
-        whole set either way.
-      -->
-      {#if scopeOptions.length > 1}
-        <label class="option">
-          <span class="option-label">Publish</span>
-          <Select
-            value={scopeKeyOf(selectedScope)}
-            options={scopeOptions}
-            disabled={busy}
-            onchange={(key) => (selectedScope = parseScopeKey(key))}
-          />
-        </label>
-      {/if}
-
       {#if published}
         <p class="line">
           Published as <strong>{published.name}</strong> · revision {published.revision}
@@ -324,53 +384,6 @@
           <input class="link" readonly value={shareUrl(published.slug)} />
           <Button size="sm" onclick={copyLink}>{copied ? 'Copied' : 'Copy'}</Button>
         </div>
-
-        <section class="social-preview" aria-labelledby="social-preview-title">
-          <div class="preview-heading">
-            <div>
-              <h4 id="social-preview-title">Link preview</h4>
-              <p>What Discord and other services receive when somebody shares this link.</p>
-            </div>
-            <span class="preview-kind">{preview.typeLabel}</span>
-          </div>
-
-          <div class="preview-card">
-            {#if preview.image && !previewImageFailed}
-              <div class="preview-media">
-                <img
-                  src={preview.image}
-                  alt={preview.imageAlt}
-                  onerror={() => (previewImageFailed = true)}
-                />
-              </div>
-            {:else}
-              <div class="preview-empty" aria-hidden="true">
-                <Icon name="image" size={24} />
-                <span>No preview image</span>
-              </div>
-            {/if}
-            <div class="preview-copy">
-              <span class="preview-site">Unmatched Labs</span>
-              <strong>{preview.title}</strong>
-              <p>{preview.description}</p>
-            </div>
-          </div>
-
-          {#if published.visibility === 'private'}
-            <p class="preview-note">
-              Private links do not unfurl. This is how it will look after link access is enabled.
-            </p>
-          {:else if previewUsesThumbnail}
-            <p class="preview-note">
-              This publish predates the richer social image, so its gallery thumbnail is used.
-              Update the published copy to generate the new image.
-            </p>
-          {:else}
-            <p class="preview-note">
-              Services frame previews differently, and some cache an older preview for the same URL.
-            </p>
-          {/if}
-        </section>
 
         <label class="option">
           <span class="option-label">Who can see it</span>
@@ -549,9 +562,7 @@
   }
 
   .preview-heading h4,
-  .preview-heading p,
-  .preview-copy p,
-  .preview-note {
+  .preview-heading p {
     margin: 0;
   }
 
@@ -560,8 +571,7 @@
     font-weight: var(--weight-semibold);
   }
 
-  .preview-heading p,
-  .preview-note {
+  .preview-heading p {
     margin-top: 2px;
     font-size: var(--text-2xs);
     line-height: var(--leading-normal);
@@ -576,15 +586,6 @@
     color: var(--text-secondary);
     font-size: var(--text-2xs);
     line-height: var(--leading-normal);
-  }
-
-  .preview-card {
-    overflow: hidden;
-    border: 1px solid var(--border-default);
-    border-left: 4px solid var(--accent);
-    border-radius: var(--radius-sm);
-    background: var(--surface-sunken);
-    box-shadow: var(--shadow-sm);
   }
 
   .preview-media {
@@ -603,6 +604,11 @@
     object-fit: contain;
   }
 
+  .draft-preview-media {
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-sm);
+  }
+
   .preview-empty {
     display: flex;
     min-height: 132px;
@@ -614,29 +620,16 @@
     font-size: var(--text-xs);
   }
 
-  .preview-copy {
+  .draft-preview-empty {
+    min-height: 160px;
+    border: 1px dashed var(--border-default);
+    border-radius: var(--radius-sm);
+  }
+
+  .draft-preview-actions {
     display: flex;
-    flex-direction: column;
-    gap: var(--space-1);
-    padding: var(--space-3);
-  }
-
-  .preview-site {
-    font-size: var(--text-2xs);
-    letter-spacing: var(--tracking-wide);
-    text-transform: uppercase;
-    color: var(--text-muted);
-  }
-
-  .preview-copy strong {
-    font-size: var(--text-sm);
-    line-height: var(--leading-tight);
-  }
-
-  .preview-copy p {
-    font-size: var(--text-xs);
-    line-height: var(--leading-normal);
-    color: var(--text-secondary);
+    align-items: center;
+    gap: var(--space-2);
   }
 
   .option {
