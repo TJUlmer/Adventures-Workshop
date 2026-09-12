@@ -58,7 +58,7 @@
 </script>
 
 <!-- `renderActionText` sanitises the stored inline HTML before this insertion. -->
-<div class="ability" class:has-bonus={hasBonus}>
+<div class="ability">
   {#if empty}
     {#if placeholder}
       <p class="line placeholder">{placeholder}</p>
@@ -91,15 +91,13 @@
     display: flex;
     flex-direction: column;
     gap: 0.45em;
-  }
-
-  /*
-   * The card face clips genuinely over-full ability regions. The face's low
-   * descenders extend just beyond the final flex line's calculated box, so a
-   * Bonus ability at the foot otherwise loses the bottoms of letters such as
-   * j and g even when the surrounding region still has room to grow.
-   */
-  .ability.has-bonus {
+    /*
+     * The card face clips genuinely over-full ability regions. This face's low
+     * descenders extend just beyond the final flex line's calculated box, so
+     * whichever row comes last — plain, timed, or Bonus — needs a sliver of
+     * clearance for letters such as p and g while the panel still has room to
+     * grow upward.
+     */
     padding-bottom: 0.15em;
   }
 

@@ -11,7 +11,7 @@ import type { CardPngJob } from '$lib/export/card-pngs';
 import type { AdventureSet } from '$lib/sets/types';
 
 /** Bump whenever a renderer change makes the stored pixels stale. */
-export const CARD_PREVIEW_RENDERER_VERSION = 3;
+export const CARD_PREVIEW_RENDERER_VERSION = 4;
 
 export type CardPreviewSide = 'front' | 'back';
 export type CardPreviewManifest = Record<string, string>;
