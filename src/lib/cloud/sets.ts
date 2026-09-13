@@ -33,7 +33,11 @@ import {
   CARD_PREVIEW_RENDERER_VERSION,
   renderCardPreviews
 } from './card-previews';
-import type { CardPreviewManifest } from './card-previews';
+import type {
+  CardPreviewFingerprintManifest,
+  CardPreviewManifest,
+  ReusableCardPreviews
+} from './card-previews';
 import { renderSocialImage, SOCIAL_IMAGE_RENDERER_VERSION } from './social-image';
 import { renderThumbnail } from './thumbnail';
 import { ASSET_BUCKET, cloudConfig } from './config';
@@ -179,6 +183,8 @@ export interface PublishedSetWithDocument extends PublishedSet {
   card_previews: CardPreviewManifest;
   /** Renderer revision used to create `card_previews`; zero means legacy. */
   card_preview_version: number;
+  /** Proof that each stored face still matches its canonical render inputs. */
+  card_preview_fingerprints: CardPreviewFingerprintManifest;
 }
 
 /** Columns for a listing. Never `document` — that is the whole point of them. */
@@ -307,23 +313,65 @@ async function uploadBlob(
   return `${assetPrefix()}${path}`;
 }
 
-/** Render and upload one complete, immutable gallery-preview manifest. */
+interface CardPreviewSnapshot {
+  manifest: CardPreviewManifest;
+  fingerprints: CardPreviewFingerprintManifest;
+}
+
+interface StoredCardPreviewSnapshot {
+  card_previews: CardPreviewManifest;
+  card_preview_fingerprints: CardPreviewFingerprintManifest;
+  card_preview_version: number;
+}
+
+/**
+ * The prior snapshot for this exact publication scope, if one exists.
+ *
+ * Only these three small derived columns are fetched. Pulling the previous
+ * document would defeat much of the win for a large set, and the fingerprints
+ * already contain every renderer input needed to prove reuse.
+ */
+async function storedCardPreviewSnapshot(
+  userId: string,
+  localSetId: string,
+  scope: PublishScope
+): Promise<ReusableCardPreviews | null> {
+  const characterId = scope.kind === 'hero' ? scope.characterId : '';
+  const rows = await request<StoredCardPreviewSnapshot[]>(
+    '/rest/v1/sets?select=card_previews,card_preview_fingerprints,card_preview_version' +
+      `&owner_id=eq.${encodeURIComponent(userId)}` +
+      `&local_id=eq.${encodeURIComponent(localSetId)}` +
+      `&scope=eq.${encodeURIComponent(scope.kind)}` +
+      `&character_id=eq.${encodeURIComponent(characterId)}&limit=1`
+  );
+  const row = rows[0];
+  if (!row) return null;
+  return {
+    manifest: row.card_previews,
+    fingerprints: row.card_preview_fingerprints,
+    rendererVersion: row.card_preview_version
+  };
+}
+
+/** Render and upload one complete, immutable gallery-preview snapshot. */
 async function createCardPreviewManifest(
   set: AdventureSet,
   userId: string,
   storageSetId: string,
+  previous: ReusableCardPreviews | null,
   onProgress?: (done: number, total: number) => void
-): Promise<CardPreviewManifest> {
+): Promise<CardPreviewSnapshot> {
   let renderTotal = 0;
-  const rendered = await renderCardPreviews(set, (done, total) => {
+  const result = await renderCardPreviews(set, previous, (done, total) => {
     renderTotal = total;
     onProgress?.(done, total * 2);
   });
-  const manifest: CardPreviewManifest = {};
-  const uploads = [...rendered.entries()];
+  const manifest: CardPreviewManifest = { ...result.reused };
+  const uploads = [...result.rendered.entries()];
   const failures: Array<{ cause: unknown }> = [];
   let cursor = 0;
-  let uploaded = 0;
+  let uploaded = Object.keys(result.reused).length;
+  onProgress?.(renderTotal + uploaded, renderTotal * 2);
 
   async function worker(): Promise<void> {
     for (;;) {
@@ -361,7 +409,7 @@ async function createCardPreviewManifest(
   const failure = failures[0];
   if (failure) throw failure.cause;
 
-  return manifest;
+  return { manifest, fingerprints: result.fingerprints };
 }
 
 /**
@@ -391,6 +439,7 @@ export async function publishSet(
    * paths and `local_id` below, deliberately — see those call sites.
    */
   const scoped = computeScopedSet(set, scope);
+  const previousCardPreviews = await storedCardPreviewSnapshot(user.id, set.id, scope);
 
   /*
    * Serialise and re-parse rather than sending the live object.
@@ -427,10 +476,11 @@ export async function publishSet(
    * is written only after every face has rendered and uploaded, so a failed
    * preview can never replace the previous complete published revision.
    */
-  const cardPreviews = await createCardPreviewManifest(
+  const cardPreviewSnapshot = await createCardPreviewManifest(
     scoped,
     user.id,
     set.id,
+    previousCardPreviews,
     (done, total) => options.onProgress?.({ stage: 'previews', done, total })
   );
 
@@ -506,8 +556,9 @@ export async function publishSet(
     thumbnail_url: thumbnailUrl,
     social_image_url: socialImageUrl,
     social_image_version: socialImageVersion,
-    card_previews: cardPreviews,
+    card_previews: cardPreviewSnapshot.manifest,
     card_preview_version: CARD_PREVIEW_RENDERER_VERSION,
+    card_preview_fingerprints: cardPreviewSnapshot.fingerprints,
     character_cards: characterCards,
     /* Trimmed and capped here as well as in the field: a note is printed under
        someone else's set, so its length is not the author's alone to decide. */
@@ -819,7 +870,7 @@ export async function refreshPublishedCardPreviews(
   if (!user) throw new CloudError('Sign in to refresh gallery card previews.', 401);
 
   const rows = await request<PublishedSetWithDocument[]>(
-    `/rest/v1/sets?select=${SUMMARY_COLUMNS},document,card_previews,card_preview_version` +
+    `/rest/v1/sets?select=${SUMMARY_COLUMNS},document,card_previews,card_preview_version,card_preview_fingerprints` +
       `&id=eq.${encodeURIComponent(targetId)}` +
       `&card_preview_version=lt.${CARD_PREVIEW_RENDERER_VERSION}&limit=1`
   );
@@ -827,13 +878,14 @@ export async function refreshPublishedCardPreviews(
   if (!row) return false;
 
   const set = await hydratePublishedSet(row);
-  const manifest = await createCardPreviewManifest(set, user.id, row.id, onProgress);
+  const snapshot = await createCardPreviewManifest(set, user.id, row.id, null, onProgress);
   await request('/rest/v1/rpc/refresh_set_card_previews', {
     method: 'POST',
     body: {
       target: row.id,
-      preview_manifest: manifest,
-      preview_version: CARD_PREVIEW_RENDERER_VERSION
+      preview_manifest: snapshot.manifest,
+      preview_version: CARD_PREVIEW_RENDERER_VERSION,
+      preview_fingerprints: snapshot.fingerprints
     }
   });
   return true;
