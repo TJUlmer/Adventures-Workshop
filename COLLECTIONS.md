@@ -60,11 +60,31 @@ will correct more of them than any further design will.
     which does unfurl in full — so the silence is the filter working rather
     than the request failing.
 
-  What this cannot cover is Vercel's own routing: that `config.matcher`
+  What that could not cover was Vercel's own routing: that `config.matcher`
   actually attaches the function to those two paths in the deployed project.
-  That is deployment configuration rather than code, and the only way to see
-  it is a real paste into Discord — whose per-URL unfurl cache is aggressive
-  enough that a second attempt needs a throwaway slug.
+  **It does** — confirmed against a real preview deployment, where the
+  array-form matcher serves both `/shared/:slug*` and `/collection/:slug*`.
+  Every property above was re-measured there rather than assumed to carry
+  over, the secrecy ones against their positive control: the same row went
+  silent while private, unfurled in full when unlisted, and went silent again
+  once hidden — so a takedown kills the link and not merely the listing. A
+  paste into Discord remains the only way to see Discord's own rendering, and
+  its per-URL cache is aggressive enough that a second attempt needs a
+  throwaway slug.
+
+  One thing the deploy did surface. A collection whose organizers have left
+  **both** `subtitle` and `blurb` empty falls back to a generic sentence that
+  is byte-identical to the one an unknown slug gets — so title aside, a real
+  collection's unfurl reads exactly like a dead link's. Harmless where a
+  banner carries the card, and the intended path is that organizers write a
+  blurb, but the set half of this feature never has the problem because it
+  composes its words from counts it already holds. The collection half
+  cannot: `collection_by_slug` returns `setof collections`, and that table
+  carries no deck or creator count. So fixing it properly is a choice between
+  a second anonymous call inside the middleware (the shared path already
+  makes two) and a denormalised counter column — which, by the rule this
+  project learnt at `0010`, would need its backfill in the same migration.
+  Left undecided rather than guessed at.
 - ~~**The migration as a source of truth.**~~ **Replayed, and it holds.**
   `0015_collections.sql` and `0016_public_collections.sql` were run against an
   empty slate — every collections table and function dropped inside a
@@ -647,7 +667,7 @@ The per-member `ready` flag, the "4 of 6 ready" line, and the gate on going
 public: it names who is not ready and offers to publish anyway, so an absent
 member cannot freeze the project.
 
-### 8. The reverse link, and the unfurl — **done** (unfurl needs a deploy to confirm)
+### 8. The reverse link, and the unfurl — **done**, confirmed on a deploy
 
 *Part of Winter Extravaganza* on each member's own `/shared/{slug}`, which is
 what makes the thing read as a project rather than a list of links.
