@@ -174,6 +174,8 @@ export function readCollectionSlug(): string | null {
     COLLECTION_HASH_PATTERN.exec(window.location.hash)?.[1] ??
     null
   );
+}
+
 /** The character selected from the gallery, when a full-set listing was opened. */
 export function readSharedCharacterHint(): string | undefined {
   return new URLSearchParams(window.location.search).get(SHARED_CHARACTER_PARAM)?.trim() || undefined;
