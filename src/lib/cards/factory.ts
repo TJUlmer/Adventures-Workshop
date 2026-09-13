@@ -100,6 +100,7 @@ export function createCard<TType extends CardType>(
         attack: 2,
         defense: 2,
         boost: 1,
+        boostSymbol: '',
         ability: createAbilityBlocks(),
         /* Meaningful only inside a hero's deck — see `ActionCard` — and given
            sensible values there rather than left null, so a card dropped into
@@ -117,7 +118,12 @@ export function createCard<TType extends CardType>(
         showBonusAttack: false,
         bonusAttackTitle: '',
         bonusAttackValue: 2,
-        bonusAttackAbility: ''
+        bonusAttackAbility: '',
+        showTuckEffect: false,
+        tuckEffect: '',
+        tuckEffectOrientation: 'bottom',
+        showCornerBadge: false,
+        cornerBadge: ''
       } as CardOfType<TType>;
   }
 }

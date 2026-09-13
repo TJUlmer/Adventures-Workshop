@@ -23,12 +23,17 @@
   import HomeScreen from '$lib/components/library/HomeScreen.svelte';
   import PrintScreen from '$lib/print/PrintScreen.svelte';
   import { auth } from '$lib/cloud/auth.svelte';
-  import { readCollectionSlug, readSharedSlug } from '$lib/state/navigation.svelte';
+  import {
+    readCollectionSlug,
+    readSharedCharacterHint,
+    readSharedSlug
+  } from '$lib/state/navigation.svelte';
   import PreviewPanel from '$lib/components/preview/PreviewPanel.svelte';
   import SetSidebar from '$lib/components/sidebar/SetSidebar.svelte';
   import FiguresPanel from '$lib/components/tools/FiguresPanel.svelte';
   import MapEditor from '$lib/components/tools/MapEditor.svelte';
   import OverviewScreen from '$lib/components/tools/OverviewScreen.svelte';
+  import type { AdventureSet } from '$lib/sets/types';
   import SetSettings from '$lib/components/tools/SetSettings.svelte';
   import SymbolsPanel from '$lib/components/tools/SymbolsPanel.svelte';
   import ThreatTracker from '$lib/components/tools/ThreatTracker.svelte';
@@ -74,7 +79,7 @@
    * `captureRedirect` also strips them from the address bar, because an access
    * token sitting in a URL is one shared link away from being someone else's.
    */
-  auth.captureRedirect();
+  const openAccountAfterSignIn = auth.captureRedirect();
 
   // Which sign-in buttons to show. Fire and forget: the panel starts with none.
   void auth.loadProviders();
@@ -98,6 +103,7 @@
    */
   const arrivedAtCollection = readCollectionSlug();
   const arrivedAtShared = readSharedSlug();
+  const arrivedAtCharacter = readSharedCharacterHint();
 
   const openDeepLink = (): void => {
     /* A collection link is checked first only because the two patterns cannot
@@ -107,7 +113,7 @@
       navigation.openCollection(arrivedAtCollection);
       return;
     }
-    if (arrivedAtShared) navigation.openShared(arrivedAtShared);
+    if (arrivedAtShared) navigation.openShared(arrivedAtShared, arrivedAtCharacter);
   };
 
   let sessionReady = $state(false);
@@ -145,7 +151,7 @@
     const slug = readSharedSlug();
     if (slug) {
       if (navigation.inSet && !(await workshop.saveNow())) return;
-      navigation.openShared(slug);
+      navigation.openShared(slug, readSharedCharacterHint());
       return;
     }
     // The URL no longer names either, so neither view may stay on screen.
@@ -177,6 +183,23 @@
   });
 
   const currentPage = $derived(navigation.page);
+
+  /*
+   * The export panel is unmounted when creator printing leaves the set shell,
+   * so App holds the exact transient selection long enough for PrintScreen to
+   * consume it. Raw state avoids deeply proxying a potentially large document
+   * full of embedded artwork; the reference is replaced, never edited here.
+   */
+  let printSet = $state.raw<AdventureSet | null>(null);
+
+  function openPrint(set: AdventureSet): void {
+    printSet = set;
+    navigation.go('print');
+  }
+
+  $effect(() => {
+    if (currentPage !== 'print') printSet = null;
+  });
 </script>
 
 {#if sessionReady}
@@ -186,7 +209,7 @@
     where it applies, the deep link it defers to) has actually run.
   -->
   <div class="app-frame">
-    <header class="global-banner"><GlobalHeader /></header>
+    <header class="global-banner"><GlobalHeader openAccountOnStart={openAccountAfterSignIn} /></header>
 
     <div class="app-view">
       {#if navigation.view.kind === 'shared'}
@@ -210,7 +233,7 @@
       {:else if currentPage === 'print'}
         <!-- The banner remains on screen, but `@media print` below removes it
              from paper so it cannot shift a sheet. -->
-        <PrintScreen />
+        <PrintScreen set={printSet ?? workshop.adventure} />
       {:else}
         <AppShell>
           {#snippet titlebar()}
@@ -243,13 +266,13 @@
             {:else if currentPage === 'symbols'}
               <SymbolsPanel />
             {:else if currentPage === 'assets'}
-              <OverviewScreen />
+              <OverviewScreen onprint={openPrint} />
             {:else if currentPage === 'contributions'}
               <ContributionsScreen />
             {:else if currentPage === 'settings'}
               <SetSettings />
             {:else}
-              <SetHome />
+              <SetHome onprint={openPrint} />
             {/if}
           {/snippet}
 

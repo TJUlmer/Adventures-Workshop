@@ -55,6 +55,30 @@ export function sourceOf(row: PublishedSet, authorName: string): ForkSource {
  * whole comparison rests on.
  */
 export function forkSet(published: AdventureSet, source: ForkSource): AdventureSet {
+  return forkDocument(published, source, createId<SetId>('set'));
+}
+
+/**
+ * Replace an existing fork with a newer snapshot of the same published set.
+ *
+ * This deliberately is not a merge: everything from the working copy is
+ * replaced by the published document. The local set id is the sole exception,
+ * because changing it would create a second library entry instead of updating
+ * the copy the author explicitly chose.
+ */
+export function updateFork(
+  published: AdventureSet,
+  localId: SetId,
+  source: ForkSource
+): AdventureSet {
+  return forkDocument(published, source, localId);
+}
+
+function forkDocument(
+  published: AdventureSet,
+  source: ForkSource,
+  localId: SetId
+): AdventureSet {
   /*
    * `published` must be a plain document, not reactive state — callers hand in
    * `$state.snapshot(…)`. A rune cannot be read from a `.ts` module, and
@@ -79,7 +103,7 @@ export function forkSet(published: AdventureSet, source: ForkSource): AdventureS
 
   return {
     ...document,
-    id: createId<SetId>('set'),
+    id: localId,
     // A new document written by this build, whatever the original was saved as.
     schemaVersion: SET_SCHEMA_VERSION,
     meta: { ...document.meta, updatedAt: now() },

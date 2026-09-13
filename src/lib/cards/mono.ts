@@ -49,14 +49,19 @@ export const MONO_LAYER: CardStyleOverride = {
    * matters most — the name ribbon's outline. The ribbon's *fill* goes white
    * with everything else, so without this the ribbon would vanish entirely
    * rather than becoming an outline of itself.
-   */
+  */
   divider: MONO_INK,
+  cornerBadge: solid(MONO_INK),
+  cornerBadgeOpacity: 1,
+  cornerBadgeInk: MONO_PAPER,
   /* Goes to paper with every other fill. The stroke down its edge is
      `divider` above, which stays black — so the foot becomes an outline of
      itself exactly as the ribbon does. */
   ribbonFoot: solid(MONO_PAPER),
   boost: solid(MONO_PAPER),
   boostInk: MONO_INK,
+  tuckEffect: solid(MONO_PAPER),
+  tuckEffectInk: MONO_INK,
   /* Both exist to lay tone over a panel. There is no tone to lay. */
   pattern: NO_PATTERN,
   texture: { kind: 'none', opacity: 0 },

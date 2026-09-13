@@ -10,8 +10,13 @@
   import type { CardTheme } from '$lib/cards/style';
   import type { StyleOrigin } from '$lib/cards/theme';
   import { STYLE_ORIGIN_LABELS } from '$lib/cards/theme';
-  import { COMBAT_SYMBOLS } from '$lib/cards/types';
-  import type { ActionCard, CardOwner, CombatSymbol } from '$lib/cards/types';
+  import { abilityIsEmpty, COMBAT_SYMBOLS } from '$lib/cards/types';
+  import type {
+    ActionCard,
+    CardOwner,
+    CombatSymbol,
+    TuckEffectOrientation
+  } from '$lib/cards/types';
   import { characterLabel, primaryCardName } from '$lib/characters/factory';
   import { deckLabel } from '$lib/decks/factory';
   import type { DeckId } from '$lib/decks/types';
@@ -24,6 +29,7 @@
   import {
     Field,
     FillEditor,
+    ColorInput,
     NumberInput,
     Section,
     SegmentedControl,
@@ -88,7 +94,16 @@
     label: CARD_SYMBOL_LABELS[symbol]
   }));
 
+  const tuckEffectOrientations = [
+    { value: 'bottom', label: 'Bottom' },
+    { value: 'right', label: 'Right side' }
+  ] as const;
+
   const isScheme = $derived(card.symbol === 'scheme');
+  const hasSeparateDefenseAbility = $derived(!abilityIsEmpty(card.defenseAbility));
+  const availableCustomSymbols = $derived(
+    workshop.adventure.customSymbols.filter((symbol) => symbol.source)
+  );
 
   /**
    * "Who may play this card" pulls from the hero's own named identities: the
@@ -118,8 +133,35 @@
 
 </script>
 
+{#snippet boostSymbolPicker()}
+  <!-- The symbol is only a printed override. Keeping the number control below
+       means None can reveal the previous boost value without resetting it. -->
+  <div class="boost-symbol-picker" role="group" aria-label="Boost symbol">
+    <span class="boost-symbol-label">Boost symbol</span>
+    <button
+      type="button"
+      class="icon-choice"
+      class:active={!card.boostSymbol}
+      onclick={() => edit((target) => (target.boostSymbol = ''))}
+    >
+      None
+    </button>
+    {#each availableCustomSymbols as symbol (symbol.id)}
+      <button
+        type="button"
+        class="icon-choice"
+        class:active={card.boostSymbol === customSymbolToken(symbol.id)}
+        onclick={() => edit((target) => (target.boostSymbol = customSymbolToken(symbol.id)))}
+      >
+        <img src={symbol.source} alt="" />
+        {customSymbolLabel(symbol)}
+      </button>
+    {/each}
+  </div>
+{/snippet}
+
 <!-- What the card is called and where it lives: four short fields, two by two. -->
-<Section title="Card" columns={2}>
+<Section title="Card" columns={2} prominentHeading>
   {#if isHero}
     <!--
       Card title first and prominent, ahead of Name override — the title is
@@ -178,20 +220,25 @@
 
 {#if isHero}
   <!--
-    A hero's card prints one symbol and one value in the ribbon, and who may
-    play it — never the attack/defense pair or the split layout a villain or
-    minion card can carry, so those controls do not appear here at all rather
-    than sitting disabled.
+    An ordinary hero card prints one symbol and one value in the ribbon. Split
+    combat replaces that display with a fixed versatile glyph and moves both
+    values into the body; its extra fields live beside that effect's toggle.
   -->
-  <Section title="Combat" description="What prints in the ribbon, and who may play the card.">
-    <Field label="Card type">
-      <SegmentedControl
-        label="Card type"
-        value={card.symbol ?? 'attack'}
-        segments={symbolOptions}
-        onchange={(value) => edit((target) => (target.symbol = value as CombatSymbol))}
-      />
-    </Field>
+  <Section
+    title="Combat"
+    prominentHeading
+    description="Card text and values, and who may play this card."
+  >
+    {#if !card.split}
+      <Field label="Card type">
+        <SegmentedControl
+          label="Card type"
+          value={card.symbol ?? 'attack'}
+          segments={symbolOptions}
+          onchange={(value) => edit((target) => (target.symbol = value as CombatSymbol))}
+        />
+      </Field>
+    {/if}
 
     <!--
       Keyed on the card for the same reason the villain block below is: a
@@ -208,7 +255,7 @@
           it left — an unplaced lone item would otherwise auto-flow into the
           first track.
         -->
-        {#if !isScheme}
+        {#if !card.split && !isScheme}
           <div class="value-slot">
             <ValueControl
               label="Value"
@@ -222,6 +269,7 @@
         {/if}
 
         <div class="boost-slot">
+          {@render boostSymbolPicker()}
           <ValueControl
             label="Boost"
             value={card.boost}
@@ -243,15 +291,17 @@
       />
     </Field>
 
-    <AbilityStack
-      title="Ability"
-      ability={card.ability}
-      onchange={(patch) => edit((target) => Object.assign(target.ability, patch))}
-      target={styleTarget}
-      resolved={resolvedTheme}
-      {originFor}
-      customSymbols={workshop.adventure.customSymbols}
-    />
+    {#if !card.split}
+      <AbilityStack
+        title="Ability"
+        ability={card.ability}
+        onchange={(patch) => edit((target) => Object.assign(target.ability, patch))}
+        target={styleTarget}
+        resolved={resolvedTheme}
+        {originFor}
+        customSymbols={workshop.adventure.customSymbols}
+      />
+    {/if}
   </Section>
 {:else}
   <!--
@@ -259,7 +309,11 @@
     says. Split puts the defense side under the attack side, which is how it
     prints.
   -->
-  <Section title="Combat" description="Click a value to put it on the card or take it off.">
+  <Section
+    title="Combat"
+    description="Card text and values, and who may play this card."
+    prominentHeading
+  >
     {#snippet actions()}
       <Switch
         label="Split effect"
@@ -288,14 +342,17 @@
           defaultValue={2}
           onchange={(defense) => edit((target) => (target.defense = defense))}
         />
-        <ValueControl
-          label="Boost"
-          value={card.boost}
-          defaultValue={1}
-          min={1}
-          max={9}
-          onchange={(boost) => edit((target) => (target.boost = boost))}
-        />
+        <div class="boost-slot">
+          {@render boostSymbolPicker()}
+          <ValueControl
+            label="Boost"
+            value={card.boost}
+            defaultValue={1}
+            min={1}
+            max={9}
+            onchange={(boost) => edit((target) => (target.boost = boost))}
+          />
+        </div>
       </div>
     {/key}
 
@@ -343,8 +400,75 @@
 
 <Section
   title="Special card effects"
-  description="Optional treatments attached to the card’s ribbon, boost and ability panel."
+  description="Optional official and unofficial card effect augmentations."
+  prominentHeading
 >
+  {#if isHero}
+    <div class="effect-option">
+      <Switch
+        label="Split combat"
+        hint="Replaces the ribbon value with separate attack and defense values and abilities in the body panel."
+        checked={card.split}
+        onchange={(split) =>
+          edit((target) => {
+            target.split = split;
+            if (!split) return;
+            target.attack ??= target.symbolValue ?? 2;
+            target.defense ??= target.symbolValue ?? 2;
+          })}
+      />
+
+      {#if card.split}
+        {#key card.id}
+          <div class="split-values">
+            <ValueControl
+              label="Attack"
+              symbol={CARD_SYMBOLS.attack}
+              value={card.attack}
+              defaultValue={2}
+              onchange={(attack) => edit((target) => (target.attack = attack))}
+            />
+            <ValueControl
+              label="Defense"
+              symbol={CARD_SYMBOLS.defense}
+              value={card.defense}
+              defaultValue={2}
+              onchange={(defense) => edit((target) => (target.defense = defense))}
+            />
+          </div>
+        {/key}
+
+        <AbilityStack
+          title="Attack side"
+          symbol={CARD_SYMBOLS.attack}
+          hint={hasSeparateDefenseAbility
+            ? 'Printed above the floating separator.'
+            : 'Applies to both attack and defense until the Defense side contains text.'}
+          ability={card.ability}
+          onchange={(patch) => edit((target) => Object.assign(target.ability, patch))}
+          target={styleTarget}
+          resolved={resolvedTheme}
+          {originFor}
+          customSymbols={workshop.adventure.customSymbols}
+        />
+        <AbilityStack
+          title="Defense side"
+          symbol={CARD_SYMBOLS.defense}
+          hint={hasSeparateDefenseAbility
+            ? 'Printed below the floating separator.'
+            : 'Add text here to give defense its own effect and show the separator.'}
+          ability={card.defenseAbility}
+          onchange={(patch) => edit((target) => Object.assign(target.defenseAbility, patch))}
+          target={styleTarget}
+          resolved={resolvedTheme}
+          {originFor}
+          textStyle={false}
+          customSymbols={workshop.adventure.customSymbols}
+        />
+      {/if}
+    </div>
+  {/if}
+
   <div class="effect-option">
     <Switch
       label="Ribbon symbol"
@@ -482,9 +606,111 @@
       />
     {/if}
   </div>
+
+  <div class="effect-option">
+    <Switch
+      label="Tuck effect"
+      hint="Adds reminder text on an exposed edge while this card is tucked behind another card."
+      checked={card.showTuckEffect}
+      onchange={(show) => edit((target) => (target.showTuckEffect = show))}
+    />
+
+    {#if card.showTuckEffect}
+      <Field label="Effect text">
+        <TextInput
+          value={card.tuckEffect}
+          placeholder="When you play a scheme, gain 1 action."
+          oninput={(event) => edit((target) => (target.tuckEffect = event.currentTarget.value))}
+        />
+      </Field>
+
+      <Field label="Orientation">
+        <SegmentedControl
+          label="Tuck effect orientation"
+          value={card.tuckEffectOrientation}
+          segments={tuckEffectOrientations}
+          onchange={(orientation) =>
+            edit((target) => {
+              target.tuckEffectOrientation = orientation as TuckEffectOrientation;
+            })}
+        />
+      </Field>
+
+      <div class="effect-colours">
+        <FillEditor
+          label="Bar fill"
+          value={resolvedTheme.tuckEffect}
+          origin={originFor('tuckEffect')}
+          overridden={styleLayer.tuckEffect !== undefined}
+          onchange={(fill) => workshop.setStyle(styleTarget, 'tuckEffect', fill)}
+          onreset={() => workshop.setStyle(styleTarget, 'tuckEffect', undefined)}
+        />
+
+        <label class="effect-ink">
+          <span>Text</span>
+          <ColorInput
+            value={styleLayer.tuckEffectInk as string | undefined}
+            inherited={resolvedTheme.tuckEffectInk}
+            origin={originFor('tuckEffectInk')}
+            onchange={(ink) => workshop.setStyle(styleTarget, 'tuckEffectInk', ink)}
+          />
+        </label>
+      </div>
+    {/if}
+  </div>
+
+  <div class="effect-option">
+    <Switch
+      label="Corner badge"
+      hint="Adds a square badge for a symbol or short value in the upper-right corner."
+      checked={card.showCornerBadge}
+      onchange={(show) => edit((target) => (target.showCornerBadge = show))}
+    />
+
+    {#if card.showCornerBadge}
+      <AbilityField
+        label="Badge content"
+        value={card.cornerBadge}
+        placeholder="Symbol or value"
+        rows={1}
+        onchange={(content) => edit((target) => (target.cornerBadge = content))}
+        customSymbols={workshop.adventure.customSymbols}
+      />
+
+      <FillEditor
+        label="Background colour"
+        value={resolvedTheme.cornerBadge}
+        origin={originFor('cornerBadge')}
+        overridden={styleLayer.cornerBadge !== undefined}
+        onchange={(fill) => workshop.setStyle(styleTarget, 'cornerBadge', fill)}
+        onreset={() => workshop.setStyle(styleTarget, 'cornerBadge', undefined)}
+      />
+
+      <Slider
+        label="Background opacity"
+        value={resolvedTheme.cornerBadgeOpacity}
+        min={0}
+        max={1}
+        step={0.01}
+        neutral={1}
+        format={(value) => `${Math.round(value * 100)}%`}
+        onchange={(opacity) => workshop.setStyle(styleTarget, 'cornerBadgeOpacity', opacity)}
+      />
+
+      <label class="effect-ink">
+        <span>Content colour</span>
+        <ColorInput
+          value={styleLayer.cornerBadgeInk as string | undefined}
+          inherited={resolvedTheme.cornerBadgeInk}
+          origin={originFor('cornerBadgeInk')}
+          onchange={(ink) => workshop.setStyle(styleTarget, 'cornerBadgeInk', ink)}
+        />
+      </label>
+    {/if}
+  </div>
 </Section>
 
-<Section title="Notes" description="Working notes. Never printed.">
+<Section title="Notes" description="Working notes. Never printed." prominentHeading>
   <TextArea bind:value={card.notes} rows={2} placeholder="Balance thoughts, references…" />
 </Section>
 
@@ -498,6 +724,22 @@
     display: flex;
     flex-wrap: wrap;
     gap: var(--space-2);
+  }
+
+  .boost-symbol-picker {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+  }
+
+  .boost-symbol-label {
+    font-size: var(--text-2xs);
+    font-weight: var(--weight-semibold);
+    letter-spacing: var(--tracking-caps);
+    text-transform: uppercase;
+    color: var(--text-muted);
   }
 
   .effect-option {
@@ -517,8 +759,24 @@
     gap: var(--space-3);
   }
 
+  .effect-colours {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: end;
+    gap: var(--space-3);
+  }
+
+  .effect-ink {
+    display: grid;
+    gap: var(--space-2);
+    min-width: 0;
+    font-size: var(--text-xs);
+    color: var(--text-tertiary);
+  }
+
   @container workspace (max-width: 520px) {
-    .bonus-attack-head {
+    .bonus-attack-head,
+    .effect-colours {
       grid-template-columns: 1fr;
     }
   }
@@ -558,12 +816,20 @@
   .values {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
+    align-items: end;
+    gap: var(--space-2);
+  }
+
+  .split-values {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: var(--space-2);
   }
 
   .hero-combat {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: end;
     gap: var(--space-2);
     margin-bottom: var(--space-3);
   }
@@ -576,10 +842,17 @@
 
   .boost-slot {
     grid-column: 2;
+    display: grid;
+    gap: var(--space-2);
+  }
+
+  .values .boost-slot {
+    grid-column: 3;
   }
 
   @container workspace (max-width: 480px) {
     .values,
+    .split-values,
     .hero-combat {
       grid-template-columns: minmax(0, 1fr);
     }

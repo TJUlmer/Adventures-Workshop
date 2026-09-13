@@ -7,11 +7,17 @@
    * for the same reason artwork is: the set has to survive being handed to
    * someone else as one file.
    */
+  import { onDestroy } from 'svelte';
   import { characterLabel } from '$lib/characters/factory';
   import { hasArtwork } from '$lib/core/artwork';
   import { readArtworkFile } from '$lib/core/image-import';
   import { saveExport, slugify } from '$lib/export';
-  import { exportTokenModel, tokenTextureUrl, traceTokenSilhouette } from '$lib/export/token-model';
+  import {
+    buildTokenPreviewMesh,
+    exportTokenModel,
+    tokenTextureUrl,
+    traceTokenSilhouette
+  } from '$lib/export/token-model';
   import type { Figure, FigureId, FigureKind } from '$lib/figures/types';
   import {
     FIGURE_KIND_LABELS,
@@ -32,12 +38,19 @@
   import type { TokenShape } from '$lib/models/token';
   import { MAX_OUTLINE_DETAIL, MIN_OUTLINE_DETAIL } from '$lib/models/silhouette';
   import type { TokenOutline } from '$lib/models/silhouette';
-  import type { TtsSave } from '$lib/models/tts';
-  import { applyTtsEdits, parseTtsSave } from '$lib/models/tts';
+  import type { TtsPreviewAsset, TtsSave } from '$lib/models/tts';
+  import { applyTtsEdits, parseTtsSave, resolveTtsPreviewAsset } from '$lib/models/tts';
+  import type { LoadedTtsPreview } from '$lib/models/tts-preview';
   import {
-    buildTokenMesh,
+    clearTtsPreviewCache,
+    loadTtsPreview,
+    releaseTtsPreview,
+    ttsPreviewAssetKey
+  } from '$lib/models/tts-preview';
+  import {
     MAX_POLYGON_SIDES,
     MIN_POLYGON_SIDES,
+    MM_PER_TTS_UNIT,
     TOKEN_SHAPE_LABELS,
     TOKEN_SHAPES,
     tokenFaceAspect
@@ -206,6 +219,8 @@
   interface Preview {
     mesh: Mesh;
     texture: string | null;
+    millimetresPerUnit: number | null;
+    approximateScale?: boolean;
   }
 
   /**
@@ -228,8 +243,9 @@
       const spec = generatedTokenSpec(figure);
       if (!spec) continue;
       built[figure.id] = {
-        mesh: buildTokenMesh(spec),
-        texture: tokenTextures[figure.id] ?? null
+        mesh: buildTokenPreviewMesh(figure, spec),
+        texture: tokenTextures[figure.id] ?? null,
+        millimetresPerUnit: MM_PER_TTS_UNIT
       };
     }
     return built;
@@ -241,10 +257,20 @@
    * without reloading the mesh.
    */
   function preview(figure: Figure): Preview | null {
+    if (figure.kind !== 'dial') {
+      const fromTts = ttsPreviews[figure.id];
+      if (fromTts) return fromTts;
+    }
     const token = previews[figure.id];
     if (token) return token;
     const model = loaded[figure.id];
-    if (model) return { mesh: model.mesh, texture: figure.reference.source ?? null };
+    if (model) {
+      return {
+        mesh: model.mesh,
+        texture: figure.reference.source ?? null,
+        millimetresPerUnit: model.millimetresPerUnit
+      };
+    }
     return null;
   }
 
@@ -271,7 +297,8 @@
         figure.token.rimColor,
         figure.token.twoSided,
         figure.reference.transform.scale,
-        tokenFaceAspect(spec).toFixed(4)
+        tokenFaceAspect(spec).toFixed(4),
+        figure.kind === 'dial' ? figure.dialRange.max : ''
       ].join('|');
       if (textureKeys[figure.id] === key) continue;
       textureKeys[figure.id] = key;
@@ -377,7 +404,8 @@
       loading[figure.id] = true;
       void loadMesh(source.name, source.url)
         .then((mesh) => {
-          loaded[figure.id] = { mesh, texture: null };
+          // Standalone STL/OBJ files do not declare their physical unit.
+          loaded[figure.id] = { mesh, texture: null, millimetresPerUnit: null };
         })
         .catch((cause: unknown) => {
           error = cause instanceof Error ? cause.message : 'Could not read that model.';
@@ -434,6 +462,70 @@
    */
   let tts = $state<Record<string, TtsSave>>({});
   const ttsKeys: Record<string, string> = {};
+  let ttsPreviews = $state<Record<string, LoadedTtsPreview>>({});
+  let ttsPreviewLoading = $state<Record<string, boolean>>({});
+  let ttsPreviewErrors = $state<Record<string, string>>({});
+  const ttsPreviewRuns: Record<string, number> = {};
+  let ttsPreviewDestroyed = false;
+
+  function ttsAsset(save: TtsSave): TtsPreviewAsset | null {
+    return resolveTtsPreviewAsset(save.object);
+  }
+
+  /** Release browser-only assets whenever the attached save stops naming the
+      preview they came from. The stored JSON itself is untouched. */
+  function clearTtsPreview(id: string, evictAsset: TtsPreviewAsset | null = null): void {
+    ttsPreviewRuns[id] = (ttsPreviewRuns[id] ?? 0) + 1;
+    releaseTtsPreview(ttsPreviews[id] ?? null);
+    if (evictAsset) clearTtsPreviewCache(evictAsset);
+    delete ttsPreviews[id];
+    delete ttsPreviewLoading[id];
+    delete ttsPreviewErrors[id];
+  }
+
+  async function requestTtsPreview(figure: Figure): Promise<void> {
+    const save = tts[figure.id];
+    const asset = save ? ttsAsset(save) : null;
+    if (!asset) return;
+
+    const refreshing = Boolean(ttsPreviewErrors[figure.id] || ttsPreviews[figure.id]);
+    if (refreshing) clearTtsPreviewCache(asset);
+
+    const previous = ttsPreviews[figure.id];
+    if (previous) releaseTtsPreview(previous);
+    delete ttsPreviews[figure.id];
+    delete ttsPreviewErrors[figure.id];
+
+    const key = ttsPreviewAssetKey(asset);
+    const run = (ttsPreviewRuns[figure.id] ?? 0) + 1;
+    ttsPreviewRuns[figure.id] = run;
+    ttsPreviewLoading[figure.id] = true;
+
+    try {
+      const loadedPreview = await loadTtsPreview(asset);
+      const currentSave = tts[figure.id];
+      const currentAsset = currentSave ? ttsAsset(currentSave) : null;
+      if (
+        ttsPreviewDestroyed ||
+        ttsPreviewRuns[figure.id] !== run ||
+        !currentAsset ||
+        ttsPreviewAssetKey(currentAsset) !== key
+      ) {
+        releaseTtsPreview(loadedPreview);
+        return;
+      }
+      ttsPreviews[figure.id] = loadedPreview;
+    } catch (cause) {
+      if (!ttsPreviewDestroyed && ttsPreviewRuns[figure.id] === run) {
+        ttsPreviewErrors[figure.id] =
+          cause instanceof Error ? cause.message : 'The TTS preview could not be loaded.';
+      }
+    } finally {
+      if (!ttsPreviewDestroyed && ttsPreviewRuns[figure.id] === run) {
+        delete ttsPreviewLoading[figure.id];
+      }
+    }
+  }
 
   $effect(() => {
     for (const figure of figures) {
@@ -444,6 +536,8 @@
         continue;
       }
       if (ttsKeys[figure.id] === save.source) continue;
+      const previousSave = tts[figure.id];
+      clearTtsPreview(figure.id, previousSave ? ttsAsset(previousSave) : null);
       ttsKeys[figure.id] = save.source;
       try {
         tts[figure.id] = parseTtsSave(atob(save.source.split(',')[1] ?? ''));
@@ -467,6 +561,8 @@
       const text = await file.text();
       // Parsed first, so a file that is not one of these never reaches the set.
       parseTtsSave(text);
+      const previousSave = tts[id];
+      clearTtsPreview(id, previousSave ? ttsAsset(previousSave) : null);
       workshop.editFigure(id, (figure) => {
         figure.ttsSave = {
           name: file.name,
@@ -483,7 +579,12 @@
   function editTts(id: string, mutate: (object: TtsSave['object']) => void): void {
     const save = tts[id];
     if (!save) return;
+    const before = ttsAsset(save);
+    const beforeKey = before ? ttsPreviewAssetKey(before) : null;
     mutate(save.object);
+    const after = ttsAsset(save);
+    const afterKey = after ? ttsPreviewAssetKey(after) : null;
+    if (beforeKey !== afterKey) clearTtsPreview(id, before);
     const text = applyTtsEdits(save);
     const encoded = `data:application/json;base64,${btoa(unescape(encodeURIComponent(text)))}`;
     ttsKeys[id] = encoded;
@@ -502,6 +603,18 @@
     });
   }
 
+  function removeTts(id: FigureId): void {
+    const save = tts[id];
+    clearTtsPreview(id, save ? ttsAsset(save) : null);
+    workshop.editFigure(id, (figure) => (figure.ttsSave = null));
+  }
+
+  function removeFigure(figure: Figure): void {
+    const save = tts[figure.id];
+    clearTtsPreview(figure.id, save ? ttsAsset(save) : null);
+    workshop.removeFigure(figure.id);
+  }
+
   async function exportToken(figure: Figure): Promise<void> {
     exportingId = figure.id;
     error = null;
@@ -513,6 +626,18 @@
       exportingId = null;
     }
   }
+
+  onDestroy(() => {
+    ttsPreviewDestroyed = true;
+    for (const id of Object.keys(ttsPreviewRuns)) {
+      ttsPreviewRuns[id] = (ttsPreviewRuns[id] ?? 0) + 1;
+    }
+    for (const loadedPreview of Object.values(ttsPreviews)) releaseTtsPreview(loadedPreview);
+    for (const save of Object.values(tts)) {
+      const asset = ttsAsset(save);
+      if (asset) clearTtsPreviewCache(asset);
+    }
+  });
 </script>
 
 <!--
@@ -763,7 +888,7 @@
                       class="ghost"
                       title="Remove the Tabletop Simulator object"
                       aria-label="Remove Tabletop Simulator object"
-                      onclick={() => workshop.editFigure(figure.id, (f) => (f.ttsSave = null))}
+                      onclick={() => removeTts(figure.id)}
                     >
                       <Icon name="minus" size={12} />
                     </button>
@@ -1158,7 +1283,7 @@
             class="ghost remove"
             title="Remove {figureLabel(figure)}"
             aria-label="Remove component"
-            onclick={() => workshop.removeFigure(figure.id)}
+            onclick={() => removeFigure(figure)}
           >
             <Icon name="trash" size={13} />
           </button>
@@ -1166,6 +1291,7 @@
           {#if figure.ttsSave}
             {@const save = tts[figure.id]}
             {#if save}
+            {@const asset = ttsAsset(save)}
             <div class="tts">
               <div class="tts-head">
                 <span class="tts-kind">{save.object.kind.replace(/_/g, ' ')}</span>
@@ -1174,10 +1300,28 @@
                     {save.objectCount} objects in the file — the first is the one shown.
                   </span>
                 {/if}
-                <Button size="sm" onclick={() => saveTts(figure)}>
-                  <Icon name="download" size={13} />
-                  Save JSON
-                </Button>
+                <div class="tts-actions">
+                  {#if asset}
+                    <Button
+                      size="sm"
+                      disabled={Boolean(ttsPreviewLoading[figure.id])}
+                      onclick={() => requestTtsPreview(figure)}
+                    >
+                      <Icon name="eye" size={13} />
+                      {ttsPreviewLoading[figure.id]
+                        ? 'Loading…'
+                        : ttsPreviewErrors[figure.id]
+                          ? 'Retry preview'
+                          : ttsPreviews[figure.id]
+                            ? 'Reload preview'
+                            : 'Load preview'}
+                    </Button>
+                  {/if}
+                  <Button size="sm" onclick={() => saveTts(figure)}>
+                    <Icon name="download" size={13} />
+                    Save JSON
+                  </Button>
+                </div>
               </div>
 
               <div class="token-fields">
@@ -1203,7 +1347,7 @@
                 Simulator fetches them by URL. Point them at your own uploads
                 and the component is yours.
               -->
-              {#if save.object.meshUrl || save.object.diffuseUrl}
+              {#if asset?.type === 'obj'}
                 <div class="token-fields">
                   <label class="field">
                     <span class="field-label">Model URL</span>
@@ -1223,8 +1367,38 @@
                   </label>
                 </div>
                 <p class="hint">
-                  Those are hosted files, so they cannot be drawn here — download the model and
-                  attach it above to see it.
+                  Load preview fetches these hosted files for this editing session only.
+                </p>
+              {:else if asset?.type === 'token'}
+                <div class="source">
+                  <span class="source-label">Token image</span>
+                  <span class="source-value" title={asset.imageUrl}>
+                    {asset.imageUrl || 'No image URL in this object'}
+                  </span>
+                </div>
+                <p class="hint">
+                  The preview approximates the Custom Token outline from that image.
+                </p>
+              {:else}
+                <p class="hint">
+                  This object has no Custom Model OBJ or Custom Token image the browser can draw.
+                </p>
+              {/if}
+
+              {#if asset}
+                <p class="hint">
+                  Loading it contacts the asset host named in the JSON. Lua and scripted controls
+                  render only in Tabletop Simulator.
+                </p>
+              {/if}
+
+              {#if ttsPreviewErrors[figure.id]}
+                <p class="tts-preview-status failed" role="alert">
+                  {ttsPreviewErrors[figure.id]}
+                </p>
+              {:else if ttsPreviews[figure.id]?.warning}
+                <p class="tts-preview-status" role="status">
+                  {ttsPreviews[figure.id]?.warning}
                 </p>
               {/if}
 
@@ -1278,7 +1452,12 @@
           {#if preview(figure)}
             {@const shown = preview(figure)}
             <div class="preview">
-              <ModelViewer mesh={shown?.mesh ?? null} texture={shown?.texture ?? null} />
+              <ModelViewer
+                mesh={shown?.mesh ?? null}
+                texture={shown?.texture ?? null}
+                millimetresPerUnit={shown?.millimetresPerUnit ?? null}
+                approximateScale={shown?.approximateScale ?? false}
+              />
             </div>
           {:else if figure.model && !isViewableModel(figure.model.name)}
             <p class="preview-note">
@@ -1486,8 +1665,25 @@
     color: var(--text-secondary);
   }
 
-  .tts-head :global(button) {
+  .tts-actions {
     margin-left: auto;
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+  }
+
+  .tts-preview-status {
+    margin: 0;
+    padding: var(--space-2) var(--space-3);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-sm);
+    background: var(--surface-base);
+    color: var(--warning);
+    font-size: var(--text-xs);
+  }
+
+  .tts-preview-status.failed {
+    color: var(--danger);
   }
 
   .build-actions {

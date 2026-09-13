@@ -2,18 +2,14 @@
  * The signed-in author's own row in `profiles` — the one thing OAuth decides
  * for them by default and the one thing this file lets them take back.
  *
- * `handle_new_user` (see `supabase/migrations/0002_gallery.sql`) seeds
- * `display_name` from whatever the provider hands back at first sign-in —
- * Google's `full_name`, which is a real name, not a handle. That is a sensible
- * default and a bad permanent state: it means a real name goes out under every
- * set someone publishes and every contribution they offer, without them
- * having chosen that. The trigger only ever runs once, at signup, so nothing
- * here is fighting it — an author who changes their display name keeps
- * whatever they set from then on.
+ * `handle_new_user` seeds `display_name` from the part of the account email
+ * before `@`, rather than accepting an OAuth provider's real name as public by
+ * default. The trigger only ever runs once, at signup, so an author who changes
+ * their display name keeps whatever they set from then on.
  *
  * `profiles` is readable by anyone (`profiles_public_read using (true)`), so
- * fetching a row is never the security boundary here — the *default value* is
- * the thing worth fixing, and this file is what lets an author fix it.
+ * fetching a row is never the security boundary here. This file lets an
+ * author replace or clear that public default at any time.
  */
 import { auth } from './auth.svelte';
 import { request } from './http';
@@ -21,6 +17,8 @@ import { request } from './http';
 export interface OwnProfile {
   displayName: string;
   avatarUrl: string;
+  /** Server-owned; selected only to decide whether admin tools are shown. */
+  isAdmin: boolean;
 }
 
 /**
@@ -37,11 +35,13 @@ export async function fetchOwnProfile(): Promise<OwnProfile | null> {
   if (!id) return null;
 
   await auth.ensureFresh();
-  const rows = await request<{ display_name: string; avatar_url: string }[]>(
-    `/rest/v1/profiles?id=eq.${encodeURIComponent(id)}&select=display_name,avatar_url&limit=1`
+  const rows = await request<{ display_name: string; avatar_url: string; is_admin: boolean }[]>(
+    `/rest/v1/profiles?id=eq.${encodeURIComponent(id)}&select=display_name,avatar_url,is_admin&limit=1`
   );
   const row = rows[0];
-  return row ? { displayName: row.display_name, avatarUrl: row.avatar_url } : null;
+  return row
+    ? { displayName: row.display_name, avatarUrl: row.avatar_url, isAdmin: row.is_admin }
+    : null;
 }
 
 /**

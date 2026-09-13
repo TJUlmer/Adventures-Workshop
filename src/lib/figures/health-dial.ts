@@ -70,6 +70,9 @@ export function healthDialSpec(twoSided: boolean): TokenSpec {
 /** The disc's edge, where the face art does not reach. Matches a stock token. */
 export const HEALTH_DIAL_RIM = '#1a1a1a';
 
+/** The fixed button-label colour used by the supplied TTS dial script. */
+export const HEALTH_DIAL_INK = '#ffffff';
+
 /**
  * The mesh's path within an export, one-sided or two.
  *

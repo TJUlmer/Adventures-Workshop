@@ -39,6 +39,7 @@ import {
   createMapZoneStyle,
   DEFAULT_SECRET_PASSAGE_COLOR,
   DEFAULT_SECRET_PASSAGE_FADE,
+  MAP_LABEL_CORNERS,
   MAP_SIZES_ALL
 } from '$lib/map/types';
 import type {
@@ -284,6 +285,7 @@ function characterCard(value: unknown): CharacterCardDesign {
     quoteInk: fill(raw['quoteInk'], defaults.quoteInk),
     quoteScale: num(raw['quoteScale'], defaults.quoteScale),
     abilityInk: fill(raw['abilityInk'], defaults.abilityInk),
+    abilityScale: num(raw['abilityScale'], defaults.abilityScale),
     moveInk: fill(raw['moveInk'], defaults.moveInk),
     ...(Object.fromEntries(CHARACTER_BAND_NAMES.map((name) => [name, band(name)])) as Pick<
       CharacterCardDesign,
@@ -493,6 +495,10 @@ function adventureMap(value: unknown, repairFormerPathBlack = false): AdventureM
   return {
     enabled: bool(raw['enabled'], defaults.enabled),
     name: str(raw['name']),
+    showLabel: bool(raw['showLabel'], defaults.showLabel),
+    labelCorner: (MAP_LABEL_CORNERS as readonly string[]).includes(raw['labelCorner'] as string)
+      ? (raw['labelCorner'] as AdventureMap['labelCorner'])
+      : defaults.labelCorner,
     /* Absent on anything written before `size` existed, which read `aspect`
        below verbatim rather than through a preset — defaulting to `large`
        here is a label for that existing shape, not a repair of it.
@@ -507,6 +513,7 @@ function adventureMap(value: unknown, repairFormerPathBlack = false): AdventureM
     artwork: artwork(raw['artwork']),
     background: fill(raw['background'], defaults.background),
     spaceDiameter: num(raw['spaceDiameter'], defaults.spaceDiameter),
+    autoLargeFighter: bool(raw['autoLargeFighter'], defaults.autoLargeFighter),
     spaceOpacity: Math.min(1, Math.max(0, num(raw['spaceOpacity'], defaults.spaceOpacity))),
     spaceStroke: str(raw['spaceStroke'], defaults.spaceStroke),
     pathColor:
@@ -864,6 +871,7 @@ function normalizeCard(value: unknown): Card | null {
         attack: nullableNum(raw['attack'], 2),
         defense: nullableNum(raw['defense'], null),
         boost: nullableNum(raw['boost'], null),
+        boostSymbol: str(raw['boostSymbol']),
         ability: abilityBlocks(raw['ability']),
         symbol: combatSymbol(raw['symbol']),
         symbolValue: nullableNum(raw['symbolValue'], 2),
@@ -881,7 +889,14 @@ function normalizeCard(value: unknown): Card | null {
         showBonusAttack: bool(raw['showBonusAttack'], false),
         bonusAttackTitle: str(raw['bonusAttackTitle']),
         bonusAttackValue: num(raw['bonusAttackValue'], 2),
-        bonusAttackAbility: str(raw['bonusAttackAbility'])
+        bonusAttackAbility: str(raw['bonusAttackAbility']),
+        /* Off on documents written before an exposed tuck reminder existed. */
+        showTuckEffect: bool(raw['showTuckEffect'], false),
+        tuckEffect: str(raw['tuckEffect']),
+        tuckEffectOrientation: raw['tuckEffectOrientation'] === 'right' ? 'right' : 'bottom',
+        /* Off on documents written before an upper-right corner badge existed. */
+        showCornerBadge: bool(raw['showCornerBadge'], false),
+        cornerBadge: str(raw['cornerBadge'])
       } as ActionCard;
   }
 }

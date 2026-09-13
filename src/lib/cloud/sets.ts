@@ -29,10 +29,22 @@ import type { EmbeddedAsset } from './assets';
 import { auth } from './auth.svelte';
 import { shortHash } from '$lib/core/hash';
 import { renderCharacterCards } from './character-cards';
-import { renderSocialImage } from './social-image';
+import {
+  CARD_PREVIEW_RENDERER_VERSION,
+  renderCardPreviews
+} from './card-previews';
+import type {
+  CardPreviewFingerprintManifest,
+  CardPreviewManifest,
+  ReusableCardPreviews
+} from './card-previews';
+import { renderSocialImage, SOCIAL_IMAGE_RENDERER_VERSION } from './social-image';
 import { renderThumbnail } from './thumbnail';
 import { ASSET_BUCKET, cloudConfig } from './config';
 import { CloudError, endpoint, headers, request } from './http';
+
+/** Enough parallel requests to hide Storage latency without flooding it with a large set. */
+const CARD_PREVIEW_UPLOAD_CONCURRENCY = 4;
 
 export type Visibility = 'private' | 'unlisted' | 'public';
 
@@ -60,6 +72,8 @@ export interface PublishedSet {
    * `thumbnail_url` either way.
    */
   social_image_url: string;
+  /** Composition revision used to render `social_image_url`; zero means legacy or failed. */
+  social_image_version: number;
   /**
    * A full-size picture out of the document, derived on the row by the
    * database (`set_cover_image`, `0007_gallery_browse.sql`).
@@ -165,12 +179,19 @@ export interface GallerySet extends PublishedSet {
 /** The same row with the document attached. Only ever fetched one at a time. */
 export interface PublishedSetWithDocument extends PublishedSet {
   document: unknown;
+  /** Lossless gallery faces keyed by entity and side. Empty on legacy rows. */
+  card_previews: CardPreviewManifest;
+  /** Renderer revision used to create `card_previews`; zero means legacy. */
+  card_preview_version: number;
+  /** Proof that each stored face still matches its canonical render inputs. */
+  card_preview_fingerprints: CardPreviewFingerprintManifest;
 }
 
 /** Columns for a listing. Never `document` — that is the whole point of them. */
 const SUMMARY_COLUMNS =
   'id,owner_id,local_id,slug,name,subtitle,card_count,character_count,schema_version,' +
-  'revision,visibility,created_at,updated_at,thumbnail_url,social_image_url,cover_url,cover_bleeds,' +
+  'revision,visibility,created_at,updated_at,thumbnail_url,social_image_url,social_image_version,' +
+  'cover_url,cover_bleeds,' +
   'published_at,view_count,like_count,comment_count,change_note,forked_from,forked_from_revision,' +
   'scope,character_id,kind,hero_count';
 
@@ -205,7 +226,7 @@ export function assetPrefix(): string {
 
 export interface PublishProgress {
   /** What is happening, for a status line. */
-  stage: 'assets' | 'document';
+  stage: 'assets' | 'previews' | 'document';
   done: number;
   total: number;
 }
@@ -286,10 +307,109 @@ async function uploadBlob(
   });
 
   if (!response.ok && response.status !== 409) {
-    throw new CloudError(`Could not upload the thumbnail (${response.status}).`, response.status);
+    throw new CloudError(`Could not upload a generated image (${response.status}).`, response.status);
   }
 
   return `${assetPrefix()}${path}`;
+}
+
+interface CardPreviewSnapshot {
+  manifest: CardPreviewManifest;
+  fingerprints: CardPreviewFingerprintManifest;
+}
+
+interface StoredCardPreviewSnapshot {
+  card_previews: CardPreviewManifest;
+  card_preview_fingerprints: CardPreviewFingerprintManifest;
+  card_preview_version: number;
+}
+
+/**
+ * The prior snapshot for this exact publication scope, if one exists.
+ *
+ * Only these three small derived columns are fetched. Pulling the previous
+ * document would defeat much of the win for a large set, and the fingerprints
+ * already contain every renderer input needed to prove reuse.
+ */
+async function storedCardPreviewSnapshot(
+  userId: string,
+  localSetId: string,
+  scope: PublishScope
+): Promise<ReusableCardPreviews | null> {
+  const characterId = scope.kind === 'hero' ? scope.characterId : '';
+  const rows = await request<StoredCardPreviewSnapshot[]>(
+    '/rest/v1/sets?select=card_previews,card_preview_fingerprints,card_preview_version' +
+      `&owner_id=eq.${encodeURIComponent(userId)}` +
+      `&local_id=eq.${encodeURIComponent(localSetId)}` +
+      `&scope=eq.${encodeURIComponent(scope.kind)}` +
+      `&character_id=eq.${encodeURIComponent(characterId)}&limit=1`
+  );
+  const row = rows[0];
+  if (!row) return null;
+  return {
+    manifest: row.card_previews,
+    fingerprints: row.card_preview_fingerprints,
+    rendererVersion: row.card_preview_version
+  };
+}
+
+/** Render and upload one complete, immutable gallery-preview snapshot. */
+async function createCardPreviewManifest(
+  set: AdventureSet,
+  userId: string,
+  storageSetId: string,
+  previous: ReusableCardPreviews | null,
+  onProgress?: (done: number, total: number) => void
+): Promise<CardPreviewSnapshot> {
+  let renderTotal = 0;
+  const result = await renderCardPreviews(set, previous, (done, total) => {
+    renderTotal = total;
+    onProgress?.(done, total * 2);
+  });
+  const manifest: CardPreviewManifest = { ...result.reused };
+  const uploads = [...result.rendered.entries()];
+  const failures: Array<{ cause: unknown }> = [];
+  let cursor = 0;
+  let uploaded = Object.keys(result.reused).length;
+  onProgress?.(renderTotal + uploaded, renderTotal * 2);
+
+  async function worker(): Promise<void> {
+    for (;;) {
+      /* Uploads already in flight are allowed to finish after one fails, but
+         no worker starts another. Waiting for all of them avoids a retry racing
+         requests left behind by the rejected publication. */
+      if (failures.length > 0) return;
+      const entry = uploads[cursor++];
+      if (!entry) return;
+      const [key, image] = entry;
+
+      try {
+        const keyHash = await shortHash(new TextEncoder().encode(key));
+        manifest[key] = await uploadBlob(
+          image,
+          userId,
+          storageSetId,
+          `card-preview-${keyHash}`
+        );
+      } catch (cause) {
+        if (failures.length === 0) failures.push({ cause });
+        return;
+      }
+
+      uploaded += 1;
+      onProgress?.(renderTotal + uploaded, renderTotal * 2);
+    }
+  }
+
+  await Promise.all(
+    Array.from({ length: Math.min(CARD_PREVIEW_UPLOAD_CONCURRENCY, uploads.length) }, () =>
+      worker()
+    )
+  );
+  const failure = failures[0];
+  if (failure) throw failure.cause;
+
+  return { manifest, fingerprints: result.fingerprints };
 }
 
 /**
@@ -319,6 +439,7 @@ export async function publishSet(
    * paths and `local_id` below, deliberately — see those call sites.
    */
   const scoped = computeScopedSet(set, scope);
+  const previousCardPreviews = await storedCardPreviewSnapshot(user.id, set.id, scope);
 
   /*
    * Serialise and re-parse rather than sending the live object.
@@ -348,7 +469,20 @@ export async function publishSet(
   }
 
   const document = substituteStrings(envelope, mapping);
-  options.onProgress?.({ stage: 'document', done: 0, total: 1 });
+
+  /*
+   * Public card surfaces are fixed pixels, not a reconstruction in each
+   * visitor's browser. This step is required rather than best-effort: the row
+   * is written only after every face has rendered and uploaded, so a failed
+   * preview can never replace the previous complete published revision.
+   */
+  const cardPreviewSnapshot = await createCardPreviewManifest(
+    scoped,
+    user.id,
+    set.id,
+    previousCardPreviews,
+    (done, total) => options.onProgress?.({ stage: 'previews', done, total })
+  );
 
   /*
    * The tile picture, and a failure here must not fail the publish: a set with
@@ -370,11 +504,16 @@ export async function publishSet(
    * not a publish that should not have happened.
    */
   let socialImageUrl = '';
+  let socialImageVersion = 0;
   try {
     const social = await renderSocialImage(scoped);
-    if (social) socialImageUrl = await uploadBlob(social, user.id, set.id, 'social');
+    if (social) {
+      socialImageUrl = await uploadBlob(social, user.id, set.id, 'social');
+      socialImageVersion = SOCIAL_IMAGE_RENDERER_VERSION;
+    }
   } catch {
     socialImageUrl = '';
+    socialImageVersion = 0;
   }
 
   /*
@@ -416,6 +555,10 @@ export async function publishSet(
     document,
     thumbnail_url: thumbnailUrl,
     social_image_url: socialImageUrl,
+    social_image_version: socialImageVersion,
+    card_previews: cardPreviewSnapshot.manifest,
+    card_preview_version: CARD_PREVIEW_RENDERER_VERSION,
+    card_preview_fingerprints: cardPreviewSnapshot.fingerprints,
     character_cards: characterCards,
     /* Trimmed and capped here as well as in the field: a note is printed under
        someone else's set, so its length is not the author's alone to decide. */
@@ -464,6 +607,7 @@ export async function publishSet(
    *
    * `slug` is left out of the payload on purpose so the existing one survives.
    */
+  options.onProgress?.({ stage: 'document', done: 0, total: 1 });
   const [published] = await request<PublishedSet[]>(
     '/rest/v1/sets?on_conflict=owner_id,local_id,scope,character_id',
     {
@@ -621,6 +765,130 @@ function gallerySetQueryParts(query: GalleryQuery): string[] {
   if (heroes) parts.push(heroes === 'single' ? 'hero_count=eq.1' : 'hero_count=gt.1');
 
   return parts;
+}
+
+// -- Social-preview maintenance ----------------------------------------
+
+/** One lightweight queue entry; the document is deliberately fetched only while processing it. */
+export interface SocialPreviewRefreshTarget {
+  id: string;
+  name: string;
+  scope: PublishedSet['scope'];
+  visibility: Visibility;
+  social_image_version: number;
+}
+
+/**
+ * Every published row whose stored bitmap predates the current composition.
+ *
+ * RLS makes this an admin queue: a moderator may read every row, while an
+ * ordinary account cannot turn this into a catalogue-wide document listing.
+ * The UI additionally hides the operation unless `profiles.is_admin` is true.
+ */
+export async function listOutdatedSocialPreviews(): Promise<SocialPreviewRefreshTarget[]> {
+  await auth.ensureFresh();
+  if (!auth.user) return [];
+
+  return request<SocialPreviewRefreshTarget[]>(
+    '/rest/v1/sets?select=id,name,scope,visibility,social_image_version' +
+      `&social_image_version=lt.${SOCIAL_IMAGE_RENDERER_VERSION}&order=created_at.asc`
+  );
+}
+
+/**
+ * Re-render one already-published snapshot without publishing its document.
+ *
+ * The image first lands under the signed-in admin's own protected Storage
+ * prefix. A narrow security-definer RPC verifies that exact object before it
+ * changes only the row's social-image URL and renderer version. The set's
+ * document, revision, change note, visibility, and publication timestamps are
+ * never sent by this path.
+ */
+export async function refreshPublishedSocialPreview(targetId: string): Promise<boolean> {
+  await auth.ensureFresh();
+  const user = auth.user;
+  if (!user) throw new CloudError('Sign in to refresh social previews.', 401);
+
+  const rows = await request<PublishedSetWithDocument[]>(
+    `/rest/v1/sets?select=${SUMMARY_COLUMNS},document&id=eq.${encodeURIComponent(targetId)}` +
+      `&social_image_version=lt.${SOCIAL_IMAGE_RENDERER_VERSION}&limit=1`
+  );
+  const row = rows[0];
+  // Another admin or tab may have completed it after the queue was loaded.
+  if (!row) return false;
+
+  const set = await hydratePublishedSet(row);
+  const image = await renderSocialImage(set);
+  if (!image) throw new CloudError(`Could not render a social preview for ${row.name}.`, 0);
+
+  // The published row id, rather than its author's local document id, lets the
+  // RPC prove this newly uploaded object was intended for this exact target.
+  const imageUrl = await uploadBlob(image, user.id, row.id, 'social');
+  await request('/rest/v1/rpc/refresh_set_social_image', {
+    method: 'POST',
+    body: {
+      target: row.id,
+      preview_url: imageUrl,
+      preview_version: SOCIAL_IMAGE_RENDERER_VERSION
+    }
+  });
+  return true;
+}
+
+/** One lightweight queue entry for a published row without current card pixels. */
+export interface CardPreviewRefreshTarget {
+  id: string;
+  name: string;
+  scope: PublishedSet['scope'];
+  visibility: Visibility;
+  card_preview_version: number;
+}
+
+/** Published rows whose card-image manifest predates the current renderer. */
+export async function listOutdatedCardPreviews(): Promise<CardPreviewRefreshTarget[]> {
+  await auth.ensureFresh();
+  if (!auth.user) return [];
+
+  return request<CardPreviewRefreshTarget[]>(
+    '/rest/v1/sets?select=id,name,scope,visibility,card_preview_version' +
+      `&card_preview_version=lt.${CARD_PREVIEW_RENDERER_VERSION}&order=created_at.asc`
+  );
+}
+
+/**
+ * Backfill one immutable published snapshot without moving its content revision.
+ *
+ * The narrow database RPC verifies every uploaded PNG and changes only the
+ * derived manifest/version columns. A failure leaves the old row untouched.
+ */
+export async function refreshPublishedCardPreviews(
+  targetId: string,
+  onProgress?: (done: number, total: number) => void
+): Promise<boolean> {
+  await auth.ensureFresh();
+  const user = auth.user;
+  if (!user) throw new CloudError('Sign in to refresh gallery card previews.', 401);
+
+  const rows = await request<PublishedSetWithDocument[]>(
+    `/rest/v1/sets?select=${SUMMARY_COLUMNS},document,card_previews,card_preview_version,card_preview_fingerprints` +
+      `&id=eq.${encodeURIComponent(targetId)}` +
+      `&card_preview_version=lt.${CARD_PREVIEW_RENDERER_VERSION}&limit=1`
+  );
+  const row = rows[0];
+  if (!row) return false;
+
+  const set = await hydratePublishedSet(row);
+  const snapshot = await createCardPreviewManifest(set, user.id, row.id, null, onProgress);
+  await request('/rest/v1/rpc/refresh_set_card_previews', {
+    method: 'POST',
+    body: {
+      target: row.id,
+      preview_manifest: snapshot.manifest,
+      preview_version: CARD_PREVIEW_RENDERER_VERSION,
+      preview_fingerprints: snapshot.fingerprints
+    }
+  });
+  return true;
 }
 
 /**
@@ -875,10 +1143,14 @@ export async function reportSet(setId: string, reason: string): Promise<void> {
  * function is `security definer` and returns at most one row, which is what
  * makes knowing the token the only way in.
  */
-export async function fetchSetBySlug(slug: string): Promise<PublishedSetWithDocument | null> {
+export async function fetchSetBySlug(
+  slug: string,
+  signal?: AbortSignal
+): Promise<PublishedSetWithDocument | null> {
   const rows = await request<PublishedSetWithDocument[]>('/rest/v1/rpc/set_by_slug', {
     method: 'POST',
     body: { share_slug: slug.trim() },
+    signal,
     /* Anonymous for the same reason the gallery is: the function is `security
        definer` and answers the same to everyone, so a share link that stopped
        working because the *reader* had an old session would be the worst
@@ -1030,17 +1302,38 @@ export async function fetchSetSummaryBySlug(slug: string): Promise<SetSummary | 
  */
 export async function hydratePublishedSet(
   row: PublishedSetWithDocument,
-  onProgress?: (done: number, total: number) => void
+  onProgress?: (done: number, total: number) => void,
+  signal?: AbortSignal
 ): Promise<AdventureSet> {
+  assertReadableSchema(row);
+  const document = await fetchAndEmbedAssets(row.document, assetPrefix(), onProgress, signal);
+  return parsePublishedDocument(document);
+}
+
+/**
+ * Open the public document without first turning every Storage URL back into
+ * a data URL.
+ *
+ * DOM renderers can display those public URLs directly, so this is the copy a
+ * shared page uses for its first paint. Export and fork paths must continue to
+ * use `hydratePublishedSet`: their result has to survive offline and their
+ * canvases cannot safely photograph remote artwork.
+ */
+export function readPublishedSet(row: PublishedSetWithDocument): AdventureSet {
+  assertReadableSchema(row);
+  return parsePublishedDocument(row.document);
+}
+
+function assertReadableSchema(row: PublishedSetWithDocument): void {
   if (row.schema_version > SET_SCHEMA_VERSION) {
     throw new CloudError(
       `That set was published from a newer version of the app (v${row.schema_version}).`,
       0
     );
   }
+}
 
-  const document = await fetchAndEmbedAssets(row.document, assetPrefix(), onProgress);
-
+function parsePublishedDocument(document: unknown): AdventureSet {
   /*
    * Back through `parseSetFile`, so a downloaded set passes the same validation
    * and repair as one imported from a file. The server is not trusted more than

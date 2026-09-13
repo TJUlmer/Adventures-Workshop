@@ -27,11 +27,12 @@
     /** The set to build the checklist from — `ExportPanel`'s own `scopedSet`. */
     set: AdventureSet;
     selection: ExportSelection;
+    projectFileUsesSelection: boolean;
     onchange: (next: ExportSelection) => void;
     onclose: () => void;
   }
 
-  let { open, set, selection, onchange, onclose }: Props = $props();
+  let { open, set, selection, projectFileUsesSelection, onchange, onclose }: Props = $props();
 
   let dialog = $state<HTMLDialogElement | null>(null);
 
@@ -77,8 +78,12 @@
     <header class="head">
       <h2 class="title" id="export-selector-title">Customize what's included</h2>
       <p class="lede">
-        Uncheck anything you don't want in this export. This only affects the files you're about
-        to save — nothing here is saved with your set.
+        {#if projectFileUsesSelection}
+          These temporary choices apply to every export below. Nothing here is saved with the set.
+        {:else}
+          These temporary choices apply to print, image and Tabletop Simulator exports. The full
+          project backup always keeps the whole set.
+        {/if}
       </p>
     </header>
 

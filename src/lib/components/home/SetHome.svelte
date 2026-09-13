@@ -21,12 +21,20 @@
   import { hasArtwork } from '$lib/core/artwork';
   import { assessSet, healthSummary } from '$lib/sets/health';
   import { SET_KIND_META } from '$lib/sets/types';
+  import type { AdventureSet } from '$lib/sets/types';
   import { setLabel } from '$lib/sets/factory';
   import { threatTotal } from '$lib/threat/types';
   import { navigation } from '$lib/state/navigation.svelte';
   import { workshop } from '$lib/state/workshop.svelte';
   import { Icon } from '$lib/ui';
+  import ForkUpdateDialog from './ForkUpdateDialog.svelte';
   import StyleCascadePanel from './StyleCascadePanel.svelte';
+
+  interface Props {
+    onprint: (set: AdventureSet) => void;
+  }
+
+  let { onprint }: Props = $props();
 
   const set = $derived(workshop.adventure);
   const outline = $derived(workshop.outline);
@@ -60,6 +68,7 @@
   const behindBy = $derived(
     set.origin && upstream ? Math.max(0, upstream.revision - set.origin.revision) : 0
   );
+  let updateDialogOpen = $state(false);
 
   /*
    * Every row this author has published for this set, whatever scope — the
@@ -159,6 +168,12 @@
             </span>
           {/if}
         </p>
+        {#if behindBy > 0 && upstream}
+          <button type="button" class="update-copy" onclick={() => (updateDialogOpen = true)}>
+            <Icon name="rotate" size={13} />
+            Review update to revision {upstream.revision}
+          </button>
+        {/if}
       {/if}
 
       <!--
@@ -357,8 +372,8 @@
           claiming "everything here" is the whole set actively talks someone
           out of scrolling past it to find that.
         -->
-        <p class="panel-hint">The exports below cover the whole set.</p>
-        <ExportPanel {set} onprint={() => navigation.go('print')} />
+        <p class="panel-hint">Choose what to render below; the project backup always keeps the whole set.</p>
+        <ExportPanel {set} {onprint} />
         <SharePanel {set} />
       </section>
 
@@ -372,6 +387,14 @@
     </div>
   </div>
 </div>
+
+{#if set.origin}
+  <ForkUpdateDialog
+    open={updateDialogOpen}
+    latestRevision={upstream?.revision ?? set.origin.revision}
+    oncancel={() => (updateDialogOpen = false)}
+  />
+{/if}
 
 <style>
   .home {
@@ -558,6 +581,25 @@
   /* Noticed, not alarming: the copy is not wrong, only older. */
   .behind {
     color: var(--text-tertiary);
+  }
+
+  .update-copy {
+    display: inline-flex;
+    align-items: center;
+    align-self: flex-start;
+    gap: var(--space-1);
+    margin-top: var(--space-1);
+    padding: var(--space-1) var(--space-2);
+    border: 1px solid color-mix(in oklab, var(--warning) 35%, transparent);
+    border-radius: var(--radius-sm);
+    background: color-mix(in oklab, var(--warning) 8%, transparent);
+    font-size: var(--text-2xs);
+    color: var(--text-secondary);
+  }
+
+  .update-copy:hover {
+    border-color: color-mix(in oklab, var(--warning) 60%, transparent);
+    color: var(--text-primary);
   }
 
   /* -- panels ----------------------------------------------------------- */

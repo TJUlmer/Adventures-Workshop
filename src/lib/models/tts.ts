@@ -27,6 +27,38 @@ export interface TtsConfigEntry {
   readonly end: number;
 }
 
+/** Object-space scale saved by TTS. Position and rotation only place the
+    object on its table; scale changes the thing itself and belongs in a size
+    preview. */
+export interface TtsPreviewScale {
+  readonly x: number;
+  readonly y: number;
+  readonly z: number;
+}
+
+export interface TtsObjPreviewAsset {
+  readonly type: 'obj';
+  meshUrl: string;
+  textureUrl: string;
+  readonly scale: TtsPreviewScale;
+}
+
+export interface TtsTokenPreviewAsset {
+  readonly type: 'token';
+  readonly imageUrl: string;
+  readonly secondaryImageUrl: string;
+  /** TTS units, where one unit is approximately one inch. */
+  readonly thickness: number;
+  readonly mergeDistancePixels: number;
+  readonly standUp: boolean;
+  readonly scale: TtsPreviewScale;
+}
+
+/** The hosted assets the Components editor can turn into a local preview.
+    Other TTS kinds remain valid saved objects; they simply have no renderer
+    in this app. */
+export type TtsPreviewAsset = TtsObjPreviewAsset | TtsTokenPreviewAsset;
+
 export interface TtsObject {
   /** `Custom_Model`, `Custom_Tile`, `Card`… */
   readonly kind: string;
@@ -34,6 +66,8 @@ export interface TtsObject {
   description: string;
   meshUrl: string;
   diffuseUrl: string;
+  /** Derived from the first ObjectState; never written as a new JSON field. */
+  readonly previewAsset: TtsPreviewAsset | null;
   /** Entries of the Lua `CONFIG` table, empty if the object has no script. */
   config: TtsConfigEntry[];
 }
@@ -50,6 +84,56 @@ function asRecord(value: unknown): Record<string, unknown> {
 }
 
 const str = (value: unknown): string => (typeof value === 'string' ? value : '');
+
+const finite = (value: unknown, fallback: number): number =>
+  typeof value === 'number' && Number.isFinite(value) ? value : fallback;
+
+function previewScale(first: Record<string, unknown>): TtsPreviewScale {
+  const transform = asRecord(first['Transform']);
+  return {
+    x: finite(transform['scaleX'], 1),
+    y: finite(transform['scaleY'], 1),
+    z: finite(transform['scaleZ'], 1)
+  };
+}
+
+/**
+ * Find the first object's browser-previewable source by structure, not name.
+ *
+ * A bag, chip or figurine made through TTS's Custom Model dialogue still
+ * carries `CustomMesh`; its behavioural subtype is a TypeIndex rather than a
+ * dependable ObjectState name. Custom Tokens are different: TTS generates
+ * their mesh from the alpha of `CustomImage.ImageURL`, so there is no MeshURL
+ * to find at all.
+ */
+function readPreviewAsset(first: Record<string, unknown>): TtsPreviewAsset | null {
+  const scale = previewScale(first);
+  const mesh = asRecord(first['CustomMesh']);
+  if (Object.keys(mesh).length > 0) {
+    return {
+      type: 'obj',
+      meshUrl: str(mesh['MeshURL']),
+      textureUrl: str(mesh['DiffuseURL']),
+      scale
+    };
+  }
+
+  const image = asRecord(first['CustomImage']);
+  const token = asRecord(image['CustomToken']);
+  if (Object.keys(token).length > 0) {
+    return {
+      type: 'token',
+      imageUrl: str(image['ImageURL']),
+      secondaryImageUrl: str(image['ImageSecondaryURL']),
+      thickness: finite(token['Thickness'], 0.2),
+      mergeDistancePixels: finite(token['MergeDistancePixels'], 15),
+      standUp: token['StandUp'] === true,
+      scale
+    };
+  }
+
+  return null;
+}
 
 /**
  * Scalar entries of the leading `CONFIG` table.
@@ -152,6 +236,7 @@ export function parseTtsSave(text: string): TtsSave {
       description: str(first['Description']),
       meshUrl: str(mesh['MeshURL']),
       diffuseUrl: str(mesh['DiffuseURL']),
+      previewAsset: readPreviewAsset(first),
       config: readLuaConfig(str(first['LuaScript']))
     }
   };
@@ -181,12 +266,14 @@ export function applyTtsEdits(save: TtsSave): string {
 }
 
 /**
- * Whether a URL is one this app could fetch to show the model.
+ * The preview source after applying edits held in `TtsObject`.
  *
- * It almost never is: TTS hosts on Steam, which serves no CORS header, and the
- * app makes no network calls by design. Downloading the file and attaching it
- * is the way to see one of these — hence the wording where this is used.
+ * `raw` deliberately stays byte-for-byte source data until export, while the
+ * editable mesh fields live beside it. Re-resolving those two URLs here keeps
+ * a preview requested after an edit from loading the stale values in `raw`.
  */
-export function isLocalUrl(url: string): boolean {
-  return url.startsWith('data:') || url.startsWith('/') || url.startsWith(location.origin);
+export function resolveTtsPreviewAsset(object: TtsObject): TtsPreviewAsset | null {
+  const asset = object.previewAsset;
+  if (asset?.type !== 'obj') return asset;
+  return { ...asset, meshUrl: object.meshUrl, textureUrl: object.diffuseUrl };
 }

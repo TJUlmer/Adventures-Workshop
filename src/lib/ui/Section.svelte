@@ -8,14 +8,23 @@
     actions?: Snippet;
     /** Field columns. Two is the default for short, paired inputs. */
     columns?: 1 | 2;
+    /** Give a top-level editor section a larger, centred heading. */
+    prominentHeading?: boolean;
     children: Snippet;
   }
 
-  let { title, description, actions, columns = 1, children }: Props = $props();
+  let {
+    title,
+    description,
+    actions,
+    columns = 1,
+    prominentHeading = false,
+    children
+  }: Props = $props();
 </script>
 
 <section class="section">
-  <header class="head">
+  <header class="head" class:prominent={prominentHeading}>
     <div class="titles">
       <h2 class="title">{title}</h2>
       {#if description}<p class="description">{description}</p>{/if}
@@ -47,6 +56,26 @@
     align-items: flex-start;
     justify-content: space-between;
     gap: var(--space-4);
+  }
+
+  .head.prominent {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  }
+
+  .head.prominent .titles {
+    grid-column: 2;
+    align-items: center;
+    text-align: center;
+  }
+
+  .head.prominent .title {
+    font-size: var(--text-lg);
+  }
+
+  .head.prominent .actions {
+    grid-column: 3;
+    justify-self: end;
   }
 
   .titles {

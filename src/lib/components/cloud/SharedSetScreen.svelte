@@ -27,11 +27,14 @@
    * a viewer sees cannot drift from what the author approved.
    */
   import { untrack } from 'svelte';
-  import type { CharacterId } from '$lib/characters/types';
+  import { fillCss } from '$lib/cards/style';
+  import { resolveCardTheme } from '$lib/cards/theme';
+  import { characterLabel } from '$lib/characters/factory';
+  import type { Character, CharacterId } from '$lib/characters/types';
   import ExportPanel from '$lib/components/export/ExportPanel.svelte';
   import AssetsOverview from '$lib/components/tools/AssetsOverview.svelte';
+  import { GALLERY_CARD_SIZE } from '$lib/components/tools/gallery-inspection';
   import { listContributors } from '$lib/cloud/contributions';
-  import { collectionsForSet } from '$lib/cloud/collections';
   import type { Contributor } from '$lib/cloud/contributions';
   import { auth } from '$lib/cloud/auth.svelte';
   import {
@@ -47,19 +50,25 @@
     setLiked
   } from '$lib/cloud/engagement';
   import type { FavouriteTarget, SetComment } from '$lib/cloud/engagement';
+  import { CARD_PREVIEW_RENDERER_VERSION } from '$lib/cloud/card-previews';
+  import { coverArtwork } from '$lib/cloud/thumbnail';
   import {
     fetchAuthorName,
     fetchParentSet,
     fetchSetBySlug,
-    hydratePublishedSet
+    hydratePublishedSet,
+    readPublishedSet
   } from '$lib/cloud/sets';
   import type { PublishedSetWithDocument } from '$lib/cloud/sets';
   import { cloudEnabled } from '$lib/cloud/config';
   import PrintScreen from '$lib/print/PrintScreen.svelte';
+  import { displayFontStack, displayFontWeight } from '$lib/renderer/fonts';
   import { forkSet, sourceOf } from '$lib/sets/fork';
   import { computeScopedSet, parseScopeKey, scopeKeyOf, scopeOptionsFor } from '$lib/sets/scope';
+  import { charactersByRole, setStats } from '$lib/sets/queries';
   import type { PublishScope } from '$lib/sets/scope';
   import type { AdventureSet } from '$lib/sets/types';
+  import { collectionsForSet } from '$lib/cloud/collections';
   import { navigation } from '$lib/state/navigation.svelte';
   import { workshop } from '$lib/state/workshop.svelte';
   import { Button, Icon, Select, TextArea } from '$lib/ui';
@@ -88,7 +97,17 @@
   const SHOW_FORK = true;
 
   let row = $state<PublishedSetWithDocument | null>(null);
+  /** Immediate URL-backed copy, promoted to embedded assets after first paint. */
   let set = $state<AdventureSet | null>(null);
+  /** Fully embedded copy required by exports, printing and offline forks. */
+  let portableSet = $state.raw<AdventureSet | null>(null);
+  let portableProgress = $state<string | null>(null);
+  let portableError = $state<string | null>(null);
+  let portableBusy = $state(false);
+  let portablePromise: Promise<AdventureSet> | null = null;
+  let loadGeneration = 0;
+  let sharedLoadController: AbortController | null = null;
+
   let error = $state<string | null>(null);
   let loading = $state(true);
   let progress = $state<string | null>(null);
@@ -101,11 +120,8 @@
    * who arrived by clicking one specific hero inside a box with no listing
    * of its own.
    */
-  let viewScope = $state<PublishScope>(
-    untrack(() =>
-      characterHint ? { kind: 'hero', characterId: characterHint as CharacterId } : { kind: 'full' }
-    )
-  );
+  let viewScope = $state<PublishScope>({ kind: 'full' });
+  let previousScopeKey = untrack(() => scopeKeyOf(viewScope));
 
   /*
    * Print sheets are a screen, not a file, and this screen is outside the
@@ -113,7 +129,7 @@
    * would leave the shared view entirely and land on whatever set happened to
    * be open in the library.
    */
-  let printing = $state(false);
+  let printSet = $state.raw<AdventureSet | null>(null);
 
   /** The author's display name, for the credit a fork will carry. */
   let authorName = $state('');
@@ -138,6 +154,10 @@
   let forking = $state(false);
   let compactLayout = $state(false);
   let actionsDialog = $state<HTMLDialogElement | null>(null);
+  let cardSize = $state<number>(GALLERY_CARD_SIZE.start);
+  const publishedCardPreviews = $derived(
+    row?.card_preview_version === CARD_PREVIEW_RENDERER_VERSION ? row.card_previews : undefined
+  );
 
   let comments = $state<SetComment[]>([]);
   let commentsLoading = $state(false);
@@ -155,8 +175,251 @@
   let likeCount = $state(0);
   let commentCount = $state(0);
   let reactionBusy = $state(false);
+  let failedMastheadArtwork = $state<string[]>([]);
+
+  function openPrint(selected: AdventureSet): void {
+    printSet = selected;
+  }
+
+  function retryPreparation(): void {
+    const published = row;
+    if (!published) return;
+    portableError = null;
+    void preparePortable(published).catch(() => {
+      // `preparePortable` leaves the useful error beside the retry control.
+    });
+  }
+
+  function preparePortable(
+    published: PublishedSetWithDocument,
+    generation = loadGeneration,
+    signal = sharedLoadController?.signal
+  ): Promise<AdventureSet> {
+    if (portableSet && row?.id === published.id) return Promise.resolve(portableSet);
+    if (portablePromise && row?.id === published.id) return portablePromise;
+
+    portableBusy = true;
+    portableError = null;
+    portableProgress = 'Preparing downloads…';
+    const task = hydratePublishedSet(
+      published,
+      (done, total) => {
+        if (generation !== loadGeneration || row?.id !== published.id) return;
+        portableProgress =
+          total > 0 ? `Preparing artwork ${done} of ${total}…` : 'Preparing downloads…';
+      },
+      signal
+    )
+      .then((hydrated) => {
+        if (generation === loadGeneration && row?.id === published.id) {
+          /* Canvas and WebGL component previews cannot safely consume the
+             public URLs used for first paint. Keep that fast paint, then
+             promote the viewer to the embedded copy once it is available. */
+          set = hydrated;
+          portableSet = hydrated;
+          portableProgress = null;
+        }
+        return hydrated;
+      })
+      .catch((cause: unknown) => {
+        if (generation === loadGeneration && row?.id === published.id) {
+          portableError =
+            cause instanceof Error ? cause.message : 'Could not prepare this set for download.';
+          portableProgress = null;
+        }
+        throw cause;
+      })
+      .finally(() => {
+        if (generation === loadGeneration && row?.id === published.id) {
+          portableBusy = false;
+          if (portablePromise === task) portablePromise = null;
+        }
+      });
+    portablePromise = task;
+    return task;
+  }
 
   const canEngage = $derived(auth.signedIn && !auth.isAnonymous);
+
+  type MastheadMode = 'hero' | 'villain' | 'adventure' | 'set';
+
+  /**
+   * The masthead celebrates what the visitor is actually looking at, not
+   * merely the database row that got them here. A character-gallery click is
+   * a full-set URL plus `characterHint`, so using `set.name` alone is exactly
+   * how a Maui page kept announcing Forgotten Pantheons above Maui's cards.
+   */
+  const shownSet = $derived(set ? computeScopedSet(set, viewScope) : null);
+
+  const mastheadMode = $derived.by((): MastheadMode => {
+    if (viewScope.kind === 'hero' || (viewScope.kind === 'full' && row?.scope === 'hero')) {
+      return 'hero';
+    }
+    if (viewScope.kind === 'villain' || (viewScope.kind === 'full' && row?.scope === 'villain')) {
+      return 'villain';
+    }
+    if (!set) return row?.kind === 'adventure' ? 'adventure' : 'set';
+    if (set.kind === 'adventure') return 'adventure';
+    return charactersByRole(set, 'hero').length === 1 ? 'hero' : 'set';
+  });
+
+  const mastheadCharacter = $derived.by((): Character | null => {
+    const currentSet = set;
+    const currentScope = viewScope;
+    const currentRow = row;
+    if (!currentSet) return null;
+    if (currentScope.kind === 'hero') {
+      return (
+        currentSet.characters.find((character) => character.id === currentScope.characterId) ?? null
+      );
+    }
+    if (currentScope.kind === 'villain' || currentRow?.scope === 'villain') {
+      return charactersByRole(currentSet, 'villain')[0] ?? null;
+    }
+    if (currentRow?.scope === 'hero') {
+      return (
+        currentSet.characters.find((character) => character.id === currentRow.character_id) ??
+        charactersByRole(currentSet, 'hero')[0] ??
+        null
+      );
+    }
+    if (currentSet.kind === 'heroes' && charactersByRole(currentSet, 'hero').length === 1) {
+      return charactersByRole(currentSet, 'hero')[0] ?? null;
+    }
+    return null;
+  });
+
+  const mastheadThemeCharacter = $derived(
+    mastheadCharacter ??
+      (set ? charactersByRole(set, 'villain')[0] ?? charactersByRole(set, 'hero')[0] ?? null : null)
+  );
+  const mastheadTheme = $derived(
+    resolveCardTheme(
+      set?.style ?? null,
+      mastheadThemeCharacter?.style ?? null,
+      null,
+      'action',
+      mastheadThemeCharacter?.role
+    )
+  );
+  const mastheadAccent = $derived(
+    (mastheadMode === 'adventure' || mastheadMode === 'villain') && set?.threat.enabled
+      ? set.threat.accent
+      : fillCss(mastheadTheme.banner)
+  );
+  const mastheadCover = $derived(shownSet ? coverArtwork(shownSet) : null);
+  const mastheadSubjectIsScoped = $derived(
+    viewScope.kind !== 'full' || row?.scope === 'hero' || row?.scope === 'villain'
+  );
+  const mastheadTitle = $derived(shownSet?.name || row?.name || 'Opening…');
+  const mastheadContext = $derived(shownSet?.subtitle || row?.subtitle || '');
+  const mastheadKicker = $derived(
+    mastheadMode === 'hero'
+      ? 'Meet the hero'
+      : mastheadMode === 'villain'
+        ? 'Face the villain'
+        : mastheadMode === 'adventure'
+          ? 'Enter the adventure'
+          : 'Discover the set'
+  );
+  const mastheadCoverUrl = $derived(mastheadCover?.source ?? '');
+  const mastheadBackdropCandidates = $derived(
+    mastheadSubjectIsScoped
+      ? artworkCandidates(mastheadCoverUrl, row?.thumbnail_url, row?.cover_url)
+      : artworkCandidates(
+          row?.thumbnail_url,
+          mastheadCoverUrl,
+          row?.cover_url,
+          row?.social_image_url
+        )
+  );
+  const mastheadPosterCandidates = $derived.by(() => {
+    if (mastheadSubjectIsScoped) {
+      if (row?.scope === 'hero' && viewScope.kind === 'full') {
+        return artworkCandidates(
+          row.social_image_url,
+          mastheadCoverUrl,
+          row.thumbnail_url,
+          row.cover_url
+        );
+      }
+      return artworkCandidates(mastheadCoverUrl, row?.thumbnail_url, row?.cover_url);
+    }
+    if (mastheadMode === 'hero' || mastheadMode === 'set') {
+      return artworkCandidates(
+        row?.social_image_url,
+        mastheadCoverUrl,
+        row?.thumbnail_url,
+        row?.cover_url
+      );
+    }
+    return artworkCandidates(
+      row?.thumbnail_url,
+      mastheadCoverUrl,
+      row?.social_image_url,
+      row?.cover_url
+    );
+  });
+  const mastheadBackdropUrl = $derived(
+    mastheadBackdropCandidates.find((url) => !failedMastheadArtwork.includes(url)) ?? ''
+  );
+  const mastheadPosterUrl = $derived(
+    mastheadPosterCandidates.find((url) => !failedMastheadArtwork.includes(url)) ?? ''
+  );
+  const mastheadPosterIsComposition = $derived(
+    Boolean(row?.social_image_url && mastheadPosterUrl === row.social_image_url)
+  );
+
+  function artworkCandidates(...candidates: Array<string | null | undefined>): string[] {
+    const unique: string[] = [];
+    for (const candidate of candidates) {
+      if (candidate && !unique.includes(candidate)) unique.push(candidate);
+    }
+    return unique;
+  }
+
+  function rejectMastheadArtwork(event: Event): void {
+    const source = (event.currentTarget as HTMLImageElement).getAttribute('src');
+    if (source && !failedMastheadArtwork.includes(source)) {
+      failedMastheadArtwork = [...failedMastheadArtwork, source];
+    }
+  }
+
+  /**
+   * A gallery character hint can identify any roster role. Heroes have their
+   * own scope; a villain or minion belongs to the one combined villain side.
+   * Published slices already state their scope and therefore take priority.
+   */
+  function scopeForPublishedView(
+    published: PublishedSetWithDocument,
+    hydrated: AdventureSet,
+    hint: string | undefined
+  ): PublishScope {
+    if (published.scope === 'villain') return { kind: 'villain' };
+    if (published.scope === 'hero') {
+      const characterId = published.character_id || hint;
+      return characterId
+        ? { kind: 'hero', characterId: characterId as CharacterId }
+        : { kind: 'full' };
+    }
+    if (!hint) return { kind: 'full' };
+
+    const character = hydrated.characters.find((candidate) => candidate.id === hint);
+    if (character?.role === 'hero') {
+      /* A one-hero heroes set already is that hero's complete product. Slicing
+         it only removes unassigned companion pieces — sidekick dials and
+         tokens have no separate character id to attach to — and swaps the
+         set's current social composition for its fallback artwork. */
+      if (hydrated.kind === 'heroes' && charactersByRole(hydrated, 'hero').length === 1) {
+        return { kind: 'full' };
+      }
+      return { kind: 'hero', characterId: character.id };
+    }
+    if (character?.role === 'villain' || character?.role === 'minion') {
+      return { kind: 'villain' };
+    }
+    return { kind: 'full' };
+  }
 
   /**
    * The whole set this one was sliced out of, for a hero- or villain-scoped
@@ -194,9 +457,35 @@
   });
 
   $effect(() => {
+    const nextScopeKey = scopeKeyOf(viewScope);
+    if (nextScopeKey === previousScopeKey) return;
+    previousScopeKey = nextScopeKey;
+    // ExportPanel edits this same state from the rail/sheet, so scope changes
+    // from either control reset the one shared viewing surface consistently.
+    requestAnimationFrame(() => scrollToExplore('top', false));
+  });
+
+  $effect(() => {
     const wanted = slug;
+    const hint = characterHint;
+    const generation = ++loadGeneration;
+    const controller = new AbortController();
+    sharedLoadController = controller;
+    let current = true;
+    let cancelPreparation = (): void => {};
     loading = true;
     error = null;
+    row = null;
+    set = null;
+    portableSet = null;
+    portablePromise = null;
+    portableProgress = null;
+    portableError = null;
+    portableBusy = false;
+    authorName = '';
+    contributors = [];
+    progress = null;
+    failedMastheadArtwork = [];
     forked = null;
     parent = null;
     comments = [];
@@ -206,17 +495,19 @@
     reportingCommentId = null;
     communityError = null;
     communityMessage = null;
+    printSet = null;
     liked = false;
     favourited = false;
     likeCount = 0;
     commentCount = 0;
     // A stale hero id from the previous set would otherwise survive the
     // navigation and quietly filter the overview down to nothing.
-    viewScope = characterHint ? { kind: 'hero', characterId: characterHint as CharacterId } : { kind: 'full' };
+    viewScope = { kind: 'full' };
 
     void (async () => {
       try {
-        const found = await fetchSetBySlug(wanted);
+        const found = await fetchSetBySlug(wanted, controller.signal);
+        if (!current) return;
         if (found === null) {
           // Withdrawn, made private, or simply mistyped — and deliberately not
           // distinguished, since telling a stranger "that one exists but is
@@ -229,30 +520,69 @@
         commentCount = found.comment_count ?? 0;
         // Fired off rather than awaited: the credit is wanted for the fork
         // button, and nothing on the page should wait on a display name.
-        void fetchAuthorName(found.owner_id).then((name) => (authorName = name));
-        void listContributors(found.id).then((people) => (contributors = people));
+        void fetchAuthorName(found.owner_id).then((name) => {
+          if (current) authorName = name;
+        });
+        void listContributors(found.id).then((people) => {
+          if (current) contributors = people;
+        });
         /* Fired off like the credit above, and for the same reason: a
            navigation aid must never hold up the set somebody came to see.
            `collectionsForSet` swallows its own failure, so this cannot throw
            into the load. */
-        void collectionsForSet(found.id).then((rows) => (partOf = rows));
+        void collectionsForSet(found.id).then((rows) => {
+          if (current) partOf = rows;
+        });
         /* Only a slice has a box to go back to, and like the credit above this
            is fired off rather than awaited — a navigation aid must not hold up
            the set it sits over. */
         if (found.scope !== 'full') {
-          void fetchParentSet(found.owner_id, found.local_id).then((box) => (parent = box));
+          void fetchParentSet(found.owner_id, found.local_id).then((box) => {
+            if (current) parent = box;
+          });
         }
         if (found.visibility === 'public') void refreshComments(found.id);
-        set = await hydratePublishedSet(found, (done, total) => {
-          progress = total > 0 ? `Fetching artwork ${done} of ${total}…` : null;
-        });
+        const readable = readPublishedSet(found);
+        if (!current) return;
+        viewScope = scopeForPublishedView(found, readable, hint);
+        set = readable;
+        requestAnimationFrame(() => scrollToExplore('top', false));
         progress = null;
+
+        /* Let the masthead and first Overview placeholders paint before the
+           work needed only by export/fork begins. It still starts on its own,
+           so those actions are usually ready by the time someone reaches
+           them; an immediate click simply awaits the same promise. */
+        const beginPreparation = (): void => {
+          if (!current || generation !== loadGeneration) return;
+          void preparePortable(found, generation, controller.signal).catch(() => {
+            // `portableError` is the user-facing result of a background failure.
+          });
+        };
+        const idleWindow = window as unknown as {
+          requestIdleCallback?: Window['requestIdleCallback'];
+          cancelIdleCallback?: Window['cancelIdleCallback'];
+        };
+        if (idleWindow.requestIdleCallback) {
+          const idleId = idleWindow.requestIdleCallback(beginPreparation, { timeout: 1200 });
+          cancelPreparation = () => idleWindow.cancelIdleCallback?.(idleId);
+        } else {
+          const timeoutId = window.setTimeout(beginPreparation, 250);
+          cancelPreparation = () => window.clearTimeout(timeoutId);
+        }
       } catch (cause) {
-        error = cause instanceof Error ? cause.message : 'Could not open that set.';
+        if (current) error = cause instanceof Error ? cause.message : 'Could not open that set.';
       } finally {
-        loading = false;
+        if (current) loading = false;
       }
     })();
+
+    return () => {
+      current = false;
+      cancelPreparation();
+      controller.abort();
+      if (sharedLoadController === controller) sharedLoadController = null;
+    };
   });
 
   /**
@@ -265,11 +595,14 @@
   async function fork(): Promise<void> {
     if (!set || !row || forking) return;
     forking = true;
+    portableError = null;
     try {
-      // `$state.snapshot` because `forkSet` clones, and `structuredClone`
-      // throws on a reactive proxy.
-      const copy = forkSet($state.snapshot(set), sourceOf(row, authorName));
+      const source = portableSet ?? (await preparePortable(row));
+      const copy = forkSet(source, sourceOf(row, authorName));
       if (await workshop.addSet(copy)) forked = copy.name;
+    } catch (cause) {
+      portableError =
+        cause instanceof Error ? cause.message : 'Could not prepare this set for copying.';
     } finally {
       forking = false;
     }
@@ -450,42 +783,186 @@
   function openActions(): void {
     if (actionsDialog && !actionsDialog.open) actionsDialog.showModal();
   }
+
+  interface ExploreLink {
+    key: string;
+    label: string;
+  }
+
+  const EXPLORE_ANCHOR_PREFIX = 'shared-explore';
+
+  function exploreAnchorId(key: string): string {
+    return `${EXPLORE_ANCHOR_PREFIX}-${key}`;
+  }
+
+  /** Match the Overview's physical order so the bar reads left-to-right like the page. */
+  function exploreLinksFor(currentSet: AdventureSet): ExploreLink[] {
+    const links: ExploreLink[] = [];
+    if (currentSet.threat.enabled || currentSet.map.enabled) {
+      links.push({ key: 'battlefield', label: 'Battlefield' });
+    }
+    if (currentSet.figures.length > 0) links.push({ key: 'components', label: 'Components' });
+
+    const characters = [
+      ...charactersByRole(currentSet, 'hero'),
+      ...charactersByRole(currentSet, 'villain'),
+      ...charactersByRole(currentSet, 'minion'),
+      ...charactersByRole(currentSet, 'sidekick')
+    ];
+    for (const character of characters) {
+      links.push({ key: `character-${character.id}`, label: characterLabel(character) });
+    }
+
+    const characterIds = new Set(currentSet.characters.map((character) => character.id));
+    const sharedDeckIds = new Set(
+      currentSet.decks
+        .filter((deck) => deck.ownerId === null || !characterIds.has(deck.ownerId))
+        .map((deck) => deck.id)
+    );
+    if (currentSet.cards.some((card) => sharedDeckIds.has(card.deckId))) {
+      links.push({ key: 'set-decks', label: 'Shared decks' });
+    }
+    return links;
+  }
+
+  function scopedCounts(currentSet: AdventureSet): string {
+    const stats = setStats(currentSet);
+    const characters = stats.characterCount;
+    const cards = stats.cardCount;
+    const components = currentSet.figures.length;
+    return `${characters} ${characters === 1 ? 'character' : 'characters'} · ${cards} card ${cards === 1 ? 'design' : 'designs'} · ${components} ${components === 1 ? 'component' : 'components'}`;
+  }
+
+  function compactScopedCounts(currentSet: AdventureSet): string {
+    const stats = setStats(currentSet);
+    return `${stats.characterCount} ${stats.characterCount === 1 ? 'char' : 'chars'} · ${stats.cardCount} ${stats.cardCount === 1 ? 'design' : 'designs'} · ${currentSet.figures.length} ${currentSet.figures.length === 1 ? 'piece' : 'pieces'}`;
+  }
+
+  function scrollToExplore(key: string, animate = true): void {
+    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const behavior = animate && !reduceMotion ? 'smooth' : 'auto';
+    const scroller = document.getElementById(exploreAnchorId('top'));
+    if (key === 'top') {
+      scroller?.scrollTo({ top: 0, behavior });
+      return;
+    }
+
+    const target = document.getElementById(exploreAnchorId(key));
+    if (!target) return;
+    target.scrollIntoView({ block: 'start', behavior });
+    // A visual jump alone leaves keyboard and assistive-technology users at
+    // the toolbar. Negative tabindex makes the destination focusable without
+    // adding it to the ordinary tab order.
+    target.tabIndex = -1;
+    target.focus({ preventScroll: true });
+  }
+
+  function changeViewScope(key: string): void {
+    viewScope = parseScopeKey(key);
+  }
 </script>
 
-{#if printing && set}
-  <PrintScreen {set} onback={() => (printing = false)} />
+{#if printSet}
+  <PrintScreen set={printSet} onback={() => (printSet = null)} />
 {:else}
   <div class="screen">
-    <header class="head">
-      <span class="mark" aria-hidden="true"></span>
+    <header
+      class="head"
+      class:has-poster={Boolean(mastheadPosterUrl)}
+      style:--masthead-base={fillCss(mastheadTheme.frame)}
+      style:--masthead-accent={mastheadAccent}
+      style:--masthead-title-font={displayFontStack(mastheadTheme.displayFont)}
+      style:--masthead-title-weight={displayFontWeight(mastheadTheme.displayFont)}
+    >
+      <!-- The art is atmosphere rather than content; the heading below is the identity. -->
+      <div class="masthead-visual" aria-hidden="true">
+        {#if mastheadBackdropUrl}
+          <img
+            class="masthead-backdrop"
+            src={mastheadBackdropUrl}
+            alt=""
+            draggable="false"
+            onerror={rejectMastheadArtwork}
+          />
+        {/if}
+        <span class="masthead-scrim"></span>
+        <span class="masthead-lines"></span>
+        <span class="masthead-blade"></span>
+        <span class="masthead-ghost">{mastheadTitle}</span>
+      </div>
+
+      {#if mastheadPosterUrl}
+        <div
+          class="masthead-poster"
+          class:composition={mastheadPosterIsComposition}
+          aria-hidden="true"
+        >
+          <div class="masthead-poster-window">
+            <img
+              src={mastheadPosterUrl}
+              alt=""
+              draggable="false"
+              onerror={rejectMastheadArtwork}
+            />
+          </div>
+        </div>
+      {/if}
 
       <div class="titles">
-        <span class="eyebrow">Shared adventure set</span>
-        <h1 class="title">{set?.name ?? row?.name ?? 'Opening…'}</h1>
-        {#if set?.subtitle}<p class="subtitle">{set.subtitle}</p>{/if}
+        <span class="eyebrow">{mastheadKicker}</span>
+        <h1 class="title">{mastheadTitle}</h1>
+        {#if mastheadContext}<p class="subtitle">{mastheadContext}</p>{/if}
 
-        <!--
-          The creator, clearly visible at the top of their own set — not
-          buried in the fork fineprint below, which is the only place a name
-          showed before this. Bound through `@const` for the same reason the
-          box link below is: the `{#if}` cannot narrow a reactive read for a
-          callback that runs after it.
-        -->
-        {#if authorName && row}
-          {@const ownerId = row.owner_id}
-          <button type="button" class="author-link" onclick={() => navigation.openAuthor(ownerId)}>
-            By {authorName}
-          </button>
-        {/if}
+        <div class="masthead-identity-row">
+          <!--
+            The creator, clearly visible at the top of their own set — not
+            buried in the fork fineprint below. Bound through `@const` because
+            the `{#if}` cannot narrow a reactive read for a later callback.
+          -->
+          {#if authorName && row}
+            {@const ownerId = row.owner_id}
+            <button type="button" class="author-link" onclick={() => navigation.openAuthor(ownerId)}>
+              By {authorName}
+            </button>
+          {/if}
 
-        <!--
-          The box this slice came out of. Sits directly under the subtitle
-          because that is the line that already names it — "From Forgotten
-          Pantheons" as prose, then the same thing as somewhere to go.
-        -->
+          {#if row?.visibility === 'public'}
+            <div class="header-engagement">
+              <button
+                type="button"
+                class="engagement-button"
+                class:active={liked}
+                aria-pressed={liked}
+                aria-label={liked ? `Unlike this set. ${likeCount} likes` : `Like this set. ${likeCount} likes`}
+                disabled={reactionBusy}
+                onclick={() => void toggleLike()}
+              >
+                <Icon name="thumbUp" size={15} />
+                <span class="numeric">{likeCount}</span>
+                <span class="engagement-label">{liked ? 'Liked' : 'Like'}</span>
+              </button>
+              <span class="engagement-count" aria-label={`${commentCount} comments`}>
+                <Icon name="message" size={15} />
+                <span class="numeric">{commentCount}</span>
+              </span>
+              <button
+                type="button"
+                class="engagement-button"
+                class:active={favourited}
+                aria-pressed={favourited}
+                aria-label={favourited ? 'Remove from favourites' : 'Add to favourites'}
+                disabled={reactionBusy}
+                onclick={() => void toggleFavourite()}
+              >
+                <Icon name="bookmark" size={15} />
+                <span class="engagement-label">{favourited ? 'Favourited' : 'Favourite'}</span>
+              </button>
+            </div>
+          {/if}
+        </div>
+
+        <!-- The box this independently published slice came out of. -->
         {#if parent}
-          <!-- Bound through `@const`, because the `{#if}` cannot narrow a
-               reactive read for a callback that runs long after it. -->
           {@const box = parent}
           <button type="button" class="parent-link" onclick={() => navigation.openShared(box.slug)}>
             <Icon name="layers" size={13} />
@@ -493,102 +970,62 @@
           </button>
         {/if}
 
-        {#if row?.visibility === 'public'}
-          <div class="header-engagement">
-            <button
-              type="button"
-              class="engagement-button"
-              class:active={liked}
-              aria-pressed={liked}
-              disabled={reactionBusy}
-              onclick={() => void toggleLike()}
-            >
-              <Icon name="thumbUp" size={15} />
-              <span class="numeric">{likeCount}</span>
-              <span>{liked ? 'Liked' : 'Like'}</span>
-            </button>
-            <span class="engagement-count" title="Comments">
-              <Icon name="message" size={15} />
-              <span class="numeric">{commentCount}</span>
-            </span>
-            <button
-              type="button"
-              class="engagement-button"
-              class:active={favourited}
-              aria-pressed={favourited}
-              disabled={reactionBusy}
-              onclick={() => void toggleFavourite()}
-            >
-              <Icon name="bookmark" size={15} />
-              <span>{favourited ? 'Favourited' : 'Favourite'}</span>
-            </button>
+        {#if set}
+          <div class="masthead-details">
+            {#if row}
+              <p class="stats header-detail">
+                {#if row.published_at}
+                  Published {new Date(row.published_at).toLocaleDateString()} ·
+                {/if}
+                updated {new Date(row.updated_at).toLocaleDateString()}
+                {#if row.revision > 1}· revision {row.revision}{/if}
+              </p>
+            {/if}
+
+            {#if row?.change_note}
+              <p class="stats header-detail">Latest change: “{row.change_note}”</p>
+            {/if}
+
+            <!--
+              Where this deck is played as part of something bigger. Placed
+              with the credits rather than in the header because it is the
+              same kind of fact: whose work surrounds this one, not what the
+              set is.
+            -->
+            {#if partOf.length > 0}
+              <p class="stats credit header-detail">
+                Part of
+                {#each partOf as entry, index (entry.slug)}
+                  {#if index > 0}{index === partOf.length - 1 ? ' and ' : ', '}{/if}
+                  <button
+                    type="button"
+                    class="author-link inline"
+                    onclick={() => navigation.openCollection(entry.slug)}
+                  >
+                    {entry.name || 'a collection'}
+                  </button>
+                {/each}
+              </p>
+            {/if}
+
+            {#if contributors.length > 0}
+              <p class="stats credit header-detail">
+                With contributions from
+                {#each contributors as person, index (person.id)}
+                  {#if index > 0}{index === contributors.length - 1 ? ' and ' : ', '}{/if}
+                  <button
+                    type="button"
+                    class="author-link inline"
+                    onclick={() => navigation.openAuthor(person.id)}
+                  >
+                    {person.display_name || 'someone'}
+                  </button>
+                {/each}
+              </p>
+            {/if}
           </div>
         {/if}
-
-        {#if set}
-          <p class="stats">
-            {set.characters.length}
-            {set.characters.length === 1 ? 'character' : 'characters'} ·
-            {set.cards.length} cards
-            {#if row?.published_at}
-              · published {new Date(row.published_at).toLocaleDateString()}
-            {/if}
-            {#if row}· updated {new Date(row.updated_at).toLocaleDateString()}{/if}
-            {#if row && row.revision > 1}· revision {row.revision}{/if}
-          </p>
-
-          <!--
-            What the author says changed. Shown because a revision number tells
-            a reader that something moved but not whether it matters to them.
-          -->
-          {#if row?.change_note}
-            <p class="stats">Latest change: “{row.change_note}”</p>
-          {/if}
-
-          <!--
-            A credit, not a changelog: who helped, not what they changed. The
-            "what" stays between the owner and whoever proposed it — this only
-            exists because their work is already sitting in the set below.
-          -->
-          <!--
-            Where this deck is played as part of something bigger. Placed with
-            the credits rather than in the header because it is the same kind
-            of fact: whose work surrounds this one, not what the set is.
-          -->
-          {#if partOf.length > 0}
-            <p class="stats credit">
-              Part of
-              {#each partOf as entry, index (entry.slug)}
-                {#if index > 0}{index === partOf.length - 1 ? ' and ' : ', '}{/if}
-                <button
-                  type="button"
-                  class="author-link inline"
-                  onclick={() => navigation.openCollection(entry.slug)}
-                >
-                  {entry.name || 'a collection'}
-                </button>
-              {/each}
-            </p>
-          {/if}
-
-          {#if contributors.length > 0}
-            <p class="stats credit">
-              With contributions from
-              {#each contributors as person, index (person.id)}
-                {#if index > 0}{index === contributors.length - 1 ? ' and ' : ', '}{/if}
-                <button
-                  type="button"
-                  class="author-link inline"
-                  onclick={() => navigation.openAuthor(person.id)}
-                >
-                  {person.display_name || 'someone'}
-                </button>
-              {/each}
-            </p>
-          {/if}
-        {/if}
       </div>
-
     </header>
 
     {#if !cloudEnabled()}
@@ -598,8 +1035,9 @@
     {:else if error}
       <p class="message error" role="alert">{error}</p>
     {:else if set}
-      {@const shown = computeScopedSet(set, viewScope)}
+      {@const shown = shownSet ?? set}
       {@const scopeOptions = scopeOptionsFor(set)}
+      {@const exploreLinks = exploreLinksFor(shown)}
       {#snippet commentPanel()}
         {#if row?.visibility === 'public'}
           <section class="panel community-panel">
@@ -770,7 +1208,7 @@
         {/if}
       {/snippet}
 
-      {#snippet actions(currentSet: AdventureSet)}
+      {#snippet actions()}
         {#if SHOW_FORK || forked}
           <section class="panel">
             <h2 class="panel-title">Build on this</h2>
@@ -789,7 +1227,7 @@
             {:else}
               <Button variant="primary" disabled={forking} onclick={fork}>
                 <Icon name="download" size={13} />
-                Make a copy to work on
+                {forking ? 'Preparing copy…' : 'Make a copy to work on'}
               </Button>
               <p class="fineprint">
                 Yours to change{authorName ? `, credited to ${authorName}` : ''}, and
@@ -805,7 +1243,23 @@
           <p class="panel-hint">
             Shares the "Showing" pick above — change either one and the other follows.
           </p>
-          <ExportPanel set={currentSet} onprint={() => (printing = true)} bind:scope={viewScope} />
+          {#if portableSet}
+            <ExportPanel
+              set={portableSet}
+              onprint={openPrint}
+              bind:scope={viewScope}
+              projectFileMode="copy"
+            />
+          {:else}
+            <p class="panel-hint" aria-live="polite">
+              {portableError ?? portableProgress ?? 'Preparing download tools…'}
+            </p>
+            {#if portableError}
+              <Button size="sm" variant="ghost" disabled={portableBusy} onclick={retryPreparation}>
+                Try again
+              </Button>
+            {/if}
+          {/if}
         </section>
 
         {@render commentPanel()}
@@ -819,41 +1273,117 @@
       <div class="split">
         <div class="main">
           <!--
-            The filter, in the one place a viewer looking at the content would
-            actually check for it — not tucked into the Export rail, where it
-            was correct but easy to miss entirely (see `sets/scope.ts`'s
-            `scopeOptionsFor`, the same list `ExportPanel`'s own picker builds
-            from). Both read and write `viewScope`, so picking a character
-            here also sets what `ExportPanel` exports, and vice versa — one
-            piece of state, not two that could disagree.
+            The Overview below owns the scrollbar, so this sibling remains in
+            reach through a long set without fixed positioning or viewport
+            offsets. Scope is still the same state ExportPanel edits: what a
+            visitor sees and what they export cannot silently disagree.
           -->
-          {#if scopeOptions.length > 1}
-            <label class="filter-row">
-              <span class="filter-label">Showing</span>
-              <Select
-                value={scopeKeyOf(viewScope)}
-                options={scopeOptions}
-                onchange={(key) => (viewScope = parseScopeKey(key))}
-              />
-            </label>
-          {/if}
-          {#if compactLayout}
-            <button type="button" class="mobile-actions" onclick={openActions}>
-              <Icon name="settings" size={14} />
-              Actions
-            </button>
-          {/if}
-          <AssetsOverview set={shown} interactive={false} heading={false} />
+          <section class="explore-bar" aria-labelledby="explore-title">
+            <div class="explore-controls">
+              <div class="explore-copy">
+                <h2 id="explore-title">Explore</h2>
+                <p
+                  class="explore-counts"
+                  aria-label={scopedCounts(shown)}
+                  aria-live="polite"
+                >
+                  <span class="explore-counts-full" aria-hidden="true">{scopedCounts(shown)}</span>
+                  <span class="explore-counts-compact" aria-hidden="true">
+                    {compactScopedCounts(shown)}
+                  </span>
+                </p>
+              </div>
+
+              <label class="filter-row">
+                <span class="filter-label">Showing</span>
+                {#if scopeOptions.length > 1}
+                  <span class="filter-control">
+                    <Select
+                      value={scopeKeyOf(viewScope)}
+                      options={scopeOptions}
+                      onchange={changeViewScope}
+                    />
+                  </span>
+                {:else}
+                  <span class="scope-static">{scopeOptions[0]?.label ?? 'Whole set'}</span>
+                {/if}
+              </label>
+
+              <label class="zoom-control" title="Card size">
+                <Icon name="search" size={12} />
+                <input
+                  type="range"
+                  min={GALLERY_CARD_SIZE.min}
+                  max={GALLERY_CARD_SIZE.max}
+                  step={GALLERY_CARD_SIZE.step}
+                  value={cardSize}
+                  aria-label="Card size"
+                  oninput={(event) => (cardSize = event.currentTarget.valueAsNumber)}
+                />
+              </label>
+
+              {#if compactLayout}
+                <button
+                  type="button"
+                  class="mobile-actions"
+                  aria-label="Open set actions"
+                  aria-haspopup="dialog"
+                  aria-controls="shared-set-actions"
+                  title="Actions"
+                  onclick={openActions}
+                >
+                  <Icon name="settings" size={16} />
+                  <span class="mobile-actions-label">Actions</span>
+                </button>
+              {/if}
+            </div>
+
+            {#if exploreLinks.length > 0}
+              <nav class="jump-nav" aria-label="Explore this set">
+                <span class="jump-label">Jump to</span>
+                <div class="jump-scroll">
+                  {#each exploreLinks as link (link.key)}
+                    <button
+                      type="button"
+                      class="jump-link"
+                      aria-controls={exploreAnchorId(link.key)}
+                      onclick={() => scrollToExplore(link.key)}
+                    >
+                      {link.label}
+                    </button>
+                  {/each}
+                </div>
+              </nav>
+            {/if}
+          </section>
+
+          <AssetsOverview
+            set={shown}
+            interactive={false}
+            inspectable
+            componentPreviewsReady={portableSet !== null}
+            cardPreviews={publishedCardPreviews}
+            publishedPngsOnly
+            heading={false}
+            {cardSize}
+            showZoom={false}
+            anchorPrefix={EXPLORE_ANCHOR_PREFIX}
+          />
         </div>
 
         {#if !compactLayout}
           <aside class="rail scroll-y">
-            {@render actions(set)}
+            {@render actions()}
           </aside>
         {/if}
       </div>
 
-      <dialog bind:this={actionsDialog} class="actions-sheet" aria-labelledby="actions-sheet-title">
+      <dialog
+        id="shared-set-actions"
+        bind:this={actionsDialog}
+        class="actions-sheet"
+        aria-labelledby="actions-sheet-title"
+      >
         {#if compactLayout}
           <div class="sheet-inner scroll-y">
             <header class="sheet-head">
@@ -862,7 +1392,7 @@
                 Close
               </button>
             </header>
-            {@render actions(set)}
+            {@render actions()}
           </div>
         {/if}
       </dialog>
@@ -890,42 +1420,204 @@
   }
 
   .head {
+    position: relative;
+    isolation: isolate;
     flex: none;
     display: flex;
     align-items: center;
-    gap: var(--space-4);
-    padding: var(--space-5) var(--space-6);
+    min-height: 184px;
+    padding: var(--space-5) var(--space-8);
+    overflow: hidden;
     border-bottom: 1px solid var(--border-default);
-    background: var(--surface-default);
+    background: var(--masthead-base, var(--grey-1000));
+    color: var(--grey-50);
   }
 
-  .mark {
-    flex: none;
-    width: 28px;
-    height: 28px;
-    border-radius: var(--radius-sm);
-    background: linear-gradient(140deg, var(--accent, #c0392b), var(--grey-900, #222));
+  .masthead-visual {
+    position: absolute;
+    z-index: 0;
+    inset: 0;
+    overflow: hidden;
+    pointer-events: none;
+  }
+
+  .masthead-backdrop {
+    position: absolute;
+    inset: -8%;
+    width: 116%;
+    height: 116%;
+    max-width: none;
+    object-fit: cover;
+    opacity: 0.46;
+    filter: saturate(1.18) contrast(1.08);
+    transform: scale(1.04);
+  }
+
+  .masthead-scrim,
+  .masthead-lines,
+  .masthead-blade,
+  .masthead-ghost {
+    position: absolute;
+    pointer-events: none;
+  }
+
+  .masthead-scrim {
+    inset: 0;
+    background:
+      linear-gradient(
+        90deg,
+        color-mix(in oklab, var(--grey-1000) 98%, transparent) 0%,
+        color-mix(in oklab, var(--grey-1000) 94%, transparent) 34%,
+        color-mix(in oklab, var(--grey-1000) 68%, transparent) 62%,
+        color-mix(in oklab, var(--grey-1000) 42%, transparent) 100%
+      ),
+      linear-gradient(
+        0deg,
+        color-mix(in oklab, var(--grey-1000) 78%, transparent),
+        transparent 64%
+      );
+  }
+
+  .masthead-lines {
+    inset: 0;
+    opacity: 0.32;
+    background: repeating-linear-gradient(
+      112deg,
+      transparent 0 38px,
+      color-mix(in oklab, var(--grey-50) 10%, transparent) 38px 39px
+    );
+  }
+
+  .masthead-blade {
+    top: -35%;
+    bottom: -35%;
+    right: 37%;
+    width: clamp(18px, 2.5vw, 38px);
+    background: var(--masthead-accent, var(--accent));
+    opacity: 0.88;
+    transform: rotate(14deg);
+    box-shadow: 0 0 36px color-mix(in oklab, var(--grey-1000) 55%, transparent);
+  }
+
+  .masthead-ghost {
+    right: 29%;
+    bottom: -0.22em;
+    max-width: 90%;
+    overflow: hidden;
+    font-family: var(--masthead-title-font, var(--font-display));
+    font-size: clamp(5rem, 12vw, 11rem);
+    font-weight: var(--masthead-title-weight, var(--weight-semibold));
+    line-height: 0.74;
+    text-transform: uppercase;
+    white-space: nowrap;
+    color: var(--grey-50);
+    opacity: 0.07;
+  }
+
+  .masthead-poster {
+    position: absolute;
+    z-index: 1;
+    top: -48px;
+    right: clamp(20px, 4vw, 64px);
+    bottom: -54px;
+    width: clamp(250px, 35vw, 500px);
+    pointer-events: none;
+    transform: rotate(2.5deg);
+    filter: drop-shadow(
+      0 18px 24px color-mix(in oklab, var(--grey-1000) 68%, transparent)
+    );
+  }
+
+  .masthead-poster::before {
+    content: '';
+    position: absolute;
+    z-index: -1;
+    inset: 7px -7px -7px 7px;
+    clip-path: polygon(13% 0, 100% 0, 87% 100%, 0 100%);
+    background: var(--masthead-accent, var(--accent));
+    opacity: 0.9;
+  }
+
+  .masthead-poster-window {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    clip-path: polygon(13% 0, 100% 0, 87% 100%, 0 100%);
+    background: color-mix(in oklab, var(--grey-1000) 72%, transparent);
+  }
+
+  .masthead-poster img {
+    width: 100%;
+    height: 100%;
+    max-width: none;
+    object-fit: cover;
+  }
+
+  .masthead-poster.composition {
+    transform: rotate(1.5deg);
+  }
+
+  .masthead-poster.composition::before {
+    opacity: 0.44;
+  }
+
+  .masthead-poster.composition .masthead-poster-window {
+    clip-path: none;
+    background: transparent;
+  }
+
+  .masthead-poster.composition img {
+    object-fit: contain;
   }
 
   .titles {
+    position: relative;
+    z-index: 2;
     display: flex;
     flex-direction: column;
-    gap: 2px;
+    justify-content: center;
+    gap: var(--space-1);
+    width: 100%;
+    max-width: 780px;
     min-width: 0;
     margin-right: auto;
   }
 
+  .head.has-poster .titles {
+    max-width: min(59%, 760px);
+  }
+
   .eyebrow {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
     font-size: var(--text-xs);
+    font-weight: var(--weight-semibold);
     letter-spacing: var(--tracking-wide);
     text-transform: uppercase;
-    color: var(--text-muted);
+    color: var(--grey-300);
+  }
+
+  .eyebrow::before {
+    content: '';
+    width: 30px;
+    height: 3px;
+    flex: none;
+    background: var(--masthead-accent, var(--accent));
   }
 
   .title {
     margin: 0;
-    font-size: var(--text-lg);
+    font-family: var(--masthead-title-font, var(--font-display));
+    font-size: clamp(2.75rem, 4.8vw, 4.75rem);
+    font-weight: var(--masthead-title-weight, var(--weight-semibold));
+    line-height: 0.88;
+    letter-spacing: var(--tracking-tight);
+    text-transform: uppercase;
+    text-wrap: balance;
     overflow-wrap: anywhere;
+    color: var(--grey-50);
+    text-shadow: 0 3px 18px color-mix(in oklab, var(--grey-1000) 84%, transparent);
   }
 
   .subtitle,
@@ -937,8 +1629,29 @@
     color: var(--text-muted);
   }
 
+  .head .subtitle {
+    max-width: 54ch;
+    color: var(--grey-200);
+  }
+
   .stats {
     font-size: var(--text-xs);
+  }
+
+  .masthead-identity-row,
+  .masthead-details {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: var(--space-1) var(--space-3);
+  }
+
+  .masthead-identity-row {
+    min-height: 30px;
+  }
+
+  .masthead-details .stats {
+    color: var(--grey-300);
   }
 
   /*
@@ -953,10 +1666,10 @@
     gap: var(--space-2);
     margin-top: var(--space-2);
     padding: var(--space-1) var(--space-3);
-    border: 1px solid var(--border-default);
+    border: 1px solid color-mix(in oklab, var(--grey-50) 22%, transparent);
     border-radius: var(--radius-full);
-    background: transparent;
-    color: var(--text-muted);
+    background: color-mix(in oklab, var(--grey-1000) 38%, transparent);
+    color: var(--grey-200);
     font-size: var(--text-xs);
     cursor: pointer;
     transition:
@@ -965,8 +1678,8 @@
   }
 
   .parent-link:hover {
-    border-color: var(--accent);
-    color: var(--text-default);
+    border-color: color-mix(in oklab, var(--grey-50) 58%, transparent);
+    color: var(--grey-50);
   }
 
   .credit {
@@ -978,7 +1691,7 @@
     align-items: center;
     align-self: flex-start;
     gap: var(--space-1);
-    margin-top: var(--space-2);
+    margin: 0;
   }
 
   .engagement-button,
@@ -989,7 +1702,7 @@
     min-height: 30px;
     padding: 0 var(--space-2);
     border-radius: var(--radius-sm);
-    color: var(--text-muted);
+    color: var(--grey-300);
     font-size: var(--text-xs);
   }
 
@@ -1003,9 +1716,9 @@
 
   .engagement-button:hover,
   .engagement-button.active {
-    border-color: var(--border-default);
-    background: var(--surface-selected);
-    color: var(--text-default);
+    border-color: color-mix(in oklab, var(--grey-50) 28%, transparent);
+    background: color-mix(in oklab, var(--grey-50) 12%, transparent);
+    color: var(--grey-50);
   }
 
   .engagement-button.active :global(svg) {
@@ -1028,7 +1741,7 @@
     padding: 0;
     border: none;
     background: transparent;
-    color: var(--text-muted);
+    color: var(--grey-200);
     font-size: var(--text-sm);
     text-align: left;
     cursor: pointer;
@@ -1038,7 +1751,7 @@
   }
 
   .author-link:hover {
-    color: var(--text-default);
+    color: var(--grey-50);
     text-decoration-color: currentcolor;
   }
 
@@ -1046,7 +1759,7 @@
   .author-link.inline {
     display: inline;
     font-size: inherit;
-    color: var(--text-secondary);
+    color: var(--grey-200);
   }
 
   .message {
@@ -1078,19 +1791,141 @@
 
   /* `AssetsOverview`'s own `.page` carries `flex: 1 1 auto`, which is what
      lets it still fill the column below this rather than needing a size of
-     its own here. */
-  .filter-row {
+     its own here. The bar is a flex sibling, not an overlay, so it stays put
+     while the Overview's own scroll container moves beneath it. */
+  .explore-bar {
+    position: relative;
+    z-index: var(--z-sticky);
     flex: none;
     display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    padding: var(--space-3) var(--space-8) var(--space-2);
+    border-bottom: 1px solid var(--border-default);
+    background: var(--surface-default);
+    box-shadow: var(--shadow-xs);
+  }
+
+  .explore-controls {
+    display: grid;
+    grid-template-columns: minmax(170px, auto) minmax(200px, 1fr) auto;
+    align-items: center;
+    gap: var(--space-4);
+    min-width: 0;
+  }
+
+  .explore-copy {
+    min-width: 0;
+    overflow: hidden;
+  }
+
+  .explore-copy h2 {
+    margin: 0;
+    font-family: var(--font-display);
+    font-size: var(--text-md);
+    font-weight: var(--weight-semibold);
+    color: var(--text-primary);
+  }
+
+  .explore-counts {
+    margin: 1px 0 0;
+    overflow: hidden;
+    font-size: var(--text-2xs);
+    color: var(--text-muted);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .explore-counts-compact {
+    display: none;
+  }
+
+  .filter-row {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
     align-items: center;
     gap: var(--space-3);
-    padding: var(--space-4) var(--space-8) 0;
+    min-width: 0;
   }
 
   .filter-label {
     font-size: var(--text-xs);
     font-weight: var(--weight-semibold);
     color: var(--text-tertiary);
+  }
+
+  .filter-control {
+    display: block;
+    min-width: 0;
+  }
+
+  .scope-static {
+    min-width: 0;
+    overflow: hidden;
+    color: var(--text-secondary);
+    font-size: var(--text-sm);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .zoom-control {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    color: var(--text-muted);
+  }
+
+  .zoom-control input {
+    width: 112px;
+  }
+
+  .jump-nav {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    min-width: 0;
+  }
+
+  .jump-label {
+    flex: none;
+    font-size: var(--text-2xs);
+    font-weight: var(--weight-semibold);
+    letter-spacing: var(--tracking-caps);
+    text-transform: uppercase;
+    color: var(--text-muted);
+  }
+
+  .jump-scroll {
+    display: flex;
+    gap: var(--space-1);
+    min-width: 0;
+    overflow-x: auto;
+    overscroll-behavior-inline: contain;
+    scrollbar-width: thin;
+  }
+
+  .jump-link {
+    flex: none;
+    min-height: 30px;
+    padding: 0 var(--space-3);
+    border: 1px solid transparent;
+    border-radius: var(--radius-full);
+    background: transparent;
+    color: var(--text-secondary);
+    font: inherit;
+    font-size: var(--text-xs);
+    cursor: pointer;
+    transition:
+      border-color var(--duration-fast) var(--ease-out),
+      background var(--duration-fast) var(--ease-out),
+      color var(--duration-fast) var(--ease-out);
+  }
+
+  .jump-link:hover,
+  .jump-link:focus-visible {
+    border-color: var(--border-default);
+    background: var(--surface-selected);
+    color: var(--text-default);
   }
 
   .mobile-actions {
@@ -1268,25 +2103,254 @@
     text-wrap: pretty;
   }
 
+  /* The export rail still exists just above the phone breakpoint, leaving the
+     gallery column too narrow for three useful controls on one line. */
+  @media (min-width: 701px) and (max-width: 900px) {
+    .explore-bar {
+      padding-inline: var(--space-4);
+    }
+
+    .explore-controls {
+      grid-template-areas:
+        'copy zoom'
+        'filter filter';
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: var(--space-2) var(--space-3);
+    }
+
+    .explore-copy {
+      grid-area: copy;
+      overflow: hidden;
+    }
+
+    .explore-counts {
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .filter-row {
+      grid-area: filter;
+    }
+
+    .zoom-control {
+      grid-area: zoom;
+    }
+  }
+
   /* The content is the page on a phone. Copying and exporting are still one
      tap away, but no longer take a permanent slice out of the card overview. */
   @media (max-width: 700px) {
+    .head {
+      align-items: center;
+      min-height: 168px;
+      padding: var(--space-3) var(--space-4);
+    }
+
+    .header-detail {
+      display: none;
+    }
+
+    .masthead-backdrop {
+      opacity: 0.5;
+    }
+
+    .masthead-scrim {
+      background:
+        linear-gradient(
+          90deg,
+          color-mix(in oklab, var(--grey-1000) 98%, transparent) 0%,
+          color-mix(in oklab, var(--grey-1000) 92%, transparent) 54%,
+          color-mix(in oklab, var(--grey-1000) 66%, transparent) 100%
+        ),
+        linear-gradient(
+          0deg,
+          color-mix(in oklab, var(--grey-1000) 84%, transparent),
+          transparent 72%
+        );
+    }
+
+    .masthead-lines {
+      opacity: 0.2;
+    }
+
+    .masthead-blade {
+      right: 18%;
+      width: 22px;
+      opacity: 0.74;
+    }
+
+    .masthead-ghost {
+      right: 0;
+      bottom: -0.08em;
+      max-width: 100%;
+      font-size: clamp(4rem, 23vw, 7rem);
+      opacity: 0.055;
+    }
+
+    .masthead-poster {
+      top: -24px;
+      right: -5%;
+      bottom: -32px;
+      width: 48%;
+      opacity: 0.48;
+      filter: drop-shadow(
+        0 10px 18px color-mix(in oklab, var(--grey-1000) 62%, transparent)
+      );
+    }
+
+    .titles {
+      width: 100%;
+      max-width: 100%;
+      gap: var(--space-1);
+    }
+
+    .head.has-poster .titles {
+      max-width: 100%;
+    }
+
+    .eyebrow {
+      gap: var(--space-1);
+      font-size: var(--text-2xs);
+    }
+
+    .eyebrow::before {
+      width: 22px;
+      height: 2px;
+    }
+
+    .title {
+      max-width: 88%;
+      font-size: clamp(2.35rem, 11vw, 3.5rem);
+      line-height: 0.88;
+    }
+
+    .subtitle,
+    .author-link {
+      font-size: var(--text-xs);
+    }
+
+    .subtitle {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .masthead-identity-row {
+      gap: var(--space-1) var(--space-2);
+    }
+
+    .parent-link {
+      min-height: 44px;
+      margin-top: var(--space-1);
+    }
+
+    .header-engagement {
+      gap: var(--space-1);
+    }
+
+    .engagement-button,
+    .engagement-count {
+      justify-content: center;
+      min-width: 44px;
+      min-height: 44px;
+      padding-inline: var(--space-2);
+    }
+
+    .engagement-label {
+      display: none;
+    }
+
     .split {
       grid-template-columns: minmax(0, 1fr);
     }
 
+    .explore-bar {
+      gap: var(--space-2);
+      padding: var(--space-2) var(--space-4);
+    }
+
+    .explore-controls {
+      grid-template-areas:
+        'copy actions'
+        'filter zoom';
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: var(--space-2) var(--space-3);
+    }
+
+    .explore-copy {
+      grid-area: copy;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      justify-content: center;
+      gap: 0;
+    }
+
+    .explore-copy h2 {
+      flex: none;
+      font-size: var(--text-sm);
+    }
+
+    .explore-counts {
+      min-width: 0;
+      margin: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .explore-counts-full {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
+    }
+
+    .explore-counts-compact {
+      display: inline;
+    }
+
     .filter-row {
-      padding: var(--space-4) var(--space-4) 0;
+      grid-area: filter;
+      display: block;
+    }
+
+    .filter-control :global(.select) {
+      min-height: 44px;
+    }
+
+    .filter-label {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
+    }
+
+    .zoom-control {
+      grid-area: zoom;
+      min-height: 44px;
+    }
+
+    .zoom-control input {
+      width: 76px;
     }
 
     .mobile-actions {
-      flex: none;
-      display: flex;
+      grid-area: actions;
+      display: inline-flex;
       align-items: center;
       justify-content: center;
-      gap: var(--space-2);
+      width: 44px;
       min-height: 44px;
-      margin: var(--space-3) var(--space-4) 0;
       border: 1px solid var(--border-default);
       border-radius: var(--radius-sm);
       background: var(--surface-default);
@@ -1294,6 +2358,36 @@
       font: inherit;
       font-size: var(--text-sm);
       font-weight: var(--weight-semibold);
+    }
+
+    .mobile-actions-label,
+    .jump-label {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
+    }
+
+    .jump-nav {
+      gap: 0;
+    }
+
+    .jump-scroll {
+      width: 100%;
+      scrollbar-width: none;
+    }
+
+    .jump-scroll::-webkit-scrollbar {
+      display: none;
+    }
+
+    .jump-link {
+      min-height: 44px;
     }
 
     .actions-sheet {

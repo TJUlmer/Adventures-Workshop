@@ -53,6 +53,7 @@
   import { ATTACK_TYPE_SIZES, ATTACK_TYPE_SYMBOLS, symbolUrl, TEMPLATE_ASSETS } from './assets';
   import {
     CHARACTER_ABILITY,
+    CHARACTER_ABILITY_DIVIDER,
     CHARACTER_ABILITY_PANEL,
     CHARACTER_ATTACK,
     CHARACTER_BAND_RUNS,
@@ -65,7 +66,9 @@
     CHARACTER_QUOTE,
     CHARACTER_TOKENS,
     CHARACTER_TOKENS_PAIRED,
+    BLEED,
     capTopToBoxTop,
+    clipRect,
     digitMiddleToBoxTop,
     digitTopToBoxTop,
     NAME_METRICS,
@@ -103,6 +106,7 @@
   const sidekick = $derived(character.sidekick);
   /** An additional card's own sheet never shows the swarm-sidekick band — only the primary sheet does. */
   const showSidekick = $derived(card ? false : sidekick.enabled);
+  const hasQuote = $derived(identity.quote.text.trim().length > 0);
 
   /**
    * A swarm sidekick prints one of three things below its attack row, keyed
@@ -212,20 +216,59 @@
     (1 - (NAME_METRICS.ascent + NAME_METRICS.descent)) / 2 + NAME_METRICS.ascent;
   const HEADING_SHRINK_DELTA = HEADING_BASELINE_RATIO * CHARACTER_HEADING.size;
 
+  /** The author's one scale preserves the measured name/body size ratio. */
+  const abilityNameSize = $derived(CHARACTER_ABILITY.nameSize * design.abilityScale);
+  const abilityTextSize = $derived(CHARACTER_ABILITY.textSize * design.abilityScale);
+  const ABILITY_MIN_SCALE = 0.7;
+
   /** Where the ability block's three pieces sit, solved from the measured ink. */
-  const NAME_TOP = capTopToBoxTop(
+  const BASE_NAME_TOP = capTopToBoxTop(
     CHARACTER_ABILITY.nameCapTop,
     CHARACTER_ABILITY.nameSize,
     1,
     NAME_METRICS
   );
-  const RULE_GAP = CHARACTER_ABILITY.ruleY - (NAME_TOP + CHARACTER_ABILITY.nameSize);
+  const NAME_TOP = $derived(
+    capTopToBoxTop(CHARACTER_ABILITY.nameCapTop, abilityNameSize, 1, NAME_METRICS)
+  );
+  const RULE_GAP = CHARACTER_ABILITY.ruleY - (BASE_NAME_TOP + CHARACTER_ABILITY.nameSize);
   const TEXT_TOP = capTopToBoxTop(
     CHARACTER_ABILITY.textCapTop,
     CHARACTER_ABILITY.textSize,
     CHARACTER_ABILITY.textLineHeight
   );
   const TEXT_GAP = TEXT_TOP - (CHARACTER_ABILITY.ruleY + CHARACTER_ABILITY.ruleHeight);
+
+  /**
+   * The quote card can lend unused room to a long special ability. The
+   * printed divider remains the minimum: short copy retains the measured
+   * template exactly. A real quote keeps more of its panel than a blank one;
+   * the latter still leaves a visible lower band instead of swallowing it.
+   */
+  const BASE_ABILITY_DIVIDER_TOP =
+    CHARACTER_BANDS.ability.top + CHARACTER_BANDS.ability.height;
+  const ABILITY_DIVIDER_HEIGHT = CHARACTER_BANDS.sidekick.top - BASE_ABILITY_DIVIDER_TOP;
+  const ABILITY_BOTTOM_PADDING = 48;
+  const FILLED_QUOTE_MIN_HEIGHT = 300;
+  const BLANK_QUOTE_MIN_HEIGHT = 160;
+  /** Keep CSS mask resampling from borrowing a pixel from the source divider. */
+  const ABILITY_DIVIDER_CROP_PAD = 3;
+  let abilityDividerTop = $state(BASE_ABILITY_DIVIDER_TOP);
+  const abilityDividerBottom = $derived(abilityDividerTop + ABILITY_DIVIDER_HEIGHT);
+  const abilityDividerShift = $derived(abilityDividerTop - BASE_ABILITY_DIVIDER_TOP);
+  const moveLockupHeight = CHARACTER_MOVE.word.bottom - CHARACTER_MOVE.digitTop;
+  const moveLockupStretch = $derived(
+    (moveLockupHeight + abilityDividerShift) / moveLockupHeight
+  );
+
+  const bandRuns = $derived.by(() => {
+    if (layout !== 'quote') return CHARACTER_BAND_RUNS;
+    return {
+      hero: CHARACTER_BAND_RUNS.hero,
+      ability: { top: CHARACTER_BAND_RUNS.ability.top, bottom: abilityDividerTop },
+      sidekick: { top: abilityDividerBottom, bottom: CHARACTER_BAND_RUNS.sidekick.bottom }
+    };
+  });
 
   /**
    * The smallest a quote may shrink to, as a fraction of its *unscaled*
@@ -259,7 +302,7 @@
    * the type size. Larger copy grows either side of it instead of pushing down
    * from a fixed top.
    */
-  const QUOTE_CENTER =
+  const BASE_QUOTE_CENTER =
     QUOTE_ONE_LINE_TOP + (CHARACTER_QUOTE.textSize * CHARACTER_QUOTE.textLineHeight) / 2;
 
   /** Both scaled by the author's own multiplier — see `CharacterCardDesign.quoteScale`. */
@@ -272,10 +315,19 @@
    * and takes room off the quote's own band. Leaving this constant would let
    * an enlarged attribution and an enlarged quote overlap.
    */
-  const QUOTE_ATTRIBUTION_TOP = $derived(
-    capTopToBoxTop(CHARACTER_QUOTE.attributionCapTop, quoteAttributionSize)
+  const quotePanelScale = $derived(
+    (CHARACTER_BANDS.bottom - abilityDividerBottom) /
+      (CHARACTER_BANDS.bottom - CHARACTER_BANDS.sidekick.top)
   );
-  const hasAttribution = $derived(identity.quote.attribution.trim().length > 0);
+  const mapQuoteY = (value: number): number =>
+    abilityDividerBottom + (value - CHARACTER_BANDS.sidekick.top) * quotePanelScale;
+  const quoteMarkY = $derived(mapQuoteY(CHARACTER_QUOTE.markY));
+  const quoteCentre = $derived(mapQuoteY(BASE_QUOTE_CENTER));
+  const quoteAttributionCapTop = $derived(mapQuoteY(CHARACTER_QUOTE.attributionCapTop));
+  const quoteAttributionTop = $derived(
+    capTopToBoxTop(quoteAttributionCapTop, quoteAttributionSize)
+  );
+  const hasAttribution = $derived(hasQuote && identity.quote.attribution.trim().length > 0);
 
   /**
    * The true room on each side of `QUOTE_CENTER`, not forced to match one
@@ -297,22 +349,66 @@
    * anyone is likely to notice, where a shrunk-more-than-necessary or
    * visibly clipped quote both are.
    */
-  const QUOTE_ABOVE_HALF = QUOTE_CENTER - (CHARACTER_QUOTE.markY + 24);
+  const quoteAboveHalf = $derived(quoteCentre - (quoteMarkY + 24 * quotePanelScale));
   const QUOTE_BELOW_HALF = $derived(
-    (hasAttribution ? QUOTE_ATTRIBUTION_TOP - 24 : CHARACTER_BANDS.bottom - 60) - QUOTE_CENTER
+    (hasAttribution
+      ? quoteAttributionTop - 24 * quotePanelScale
+      : CHARACTER_BANDS.bottom - 60 * quotePanelScale) - quoteCentre
   );
 
-  const quoteZoneTop = $derived(QUOTE_CENTER - QUOTE_ABOVE_HALF);
-  const quoteZoneHeight = $derived(QUOTE_ABOVE_HALF + QUOTE_BELOW_HALF);
+  const quoteZoneTop = $derived(quoteCentre - quoteAboveHalf);
+  const quoteZoneHeight = $derived(Math.max(1, quoteAboveHalf + QUOTE_BELOW_HALF));
 
   let abilityBox: HTMLDivElement | null = $state(null);
+  let abilityContent: HTMLDivElement | null = $state(null);
   let quoteBox: HTMLDivElement | null = $state(null);
 
-  /** Re-fit whenever the printed ability text (name or copy) changes. */
+  /**
+   * Give natural-size ability copy the room the blank/quote band can spare,
+   * then retain `fitScale` as the backstop for copy longer than both panels can
+   * hold. Measuring the inner wrapper avoids the outer box's minimum height
+   * being reported as content, and runs synchronously for the export stage for
+   * the same reason `fitScale` itself does.
+   */
   $effect(() => {
     const signature = identity.abilities.map((a) => `${a.name}|${a.text}`).join('\n');
     void signature;
-    if (abilityBox) fitScale(abilityBox);
+    void abilityNameSize;
+    void abilityTextSize;
+    void hasQuote;
+    void layout;
+    if (!abilityBox || !abilityContent) return;
+
+    abilityBox.style.setProperty('--fit-scale', '1');
+    const contentWidth = abilityContent.clientWidth;
+    const naturalHeight = contentWidth
+      ? abilityContent.scrollHeight *
+        ((CHARACTER_ABILITY_PANEL.contentRight - CHARACTER_ABILITY.nameX) / contentWidth)
+      : 0;
+    const quoteMinimum = hasQuote ? FILLED_QUOTE_MIN_HEIGHT : BLANK_QUOTE_MIN_HEIGHT;
+    const maximumDividerTop =
+      CHARACTER_BANDS.bottom - ABILITY_DIVIDER_HEIGHT - quoteMinimum;
+    const nextDividerTop =
+      layout === 'quote'
+        ? Math.round(
+            Math.min(
+              maximumDividerTop,
+              Math.max(
+                BASE_ABILITY_DIVIDER_TOP,
+                NAME_TOP + naturalHeight + ABILITY_BOTTOM_PADDING
+              )
+            )
+          )
+        : BASE_ABILITY_DIVIDER_TOP;
+
+    if (abilityDividerTop !== nextDividerTop) {
+      abilityDividerTop = nextDividerTop;
+      return;
+    }
+
+    fitScale(abilityBox, {
+      min: Math.min(1, ABILITY_MIN_SCALE / design.abilityScale)
+    });
   });
 
   /**
@@ -366,7 +462,7 @@
   a separator would be cut in half by a bar drawn over it.
 -->
 {#each CHARACTER_BAND_NAMES as band (band)}
-  {@const run = CHARACTER_BAND_RUNS[band]}
+  {@const run = bandRuns[band]}
   <div
     class="fill"
     style:left={px(CHARACTER_CARD.x - bleed)}
@@ -408,13 +504,17 @@
   style:top={py(NAME_TOP)}
   style:width={px(CHARACTER_ABILITY_PANEL.contentRight - CHARACTER_ABILITY.nameX)}
   style:height={py(
-    CHARACTER_BANDS.ability.top + CHARACTER_BANDS.ability.height - NAME_TOP
+    abilityDividerTop - NAME_TOP
   )}
-  style:gap="calc({pu(CHARACTER_ABILITY.gap)} * var(--fit-scale, 1))"
   style:color={fillCss(design.abilityInk)}
 >
-  {#each identity.abilities.length ? identity.abilities : [null] as ability, index (index)}
-    <div class="ability-entry">
+  <div
+    bind:this={abilityContent}
+    class="ability-content"
+    style:gap="calc({pu(CHARACTER_ABILITY.gap)} * var(--fit-scale, 1))"
+  >
+    {#each identity.abilities.length ? identity.abilities : [null] as ability, index (index)}
+      <div class="ability-entry">
       <!--
         A real ability with no name prints blank rather than falling back to
         this placeholder — the name is optional, and a fallback would print
@@ -424,7 +524,7 @@
       -->
       <div
         class="ability-name"
-        style:font-size="calc({pu(CHARACTER_ABILITY.nameSize)} * var(--fit-scale, 1))"
+        style:font-size="calc({pu(abilityNameSize)} * var(--fit-scale, 1))"
         style:line-height="1"
       >
         {ability ? ability.name.trim() : 'Ability Name'}
@@ -457,7 +557,7 @@
         class:placeholder={ability === null}
         style:margin-top="calc({pu(TEXT_GAP)} * var(--fit-scale, 1))"
         style:margin-left="calc({pu(CHARACTER_ABILITY.textX - CHARACTER_ABILITY.nameX)} * var(--fit-scale, 1))"
-        style:font-size="calc({pu(CHARACTER_ABILITY.textSize)} * var(--fit-scale, 1))"
+        style:font-size="calc({pu(abilityTextSize)} * var(--fit-scale, 1))"
         style:line-height={CHARACTER_ABILITY.textLineHeight}
       >
         {#if ability?.text.trim()}
@@ -485,14 +585,16 @@
           Ability text goes here.
         {/if}
       </p>
-    </div>
-  {/each}
+      </div>
+    {/each}
+  </div>
 </div>
 
 <!-- SIDEKICK, or the quote that stands in for it --------------------------- -->
 {#if showSidekick}
   {@render heading(CHARACTER_BANDS.sidekick, sidekickName)}
 {:else}
+  {#if hasQuote}
   <!--
     Both marks, opening and closing, in one supplied picture spanning the
     full row — the printed template's marks were never in any face this
@@ -506,7 +608,7 @@
     style:--quote-marks-art="url('{TEMPLATE_ASSETS.characterCardQuotations}')"
     style:background={fillCss(design.quoteInk)}
     style:left={px(CHARACTER_QUOTE.markLeftX)}
-    style:top={py(CHARACTER_QUOTE.markY)}
+    style:top={py(quoteMarkY)}
     style:width={px(CHARACTER_QUOTE.markRightX - CHARACTER_QUOTE.markLeftX)}
     style:height={py(CHARACTER_QUOTE.markHeight)}
   ></div>
@@ -532,7 +634,7 @@
       style:line-height={CHARACTER_QUOTE.textLineHeight}
       style:color={fillCss(design.quoteInk)}
     >
-      {identity.quote.text.trim() || 'A memorable line goes here.'}
+      {identity.quote.text.trim()}
     </p>
   </div>
 
@@ -540,13 +642,14 @@
     <p
       class="quote-attribution"
       style:right={px(1632 - CHARACTER_QUOTE.attributionRight)}
-      style:top={py(capTopToBoxTop(CHARACTER_QUOTE.attributionCapTop, quoteAttributionSize))}
+      style:top={py(quoteAttributionTop)}
       style:font-size={pu(quoteAttributionSize)}
       style:color={fillCss(design.quoteInk)}
     >
       — {identity.quote.attribution}
     </p>
   {/if}
+{/if}
 {/if}
 
 <!--
@@ -593,7 +696,7 @@
       1
     )}
   {/if}
-{/if}
+  {/if}
 <!--
    The three `--card-*` values are for printer-friendly mode alone, and are set
   here because this is where the geometry is: `CardRenderer`'s own stylesheet
@@ -609,18 +712,158 @@
   style:background={fillCss(design.healthBadgeAccent)}
 ></div>
 <div
-  class="mask full border"
-  style:--border-art="url('{border}')"
+  class="border-clip full"
   style:--card-inset-x={px(CHARACTER_CARD.x)}
   style:--card-inset-y={py(CHARACTER_CARD.y)}
   style:--card-radius={pu(CHARACTER_CARD.radius)}
-  style:background={fillCss(design.border)}
-></div>
-<div
-  class="mask full move-ink"
-  style:--move-ink-art="url('{moveInk}')"
-  style:background={fillCss(design.moveInk)}
-></div>
+>
+  {#if layout === 'quote' && abilityDividerShift > 0}
+    <div
+      class="mask full border"
+      style:--border-art="url('{border}')"
+      style:clip-path={clipRect(
+        {
+          x: 0,
+          y: 0,
+          width: BLEED.width,
+          height: CHARACTER_ABILITY_DIVIDER.top - ABILITY_DIVIDER_CROP_PAD
+        },
+        BLEED
+      )}
+      style:background={fillCss(design.border)}
+    ></div>
+    <div
+      class="mask full border"
+      style:--border-art="url('{border}')"
+      style:clip-path={clipRect(
+        {
+          x: 0,
+          y: CHARACTER_ABILITY_DIVIDER.bottom + 1,
+          width: BLEED.width,
+          height: BLEED.height - (CHARACTER_ABILITY_DIVIDER.bottom + 1)
+        },
+        BLEED
+      )}
+      style:background={fillCss(design.border)}
+    ></div>
+    <!-- A guard band is cropped above the source bar so mask resampling cannot
+         leave its antialiased edge behind at the old divider. These rails
+         bridge that crop as well as the genuinely added height. -->
+    {#each [
+      { x: 0, width: CHARACTER_CARD.x },
+      {
+        x: CHARACTER_ABILITY_DIVIDER.tabRuleX,
+        width: CHARACTER_ABILITY_DIVIDER.tabRuleRight - CHARACTER_ABILITY_DIVIDER.tabRuleX
+      },
+      {
+        x: CHARACTER_CARD.x + CHARACTER_CARD.width + 1,
+        width: BLEED.width - (CHARACTER_CARD.x + CHARACTER_CARD.width + 1)
+      }
+    ] as rail}
+      <div
+        class="full border-fill"
+        style:clip-path={clipRect(
+          {
+            x: rail.x,
+            y: CHARACTER_ABILITY_DIVIDER.top - ABILITY_DIVIDER_CROP_PAD,
+            width: rail.width,
+            height: abilityDividerShift + ABILITY_DIVIDER_CROP_PAD
+          },
+          BLEED
+        )}
+        style:background={fillCss(design.border)}
+      ></div>
+    {/each}
+    <div
+      class="full border-fill"
+      style:clip-path={clipRect(
+        {
+          x: 0,
+          y: CHARACTER_ABILITY_DIVIDER.top + abilityDividerShift,
+          width: BLEED.width,
+          height: CHARACTER_ABILITY_DIVIDER.bottom - CHARACTER_ABILITY_DIVIDER.top
+        },
+        BLEED
+      )}
+      style:background={fillCss(design.border)}
+    ></div>
+  {:else}
+    <div
+      class="mask full border"
+      style:--border-art="url('{border}')"
+      style:background={fillCss(design.border)}
+    ></div>
+  {/if}
+</div>
+{#if layout === 'quote'}
+  <div
+    class="full move-line"
+    style:clip-path={clipRect(
+      {
+        x: CHARACTER_MOVE.arrow.shaftX,
+        y: CHARACTER_MOVE.arrow.topHeadBottom,
+        width: CHARACTER_MOVE.arrow.shaftRight - CHARACTER_MOVE.arrow.shaftX,
+        height:
+          CHARACTER_MOVE.arrow.bottomHeadTop -
+          CHARACTER_MOVE.arrow.topHeadBottom +
+          abilityDividerShift
+      },
+      BLEED
+    )}
+    style:background={fillCss(design.moveInk)}
+  ></div>
+  <div
+    class="mask full move-ink"
+    style:--move-ink-art="url('{moveInk}')"
+    style:clip-path={clipRect(
+      {
+        x: CHARACTER_MOVE.arrow.x,
+        y: CHARACTER_MOVE.arrow.top,
+        width: CHARACTER_MOVE.arrow.right - CHARACTER_MOVE.arrow.x,
+        height: CHARACTER_MOVE.arrow.topHeadBottom - CHARACTER_MOVE.arrow.top
+      },
+      BLEED
+    )}
+    style:background={fillCss(design.moveInk)}
+  ></div>
+  <div
+    class="mask full move-ink"
+    style:--move-ink-art="url('{moveInk}')"
+    style:clip-path={clipRect(
+      {
+        x: CHARACTER_MOVE.arrow.x,
+        y: CHARACTER_MOVE.arrow.bottomHeadTop,
+        width: CHARACTER_MOVE.arrow.right - CHARACTER_MOVE.arrow.x,
+        height: CHARACTER_MOVE.arrow.bottom - CHARACTER_MOVE.arrow.bottomHeadTop
+      },
+      BLEED
+    )}
+    style:translate={`0 ${pu(abilityDividerShift)}`}
+    style:background={fillCss(design.moveInk)}
+  ></div>
+  <div
+    class="mask full move-ink"
+    style:--move-ink-art="url('{moveInk}')"
+    style:clip-path={clipRect(
+      {
+        x: CHARACTER_MOVE.word.x,
+        y: CHARACTER_MOVE.word.top,
+        width: CHARACTER_MOVE.word.right - CHARACTER_MOVE.word.x,
+        height: CHARACTER_MOVE.word.bottom - CHARACTER_MOVE.word.top
+      },
+      BLEED
+    )}
+    style:scale={`1 ${moveLockupStretch}`}
+    style:transform-origin={`center ${py(CHARACTER_MOVE.digitTop)}`}
+    style:background={fillCss(design.moveInk)}
+  ></div>
+{:else}
+  <div
+    class="mask full move-ink"
+    style:--move-ink-art="url('{moveInk}')"
+    style:background={fillCss(design.moveInk)}
+  ></div>
+{/if}
 <!--
   Each band's own labels, over that band's fill and artwork and under the copy
   — the same place in the stack the picture below them holds, because that is
@@ -634,6 +877,9 @@
 {#each CHARACTER_BAND_NAMES as band (band)}{#if labelInk[band]}<div
     class="mask full label-ink"
     style:--label-ink-art="url('{labelInk[band]}')"
+    style:translate={layout === 'quote' && band === 'ability'
+      ? `0 ${pu(abilityDividerShift)}`
+      : undefined}
     style:background={fillCss(design[band].labelInk)}
   ></div>{/if}{/each}
 <img class="template" src={ink} alt="" />
@@ -649,16 +895,22 @@
   `background: #000` (right for a badge that is a mask) across this card's
   move numeral, which is a `<span>` of text, as a black slab.
 -->
-<span
-  class="move-figure"
-  style:left={px(CHARACTER_MOVE.centerX)}
-  style:top={py(digitTopToBoxTop(CHARACTER_MOVE.digitTop, CHARACTER_MOVE.size))}
-  style:font-size={pu(CHARACTER_MOVE.size)}
-  style:scale="{CHARACTER_MOVE.condense} 1"
-  style:color={fillCss(design.moveInk)}
+<div
+  class="full move-lockup"
+  style:scale={layout === 'quote' ? `1 ${moveLockupStretch}` : undefined}
+  style:transform-origin={`center ${py(CHARACTER_MOVE.digitTop)}`}
 >
-  {identity.move}
-</span>
+  <span
+    class="move-figure"
+    style:left={px(CHARACTER_MOVE.centerX)}
+    style:top={py(digitTopToBoxTop(CHARACTER_MOVE.digitTop, CHARACTER_MOVE.size))}
+    style:font-size={pu(CHARACTER_MOVE.size)}
+    style:scale={`${CHARACTER_MOVE.condense} 1`}
+    style:color={fillCss(design.moveInk)}
+  >
+    {identity.move}
+  </span>
+</div>
 
 {#if showSidekick}
   {@render attackRow(CHARACTER_BANDS.sidekickAttack, sidekick.attackType, sidekickAttackScale)}
@@ -933,6 +1185,13 @@
     height: 100%;
   }
 
+  .border-clip,
+  .border-fill,
+  .move-line,
+  .move-lockup {
+    pointer-events: none;
+  }
+
   /* Each mask carries its own art — a shared `mask-image` rule cannot, since
      a custom property set on one instance is not visible on a sibling. */
   .mask.border {
@@ -1003,9 +1262,12 @@
   /* Colour comes from `design.abilityInk`, inline — the rule below takes it too, via `currentColor`. */
   .ability {
     position: absolute;
+    overflow: hidden;
+  }
+
+  .ability-content {
     display: flex;
     flex-direction: column;
-    overflow: hidden;
   }
 
   .ability-entry {

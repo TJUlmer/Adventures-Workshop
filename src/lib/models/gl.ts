@@ -6,6 +6,10 @@
  */
 import type { Mesh } from './mesh';
 
+/** The shared camera framing used by both live viewers and still previews. */
+export const MODEL_VIEW_VERTICAL_FOV = Math.PI / 5;
+export const MODEL_VIEW_DISTANCE_FACTOR = 3.2;
+
 const VERTEX_SHADER = `
   attribute vec3 position;
   attribute vec3 normal;
@@ -164,6 +168,29 @@ export interface Camera {
   zoom: number;
 }
 
+/** The camera distance implied by the viewer's fit-to-model framing. */
+function viewDistance(mesh: Mesh, camera: Camera): number {
+  return (mesh.bounds.radius / camera.zoom) * MODEL_VIEW_DISTANCE_FACTOR;
+}
+
+/**
+ * How many screen pixels one model unit occupies at the model's centre plane.
+ *
+ * `ModelViewer` uses this for its camera-facing measurement grid. Keeping the
+ * projection calculation beside the projection itself is important: copying
+ * either the field of view or the fit factor into the component would make a
+ * later camera adjustment leave the model and its ruler disagreeing.
+ */
+export function projectedPixelsPerUnit(
+  mesh: Mesh,
+  camera: Camera,
+  viewportHeight: number
+): number {
+  const distance = viewDistance(mesh, camera);
+  if (!Number.isFinite(distance) || distance <= 0 || viewportHeight <= 0) return 0;
+  return viewportHeight / (2 * Math.tan(MODEL_VIEW_VERTICAL_FOV / 2) * distance);
+}
+
 /**
  * Draw one frame of `mesh` to `canvas`, sized to the canvas's own current
  * width/height. Throws rather than returning a status, so an interactive
@@ -258,11 +285,16 @@ export function renderMeshToCanvas(
     gl.uniform1i(gl.getUniformLocation(program, 'map'), 0);
   }
 
-  const distance = (mesh.bounds.radius / camera.zoom) * 3.2;
+  const distance = viewDistance(mesh, camera);
   gl.uniformMatrix4fv(
     gl.getUniformLocation(program, 'projection'),
     false,
-    perspective(Math.PI / 5, canvas.width / canvas.height, distance / 100, distance * 10)
+    perspective(
+      MODEL_VIEW_VERTICAL_FOV,
+      canvas.width / canvas.height,
+      distance / 100,
+      distance * 10
+    )
   );
   gl.uniformMatrix4fv(
     gl.getUniformLocation(program, 'modelView'),

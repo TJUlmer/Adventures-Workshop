@@ -4,15 +4,16 @@
    *
    * This is the review page — the one you scroll before calling a set done, and
    * the source for a future set-overview sheet. Cards render through the same
-   * component the editor previews, so what is here is what prints.
+   * component the editor previews, so what is here is what prints. A shared
+   * publication supplies lossless pictures made by that renderer instead of
+   * reconstructing cards in the visitor's browser.
    *
    * It is also what a published set looks like to a stranger, which is why it
    * takes the set as a prop rather than only reading the store: a shared set is
    * never in the library, so there is nothing in the store to read. That view
-   * passes `interactive={false}`, and the difference is only in the wrappers —
-   * a tile that opens the editor is a button, and one belonging to somebody
-   * else's set is not a control at all. What is *drawn* is identical, which is
-   * the point: a viewer sees the set, not a summary of it.
+   * passes `interactive={false}` and `inspectable`: those tiles open a reading
+   * view instead of an editor. What is *drawn* is identical, which is the point:
+   * a viewer sees the set, not a summary of it.
    */
   import { cardLabel } from '$lib/cards/factory';
   import type { Card } from '$lib/cards/types';
@@ -22,24 +23,41 @@
   import type { Character, CharacterRole, HeroCharacterCard } from '$lib/characters/types';
   import { hasArtwork } from '$lib/core/artwork';
   import type { Deck, DeckKind } from '$lib/decks/types';
-  import { resolvedTokenSpec, tokenTextureUrl } from '$lib/export/token-model';
-  import { figureLabel, FIGURE_KIND_LABELS, generatedTokenSpec } from '$lib/figures/types';
-  import { isViewableModel, loadMesh } from '$lib/models/load';
-  import { renderMeshSnapshot } from '$lib/models/snapshot';
-  import { buildTokenMesh } from '$lib/models/token';
+  import type { Figure } from '$lib/figures/types';
+  import { figureLabel, FIGURE_KIND_LABELS } from '$lib/figures/types';
+  import {
+    cardPreviewUrl,
+    characterCardPreviewKey,
+    deckBackPreviewKey,
+    printedCardPreviewKey
+  } from '$lib/cloud/card-previews';
+  import type { CardPreviewManifest } from '$lib/cloud/card-previews';
   import { CardRenderer, MapBoard, ThreatBoard } from '$lib/renderer';
-  import { resolveStyleForCard } from '$lib/sets/queries';
+  import { initiativeSubjectForCard, resolveStyleForCard } from '$lib/sets/queries';
   import type { AdventureSet } from '$lib/sets/types';
   import { threatTotal } from '$lib/threat/types';
   import { navigation } from '$lib/state/navigation.svelte';
   import { workshop } from '$lib/state/workshop.svelte';
   import { EmptyState, Icon } from '$lib/ui';
+  import { GALLERY_CARD_SIZE } from './gallery-inspection';
+  import type { GalleryCardItem, GalleryCardSide } from './gallery-inspection';
 
   interface Props {
     /** The set to lay out. The open one unless another is handed in. */
     set?: AdventureSet;
     /** Whether a tile is a way in to the editor. Off for someone else's set. */
     interactive?: boolean;
+    /** Whether read-only card and component tiles open focused inspection. */
+    inspectable?: boolean;
+    /**
+     * Whether figure assets are safe to pass through canvas/WebGL. Shared
+     * views turn this on after their public Storage URLs have been embedded.
+     */
+    componentPreviewsReady?: boolean;
+    /** Fixed publication pixels. Omitted by the editable Overview. */
+    cardPreviews?: CardPreviewManifest;
+    /** A shared publication must never substitute a live reconstructed card. */
+    publishedPngsOnly?: boolean;
     /** Off where the screen around it has already named the set. */
     heading?: boolean;
     /** Controlled card width for a parent that owns the review toolbar. */
@@ -47,18 +65,35 @@
     /** The self-contained shared-set view still uses this component's slider. */
     showZoom?: boolean;
     onCardSizeChange?: (value: number) => void;
+    /** Stable section targets for a parent-owned gallery navigation bar. */
+    anchorPrefix?: string;
   }
 
   let {
     set: given,
     interactive = true,
+    inspectable = false,
+    componentPreviewsReady = true,
+    cardPreviews,
+    publishedPngsOnly = false,
     heading = true,
     cardSize,
     showZoom = true,
-    onCardSizeChange
+    onCardSizeChange,
+    anchorPrefix
   }: Props = $props();
 
   const set = $derived(given ?? workshop.adventure);
+  let failedCardPreviewUrls = $state<Set<string>>(new Set());
+
+  function publishedPreview(key: string): string {
+    const url = cardPreviewUrl(cardPreviews, key);
+    return url && !failedCardPreviewUrls.has(url) ? url : '';
+  }
+
+  function rejectPublishedPreview(url: string): void {
+    failedCardPreviewUrls = new Set([...failedCardPreviewUrls, url]);
+  }
 
   /*
    * A tile that goes nowhere is not a button.
@@ -72,7 +107,11 @@
    * `<svelte:element>` is a handler on an unknown tag until the role says
    * otherwise. Both are dropped in the same breath as the handler.
    */
-  const tile = $derived(interactive ? 'button' : 'div');
+  const editorTile = $derived(interactive ? 'button' : 'div');
+  const previewTile = $derived(interactive || inspectable ? 'button' : 'div');
+  const previewControl = $derived(interactive || inspectable);
+  const figurePreviewControl = $derived(interactive || (inspectable && componentPreviewsReady));
+  const figurePreviewTile = $derived(figurePreviewControl ? 'button' : 'div');
 
   /** The villain the track names, for the board's nameplate and burst. */
   const threatVillain = $derived(
@@ -98,74 +137,126 @@
    */
   let modelSnapshots = $state<Record<string, string>>({});
   const snapshotKeys: Record<string, string> = {};
+  let figuresNear = $state(false);
+  let visibleGalleries = $state<Record<string, boolean>>({});
+  let deferredSetId = '';
 
-  /** `generatedTokenSpec`, but a malformed token answers `null` rather than throwing. */
-  function tokenSpecFor(figure: (typeof set.figures)[number]) {
-    try {
-      return generatedTokenSpec(figure);
-    } catch (error) {
-      report(`The token spec for ${figureLabel(figure, figureOwnerName(figure))}`, error);
-      return null;
+  type CardLightboxView = (typeof import('./CardLightbox.svelte'))['default'];
+  type ComponentModalView = (typeof import('./ComponentModal.svelte'))['default'];
+  let CardLightbox = $state.raw<CardLightboxView | null>(null);
+  let ComponentModal = $state.raw<ComponentModalView | null>(null);
+
+  $effect(() => {
+    if (set.id === deferredSetId) return;
+    deferredSetId = set.id;
+    visibleGalleries = {};
+    figuresNear = false;
+  });
+
+  /**
+   * Reveal expensive content shortly before it enters the Overview scroller.
+   * The placeholder inside `node` gives the observer real geometry, so a long
+   * page cannot collapse and accidentally reveal every group at once.
+   */
+  function revealNear(node: HTMLElement, reveal: () => void) {
+    let currentReveal = reveal;
+    if (typeof IntersectionObserver === 'undefined') {
+      currentReveal();
+      return { update: (next: () => void) => (currentReveal = next) };
     }
+
+    const root = node.closest<HTMLElement>('.page');
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (!entries.some((entry) => entry.isIntersecting)) return;
+        currentReveal();
+        observer.disconnect();
+      },
+      { root, rootMargin: '700px 0px' }
+    );
+    observer.observe(node);
+    return {
+      update(next: () => void) {
+        currentReveal = next;
+      },
+      destroy() {
+        observer.disconnect();
+      }
+    };
+  }
+
+  function revealGallery(key: string): void {
+    if (!visibleGalleries[key]) visibleGalleries[key] = true;
+  }
+
+  function galleryVisible(key: string): boolean {
+    return visibleGalleries[key] ?? false;
   }
 
   $effect(() => {
-    for (const figure of set.figures) {
-      /*
-       * Per figure, inside the loop, so one unreadable component does not stop
-       * the others being previewed — and so a throw here cannot take the effect
-       * down with it. An effect that throws during mount does not just lose its
-       * own work; it breaks the graph, which is how "one bad figure" became "the
-       * page does not load".
-       */
-      const spec = tokenSpecFor(figure);
-      const modelName = figure.model?.name ?? '';
-      const modelSource = figure.model?.source ?? null;
-      const attached = !spec && modelSource !== null && isViewableModel(modelName);
-      if (!spec && !attached) continue;
+    if (!figuresNear || !componentPreviewsReady) return;
+    const figures = set.figures;
+    let cancelled = false;
 
-      const key = spec
-        ? `token|${JSON.stringify(spec)}|${figure.reference.source ?? ''}|${figure.token.rimColor}`
-        : `model|${modelSource}|${figure.reference.source ?? ''}`;
-      if (snapshotKeys[figure.id] === key) continue;
-      snapshotKeys[figure.id] = key;
+    void (async () => {
+      const [{ figurePreviewKey, loadFigurePreview, releaseFigurePreview }, { renderMeshSnapshot }] =
+        await Promise.all([import('./figure-preview'), import('$lib/models/snapshot')]);
 
-      const figureId = figure.id;
-      void (async () => {
+      for (const figure of figures) {
+        if (cancelled) return;
         /*
-         * Caught rather than left to reject. `loadMesh` throws on a model
-         * format it does not read and `models/gl.ts` throws when the browser
-         * will not give the page a 3D context — neither is a reason for a
-         * *review* page to have a hole in it, and as an unhandled rejection
-         * neither said anything useful either. The figure simply keeps its
-         * flat reference image, which is what a figure with no model shows.
+         * Per figure, inside the loop, so one unreadable component does not
+         * stop the others. Sequential snapshots also avoid asking several WebGL
+         * contexts to initialise during the same frame.
          */
+        let key: string | null;
         try {
-          /*
-           * Resolved rather than trusted as stored: this page reviews sets it
-           * may not be the one actively editing them in, so a silhouette's
-           * outline here has to be re-checked for staleness itself rather
-           * than assuming `FiguresPanel`'s own retrace effect already ran —
-           * see `resolvedTokenSpec`. Read-only; never writes the outline
-           * back, matching every other reader of it.
-           */
-          const resolvedSpec = spec ? await resolvedTokenSpec(figure, spec) : null;
-          const mesh = resolvedSpec
-            ? buildTokenMesh(resolvedSpec)
-            : await loadMesh(modelName, modelSource ?? '');
-          const texture = resolvedSpec ? await tokenTextureUrl(figure) : figure.reference.source;
-          const snapshot = await renderMeshSnapshot(mesh, texture, 160);
-          if (snapshot) modelSnapshots[figureId] = snapshot;
+          key = figurePreviewKey(figure);
+        } catch (error) {
+          delete snapshotKeys[figure.id];
+          delete modelSnapshots[figure.id];
+          report(`The token spec for ${figureLabel(figure, figureOwnerName(figure))}`, error);
+          continue;
+        }
+        if (!key) {
+          delete snapshotKeys[figure.id];
+          delete modelSnapshots[figure.id];
+          continue;
+        }
+        if (snapshotKeys[figure.id] === key) continue;
+        snapshotKeys[figure.id] = key;
+        delete modelSnapshots[figure.id];
+
+        try {
+          const preview = await loadFigurePreview(figure);
+          if (!preview) continue;
+          let snapshot: string | null;
+          try {
+            snapshot = await renderMeshSnapshot(preview.mesh, preview.texture, 160);
+          } finally {
+            releaseFigurePreview(preview);
+          }
+          if (!cancelled && snapshot && snapshotKeys[figure.id] === key) {
+            modelSnapshots[figure.id] = snapshot;
+          }
         } catch (error) {
           report(`A 3D preview of ${figureLabel(figure, figureOwnerName(figure))}`, error);
         }
-      })();
-    }
+      }
+    })().catch((error: unknown) => report('The component preview tools', error));
+
+    return () => {
+      cancelled = true;
+    };
   });
 
   /** Which faces a card contributes to the gallery. Only events have two. */
   const FRONT_ONLY = ['front'] as const;
   const EVENT_SIDES = ['front', 'back'] as const;
+
+  function renderedCardCount(cards: readonly Card[]): number {
+    return cards.reduce((total, card) => total + (card.type === 'event' ? 2 : 1), 0);
+  }
 
   /** Figures in the order a set is read: who it is played as, then against. */
   const ROLE_ORDER: readonly CharacterRole[] = ['hero', 'villain', 'minion', 'sidekick'];
@@ -296,9 +387,12 @@
    * more closely. Keeping one range here also means the editable and shared
    * Overviews never disagree about what the same slider position means.
    */
-  const ZOOM: { min: number; max: number; start: number } = { min: 110, max: 410, start: 260 };
-  let localSize = $state(ZOOM.start);
+  let localSize = $state<number>(GALLERY_CARD_SIZE.start);
   const size = $derived(cardSize ?? localSize);
+
+  function anchorId(section: string): string | undefined {
+    return anchorPrefix ? `${anchorPrefix}-${section}` : undefined;
+  }
 
   function changeSize(value: number): void {
     localSize = value;
@@ -325,6 +419,111 @@
       set.threat.enabled ||
       set.map.enabled
   );
+
+  let lightboxItems = $state<GalleryCardItem[]>([]);
+  let lightboxIndex = $state(0);
+  let lightboxSide = $state<GalleryCardSide>('front');
+  let lightboxCollection = $state('');
+  const lightboxOpen = $derived(inspectable && lightboxItems.length > 0);
+
+  let viewingFigureId = $state<string | null>(null);
+  const viewingFigure = $derived(
+    set.figures.find((figure) => figure.id === viewingFigureId) ?? null
+  );
+
+  function cardItem(group: Group, card: Card): GalleryCardItem {
+    const front = publishedPreview(printedCardPreviewKey(card.id, 'front'));
+    const back =
+      card.type === 'event' ? publishedPreview(printedCardPreviewKey(card.id, 'back')) : '';
+    return {
+      kind: 'card',
+      key: card.id,
+      label: cardLabel(card),
+      meta: CARD_TYPE_META[card.type].label,
+      card,
+      character: group.owner,
+      previews: { ...(front ? { front } : {}), ...(back ? { back } : {}) }
+    };
+  }
+
+  function identityItems(character: Character): GalleryCardItem[] {
+    return [
+      {
+        kind: 'deck-back',
+        key: `deck-back:${character.id}`,
+        label: characterLabel(character),
+        meta: 'Deck back',
+        character,
+        previews: {
+          front: publishedPreview(deckBackPreviewKey(character.id)) || undefined
+        }
+      },
+      ...characterCardsFor(character).map((entry) => ({
+        kind: 'character-card' as const,
+        key: `character-card:${entry.key}`,
+        label: entry.name,
+        meta: 'Character card',
+        character,
+        entry: entry.entry,
+        previews: {
+          front: publishedPreview(characterCardPreviewKey(entry.key)) || undefined
+        }
+      }))
+    ];
+  }
+
+  function openCards(
+    items: GalleryCardItem[],
+    key: string,
+    collection: string,
+    side: GalleryCardSide = 'front'
+  ): void {
+    if (!inspectable) return;
+    const activeIndex = items.findIndex((item) => item.key === key);
+    if (activeIndex < 0) return;
+    lightboxItems = items;
+    lightboxIndex = activeIndex;
+    lightboxCollection = collection;
+    lightboxSide = side;
+    if (!CardLightbox) {
+      void import('./CardLightbox.svelte')
+        .then((module) => (CardLightbox = module.default))
+        .catch((error: unknown) => report('The card lightbox', error));
+    }
+  }
+
+  function openGroupCard(group: Group, card: Card, side: GalleryCardSide): void {
+    openCards(group.cards.map((entry) => cardItem(group, entry)), card.id, group.title, side);
+  }
+
+  function openIdentity(character: Character, key: string): void {
+    openCards(identityItems(character), key, `${characterLabel(character)} · Identity`);
+  }
+
+  function moveLightbox(delta: number): void {
+    const next = Math.min(lightboxItems.length - 1, Math.max(0, lightboxIndex + delta));
+    if (next === lightboxIndex) return;
+    lightboxIndex = next;
+    const nextItem = lightboxItems[next];
+    if (nextItem?.kind !== 'card' || nextItem.card.type !== 'event') lightboxSide = 'front';
+  }
+
+  function closeLightbox(): void {
+    lightboxItems = [];
+    lightboxIndex = 0;
+    lightboxSide = 'front';
+    lightboxCollection = '';
+  }
+
+  function openFigure(figure: Figure): void {
+    if (!inspectable) return;
+    viewingFigureId = figure.id;
+    if (!ComponentModal) {
+      void import('./ComponentModal.svelte')
+        .then((module) => (ComponentModal = module.default))
+        .catch((error: unknown) => report('The component viewer', error));
+    }
+  }
 
   /**
    * One tile failing must not take the page with it.
@@ -365,21 +564,67 @@
   </div>
 {/snippet}
 
+{#snippet unavailablePublishedCard(label: string, shape: 'portrait' | 'landscape' | 'miniature' = 'portrait')}
+  <div
+    class="published-unavailable {shape}"
+    role="img"
+    aria-label={`${label} image temporarily unavailable`}
+  >
+    <Icon name="image" size={22} />
+    <span>Preview temporarily unavailable</span>
+  </div>
+{/snippet}
+
+{#snippet galleryPlaceholders(count: number)}
+  {#each Array.from({ length: count }) as _, index (index)}
+    <figure class="tile placeholder" aria-hidden="true">
+      <span class="placeholder-card"></span>
+      <figcaption class="tile-caption">
+        <span class="placeholder-line"></span>
+        <span class="placeholder-line short"></span>
+      </figcaption>
+    </figure>
+  {/each}
+{/snippet}
+
 {#snippet deckBack(character: Character)}
+  {@const previewSrc = publishedPreview(deckBackPreviewKey(character.id))}
   <figure class="tile identity-tile">
     <svelte:element
-      this={tile}
+      this={previewTile}
       class="tile-card"
-      type={interactive ? 'button' : undefined}
-      role={interactive ? 'button' : undefined}
-      onclick={interactive ? () => workshop.selectCharacter(character.id) : undefined}
+      type={previewControl ? 'button' : undefined}
+      role={previewControl ? 'button' : undefined}
+      aria-haspopup={inspectable && !interactive ? 'dialog' : undefined}
+      aria-label={previewControl
+        ? `${interactive ? 'Edit' : 'View'} ${characterLabel(character)} deck back`
+        : undefined}
+      onclick={interactive
+        ? () => workshop.selectCharacter(character.id)
+        : inspectable
+          ? () => openIdentity(character, `deck-back:${character.id}`)
+          : undefined}
     >
-      <svelte:boundary onerror={(error) => report(`${characterLabel(character)}'s deck back`, error)}>
-        <CardRenderer card={null} cardback={character} />
-        {#snippet failed(error)}
-          {@render broken(`${characterLabel(character)}'s deck back`, error)}
-        {/snippet}
-      </svelte:boundary>
+      {#if previewSrc}
+        <img
+          class="published-card-preview"
+          src={previewSrc}
+          alt=""
+          onerror={() => rejectPublishedPreview(previewSrc)}
+        />
+      {:else if publishedPngsOnly}
+        {@render unavailablePublishedCard(`${characterLabel(character)} deck back`)}
+      {:else}
+        <svelte:boundary onerror={(error) => report(`${characterLabel(character)}'s deck back`, error)}>
+          <CardRenderer card={null} cardback={character} />
+          {#snippet failed(error)}
+            {@render broken(`${characterLabel(character)}'s deck back`, error)}
+          {/snippet}
+        </svelte:boundary>
+      {/if}
+      {#if inspectable && !interactive}
+        <span class="inspect-cue" aria-hidden="true"><Icon name="search" size={13} /></span>
+      {/if}
     </svelte:element>
     <figcaption class="tile-caption">
       <span class="tile-name">{characterLabel(character)}</span>
@@ -389,25 +634,48 @@
 {/snippet}
 
 {#snippet characterCard(tileEntry: CharacterCardTile)}
+  {@const previewSrc = publishedPreview(characterCardPreviewKey(tileEntry.key))}
   <figure class="tile identity-tile">
     <svelte:element
-      this={tile}
+      this={previewTile}
       class="tile-card"
-      type={interactive ? 'button' : undefined}
-      role={interactive ? 'button' : undefined}
-      onclick={interactive ? () => workshop.selectCharacter(tileEntry.character.id) : undefined}
+      type={previewControl ? 'button' : undefined}
+      role={previewControl ? 'button' : undefined}
+      aria-haspopup={inspectable && !interactive ? 'dialog' : undefined}
+      aria-label={previewControl
+        ? `${interactive ? 'Edit' : 'View'} ${tileEntry.name} character card`
+        : undefined}
+      onclick={interactive
+        ? () => workshop.selectCharacter(tileEntry.character.id)
+        : inspectable
+          ? () => openIdentity(tileEntry.character, `character-card:${tileEntry.key}`)
+          : undefined}
     >
-      <svelte:boundary onerror={(error) => report(`${tileEntry.name}'s character card`, error)}>
-        <CardRenderer
-          card={null}
-          statCard={tileEntry.character}
-          statCardEntry={tileEntry.entry}
-          customSymbols={set.customSymbols}
+      {#if previewSrc}
+        <img
+          class="published-card-preview"
+          src={previewSrc}
+          alt=""
+          onerror={() => rejectPublishedPreview(previewSrc)}
         />
-        {#snippet failed(error)}
-          {@render broken(`${tileEntry.name}'s character card`, error)}
-        {/snippet}
-      </svelte:boundary>
+      {:else if publishedPngsOnly}
+        {@render unavailablePublishedCard(`${tileEntry.name} character card`)}
+      {:else}
+        <svelte:boundary onerror={(error) => report(`${tileEntry.name}'s character card`, error)}>
+          <CardRenderer
+            card={null}
+            statCard={tileEntry.character}
+            statCardEntry={tileEntry.entry}
+            customSymbols={set.customSymbols}
+          />
+          {#snippet failed(error)}
+            {@render broken(`${tileEntry.name}'s character card`, error)}
+          {/snippet}
+        </svelte:boundary>
+      {/if}
+      {#if inspectable && !interactive}
+        <span class="inspect-cue" aria-hidden="true"><Icon name="search" size={13} /></span>
+      {/if}
     </svelte:element>
     <figcaption class="tile-caption">
       <span class="tile-name">{tileEntry.name}</span>
@@ -417,51 +685,93 @@
 {/snippet}
 
 {#snippet deckGroup(group: Group)}
+  {@const galleryKey = `${set.id}:deck:${group.key}`}
+  {@const isVisible = galleryVisible(galleryKey)}
   <div class="deck-group">
     <h3 class="deck-title">
       {group.title}
       <span class="group-count numeric">{group.cards.length}</span>
     </h3>
-    <div class="gallery" style:--tile="{size}px">
-      {#each group.cards as card (card.id)}
-        {@const sides = card.type === 'event' ? EVENT_SIDES : FRONT_ONLY}
-        {#each sides as side (side)}
-          <figure class="tile">
-            <svelte:element
-              this={tile}
-              class="tile-card"
-              type={interactive ? 'button' : undefined}
-              role={interactive ? 'button' : undefined}
-              onclick={interactive ? () => workshop.selectCard(card.id) : undefined}
-            >
-              <svelte:boundary onerror={(error) => report(`Card “${cardLabel(card)}”`, error)}>
-                <CardRenderer
-                  {card}
-                  character={group.owner}
-                  theme={resolveStyleForCard(set, card)}
-                  customSymbols={set.customSymbols}
-                  {side}
-                />
-                {#snippet failed(error)}
-                  {@render broken(`Card “${cardLabel(card)}”`, error)}
-                {/snippet}
-              </svelte:boundary>
-            </svelte:element>
-            <figcaption class="tile-caption">
-              <span class="tile-name">{cardLabel(card)}</span>
-              <span class="tile-meta">
-                {side === 'back' ? 'Reverse' : CARD_TYPE_META[card.type].label}
-                {#if card.quantity > 1}<span class="numeric">×{card.quantity}</span>{/if}
-              </span>
-            </figcaption>
-          </figure>
+    <div
+      class="gallery"
+      style:--tile="{size}px"
+      aria-busy={!isVisible}
+      use:revealNear={() => revealGallery(galleryKey)}
+    >
+      {#if isVisible}
+        {#each group.cards as card (card.id)}
+          {@const sides = card.type === 'event' ? EVENT_SIDES : FRONT_ONLY}
+          {#each sides as side (side)}
+            {@const previewSrc = publishedPreview(printedCardPreviewKey(card.id, side))}
+            <figure class="tile">
+              <svelte:element
+                this={previewTile}
+                class="tile-card"
+                type={previewControl ? 'button' : undefined}
+                role={previewControl ? 'button' : undefined}
+                aria-haspopup={inspectable && !interactive ? 'dialog' : undefined}
+                aria-label={previewControl
+                  ? `${interactive ? 'Edit' : 'View'} ${cardLabel(card)}${side === 'back' ? ', reverse' : ''}`
+                  : undefined}
+                onclick={interactive
+                  ? () => workshop.selectCard(card.id)
+                  : inspectable
+                    ? () => openGroupCard(group, card, side)
+                    : undefined}
+              >
+                {#if previewSrc}
+                  <img
+                    class="published-card-preview"
+                    src={previewSrc}
+                    alt=""
+                    onerror={() => rejectPublishedPreview(previewSrc)}
+                  />
+                {:else if publishedPngsOnly}
+                  {@render unavailablePublishedCard(
+                    `${cardLabel(card)}${side === 'back' ? ' reverse' : ''}`,
+                    card.type === 'event' || (card.type === 'rules' && card.landscape)
+                      ? 'landscape'
+                      : card.type === 'initiative'
+                        ? 'miniature'
+                        : 'portrait'
+                  )}
+                {:else}
+                  <svelte:boundary onerror={(error) => report(`Card “${cardLabel(card)}”`, error)}>
+                    <CardRenderer
+                      {card}
+                      character={group.owner}
+                      theme={resolveStyleForCard(set, card)}
+                      customSymbols={set.customSymbols}
+                      initiativeSubject={initiativeSubjectForCard(set, card)}
+                      {side}
+                    />
+                    {#snippet failed(error)}
+                      {@render broken(`Card “${cardLabel(card)}”`, error)}
+                    {/snippet}
+                  </svelte:boundary>
+                {/if}
+                {#if inspectable && !interactive}
+                  <span class="inspect-cue" aria-hidden="true"><Icon name="search" size={13} /></span>
+                {/if}
+              </svelte:element>
+              <figcaption class="tile-caption">
+                <span class="tile-name">{cardLabel(card)}</span>
+                <span class="tile-meta">
+                  {side === 'back' ? 'Reverse' : CARD_TYPE_META[card.type].label}
+                  {#if card.quantity > 1}<span class="numeric">×{card.quantity}</span>{/if}
+                </span>
+              </figcaption>
+            </figure>
+          {/each}
         {/each}
-      {/each}
+      {:else}
+        {@render galleryPlaceholders(renderedCardCount(group.cards))}
+      {/if}
     </div>
   </div>
 {/snippet}
 
-<div class="page scroll-y">
+<div class="page scroll-y" id={anchorId('top')}>
   {#if heading || showZoom}
     <header class="head">
       {#if heading}
@@ -477,9 +787,9 @@
           <Icon name="search" size={12} />
           <input
             type="range"
-            min={ZOOM.min}
-            max={ZOOM.max}
-            step="10"
+            min={GALLERY_CARD_SIZE.min}
+            max={GALLERY_CARD_SIZE.max}
+            step={GALLERY_CARD_SIZE.step}
             value={size}
             aria-label="Card size"
             oninput={(event) => changeSize(event.currentTarget.valueAsNumber)}
@@ -498,7 +808,7 @@
   {/if}
 
   {#if set.threat.enabled || set.map.enabled}
-    <section class="showcase battlefield">
+    <section class="showcase battlefield" id={anchorId('battlefield')}>
       <header class="section-heading">
         <div>
           <span class="section-kicker">On the table</span>
@@ -515,7 +825,7 @@
               <span class="numeric">{threatTotal(set.threat)} total</span>
             </header>
             <svelte:element
-              this={tile}
+              this={editorTile}
               class="track-open"
               type={interactive ? 'button' : undefined}
               role={interactive ? 'button' : undefined}
@@ -545,14 +855,19 @@
               </span>
             </header>
             <svelte:element
-              this={tile}
+              this={editorTile}
               class="track-open"
               type={interactive ? 'button' : undefined}
               role={interactive ? 'button' : undefined}
               onclick={interactive ? () => navigation.go('map') : undefined}
             >
               <svelte:boundary onerror={(error) => report('The map', error)}>
-                <MapBoard map={set.map} customSymbols={set.customSymbols} />
+                <MapBoard
+                  map={set.map}
+                  customSymbols={set.customSymbols}
+                  setName={set.name}
+                  authorName={set.meta.author}
+                />
                 {#snippet failed(error)}
                   {@render broken('The map', error)}
                 {/snippet}
@@ -565,7 +880,7 @@
   {/if}
 
   {#if set.figures.length > 0}
-    <section class="showcase">
+    <section class="showcase" id={anchorId('components')}>
       <header class="section-heading">
         <div>
           <span class="section-kicker">Physical pieces</span>
@@ -574,14 +889,22 @@
         <span class="section-count numeric">{set.figures.length}</span>
       </header>
 
-      <div class="figures">
+      <div class="figures" use:revealNear={() => (figuresNear = true)}>
         {#each set.figures as figure (figure.id)}
           <svelte:element
-            this={tile}
+            this={figurePreviewTile}
             class="figure"
-            type={interactive ? 'button' : undefined}
-            role={interactive ? 'button' : undefined}
-            onclick={interactive ? () => navigation.go('figures') : undefined}
+            type={figurePreviewControl ? 'button' : undefined}
+            role={figurePreviewControl ? 'button' : undefined}
+            aria-haspopup={inspectable && !interactive && componentPreviewsReady ? 'dialog' : undefined}
+            aria-label={figurePreviewControl
+              ? `${interactive ? 'Edit' : 'View'} ${figureLabel(figure, figureOwnerName(figure))}`
+              : undefined}
+            onclick={interactive
+              ? () => navigation.go('figures')
+              : inspectable && componentPreviewsReady
+                ? () => openFigure(figure)
+                : undefined}
           >
             <span
               class="figure-thumb"
@@ -593,6 +916,9 @@
                 <img src={figure.reference.source} alt="" />
               {:else}
                 <Icon name="image" size={16} />
+              {/if}
+              {#if inspectable && !interactive && componentPreviewsReady}
+                <span class="inspect-cue" aria-hidden="true"><Icon name="rotate" size={14} /></span>
               {/if}
             </span>
             <span class="figure-name">{figureLabel(figure, figureOwnerName(figure))}</span>
@@ -621,7 +947,9 @@
           {@const ownedGroups = groupsFor(character)}
           {@const statCards = characterCardsFor(character)}
           {@const ownedCardCount = ownedGroups.reduce((total, group) => total + group.cards.length, 0)}
-          <article class="character-collection">
+          {@const identityKey = `${set.id}:identity:${character.id}`}
+          {@const identityVisible = galleryVisible(identityKey)}
+          <article class="character-collection" id={anchorId(`character-${character.id}`)}>
             <header class="character-heading">
               <div>
                 <span class="role-badge">{CHARACTER_ROLE_META[character.role].label}</span>
@@ -632,11 +960,20 @@
 
             <div class="identity-block">
               <h4>Identity</h4>
-              <div class="gallery identity-gallery" style:--tile="{size}px">
-                {@render deckBack(character)}
-                {#each statCards as tileEntry (tileEntry.key)}
-                  {@render characterCard(tileEntry)}
-                {/each}
+              <div
+                class="gallery identity-gallery"
+                style:--tile="{size}px"
+                aria-busy={!identityVisible}
+                use:revealNear={() => revealGallery(identityKey)}
+              >
+                {#if identityVisible}
+                  {@render deckBack(character)}
+                  {#each statCards as tileEntry (tileEntry.key)}
+                    {@render characterCard(tileEntry)}
+                  {/each}
+                {:else}
+                  {@render galleryPlaceholders(1 + statCards.length)}
+                {/if}
               </div>
             </div>
 
@@ -650,7 +987,7 @@
   {/if}
 
   {#if setGroups.length > 0}
-    <section class="showcase set-decks">
+    <section class="showcase set-decks" id={anchorId('set-decks')}>
       <header class="section-heading">
         <div>
           <span class="section-kicker">Shared material</span>
@@ -665,6 +1002,30 @@
     </section>
   {/if}
 </div>
+
+{#if inspectable && CardLightbox}
+  <CardLightbox
+    open={lightboxOpen}
+    {set}
+    collection={lightboxCollection}
+    items={lightboxItems}
+    index={lightboxIndex}
+    side={lightboxSide}
+    onclose={closeLightbox}
+    onprevious={() => moveLightbox(-1)}
+    onnext={() => moveLightbox(1)}
+    onsidechange={(side) => (lightboxSide = side)}
+    {publishedPngsOnly}
+  />
+{/if}
+{#if inspectable && ComponentModal}
+  <ComponentModal
+    open={viewingFigure !== null}
+    figure={viewingFigure}
+    ownerName={viewingFigure ? figureOwnerName(viewingFigure) : null}
+    onclose={() => (viewingFigureId = null)}
+  />
+{/if}
 
 <style>
   .page {
@@ -760,6 +1121,7 @@
     border-radius: var(--radius-lg);
     background: var(--surface-base);
     box-shadow: var(--shadow-sm);
+    scroll-margin-block-start: var(--space-3);
   }
 
   .section-heading,
@@ -917,7 +1279,18 @@
 
   .gallery {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(var(--tile), 1fr));
+    /*
+     * The control names an actual card width, not a minimum. Letting `1fr`
+     * absorb leftover row space produced fractional widths (269.59375px in the
+     * reported gallery), so independently masked frame/ribbon edges could land
+     * on different device pixels. Fixed tracks keep the renderer on the exact
+     * integer size the author/viewer selected, while `min()` still protects a
+     * phone narrower than one card.
+     */
+    grid-template-columns: repeat(
+      auto-fill,
+      minmax(min(var(--tile), 100%), min(var(--tile), 100%))
+    );
     gap: var(--space-4);
   }
 
@@ -928,7 +1301,40 @@
     margin: 0;
   }
 
+  /* Same geometry as a real card tile, without mounting any renderer. Keeping
+     the grid's height stable is what makes both the scrollbar and jump links
+     truthful while a below-the-fold deck is deferred. */
+  .placeholder-card {
+    display: block;
+    width: 100%;
+    aspect-ratio: 63 / 88;
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-sm);
+    background:
+      linear-gradient(
+        145deg,
+        color-mix(in oklab, var(--surface-active) 70%, transparent),
+        transparent 60%
+      ),
+      var(--surface-inset);
+    box-shadow: var(--shadow-xs);
+  }
+
+  .placeholder-line {
+    display: block;
+    width: 68%;
+    height: 0.65em;
+    border-radius: var(--radius-full);
+    background: var(--surface-active);
+  }
+
+  .placeholder-line.short {
+    width: 42%;
+    opacity: 0.65;
+  }
+
   .tile-card {
+    position: relative;
     display: block;
     padding: 0;
     border-radius: var(--radius-sm);
@@ -955,6 +1361,76 @@
   button.tile-card:hover {
     translate: 0 -2px;
     box-shadow: var(--shadow-lg);
+  }
+
+  .published-card-preview {
+    display: block;
+    width: 100%;
+    height: auto;
+    border-radius: inherit;
+  }
+
+  .published-unavailable {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-2);
+    width: 100%;
+    aspect-ratio: 63 / 88;
+    padding: var(--space-3);
+    border: 1px solid var(--border-subtle);
+    border-radius: inherit;
+    background: var(--surface-inset);
+    color: var(--text-muted);
+    text-align: center;
+  }
+
+  .published-unavailable.landscape {
+    aspect-ratio: 88 / 63;
+  }
+
+  .published-unavailable.miniature {
+    aspect-ratio: 44 / 67;
+  }
+
+  .published-unavailable span {
+    max-width: 16ch;
+    font-size: var(--text-2xs);
+    line-height: var(--leading-snug);
+  }
+
+  .inspect-cue {
+    position: absolute;
+    top: var(--space-2);
+    right: var(--space-2);
+    display: grid;
+    place-items: center;
+    width: 28px;
+    height: 28px;
+    border: 1px solid color-mix(in oklab, var(--text-primary) 22%, transparent);
+    border-radius: var(--radius-full);
+    background: color-mix(in oklab, var(--grey-1000) 72%, transparent);
+    color: var(--text-inverse);
+    opacity: 0;
+    translate: 0 2px;
+    transition:
+      opacity var(--duration-fast) var(--ease-out),
+      translate var(--duration-fast) var(--ease-out);
+    pointer-events: none;
+  }
+
+  button:hover .inspect-cue,
+  button:focus-visible .inspect-cue {
+    opacity: 1;
+    translate: 0;
+  }
+
+  @media (pointer: coarse) {
+    .inspect-cue {
+      opacity: 1;
+      translate: 0;
+    }
   }
 
   .tile-caption {
@@ -1035,6 +1511,7 @@
   }
 
   .figure-thumb {
+    position: relative;
     display: grid;
     place-items: center;
     width: 100%;

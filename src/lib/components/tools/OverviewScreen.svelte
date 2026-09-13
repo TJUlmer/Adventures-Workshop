@@ -10,10 +10,16 @@
   import { setStats } from '$lib/sets/queries';
   import { computeScopedSet, parseScopeKey, scopeKeyOf, scopeOptionsFor } from '$lib/sets/scope';
   import type { PublishScope } from '$lib/sets/scope';
-  import { navigation } from '$lib/state/navigation.svelte';
+  import type { AdventureSet } from '$lib/sets/types';
   import { workshop } from '$lib/state/workshop.svelte';
   import { Button, Icon, Select } from '$lib/ui';
   import AssetsOverview from './AssetsOverview.svelte';
+
+  interface Props {
+    onprint: (set: AdventureSet) => void;
+  }
+
+  let { onprint }: Props = $props();
 
   const set = $derived(workshop.adventure);
   let scope = $state<PublishScope>({ kind: 'full' });
@@ -111,9 +117,9 @@
       <div>
         <span class="rail-kicker">Export</span>
         <h2>Take the set to the table</h2>
-        <p>Exports follow the same “Showing” selection as the review.</p>
+        <p>Print, images and Tabletop Simulator follow “Showing”; the project backup stays complete.</p>
       </div>
-      <ExportPanel {set} onprint={() => navigation.go('print')} bind:scope />
+      <ExportPanel {set} {onprint} bind:scope />
     </section>
   </aside>
 </div>

@@ -63,7 +63,9 @@
     { key: 'back', label: 'Back fill' },
     /* The artwork bed lives with the edge masks that reveal it, in Artwork. */
     { key: 'boost', label: 'Boost disc' },
-    { key: 'ribbonFoot', label: 'Ribbon foot' }
+    { key: 'ribbonFoot', label: 'Ribbon foot' },
+    { key: 'tuckEffect', label: 'Tuck effect' },
+    { key: 'cornerBadge', label: 'Corner badge' }
   ] as const satisfies readonly { key: keyof CardTheme; label: string }[];
 
   const ALL_INKS = [
@@ -72,7 +74,9 @@
     { key: 'bodyInk', label: 'Body text' },
     { key: 'backInk', label: 'Back text' },
     { key: 'divider', label: 'Divider line' },
-    { key: 'boostInk', label: 'Boost number' }
+    { key: 'cornerBadgeInk', label: 'Corner badge content' },
+    { key: 'boostInk', label: 'Boost number' },
+    { key: 'tuckEffectInk', label: 'Tuck effect text' }
   ] as const satisfies readonly { key: keyof CardTheme; label: string }[];
 
   const wanted = (key: keyof CardTheme) => surfaces === undefined || surfaces.includes(key);

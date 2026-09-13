@@ -91,6 +91,14 @@
     display: flex;
     flex-direction: column;
     gap: 0.45em;
+    /*
+     * The card face clips genuinely over-full ability regions. This face's low
+     * descenders extend just beyond the final flex line's calculated box, so
+     * whichever row comes last — plain, timed, or Bonus — needs a sliver of
+     * clearance for letters such as p and g while the panel still has room to
+     * grow upward.
+     */
+    padding-bottom: 0.15em;
   }
 
   .line {

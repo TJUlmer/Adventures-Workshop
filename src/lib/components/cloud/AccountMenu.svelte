@@ -2,13 +2,9 @@
   /**
    * The one place an author's display name can be changed.
    *
-   * It exists because of where that name comes from: signing in with Google
-   * seeds `profiles.display_name` from the account's real name, at the moment
-   * the account is created — see `handle_new_user` in
-   * `supabase/migrations/0002_gallery.sql` — and nothing before this asked
-   * whether that was the name someone wanted printed under a published set.
-   * The trigger only ever runs once, so this is not fighting it on every
-   * load; it is the only way to overwrite what it wrote.
+   * A new account starts with the part of its email before `@`, rather than a
+   * real name copied from OAuth. This remains the place to choose something
+   * else, or nothing at all, before that name is printed under public work.
    *
    * Also the one entry point into signing in that is not tied to sharing or
    * contributing — findable from the corner at any time, not only at the
@@ -23,10 +19,25 @@
   import { draftDiagnostics } from '$lib/persistence/diagnostics.svelte';
   import { draftRollout } from '$lib/persistence/rollout.svelte';
   import { fetchOwnProfile, updateOwnDisplayName } from '$lib/cloud/profile';
+  import {
+    listOutdatedCardPreviews,
+    listOutdatedSocialPreviews,
+    refreshPublishedCardPreviews,
+    refreshPublishedSocialPreview
+  } from '$lib/cloud/sets';
+  import type { CardPreviewRefreshTarget, SocialPreviewRefreshTarget } from '$lib/cloud/sets';
   import { Button, Icon, TextInput } from '$lib/ui';
   import SignInPanel from './SignInPanel.svelte';
 
+  interface Props {
+    /** A completed provider redirect should put the public-name choice in view. */
+    openOnStart?: boolean;
+  }
+
+  let { openOnStart = false }: Props = $props();
   let open = $state(false);
+  let showNameReview = $state(false);
+  let appliedOpenOnStart = $state(false);
   let host = $state<HTMLDivElement | null>(null);
 
   let loading = $state(false);
@@ -36,8 +47,34 @@
   let saving = $state(false);
   let error = $state<string | null>(null);
   let justSaved = $state(false);
+  let isAdmin = $state(false);
+  let previewQueue = $state<SocialPreviewRefreshTarget[]>([]);
+  let previewQueueLoading = $state(false);
+  let previewRefreshing = $state(false);
+  let previewCompleted = $state(0);
+  let previewTotal = $state(0);
+  let previewCurrent = $state('');
+  let previewFailures = $state<string[]>([]);
+  let previewError = $state<string | null>(null);
+  let cardPreviewQueue = $state<CardPreviewRefreshTarget[]>([]);
+  let cardPreviewQueueLoading = $state(false);
+  let cardPreviewRefreshing = $state(false);
+  let cardPreviewCompleted = $state(0);
+  let cardPreviewTotal = $state(0);
+  let cardPreviewCurrent = $state('');
+  let cardPreviewFaceDone = $state(0);
+  let cardPreviewFaceTotal = $state(0);
+  let cardPreviewFailures = $state<string[]>([]);
+  let cardPreviewError = $state<string | null>(null);
 
   const dirty = $derived(displayName.trim() !== saved);
+
+  $effect(() => {
+    if (!openOnStart || appliedOpenOnStart) return;
+    appliedOpenOnStart = true;
+    open = true;
+    showNameReview = true;
+  });
 
   /**
    * Loads once per sign-in rather than once per open, so switching accounts —
@@ -48,6 +85,9 @@
     if (!cloudEnabled() || !auth.signedIn) {
       displayName = '';
       saved = '';
+      isAdmin = false;
+      previewQueue = [];
+      cardPreviewQueue = [];
       return;
     }
 
@@ -59,6 +99,11 @@
         if (cancelled || !profile) return;
         displayName = profile.displayName;
         saved = profile.displayName;
+        isAdmin = profile.isAdmin;
+        if (profile.isAdmin) {
+          void loadPreviewQueue();
+          void loadCardPreviewQueue();
+        }
       })
       .catch((cause) => {
         if (!cancelled) error = cause instanceof Error ? cause.message : 'Could not load your profile.';
@@ -72,6 +117,93 @@
     };
   });
 
+  async function loadPreviewQueue(): Promise<void> {
+    previewQueueLoading = true;
+    previewError = null;
+    try {
+      previewQueue = await listOutdatedSocialPreviews();
+    } catch (cause) {
+      previewError =
+        cause instanceof Error ? cause.message : 'Could not check the social-preview queue.';
+    } finally {
+      previewQueueLoading = false;
+    }
+  }
+
+  async function refreshSocialPreviews(): Promise<void> {
+    if (previewRefreshing || cardPreviewRefreshing || previewQueue.length === 0) return;
+
+    const queue = [...previewQueue];
+    previewRefreshing = true;
+    previewCompleted = 0;
+    previewTotal = queue.length;
+    previewFailures = [];
+    previewError = null;
+
+    for (const target of queue) {
+      previewCurrent = target.name;
+      try {
+        await refreshPublishedSocialPreview(target.id);
+      } catch (cause) {
+        const message = cause instanceof Error ? cause.message : 'Unknown error';
+        previewFailures = [...previewFailures, `${target.name}: ${message}`];
+      } finally {
+        previewCompleted += 1;
+      }
+    }
+
+    previewCurrent = '';
+    previewRefreshing = false;
+    await loadPreviewQueue();
+  }
+
+  async function loadCardPreviewQueue(): Promise<void> {
+    cardPreviewQueueLoading = true;
+    cardPreviewError = null;
+    try {
+      cardPreviewQueue = await listOutdatedCardPreviews();
+    } catch (cause) {
+      cardPreviewError =
+        cause instanceof Error ? cause.message : 'Could not check the gallery-card queue.';
+    } finally {
+      cardPreviewQueueLoading = false;
+    }
+  }
+
+  async function refreshCardPreviews(): Promise<void> {
+    if (cardPreviewRefreshing || previewRefreshing || cardPreviewQueue.length === 0) return;
+
+    const queue = [...cardPreviewQueue];
+    cardPreviewRefreshing = true;
+    cardPreviewCompleted = 0;
+    cardPreviewTotal = queue.length;
+    cardPreviewFailures = [];
+    cardPreviewError = null;
+
+    for (const target of queue) {
+      cardPreviewCurrent = target.name;
+      cardPreviewFaceDone = 0;
+      cardPreviewFaceTotal = 0;
+      try {
+        await refreshPublishedCardPreviews(target.id, (done, total) => {
+          cardPreviewFaceDone = done;
+          cardPreviewFaceTotal = total;
+        });
+      } catch (cause) {
+        const message = cause instanceof Error ? cause.message : 'Unknown error';
+        cardPreviewFailures = [...cardPreviewFailures, `${target.name}: ${message}`];
+      } finally {
+        cardPreviewCompleted += 1;
+      }
+    }
+
+    cardPreviewCurrent = '';
+    cardPreviewFaceDone = 0;
+    cardPreviewFaceTotal = 0;
+    cardPreviewRefreshing = false;
+    await loadCardPreviewQueue();
+  }
+
   async function save(): Promise<void> {
     const next = displayName.trim();
     saving = true;
@@ -81,6 +213,7 @@
       saved = next;
       displayName = next;
       justSaved = true;
+      showNameReview = false;
       setTimeout(() => (justSaved = false), 2000);
     } catch (cause) {
       error = cause instanceof Error ? cause.message : 'Could not save that.';
@@ -91,6 +224,7 @@
 
   async function signOut(): Promise<void> {
     open = false;
+    showNameReview = false;
     await auth.signOut();
   }
 
@@ -106,10 +240,16 @@
   $effect(() => {
     if (!open) return;
     const onPointerDown = (event: PointerEvent) => {
-      if (host && !host.contains(event.target as Node)) open = false;
+      if (host && !host.contains(event.target as Node)) {
+        open = false;
+        showNameReview = false;
+      }
     };
     const onKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') open = false;
+      if (event.key === 'Escape') {
+        open = false;
+        showNameReview = false;
+      }
     };
     document.addEventListener('pointerdown', onPointerDown);
     document.addEventListener('keydown', onKey);
@@ -130,7 +270,10 @@
       aria-expanded={open}
       aria-label="Account"
       title={auth.signedIn ? (auth.isAnonymous ? 'Sharing anonymously' : auth.user?.email) : 'Sign in'}
-      onclick={() => (open = !open)}
+      onclick={() => {
+        open = !open;
+        if (!open) showNameReview = false;
+      }}
     >
       <Icon name="user" size={14} />
     </Button>
@@ -144,6 +287,12 @@
               : 'Sign in to try private drafts across browsers and publish when you choose.'}
           />
         {:else}
+          {#if showNameReview && !auth.isAnonymous}
+            <p class="name-review">
+              Choose the display name shown publicly with your sets and contributions.
+            </p>
+          {/if}
+
           <p class="who">
             {#if auth.isAnonymous}
               Sharing anonymously, from this browser.
@@ -161,9 +310,9 @@
             />
           </label>
           <p class="fineprint">
-            Shown under any set you publish and on any contribution you offer. A
-            Google sign-in starts this as your account's real name — change or
-            clear it any time; blank shows as “Anonymous”.
+            Shown under any set you publish and on any contribution you offer. New
+            accounts start with the part of their email before @. Change or clear
+            it any time; blank shows as “Anonymous”.
           </p>
 
           {#if !auth.isAnonymous}
@@ -207,6 +356,99 @@
               {#if draftRollout.error}<p class="error" role="alert">{draftRollout.error}</p>{/if}
             </section>
 
+          {/if}
+
+          {#if isAdmin}
+            <section class="preview-maintenance">
+              <div>
+                <strong>Social preview styles</strong>
+                {#if previewQueueLoading && !previewRefreshing}
+                  <small>Checking published previews…</small>
+                {:else if previewRefreshing}
+                  <small>
+                    Refreshing {Math.min(previewCompleted + 1, previewTotal)} of {previewTotal}:
+                    {previewCurrent}
+                  </small>
+                {:else if previewQueue.length > 0}
+                  <small>
+                    {previewQueue.length} published
+                    {previewQueue.length === 1 ? 'preview uses' : 'previews use'} an older composition.
+                  </small>
+                {:else}
+                  <small>Every published preview uses the current composition.</small>
+                {/if}
+              </div>
+
+              {#if previewRefreshing}
+                <progress max={previewTotal} value={previewCompleted}>
+                  {previewCompleted} of {previewTotal}
+                </progress>
+              {:else}
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  disabled={previewQueueLoading || previewQueue.length === 0 || cardPreviewRefreshing}
+                  onclick={refreshSocialPreviews}
+                >
+                  Refresh outdated previews
+                </Button>
+              {/if}
+
+              {#if previewFailures.length > 0}
+                <small class="preview-failures">
+                  {previewFailures.length} failed and remain in the queue. {previewFailures[0]}
+                </small>
+              {/if}
+              {#if previewError}<p class="error" role="alert">{previewError}</p>{/if}
+            </section>
+
+            <section class="preview-maintenance">
+              <div>
+                <strong>Gallery card images</strong>
+                {#if cardPreviewQueueLoading && !cardPreviewRefreshing}
+                  <small>Checking published card images…</small>
+                {:else if cardPreviewRefreshing}
+                  <small>
+                    Refreshing {Math.min(cardPreviewCompleted + 1, cardPreviewTotal)} of
+                    {cardPreviewTotal}: {cardPreviewCurrent}
+                    {#if cardPreviewFaceTotal > 0}
+                      ({cardPreviewFaceDone} of {cardPreviewFaceTotal})
+                    {/if}
+                  </small>
+                {:else if cardPreviewQueue.length > 0}
+                  <small>
+                    {cardPreviewQueue.length} published
+                    {cardPreviewQueue.length === 1 ? 'set needs' : 'sets need'} authoritative card
+                    images.
+                  </small>
+                {:else}
+                  <small>Every published set has current gallery card images.</small>
+                {/if}
+              </div>
+
+              {#if cardPreviewRefreshing}
+                <progress max={cardPreviewTotal} value={cardPreviewCompleted}>
+                  {cardPreviewCompleted} of {cardPreviewTotal}
+                </progress>
+              {:else}
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  disabled={cardPreviewQueueLoading || cardPreviewQueue.length === 0 || previewRefreshing}
+                  onclick={refreshCardPreviews}
+                >
+                  Generate missing card images
+                </Button>
+              {/if}
+
+              {#if cardPreviewFailures.length > 0}
+                <small class="preview-failures">
+                  {cardPreviewFailures.length} failed and remain in the queue.
+                  {cardPreviewFailures[0]}
+                </small>
+              {/if}
+              {#if cardPreviewError}<p class="error" role="alert">{cardPreviewError}</p>{/if}
+            </section>
           {/if}
 
           {#if error}<p class="error" role="alert">{error}</p>{/if}
@@ -263,6 +505,17 @@
     color: var(--text-tertiary);
   }
 
+  .name-review {
+    margin: 0;
+    padding: var(--space-2) var(--space-3);
+    border: 1px solid color-mix(in oklab, var(--accent) 44%, var(--border-default));
+    border-radius: var(--radius-sm);
+    background: color-mix(in oklab, var(--accent) 10%, var(--surface-sunken));
+    font-size: var(--text-xs);
+    line-height: var(--leading-normal);
+    color: var(--text-primary);
+  }
+
   .field {
     display: flex;
     flex-direction: column;
@@ -285,6 +538,7 @@
   }
 
   .draft-rollout,
+  .preview-maintenance,
   .support-report {
     display: flex;
     flex-direction: column;
@@ -302,23 +556,36 @@
 
   .draft-rollout strong,
   .draft-rollout small,
+  .preview-maintenance strong,
+  .preview-maintenance small,
   .support-report strong,
   .support-report small {
     display: block;
   }
 
   .draft-rollout strong,
+  .preview-maintenance strong,
   .support-report strong {
     font-size: var(--text-xs);
     color: var(--text-primary);
   }
 
   .draft-rollout small,
+  .preview-maintenance small,
   .support-report small {
     margin-top: var(--space-1);
     font-size: var(--text-2xs);
     line-height: var(--leading-normal);
     color: var(--text-muted);
+  }
+
+  .preview-maintenance progress {
+    width: 100%;
+    accent-color: var(--accent);
+  }
+
+  .preview-failures {
+    color: var(--danger) !important;
   }
 
   .error {

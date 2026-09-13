@@ -78,13 +78,9 @@ export type View =
   /**
    * Someone else's published set, reached by a share link.
    *
-   * `characterHint` is not part of the link — only `openShared`'s own URL
-   * writes are, unchanged — it is a same-navigation nudge for a visitor who
-   * clicked one specific character inside a box that has no listing of its
-   * own: `ExportPanel` reads it to default its scope picker to that hero
-   * instead of the whole set, without a screen the visitor did not ask for. A
-   * reload loses it, the same as it loses any other browse state that is not
-   * the address bar.
+   * `characterHint` identifies the character tile that opened a full-set
+   * listing. `openShared` also records it in the query string, because this
+   * changes the visible document and must not disappear on refresh.
    */
   | { kind: 'shared'; slug: string; characterHint?: string }
   /** Someone's public profile — what they have published, and helped build. */
@@ -127,6 +123,7 @@ export type View =
  */
 const SHARED_PATH_PATTERN = /shared\/([A-Za-z0-9_-]+)\/?$/;
 const SHARED_HASH_PATTERN = /^#\/shared\/([A-Za-z0-9_-]+)$/;
+const SHARED_CHARACTER_PARAM = 'character';
 
 export function readSharedSlug(): string | null {
   return (
@@ -177,6 +174,17 @@ export function readCollectionSlug(): string | null {
     COLLECTION_HASH_PATTERN.exec(window.location.hash)?.[1] ??
     null
   );
+/** The character selected from the gallery, when a full-set listing was opened. */
+export function readSharedCharacterHint(): string | undefined {
+  return new URLSearchParams(window.location.search).get(SHARED_CHARACTER_PARAM)?.trim() || undefined;
+}
+
+function sharedSearch(characterHint?: string): string {
+  const query = new URLSearchParams(window.location.search);
+  if (characterHint) query.set(SHARED_CHARACTER_PARAM, characterHint);
+  else query.delete(SHARED_CHARACTER_PARAM);
+  const value = query.toString();
+  return value ? `?${value}` : '';
 }
 
 class Navigation {
@@ -281,8 +289,9 @@ class Navigation {
    * *different* shared set than the one already open — because that *is* a
    * fresh navigation and wants a fresh, back-button-reachable entry.
    *
-   * `characterHint` — see `View`'s own doc — never touches any of the URL
-   * logic below; it rides along on `this.view` only.
+   * `characterHint` is a query parameter rather than another path segment:
+   * the shared row is still the same set, but a refresh must preserve which
+   * character inside it the gallery asked to show.
    */
   openShared(slug: string, characterHint?: string): void {
     /*
@@ -299,10 +308,15 @@ class Navigation {
     // rather than assuming root, so a sub-path deploy's own base path
     // survives — see `ROUTE_TAIL_PATTERN` for why it must be either.
     const base = window.location.pathname.replace(ROUTE_TAIL_PATTERN, '');
-    const wanted = `${base}shared/${slug}${window.location.search}`;
+    const search = sharedSearch(characterHint);
+    const wanted = `${base}shared/${slug}${search}`;
 
     if (readSharedSlug() === slug) {
-      if (window.location.pathname !== `${base}shared/${slug}` || window.location.hash !== '') {
+      if (
+        window.location.pathname !== `${base}shared/${slug}` ||
+        window.location.search !== search ||
+        window.location.hash !== ''
+      ) {
         history.replaceState(null, '', wanted);
       }
       return;

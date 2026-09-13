@@ -163,12 +163,12 @@ export function generatedTokenSpec(figure: Figure): TokenSpec | null {
 /**
  * Kinds that are a generated token by default.
  *
- * A token and a game piece *are* the flat prism this builds, so the build is on
- * the moment one is added rather than a switch to find. A figure is a sculpt and
- * a dial is its own fixed model, so neither starts as a token.
+ * A token is explicitly the flat prism this builds, so its build starts on.
+ * A game piece may instead be supplied as a model or TTS object, so it starts
+ * off just like a figure; a dial has its own fixed model.
  */
 export function tokenByDefault(kind: FigureKind): boolean {
-  return kind === 'token' || kind === 'piece';
+  return kind === 'token';
 }
 
 export interface Figure {

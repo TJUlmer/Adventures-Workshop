@@ -49,6 +49,10 @@ export type MapEnvironmentPieceId = Id<'MapEnvironmentPiece'>;
 /** Which side of the rim a start marker sits on. */
 export type MapStartSide = 'top' | 'right' | 'bottom' | 'left';
 
+/** Fixed corners available to the printed map identity plate. */
+export const MAP_LABEL_CORNERS = ['top-left', 'top-right', 'bottom-left', 'bottom-right'] as const;
+export type MapLabelCorner = (typeof MAP_LABEL_CORNERS)[number];
+
 /** The board shapes that have fixed export dimensions. `custom` is not one. */
 export const MAP_PRESETS = ['small', 'medium', 'large'] as const;
 export type MapPreset = (typeof MAP_PRESETS)[number];
@@ -151,6 +155,13 @@ export function mapPrintWidth(map: AdventureMap): number {
 
 /** Space diameter as a fraction of the map's width. Measured: 0.0757. */
 export const DEFAULT_SPACE_DIAMETER = 0.0757;
+
+/**
+ * Centre distance beyond which the 68mm T-Rex base cannot bridge two spaces.
+ * Deliberately independent of path curvature: occupancy is decided by where
+ * the two spaces sit, not by the route artwork drawn between them.
+ */
+export const LARGE_FIGHTER_CENTRE_THRESHOLD_MM = 87.5;
 
 /** Space outline weight, as a fraction of a space's diameter. Measured: 0.029. */
 export const DEFAULT_SPACE_STROKE = 0.029;
@@ -437,6 +448,10 @@ export function createMapEnvironmentPiece(
 export interface AdventureMap {
   enabled: boolean;
   name: string;
+  /** Whether the printed map identity plate is visible. */
+  showLabel: boolean;
+  /** Corner occupied by the printed title and author plate. */
+  labelCorner: MapLabelCorner;
   /**
    * Which of `MAP_SIZES` this board is exported at, or `custom`. Setting it
    * also sets `aspect` to match — see `size`'s own picker in
@@ -465,6 +480,8 @@ export interface AdventureMap {
   background: Fill;
   /** Diameter as a fraction of the map's width — one size for every space. */
   spaceDiameter: number;
+  /** Automatically mark paths whose centres exceed the large-fighter reach. */
+  autoLargeFighter: boolean;
   /**
    * Opacity every space's own fill is drawn at, `0`..`1` — one control for
    * the whole board rather than a slider per space. A space's colour is what
@@ -545,11 +562,14 @@ export function createAdventureMap(): AdventureMap {
   return {
     enabled: false,
     name: '',
+    showLabel: true,
+    labelCorner: 'bottom-left',
     size: 'large',
     aspect: DEFAULT_MAP_ASPECT,
     artwork: createArtwork(),
     background: solid('#2c2a26'),
     spaceDiameter: DEFAULT_SPACE_DIAMETER,
+    autoLargeFighter: false,
     spaceOpacity: 1,
     spaceStroke: '#101010',
     /* Matches the fixed black pixels in the refined one-way PNG pieces. */
@@ -592,6 +612,26 @@ export function findPath(map: AdventureMap, from: MapSpaceId, to: MapSpaceId): M
         (path.from === from && path.to === to) || (path.from === to && path.to === from)
     ) ?? null
   );
+}
+
+/** Physical centre distance, with both axes stored in map-width units. */
+export function pathCentreDistanceMm(map: AdventureMap, path: MapPath): number | null {
+  const from = findSpace(map, path.from);
+  const to = findSpace(map, path.to);
+  if (!from || !to) return null;
+  return Math.hypot(to.x - from.x, to.y - from.y) * MAP_WIDTH_MM;
+}
+
+/** Whether the map-wide rule, rather than a manual choice, marks this path. */
+export function isAutoLargeFighterPath(map: AdventureMap, path: MapPath): boolean {
+  if (!map.autoLargeFighter) return false;
+  const distance = pathCentreDistanceMm(map, path);
+  return distance !== null && distance > LARGE_FIGHTER_CENTRE_THRESHOLD_MM;
+}
+
+/** The printed result: an author's explicit pin plus any automatic long path. */
+export function showsLargeFighterMarker(map: AdventureMap, path: MapPath): boolean {
+  return path.largeFighter || isAutoLargeFighterPath(map, path);
 }
 
 /** Every space a given one connects to. Drives the editor's selection readout. */

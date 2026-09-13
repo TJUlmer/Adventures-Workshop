@@ -229,6 +229,12 @@ export interface CardTheme {
   artBackground: Fill;
   /** Divider line under the art window, and the boost ring. */
   divider: string;
+  /** An action card's upper-right symbol/value badge. */
+  cornerBadge: Fill;
+  /** Opacity of the badge background only; its content remains fully opaque. */
+  cornerBadgeOpacity: number;
+  /** Symbol or value printed over the corner badge. */
+  cornerBadgeInk: string;
   /**
    * The ribbon's foot — the strip between the name ribbon's point and the
    * divider. Its own surface rather than reusing `divider`, which paints the
@@ -240,6 +246,9 @@ export interface CardTheme {
   /** Disc behind the boost value. */
   boost: Fill;
   boostInk: string;
+  /** Exposed reminder bar on a card that remains visible while tucked. */
+  tuckEffect: Fill;
+  tuckEffectInk: string;
   /**
    * The Bonus ability line, printed last on an action card's ability text —
    * its own ink rather than `bodyInk`, since it is meant to stand apart from
@@ -305,9 +314,15 @@ export const DEFAULT_CARD_THEME: CardTheme = {
   displayFont: 'edo',
   artBackground: solid('#ffffff'),
   divider: '#001722',
+  cornerBadge: solid('#001722'),
+  cornerBadgeOpacity: 1,
+  cornerBadgeInk: '#ffffff',
   ribbonFoot: solid('#000000'),
   boost: solid('#3f474c'),
   boostInk: '#ffffff',
+  /** A restrained gold so the reminder reads as a secondary card treatment. */
+  tuckEffect: solid('#a9854f'),
+  tuckEffectInk: '#ffffff',
   bonusAbilityInk: '#ffffff',
   /*
    * A judgement call, not a measured constant — unlike most sizes in this
@@ -370,7 +385,9 @@ export const HERO_ACTION_CARD_THEME: CardTheme = {
   banner: solid('#001722'),
   body: solid('#001722'),
   boost: solid('#001722'),
-  divider: '#f6eada'
+  divider: '#f6eada',
+  cornerBadge: solid('#f6eada'),
+  cornerBadgeInk: '#001722'
 };
 
 export const THEME_KEYS = [
@@ -386,9 +403,14 @@ export const THEME_KEYS = [
   'displayFont',
   'artBackground',
   'divider',
+  'cornerBadge',
+  'cornerBadgeOpacity',
+  'cornerBadgeInk',
   'ribbonFoot',
   'boost',
   'boostInk',
+  'tuckEffect',
+  'tuckEffectInk',
   'bonusAbilityInk',
   'bonusIconSize',
   'ribbonSymbolSize',

@@ -753,6 +753,53 @@ export const BONUS_ATTACK = {
 } as const;
 
 /**
+ * Reminder copy kept visible on the exposed edge of a tucked action card.
+ *
+ * The bottom bar is 39px tall on the supplied 413×578 official-card image.
+ * Scaled against that card's printed face it lands at roughly 160 bleed pixels.
+ * The right-side variant deliberately uses the same thickness, so changing an
+ * effect's orientation changes only its edge rather than its visual weight.
+ */
+export const TUCK_EFFECT = {
+  thickness: 120,
+  padding: 48,
+  text: {
+    /** Change this value to dial in the tuck-effect text size. */
+    size: inFace(90),
+    lineHeight: 2,
+    /** Compensates for the face's low-sitting cap ink inside its centred line box. */
+    offsetY: -20,
+    /**
+     * Vertical writing turns line height into the box's horizontal thickness,
+     * so the right edge needs its own compact value and position dials.
+     */
+    right: {
+      size: inFace(90),
+      lineHeight: 1,
+      /** Positive moves the copy right; negative moves it left. */
+      offsetX: -15,
+      /** Positive moves the copy down the card; negative moves it up. */
+      offsetY: 0
+    }
+  }
+} as const;
+
+/**
+ * An unofficial square badge cut into an action card's upper-right artwork.
+ * It deliberately follows the ribbon's visual width without borrowing either
+ * ribbon geometry: both ribbon variants remain independent of this treatment.
+ */
+export const CORNER_BADGE = {
+  size: 240,
+  /** Mirrors the card window's corner curve at the badge's exposed lower-left. */
+  cornerRadius: INTERIOR_RADIUS,
+  contentSize: inFace(150),
+  contentInset: 34,
+  /** Optical correction for the display face's low-sitting cap ink. */
+  contentOffsetY: -8
+} as const;
+
+/**
  * Card name, set bottom-up inside the ribbon.
  *
  * The name is anchored at its *end* — the last character, nearest the frame —
@@ -888,6 +935,19 @@ export const HERO_POINT_BELOW = BLEED.height - 935;
 export const HERO_RIBBON_SYMBOL = { top: 187, centerX: HERO_RIBBON.centerX } as const;
 
 /**
+ * Split combat prints no value beneath its fixed Versatile symbol, so the
+ * ordinary symbol geometry would leave that glyph small and stranded at the
+ * head's top. These three values are deliberately independent dials: `width`
+ * changes only its size, increasing `top` moves it down, and positive
+ * `offsetX` moves it right of the ribbon's measured axis.
+ */
+export const HERO_SPLIT_RIBBON_SYMBOL = {
+  width: 190,
+  top: 200,
+  offsetX: 0
+} as const;
+
+/**
  * The combat value, under the symbol.
  *
  * The template's "3" stands 125px, and Knockout's lining figures are a shade
@@ -976,13 +1036,31 @@ export const HERO_BODY_PANEL_FOOT_CLEARANCE = 95;
 export const HERO_ART_WINDOW_HEIGHT = HERO_DIVIDER_Y - INTERIOR.y;
 
 /**
+ * Resting divider position for a hero split-combat card.
+ *
+ * This is deliberately independent of `HERO_DIVIDER_Y`: split combat has a
+ * denser body than an ordinary hero card, and tuning one should not move every
+ * other hero template. Increase this value to move the title, divider and boost
+ * down together; decrease it to move them up. The matching art-window and body
+ * heights below are derived so changing this one number cannot open a seam.
+ */
+export const HERO_SPLIT_DIVIDER_Y = 1390;
+
+export const HERO_SPLIT_BODY_PANEL_HEIGHT =
+  INTERIOR.y + INTERIOR.height - (HERO_SPLIT_DIVIDER_Y + DIVIDER.height);
+
+export const HERO_SPLIT_ART_WINDOW_HEIGHT = HERO_SPLIT_DIVIDER_Y - INTERIOR.y;
+
+/**
  * Split cards divide the body panel into an attack half and a defense half,
  * each with its own ability stack.
  *
  * The separator floats. Rather than computing its position, the halves are laid
  * out as a flex column: the lower half is sized by its content and the upper
- * half takes what is left, so the rule rises as the defense side fills up.
- * These are the constraints that layout works within.
+ * half takes what is left, while the upper half's content stays anchored to the
+ * separator. Spare room therefore collects above the printed effects instead
+ * of opening a visual hole between them. These are the constraints that layout
+ * works within.
  */
 export const SPLIT = {
   /** Gap below the title rule, where the halves begin. */
@@ -1135,6 +1213,20 @@ export const CHARACTER_ABILITY_PANEL = {
 } as const;
 
 /**
+ * The quote layout's lower ability divider, measured from the border mask.
+ * Its ink begins three pixels below the nominal ability-band foot and ends
+ * three pixels below the nominal quote-band top; the fills deliberately bleed
+ * beneath that overlap.
+ */
+export const CHARACTER_ABILITY_DIVIDER = {
+  top: 1591,
+  bottom: 1615,
+  /** The vertical rule separating the rotated SPECIAL ABILITY tab. */
+  tabRuleX: 229,
+  tabRuleRight: 234
+} as const;
+
+/**
  * The two band headings, HERO and SIDEKICK. Both sit the same distance below
  * their band's top — 66 and 67 — so one offset carries both.
  */
@@ -1198,15 +1290,15 @@ export const CHARACTER_HEALTH = {
 /** The special ability: a name, a rule under it, and the copy. */
 export const CHARACTER_ABILITY = {
   nameX: 272,
-  nameCapTop: 658,
+  nameCapTop: 735,
   /** Caps stand 84. */
   nameSize: inName(126),
   ruleX: 276,
-  ruleY: 788,
+  ruleY: 850,
   ruleWidth: 1173 - 276 + 1,
   ruleHeight: 7,
   textX: 276,
-  textCapTop: 840,
+  textCapTop: 902,
   /** Caps stand 68. */
   textSize: inFace(102),
   /**
@@ -1318,7 +1410,29 @@ export const CHARACTER_MOVE = {
   centerX: (1322 + 1427) / 2,
   digitTop: 673,
   size: inFace(547),
-  condense: 0.56
+  condense: 0.56,
+  /**
+   * The arrow is a fixed head at either end of a six-pixel shaft. Keeping the
+   * three runs separate lets the quote layout lengthen only the shaft when a
+   * tall ability moves the lower band, without stretching either arrowhead.
+   */
+  arrow: {
+    x: 1249,
+    right: 1290,
+    top: 665,
+    topHeadBottom: 702,
+    shaftX: 1266,
+    shaftRight: 1272,
+    bottomHeadTop: 1519,
+    bottom: 1556
+  },
+  /** MOVE is the lower half of the combined lockup stretched with the numeral. */
+  word: {
+    x: 1326,
+    right: 1424,
+    top: 1109,
+    bottom: 1544
+  }
 } as const;
 
 /**
@@ -1602,10 +1716,11 @@ export const CARDBACK = {
 
 /**
  * A hero's own back, at the action card's bleed canvas — see
- * `HeroCardbackFace`. The UMLABS frame carries a thin rounded line plus its
- * upper-left logo badge, not a ring like the villain/minion template, so
- * this back's own art is never boxed in behind it. `frame` records the outer
- * rounded line, excluding the badge that rises above it; the name remains
+ * `HeroCardbackFace`. `UMLabs_Cardback_Template.png` carries a thin rounded
+ * line plus its upper-left logo badge, not a ring like the villain/minion
+ * template, so this back's own art is never boxed in behind it. The renderer
+ * reads the two-tone source as two colour layers; `frame` records the outer
+ * rounded line, excluding the badge that rises above it, and the name remains
  * placed against its lower-right corner.
  */
 export const HERO_CARDBACK = {

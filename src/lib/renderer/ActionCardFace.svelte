@@ -10,8 +10,8 @@
    * A hero's card shares this component rather than getting its own, because
    * almost everything about it is unchanged: the frame, the artwork, the
    * divider, the boost disc, the title and its rule, and — the moment a card
-   * has no attack/defense values to separate it from, which a hero card never
-   * does — the ability text's own left-aligned layout. What differs is
+   * has no attack/defense values to separate it from — the ability text's own
+   * left-aligned layout. What differs is
    * confined to two places, both branched on `isHero`: the ribbon, and the
    * line above the copies count.
    */
@@ -52,6 +52,7 @@
     BOOST_EFFECT,
     BOOST_RING,
     BOOST_VALUE,
+    CORNER_BADGE,
     capTopToBoxTop,
     digitMiddleToBoxTop,
     digitTopToBoxTop,
@@ -59,11 +60,14 @@
     HERO_ART_WINDOW_HEIGHT,
     HERO_BODY_PANEL_FOOT_CLEARANCE,
     HERO_BODY_PANEL_HEIGHT,
+    HERO_SPLIT_ART_WINDOW_HEIGHT,
+    HERO_SPLIT_BODY_PANEL_HEIGHT,
     HERO_POINT_BELOW,
     HERO_RIBBON,
     HERO_RIBBON_OWNER,
     HERO_RIBBON_OWNER_LEFT,
     HERO_RIBBON_SYMBOL,
+    HERO_SPLIT_RIBBON_SYMBOL,
     HERO_RIBBON_VALUE,
     inFace,
     inPanel,
@@ -89,6 +93,7 @@
     TITLE_BOX_TOP,
     TITLE_RULE,
     TITLE_RULE_GAP,
+    TUCK_EFFECT,
     VALUE_STACK
   } from './geometry';
 
@@ -166,6 +171,32 @@
     actionTextIsEmpty(card.bonusAttackTitle) ? 'Bonus Attack' : card.bonusAttackTitle
   );
   const hasBonusAttackAbility = $derived(!actionTextIsEmpty(card.bonusAttackAbility));
+  const hasBottomTuckEffect = $derived(
+    card.showTuckEffect && card.tuckEffectOrientation === 'bottom'
+  );
+  const hasRightTuckEffect = $derived(
+    card.showTuckEffect && card.tuckEffectOrientation === 'right'
+  );
+  const bodyBottomPadding = $derived(
+    (isHero && !card.showBonusAttack ? HERO_BODY_PANEL_FOOT_CLEARANCE : 0) +
+      (hasBottomTuckEffect ? TUCK_EFFECT.thickness : 0)
+  );
+
+  const artWindowHeight = $derived(
+    isHero
+      ? card.split
+        ? HERO_SPLIT_ART_WINDOW_HEIGHT
+        : HERO_ART_WINDOW_HEIGHT
+      : ART_WINDOW.height
+  );
+
+  const bodyPanelHeight = $derived(
+    isHero
+      ? card.split
+        ? HERO_SPLIT_BODY_PANEL_HEIGHT
+        : HERO_BODY_PANEL_HEIGHT
+      : BODY_PANEL.height
+  );
 
   /**
    * Who may play this card: the primary identity's own name, an additional
@@ -198,17 +229,20 @@
     (character ? resolvedHeroName(character) : '').trim() || 'Hero Name'
   );
 
+  /** Blank defense copy means the attack-side effect is shared by both values. */
+  const hasSeparateDefenseAbility = $derived(!abilityIsEmpty(card.defenseAbility));
+  const usesSplitBody = $derived(card.split && hasSeparateDefenseAbility);
+
   /**
    * Attack then defense, skipping whichever the card does not print.
    *
-   * Always empty for a hero card. Not because `card.attack`/`card.defense`
-   * are cleared — a card keeps whatever it last held if its owner's role
-   * changes, the way every other field here survives a re-assignment — but
-   * because a hero's combat value lives in the ribbon instead, in `symbol` and
-   * `symbolValue`, and showing both would print the same value twice.
+   * An ordinary hero's combat value lives in the ribbon. Split combat with no
+   * defense copy deliberately falls through to this ordinary value-stack
+   * layout, so both values sit beside the one shared attack ability; once the
+   * defense side has copy, `splitBody()` reads the values instead.
    */
   const values = $derived.by((): ValueRow[] => {
-    if (isHero) return [];
+    if (isHero && (!card.split || usesSplitBody)) return [];
     const present: { key: CardSymbolName; value: number }[] = [];
     if (card.attack !== null) present.push({ key: 'attack', value: card.attack });
     if (card.defense !== null) present.push({ key: 'defense', value: card.defense });
@@ -223,11 +257,11 @@
 
   /**
    * The primary ability's printed left edge, reused by the bonus attack below.
-   * A value column shifts villain/minion and split copy right; hero cards and
-   * cards without values use the title's full-width text column instead.
+   * A value column shifts villain/minion and split copy right; ordinary hero
+   * cards and cards without values use the title's full-width text column.
    */
   const primaryAbilityLeft = $derived(
-    card.split || hasValues ? ABILITY.x - BODY_PANEL.x : TITLE.x - BODY_PANEL.x
+    usesSplitBody || hasValues ? ABILITY.x - BODY_PANEL.x : TITLE.x - BODY_PANEL.x
   );
 
   /**
@@ -262,7 +296,8 @@
   /** Attack half first, then defense — the printed order. */
   const SPLIT_SIDES = [{ key: 'attack' as const }, { key: 'defense' as const }];
 
-  const heroSymbol = $derived(card.symbol ?? 'attack');
+  /** Split combat is inherently versatile; the stored ordinary type returns when disabled. */
+  const heroSymbol = $derived(isHero && card.split ? 'versatile' : card.symbol ?? 'attack');
 
   /**
    * A scheme card prints no number.
@@ -273,7 +308,9 @@
    * than on the field being empty, so switching a card to scheme and back
    * returns the value it had.
    */
-  const showSymbolValue = $derived(heroSymbol !== 'scheme' && card.symbolValue !== null);
+  const showSymbolValue = $derived(
+    !card.split && heroSymbol !== 'scheme' && card.symbolValue !== null
+  );
 
   /*
    * The ribbon's foot follows whichever ribbon this card carries — a hero's
@@ -281,12 +318,23 @@
    * Offsets are relative to `.interior`, which is what the strip lives in.
    *
    * A villain's ribbon starts left of the interior, so `footLeft` is negative
-   * there. That is correct and not a clamp waiting to happen: the strip is
-   * exactly as wide as the ribbon above it, and `.interior` crops the overhang
-   * the printed frame covers anyway.
+   * there. The hero's begins four pixels inside it, so the strip extends those
+   * four pixels back under the frame. In both cases `.interior` and the painted
+   * frame crop the overhang while the measured right edge stays unchanged.
    */
-  const footLeft = $derived((isHero ? HERO_RIBBON.x : BANNER.x) - INTERIOR.x);
-  const footWidth = $derived(isHero ? HERO_RIBBON.width : BANNER.width);
+  const ribbonLeft = $derived((isHero ? HERO_RIBBON.x : BANNER.x) - INTERIOR.x);
+  const ribbonRight = $derived(
+    (isHero ? HERO_RIBBON.x + HERO_RIBBON.width : BANNER.x + BANNER.width) - INTERIOR.x
+  );
+  /*
+   * The hero ribbon begins four bleed pixels inside `.interior`. The frame
+   * covers those pixels at export scale, but its antialiased mask can expose a
+   * subpixel of the panel when the live card is reduced to a gallery tile.
+   * Paint the foot underneath the frame instead; its right edge remains at the
+   * ribbon's measured coordinate, so the visible geometry does not change.
+   */
+  const footLeft = $derived(Math.min(ribbonLeft, 0));
+  const footWidth = $derived(ribbonRight - footLeft);
   const footAxis = $derived(
     (isHero ? HERO_RIBBON.centerX : BANNER.x + BANNER.width / 2) - INTERIOR.x
   );
@@ -303,6 +351,15 @@
       return customSymbols.find((entry) => entry.id === segment.id)?.source ?? null;
     }
     return null;
+  });
+
+  /* Only custom symbols are offered for this slot. A missing/deleted symbol
+     falls back to the number, keeping older or partially edited cards legible. */
+  const boostSymbolSrc = $derived.by(() => {
+    if (!card.boostSymbol) return null;
+    const [segment] = parseAbilityText(card.boostSymbol);
+    if (segment?.kind !== 'customSymbol') return null;
+    return customSymbols.find((entry) => entry.id === segment.id)?.source ?? null;
   });
 </script>
 
@@ -335,9 +392,37 @@
   style:height={py(INTERIOR.height)}
   style:border-radius={pu(INTERIOR_RADIUS)}
 >
-  <div class="art" style:height={pu(isHero ? HERO_ART_WINDOW_HEIGHT : ART_WINDOW.height)}>
+  <div class="art" style:height={pu(artWindowHeight)}>
     <CardArt artwork={card.artwork} background={fillCss(theme.artBackground)} />
   </div>
+
+  {#if card.showCornerBadge}
+    <!-- The frame is painted later and trims the outer corner, making this read
+         as a notch in the card rather than a square floating over the artwork. -->
+    <div
+      class="corner-badge"
+      style:top="0"
+      style:right={pu(hasRightTuckEffect ? TUCK_EFFECT.thickness : 0)}
+      style:width={pu(CORNER_BADGE.size)}
+      style:height={pu(CORNER_BADGE.size)}
+      style:border-bottom-left-radius={pu(CORNER_BADGE.cornerRadius)}
+      style:padding={pu(CORNER_BADGE.contentInset)}
+      style:font-size={pu(CORNER_BADGE.contentSize)}
+      style:color={theme.cornerBadgeInk}
+    >
+      <div
+        class="corner-badge-background"
+        style:background={fillCss(theme.cornerBadge)}
+        style:opacity={theme.cornerBadgeOpacity}
+      ></div>
+      <span
+        class="corner-badge-content"
+        style:translate="0 {pu(CORNER_BADGE.contentOffsetY)}"
+      >
+        {@html renderActionText(card.cornerBadge, ribbonName, customSymbols, 'corner-badge-symbol')}
+      </span>
+    </div>
+  {/if}
 
   <!--
     Bottom-anchored, so the panel grows upward. Its own height is its copy's,
@@ -407,6 +492,12 @@
   -->
   <div class="divider" style:height={pu(DIVIDER.height)} style:background={theme.divider}>
     {#if card.boost !== null}
+      <!-- The whole assembly shifts as one when a right-side tuck bar claims
+           that edge: disc, ring, value and the optional capsule stay joined. -->
+      <div
+        class="boost-assembly"
+        style:translate="{pu(hasRightTuckEffect ? -TUCK_EFFECT.thickness : 0)} 0"
+      >
       {#if card.showBoostEffect}
         <!--
           The capsule is painted before the disc and ends under its centre,
@@ -468,28 +559,41 @@
         style:border-color={theme.divider}
       ></div>
 
-      <div
-        class="boost-value"
-        style:left={pu(BOOST.cx - INTERIOR.x)}
-        style:top={pu(
-          digitMiddleToBoxTop(BOOST.cy, BOOST_VALUE.size, BOOST_VALUE.lineHeight) - DIVIDER.y
-        )}
-        style:font-size={pu(BOOST_VALUE.size)}
-        style:line-height={BOOST_VALUE.lineHeight}
-        style:color={theme.boostInk}
-      >
-        {card.boost}
+      {#if boostSymbolSrc}
+        <!-- The square uses the value's existing nominal size, so custom art
+             gains a consistent safe inset without inventing new disc geometry. -->
+        <img
+          class="boost-symbol"
+          src={boostSymbolSrc}
+          alt=""
+          style:left={pu(BOOST.cx - BOOST_VALUE.size / 2 - INTERIOR.x)}
+          style:top={pu(BOOST.cy - BOOST_VALUE.size / 2 - DIVIDER.y)}
+          style:width={pu(BOOST_VALUE.size)}
+          style:height={pu(BOOST_VALUE.size)}
+        />
+      {:else}
+        <div
+          class="boost-value"
+          style:left={pu(BOOST.cx - INTERIOR.x)}
+          style:top={pu(
+            digitMiddleToBoxTop(BOOST.cy, BOOST_VALUE.size, BOOST_VALUE.lineHeight) - DIVIDER.y
+          )}
+          style:font-size={pu(BOOST_VALUE.size)}
+          style:line-height={BOOST_VALUE.lineHeight}
+          style:color={theme.boostInk}
+        >
+          {card.boost}
+        </div>
+      {/if}
       </div>
     {/if}
   </div>
 
   <div
     class="body"
-    style:min-height={pu(isHero ? HERO_BODY_PANEL_HEIGHT : BODY_PANEL.height)}
+    style:min-height={pu(bodyPanelHeight)}
     style:max-height={pu(BODY_PANEL_MAX_HEIGHT)}
-    style:padding-bottom={isHero && !card.showBonusAttack
-      ? pu(HERO_BODY_PANEL_FOOT_CLEARANCE)
-      : undefined}
+    style:padding-bottom={bodyBottomPadding > 0 ? pu(bodyBottomPadding) : undefined}
     style:background={fillCss(theme.body)}
   >
     {#if theme.pattern.name}
@@ -601,11 +705,14 @@
       once the title had its say, in flow, rather than a number fixed in
       advance. `belowTitleRule` is the conversion.
     -->
-    <div class="below-title">
-      {#if card.split}
+    <div class="below-title" class:split-layout={usesSplitBody}>
+      {#if usesSplitBody}
         <div class="panel-lead" style:height={pu(belowTitleRule(SPLIT_TOP))}></div>
         {@render splitBody()}
-        <div class="panel-foot" style:height={pu(SPLIT.bottom)}></div>
+        <!-- Hero cards already reserve their owner line through the body's own
+             foot clearance; adding the villain inset again stranded the lower
+             half well above the frame. -->
+        <div class="panel-foot" style:height={pu(isHero ? 0 : SPLIT.bottom)}></div>
       {:else}
         {#if hasValues}
           {#each values as row (row.key)}
@@ -802,8 +909,44 @@
         </div>
       </div>
     {/if}
+
+    {#if hasBottomTuckEffect}
+      <div
+        class="tuck-effect tuck-effect-bottom"
+        style:height={pu(TUCK_EFFECT.thickness)}
+        style:padding-inline={pu(TUCK_EFFECT.padding)}
+        style:background={fillCss(theme.tuckEffect)}
+        style:color={theme.tuckEffectInk}
+      >
+        <span
+          class="tuck-effect-text"
+          style:font-size={pu(TUCK_EFFECT.text.size)}
+          style:line-height={TUCK_EFFECT.text.lineHeight}
+          style:transform="translateY({pu(TUCK_EFFECT.text.offsetY)})"
+        >{card.tuckEffect}</span>
+      </div>
+    {/if}
   </div>
   </div>
+
+  {#if hasRightTuckEffect}
+    <!-- Full interior height: a side-tucked card exposes its long edge, not only
+         the much shorter body panel, and ordinary reminder copy needs that run. -->
+    <div
+      class="tuck-effect tuck-effect-right"
+      style:width={pu(TUCK_EFFECT.thickness)}
+      style:padding-block={pu(TUCK_EFFECT.padding)}
+      style:background={fillCss(theme.tuckEffect)}
+      style:color={theme.tuckEffectInk}
+    >
+      <span
+        class="tuck-effect-text"
+        style:font-size={pu(TUCK_EFFECT.text.right.size)}
+        style:line-height={TUCK_EFFECT.text.right.lineHeight}
+        style:translate="{pu(TUCK_EFFECT.text.right.offsetX)} {pu(TUCK_EFFECT.text.right.offsetY)}"
+      >{card.tuckEffect}</span>
+    </div>
+  {/if}
 </div>
 
 {#if isHero}
@@ -907,13 +1050,17 @@
     on these same four files, for the same reason.
   -->
   {@const size = CARD_SYMBOL_SIZES[heroSymbol]}
+  {@const symbolWidth = card.split ? HERO_SPLIT_RIBBON_SYMBOL.width : size.width}
+  {@const symbolTop = card.split ? HERO_SPLIT_RIBBON_SYMBOL.top : HERO_RIBBON_SYMBOL.top}
+  {@const symbolCenterX =
+    HERO_RIBBON_SYMBOL.centerX + (card.split ? HERO_SPLIT_RIBBON_SYMBOL.offsetX : 0)}
   <img
     class="hero-symbol"
     src={CARD_SYMBOLS[heroSymbol]}
     alt={heroSymbol}
-    style:left={pu(HERO_RIBBON_SYMBOL.centerX - size.width / 2)}
-    style:top={pu(HERO_RIBBON_SYMBOL.top)}
-    style:width={pu(size.width)}
+    style:left={pu(symbolCenterX - symbolWidth / 2)}
+    style:top={pu(symbolTop)}
+    style:width={pu(symbolWidth)}
   />
 
   {#if showSymbolValue}
@@ -999,7 +1146,7 @@
   <div
     class="split"
     style:margin-inline={pu(-SPLIT_SEPARATOR_OVERHANG)}
-    style:min-height={pu(SPLIT_DEFAULT_HEIGHT)}
+    style:min-height={pu(isHero ? 0 : SPLIT_DEFAULT_HEIGHT)}
     style:color={theme.bodyInk}
   >
     {#each SPLIT_SIDES as side (side.key)}
@@ -1034,71 +1181,79 @@
         class="half"
         class:upper={side.key === 'attack'}
         style:margin-inline={pu(SPLIT_SEPARATOR_OVERHANG)}
-        style:min-height={pu(side.key === 'attack' ? SPLIT.minUpper : SPLIT.minLower)}
+        style:min-height={pu(
+          isHero ? 0 : side.key === 'attack' ? SPLIT.minUpper : SPLIT.minLower
+        )}
         style:padding-block={pu(SPLIT.padding)}
       >
-        {#if value !== null}
-          <img
-            class="split-symbol"
-            src={CARD_SYMBOLS[side.key]}
-            alt={side.key}
-            style:left={px(VALUE_STACK.symbolCenterX - symbol.width / 2 - BODY_PANEL.x, BODY_PANEL)}
-            style:top={pu(SPLIT.padding)}
-            style:width={pu(symbol.width)}
-          />
-          <span
-            class="split-number"
-            style:left={px(VALUE_STACK.numberX - BODY_PANEL.x, BODY_PANEL)}
-            style:top={pu(SPLIT.padding + VALUE_STACK.numberOffset - 25)}
-            style:font-size={pu(VALUE_STACK.numberSize)}
-          >
-            {value}
-          </span>
-        {/if}
-
-        <!--
-          Same block as the unsplit card: the rule stretches to whichever is
-          taller, this half's symbol or its ability text.
-
-          `min-height` holds even with no rule to stretch — it is what keeps
-          the half tall enough for its symbol, which is positioned over the
-          block rather than inside it.
-        -->
-        <div
-          class="ability-block"
-          style:margin-left={px(ABILITY_RULE.x - BODY_PANEL.x, BODY_PANEL)}
-          style:min-height={pu(value === null ? 0 : symbol.height)}
-        >
-          <!--
-            A split half prints no placeholder, so with no copy there is
-            nothing for the rule to separate the value from — and a rule
-            against blank space reads as an error. It only appears once the
-            half has both.
-          -->
-          {#if value !== null && !abilityIsEmpty(ability)}
-            <div
-              class="rule-v"
-              style:width={pu(ABILITY_RULE.width)}
-              style:background={theme.bodyInk}
-            ></div>
+        <!-- The upper half owns the spare height, but its content sits against
+             the separator rather than at the top of that spare space. Keeping
+             every element in one wrapper makes the symbol, value and copy move
+             together as the half expands. -->
+        <div class="half-content">
+          {#if value !== null}
+            <img
+              class="split-symbol"
+              src={CARD_SYMBOLS[side.key]}
+              alt={side.key}
+              style:left={px(VALUE_STACK.symbolCenterX - symbol.width / 2 - BODY_PANEL.x, BODY_PANEL)}
+              style:top="0"
+              style:width={pu(symbol.width)}
+            />
+            <span
+              class="split-number"
+              style:left={px(VALUE_STACK.numberX - BODY_PANEL.x, BODY_PANEL)}
+              style:top={pu(VALUE_STACK.numberOffset - 25)}
+              style:font-size={pu(VALUE_STACK.numberSize)}
+            >
+              {value}
+            </span>
           {/if}
 
+          <!--
+            Same block as the unsplit card: the rule stretches to whichever is
+            taller, this half's symbol or its ability text.
+
+            `min-height` holds even with no rule to stretch — it is what keeps
+            the half tall enough for its symbol, which is positioned over the
+            block rather than inside it.
+          -->
           <div
-            class="block-ability"
-            style:margin-left={pu(abilityGap)}
-            style:width={pu(ABILITY.width)}
-            style:font-size={pu(abilitySize)}
-            style:line-height={ABILITY.lineHeight}
-            style:letter-spacing="{ABILITY.tracking}em"
+            class="ability-block"
+            style:margin-left={px(ABILITY_RULE.x - BODY_PANEL.x, BODY_PANEL)}
+            style:min-height={pu(value === null ? 0 : symbol.height)}
           >
-            <AbilityText
-              {ability}
-              placeholder=""
-              subject={ribbonName}
-              bonusInk={theme.bonusAbilityInk}
-              bonusIconSize={theme.bonusIconSize}
-              {customSymbols}
-            />
+            <!--
+              A split half prints no placeholder, so with no copy there is
+              nothing for the rule to separate the value from — and a rule
+              against blank space reads as an error. It only appears once the
+              half has both.
+            -->
+            {#if value !== null && !abilityIsEmpty(ability)}
+              <div
+                class="rule-v"
+                style:width={pu(ABILITY_RULE.width)}
+                style:background={theme.bodyInk}
+              ></div>
+            {/if}
+
+            <div
+              class="block-ability"
+              style:margin-left={pu(abilityGap)}
+              style:width={pu(ABILITY.width)}
+              style:font-size={pu(abilitySize)}
+              style:line-height={ABILITY.lineHeight}
+              style:letter-spacing="{ABILITY.tracking}em"
+            >
+              <AbilityText
+                {ability}
+                placeholder=""
+                subject={ribbonName}
+                bonusInk={theme.bonusAbilityInk}
+                bonusIconSize={theme.bonusIconSize}
+                {customSymbols}
+              />
+            </div>
           </div>
         </div>
       </div>
@@ -1125,8 +1280,18 @@
 <!-- The copies count prints over the border, so it is drawn after it. -->
 <div
   class="quantity"
-  style:right={px(BLEED.width - (isHero ? OWNER_LINE.right : QUANTITY.right))}
-  style:top={py(capTopToBoxTop(isHero ? OWNER_LINE.capTop : QUANTITY.capTop, QUANTITY.size))}
+  style:right={px(
+    BLEED.width -
+      (isHero ? OWNER_LINE.right : QUANTITY.right) +
+      (hasRightTuckEffect ? TUCK_EFFECT.thickness : 0)
+  )}
+  style:top={py(
+    capTopToBoxTop(
+      (isHero ? OWNER_LINE.capTop : QUANTITY.capTop) -
+        (hasBottomTuckEffect ? TUCK_EFFECT.thickness : 0),
+      QUANTITY.size
+    )
+  )}
   style:font-size={pu(QUANTITY.size)}
   style:color={theme.bodyInk}
 >
@@ -1380,6 +1545,84 @@
     vertical-align: 0em;
   }
 
+  .tuck-effect {
+    position: absolute;
+    z-index: 3;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+  }
+
+  .corner-badge {
+    position: absolute;
+    z-index: 2;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    font-family: var(--card-font-numeral);
+    font-weight: var(--card-font-numeral-weight);
+    line-height: 1;
+    text-align: center;
+    white-space: nowrap;
+  }
+
+  .corner-badge-content {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    height: 100%;
+  }
+
+  .corner-badge-background {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+  }
+
+  .corner-badge-content :global(.corner-badge-symbol) {
+    display: inline-block;
+    width: auto;
+    max-width: 100%;
+    height: 100%;
+    object-fit: contain;
+  }
+
+  .tuck-effect-bottom {
+    right: 0;
+    bottom: 0;
+    left: 0;
+  }
+
+  .tuck-effect-right {
+    top: 0;
+    right: 0;
+    bottom: 0;
+  }
+
+  .tuck-effect-text {
+    display: block;
+    min-width: 0;
+    overflow: hidden;
+    font-family: var(--card-font-text);
+    font-weight: var(--card-font-text-weight);
+    text-align: center;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .tuck-effect-right .tuck-effect-text {
+    max-height: 100%;
+    overflow: visible;
+    writing-mode: vertical-rl;
+    text-orientation: mixed;
+    transform: rotate(180deg);
+  }
+
   .panel-lead,
   .panel-foot {
     flex: none;
@@ -1540,6 +1783,12 @@
     pointer-events: none;
     border-radius: 50%;
     border-style: solid;
+  }
+
+  .boost-assembly {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
   }
 
   /* -- name ribbon ----------------------------------------------------- */
@@ -1808,6 +2057,12 @@
     overflow: hidden;
   }
 
+  /* A compact split stack belongs at the panel's foot. Any unused room sits
+     above the attack half and is surrendered as either side gains copy. */
+  .below-title.split-layout {
+    flex: 1 1 auto;
+  }
+
   .value-symbol {
     position: absolute;
     height: auto;
@@ -1830,6 +2085,7 @@
      * border. Visible truncation is the signal that the text is too long.
      */
     overflow: hidden;
+    margin-top: auto;
   }
 
   /*
@@ -1838,6 +2094,8 @@
    */
   .half {
     position: relative;
+    display: flex;
+    flex-direction: column;
     /* Sized by content while there is slack; gives way once there is none. */
     flex: 0 1 auto;
     /*
@@ -1850,6 +2108,26 @@
 
   .half.upper {
     flex: 1 1 auto;
+  }
+
+  /*
+   * The lower half ends with the Bonus ability, so letting it shrink alongside
+   * the upper half clips that final line at the card foot even while the upper
+   * half still has room it can surrender. Keep the lower half at its content
+   * height; the flexible upper half gives way first when both sides are busy.
+   */
+  .half:not(.upper) {
+    flex-shrink: 0;
+  }
+
+  .half-content {
+    position: relative;
+    flex: none;
+    width: 100%;
+  }
+
+  .half.upper .half-content {
+    margin-top: auto;
   }
 
   /*
@@ -1909,15 +2187,6 @@
     overflow: hidden;
   }
 
-  /*
-   * Split: the half is the bound. The block stops at the half's content edge,
-   * so an over-long ability truncates there and the rule stops with it rather
-   * than being laid out across the separator.
-   */
-  .half .ability-block {
-    max-height: 100%;
-  }
-
   .rule-v {
     flex: none;
   }
@@ -1939,6 +2208,12 @@
     translate: -50% 0;
     font-family: var(--card-font-numeral);
     font-weight: var(--card-font-numeral-weight);
+  }
+
+  .boost-symbol {
+    position: absolute;
+    display: block;
+    object-fit: contain;
   }
 
   .quantity {

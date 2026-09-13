@@ -35,6 +35,8 @@
     DEFAULT_SECRET_PASSAGE_FADE,
     findPath,
     findSpace,
+    isAutoLargeFighterPath,
+    LARGE_FIGHTER_CENTRE_THRESHOLD_MM,
     mapHeight,
     mapHeightMm,
     mapPrintSize,
@@ -43,12 +45,15 @@
     neighbours,
     orphanSpaces,
     pathExists,
+    pathCentreDistanceMm,
+    showsLargeFighterMarker,
     spaceZoneColors,
     zoneStyleFor
   } from '$lib/map/types';
   import type {
     MapEnvironmentPiece,
     MapEnvironmentPieceId,
+    MapLabelCorner,
     MapNote,
     MapNoteId,
     MapSecretPassage,
@@ -67,6 +72,17 @@
   /** What the export will actually produce — a preset's own row, or solved
       from `aspect` on `custom`. See `mapPrintSize`. */
   const printSize = $derived(mapPrintSize(map));
+
+  const LABEL_CORNERS: ReadonlyArray<{
+    value: MapLabelCorner;
+    label: string;
+    symbol: string;
+  }> = [
+    { value: 'top-left', label: 'Top left', symbol: '↖' },
+    { value: 'top-right', label: 'Top right', symbol: '↗' },
+    { value: 'bottom-left', label: 'Bottom left', symbol: '↙' },
+    { value: 'bottom-right', label: 'Bottom right', symbol: '↘' }
+  ];
 
   type Mode = 'place' | 'link' | 'text';
   let mode = $state<Mode>('place');
@@ -98,6 +114,8 @@
     offsetX: number;
     offsetY: number;
   } | null>(null);
+  /** A held pointer that never moves is selection, not an edit. */
+  let dragChanged = false;
   let board = $state<HTMLDivElement | null>(null);
   let artInput = $state<HTMLInputElement | null>(null);
   let artError = $state<string | null>(null);
@@ -494,6 +512,8 @@
         /* Keep the grabbed pixel beneath the pointer. Snapping the image's
            centre to the cursor makes a large scene piece jump on first move. */
         selectEnvironment(environmentPiece.id);
+        workshop.beginMapEdit();
+        dragChanged = false;
         draggingEnvironment = {
           id: environmentPiece.id,
           offsetX: point.x - environmentPiece.x,
@@ -512,6 +532,8 @@
         // never moves is indistinguishable from a plain select.
         selectSpace(hit, event.shiftKey);
         if (!event.shiftKey) {
+          workshop.beginMapEdit();
+          dragChanged = false;
           dragging = hit;
           (event.target as Element).setPointerCapture?.(event.pointerId);
         }
@@ -534,6 +556,8 @@
         /* Keep the point an author grabbed beneath the pointer. A label's
            anchor is not necessarily its visual centre, so snapping it there
            would make the text jump before the first move. */
+        workshop.beginMapEdit();
+        dragChanged = false;
         draggingNote = {
           id: noteAtPointer.id,
           offsetX: point.x - noteAtPointer.x,
@@ -595,6 +619,7 @@
         mapHeight(map),
         Math.max(0, point.y - draggingEnvironment.offsetY)
       );
+      dragChanged = true;
       return;
     }
 
@@ -604,6 +629,7 @@
       if (!point || !note) return;
       note.x = Math.min(1, Math.max(0, point.x - draggingNote.offsetX));
       note.y = Math.min(mapHeight(map), Math.max(0, point.y - draggingNote.offsetY));
+      dragChanged = true;
       return;
     }
 
@@ -615,25 +641,78 @@
     // the only way back would be to edit the file by hand.
     space.x = Math.min(1, Math.max(0, point.x));
     space.y = Math.min(mapHeight(map), Math.max(0, point.y));
+    dragChanged = true;
   }
 
   function onPointerUp(): void {
+    const wasDragging =
+      draggingEnvironment !== null || draggingNote !== null || dragging !== null;
     if (draggingEnvironment !== null) {
       draggingEnvironment = null;
-      // Like a space drag, one pointer gesture is one persisted edit.
-      workshop.editMap(() => {});
     }
     if (draggingNote !== null) {
       draggingNote = null;
-      // Like a space drag, one pointer gesture is one persisted edit.
-      workshop.editMap(() => {});
     }
     if (dragging !== null) {
       dragging = null;
-      // Marked dirty once on release, not on every move: a drag is one edit.
-      workshop.editMap(() => {});
+    }
+    if (!wasDragging) return;
+    if (dragChanged) workshop.commitMapEdit();
+    else workshop.cancelMapEdit();
+    dragChanged = false;
+  }
+
+  /** Keep inspector selections valid when undo removes the thing they name. */
+  function undoMap(): void {
+    if (!workshop.undoMap()) return;
+    dragging = null;
+    draggingNote = null;
+    draggingEnvironment = null;
+    dragChanged = false;
+
+    const spaceIds = new Set(map.spaces.map((space) => space.id));
+    if (selected && !spaceIds.has(selected)) selected = null;
+    colorSelection = new Set([...colorSelection].filter((id) => spaceIds.has(id)));
+    if (linkFrom && !spaceIds.has(linkFrom)) linkFrom = null;
+    if (selectedNote && !map.notes.some((note) => note.id === selectedNote)) selectedNote = null;
+    if (
+      selectedEnvironment &&
+      !map.environment.some((piece) => piece.id === selectedEnvironment)
+    ) {
+      selectedEnvironment = null;
+    }
+    if (
+      selectedZoneColor &&
+      !spaceZoneColors(map).some(
+        (zone) => zone.color.toLowerCase() === selectedZoneColor?.toLowerCase()
+      )
+    ) {
+      selectedZoneColor = null;
     }
   }
+
+  function onKeyDown(event: KeyboardEvent): void {
+    if (!(event.ctrlKey || event.metaKey) || event.shiftKey || event.key.toLowerCase() !== 'z') {
+      return;
+    }
+    const target = event.target;
+    if (
+      target instanceof HTMLInputElement ||
+      target instanceof HTMLTextAreaElement ||
+      target instanceof HTMLSelectElement ||
+      (target instanceof HTMLElement && target.isContentEditable)
+    ) {
+      return;
+    }
+    if (!workshop.canUndoMap) return;
+    event.preventDefault();
+    undoMap();
+  }
+
+  $effect(() => () => {
+    if (dragChanged) workshop.commitMapEdit();
+    else workshop.cancelMapEdit();
+  });
 
   function removeSelected(): void {
     if (selected === null) return;
@@ -663,7 +742,11 @@
       // The faces have to be loaded before anything is measured, or every
       // space label is placed against a fallback.
       await document.fonts.ready;
-      const blob = await photographMapBoard(map, { customSymbols: set.customSymbols });
+      const blob = await photographMapBoard(map, {
+        customSymbols: set.customSymbols,
+        setName: set.name,
+        authorName: set.meta.author
+      });
       if (!blob) throw new Error('The map did not render.');
       saveExport({
         filename: `${slugify(set.name, 'adventure-set')}-map.png`,
@@ -1029,6 +1112,8 @@
   }
 </script>
 
+<svelte:window onkeydown={onKeyDown} />
+
 <div class="page scroll-y">
   <header class="head">
     <div class="titles">
@@ -1041,10 +1126,21 @@
       an export must not depend on this page being the one open, and the copy is
       the same component the overview and any future print will draw.
     -->
-    <Button size="sm" disabled={!map.enabled || exporting} onclick={exportMap}>
-      <Icon name="download" size={13} />
-      {exporting ? 'Rendering…' : 'Export PNG'}
-    </Button>
+    <div class="head-actions">
+      <Button
+        size="sm"
+        disabled={!workshop.canUndoMap}
+        title="Undo last map change (Ctrl+Z)"
+        onclick={undoMap}
+      >
+        <Icon name="undo" size={13} />
+        Undo
+      </Button>
+      <Button size="sm" disabled={!map.enabled || exporting} onclick={exportMap}>
+        <Icon name="download" size={13} />
+        {exporting ? 'Rendering…' : 'Export PNG'}
+      </Button>
+    </div>
   </header>
 
   {#if exportError}<p class="error" role="alert">{exportError}</p>{/if}
@@ -1277,6 +1373,48 @@
               {printSize.width} × {printSize.height} px exported.
             </p>
 
+            <div class="board-wide">
+              <Switch
+                checked={map.showLabel}
+                label="Show map title"
+                hint="Print the UMLabs title plate and author credit"
+                onchange={(showLabel) => workshop.editMap((m) => (m.showLabel = showLabel))}
+              />
+            </div>
+
+            {#if map.showLabel}
+              <div class="field board-wide">
+                <span class="field-label">Map title</span>
+                <TextInput
+                  value={map.name}
+                  placeholder={set.name}
+                  aria-label="Map title"
+                  oninput={(event) =>
+                    workshop.editMap((m) => (m.name = event.currentTarget.value))}
+                />
+                <p class="hint">Leave blank to use the set name. The byline uses the set's author credit.</p>
+              </div>
+
+              <div class="field board-wide label-corners">
+                <span class="field-label">Label corner</span>
+                <div class="corner-buttons">
+                  {#each LABEL_CORNERS as entry (entry.value)}
+                    <button
+                      type="button"
+                      class="mode corner-button"
+                      class:active={map.labelCorner === entry.value}
+                      aria-label={entry.label}
+                      title={entry.label}
+                      aria-pressed={map.labelCorner === entry.value}
+                      onclick={() => workshop.editMap((m) => (m.labelCorner = entry.value))}
+                    >
+                      {entry.symbol}
+                    </button>
+                  {/each}
+                </div>
+              </div>
+            {/if}
+
             {#if map.size === 'custom'}
               <!--
                 Said plainly, because "Custom" on its own does not explain
@@ -1463,6 +1601,8 @@
             <MapBoard
               {map}
               customSymbols={set.customSymbols}
+              setName={set.name}
+              authorName={set.meta.author}
               highlight={Array.from(colorSelection)}
               linking={mode === 'link' ? linkFrom : null}
             />
@@ -1879,6 +2019,8 @@
                   <h3 class="selected-section-title">Connections</h3>
                   {#each neighbours(map, selectedSpace.id) as other (other)}
                     {@const path = findPath(map, selectedSpace.id, other)}
+                    {@const centreDistance = path ? pathCentreDistanceMm(map, path) : null}
+                    {@const automaticLargeFighter = path ? isAutoLargeFighterPath(map, path) : false}
                     <div class="connection">
                       <div class="link-row">
                         <span class="link-name">{spaceName(other)}</span>
@@ -1923,9 +2065,12 @@
                           setPathOption(selectedSpace.id, other, 'modifier', enabled)}
                       />
                       <Switch
-                        checked={path?.largeFighter ?? false}
+                        checked={path ? showsLargeFighterMarker(map, path) : false}
+                        disabled={automaticLargeFighter}
                         label="Large fighter"
-                        hint="Show the restriction pin"
+                        hint={automaticLargeFighter && centreDistance !== null
+                          ? `Automatic · ${centreDistance.toFixed(1)} mm centre to centre`
+                          : 'Show the restriction pin'}
                         onchange={(enabled) =>
                           setPathOption(selectedSpace.id, other, 'largeFighter', enabled)}
                       />
@@ -2041,8 +2186,11 @@
 
           {#snippet belowMap()}
             <div class="below-map">
-              <!-- Geometry and colour-wide zone settings belong together as
-                   board-wide controls, directly below the thing they change. -->
+              {@render boardPanel()}
+
+              <!-- Terrain styling and the path-wide restriction rule share
+                   the right column, with the more frequently inspected zone
+                   controls first. -->
               <div class="block zone-col">
               <h2 class="panel-title">Zones</h2>
 
@@ -2188,9 +2336,17 @@
                 {#if zonePatternError}<p class="error" role="alert">{zonePatternError}</p>{/if}
 
               {/if}
-              </div>
 
-              {@render boardPanel()}
+              <div class="zone-auto">
+                <Switch
+                  checked={map.autoLargeFighter}
+                  label="Auto large-fighter pins"
+                  hint="Mark connections over {LARGE_FIGHTER_CENTRE_THRESHOLD_MM} mm centre to centre"
+                  onchange={(autoLargeFighter) =>
+                    workshop.editMap((m) => (m.autoLargeFighter = autoLargeFighter))}
+                />
+              </div>
+              </div>
             </div>
           {/snippet}
         </div>
@@ -2337,6 +2493,12 @@
     align-items: start;
   }
 
+  .head-actions {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+  }
+
   .map-col {
     grid-column: 1;
     display: flex;
@@ -2363,12 +2525,12 @@
   }
 
   .zone-col {
-    border-radius: 0 0 0 var(--radius-sm);
+    border-left: 0;
+    border-radius: 0 0 var(--radius-sm) 0;
   }
 
   .below-map .board-block {
-    border-left: 0;
-    border-radius: 0 0 var(--radius-sm) 0;
+    border-radius: 0 0 0 var(--radius-sm);
   }
 
   .side-col {
@@ -2452,6 +2614,33 @@
   .board-block > .zones,
   .board-block > .hint {
     grid-column: 1 / -1;
+  }
+
+  .board-wide {
+    grid-column: 1 / -1;
+    width: 100%;
+  }
+
+  .corner-buttons {
+    display: grid;
+    grid-template-columns: repeat(4, 28px);
+    gap: var(--space-1);
+  }
+
+  .corner-button {
+    display: grid;
+    width: 28px;
+    height: 26px;
+    padding: 0;
+    place-items: center;
+    font-size: var(--text-sm);
+    line-height: 1;
+  }
+
+  .zone-auto {
+    width: 100%;
+    padding-top: var(--space-3);
+    border-top: 1px solid var(--border-default);
   }
 
   .selected-scroll {

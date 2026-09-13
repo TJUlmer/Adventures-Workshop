@@ -156,6 +156,10 @@ export type CombatSymbol = (typeof COMBAT_SYMBOLS)[number];
 export const CARD_OWNERS = ['hero', 'sidekick', 'any'] as const;
 export type CardOwner = (typeof CARD_OWNERS)[number] | HeroCharacterCardId;
 
+/** Which exposed edge carries a tuck effect's reminder copy. */
+export const TUCK_EFFECT_ORIENTATIONS = ['bottom', 'right'] as const;
+export type TuckEffectOrientation = (typeof TUCK_EFFECT_ORIENTATIONS)[number];
+
 /** A villain, minion or hero action card. */
 export interface ActionCard extends CardCommon {
   type: 'action';
@@ -166,6 +170,8 @@ export interface ActionCard extends CardCommon {
   attack: number | null;
   defense: number | null;
   boost: number | null;
+  /** A custom-symbol token rendered in the boost disc instead of its value. */
+  boostSymbol: string;
   ability: AbilityBlocks;
   /**
    * A hero card's own combat display: one symbol and one value in the ribbon,
@@ -220,6 +226,13 @@ export interface ActionCard extends CardCommon {
   bonusAttackTitle: string;
   bonusAttackValue: number;
   bonusAttackAbility: string;
+  /** A reminder kept visible when this card is tucked behind another card. */
+  showTuckEffect: boolean;
+  tuckEffect: string;
+  tuckEffectOrientation: TuckEffectOrientation;
+  /** A symbol or short value set into the artwork's upper-right corner. */
+  showCornerBadge: boolean;
+  cornerBadge: string;
 }
 
 /**

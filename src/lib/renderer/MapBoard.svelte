@@ -26,7 +26,7 @@
     MapSpaceId,
     MapStartSide
   } from '$lib/map/types';
-  import { findSpace, mapHeight } from '$lib/map/types';
+  import { findSpace, mapHeight, showsLargeFighterMarker } from '$lib/map/types';
   import type { CustomSymbol } from '$lib/symbols/types';
   import type { PatternSource } from './assets';
   import {
@@ -58,6 +58,28 @@
    * is what the previous 0.30 (42% of the diameter) drew.
    */
   const START_MARKER_HALF = 0.15;
+
+  /** The fixed UMLabs shield is half the previous plate size. The supplied
+      raster is cropped at its measured shield/panel seam; the title panel is
+      drawn separately because its width belongs to the title, not the logo. */
+  const MAP_LABEL_SOURCE_WIDTH = 3004;
+  const MAP_LABEL_SOURCE_HEIGHT = 735;
+  const MAP_LABEL_SOURCE_LOGO_WIDTH = 1485;
+  const MAP_LABEL_SOURCE_PANEL_HEIGHT = 562;
+  const MAP_LABEL_BASE_WIDTH = 0.15;
+  const MAP_LABEL_ASPECT = MAP_LABEL_SOURCE_WIDTH / MAP_LABEL_SOURCE_HEIGHT;
+  const MAP_LABEL_HEIGHT = MAP_LABEL_BASE_WIDTH / MAP_LABEL_ASPECT;
+  const MAP_LABEL_LOGO_WIDTH =
+    MAP_LABEL_BASE_WIDTH * (MAP_LABEL_SOURCE_LOGO_WIDTH / MAP_LABEL_SOURCE_WIDTH);
+  const MAP_LABEL_PANEL_HEIGHT =
+    MAP_LABEL_HEIGHT * (MAP_LABEL_SOURCE_PANEL_HEIGHT / MAP_LABEL_SOURCE_HEIGHT);
+  const MAP_LABEL_PANEL_MIN_WIDTH = 0.052;
+  const MAP_LABEL_PANEL_MAX_WIDTH = 0.18;
+  const MAP_LABEL_PANEL_PADDING = 0.014;
+  const MAP_LABEL_PANEL_STROKE = MAP_LABEL_HEIGHT * 0.015;
+  const MAP_LABEL_TITLE_SIZE = 0.014;
+  const MAP_LABEL_BYLINE_SIZE = 0.0115;
+  const MAP_LABEL_EDGE = 0.015;
 
   /**
    * The printed board's paths carry a faint, *feathered* outer glow —
@@ -268,6 +290,7 @@
   let largeFighterLoadTick = $state(0);
   let oneWayArrowLoadTick = $state(0);
   let secretPassageLoadTick = $state(0);
+  let mapLabelLoadTick = $state(0);
 
   /** Every `fill="#…"` in the source recoloured to one colour — the pattern
       files are single-colour shapes on transparency, drawn to take exactly
@@ -307,9 +330,21 @@
      * have no such number to hand over and fall back to measuring instead.
      */
     renderWidth?: number;
+    /** Set name used when the map has no more-specific title of its own. */
+    setName?: string;
+    /** The set's credited display name, printed below the title box. */
+    authorName?: string;
   }
 
-  let { map, customSymbols = [], highlight = [], linking = null, renderWidth }: Props = $props();
+  let {
+    map,
+    customSymbols = [],
+    highlight = [],
+    linking = null,
+    renderWidth,
+    setName = '',
+    authorName = ''
+  }: Props = $props();
 
   /* Unique per mounted instance, so this component's own `<pattern>` defs
      never collide with another `MapBoard`'s — the editor, a hover preview
@@ -338,7 +373,7 @@
   });
 
   $effect(() => {
-    if (!map.paths.some((path) => path.largeFighter)) return;
+    if (!map.paths.some((path) => showsLargeFighterMarker(map, path))) return;
     if (getCachedSvgSource(MAP_ASSETS.largeFighterPin) !== undefined) return;
     void loadSvgSource(MAP_ASSETS.largeFighterPin).then(() => {
       largeFighterLoadTick += 1;
@@ -355,6 +390,36 @@
       if (getCachedRasterSource(url) !== undefined) continue;
       void loadRasterSource(url).then(() => {
         oneWayArrowLoadTick += 1;
+      });
+    }
+  });
+
+  $effect(() => {
+    if (!map.showLabel) return;
+    const requests: Array<Promise<string | null>> = [];
+    if (getCachedRasterSource(MAP_ASSETS.label) === undefined) {
+      requests.push(loadRasterSource(MAP_ASSETS.label));
+    }
+    if (
+      getCachedRecolouredRasterSource(
+        MAP_ASSETS.label,
+        map.pathColor,
+        map.pathColor,
+        'dark-only'
+      ) === undefined
+    ) {
+      requests.push(
+        loadRecolouredRasterSource(
+          MAP_ASSETS.label,
+          map.pathColor,
+          map.pathColor,
+          'dark-only'
+        )
+      );
+    }
+    for (const request of requests) {
+      void request.then(() => {
+        mapLabelLoadTick += 1;
       });
     }
   });
@@ -473,6 +538,44 @@
       modifierText: getCachedRasterSource(MAP_ASSETS.oneWayArrowModifierText) ?? null
     };
   });
+  const mapLabelSources = $derived.by(() => {
+    void mapLabelLoadTick;
+    return {
+      base: getCachedRasterSource(MAP_ASSETS.label) ?? null,
+      ink:
+        getCachedRecolouredRasterSource(
+          MAP_ASSETS.label,
+          map.pathColor,
+          map.pathColor,
+          'dark-only'
+        ) ?? null
+    };
+  });
+  const mapLabelTitle = $derived((map.name.trim() || setName.trim()).toUpperCase());
+  const mapLabelByline = $derived(authorName.trim() ? `By ${authorName.trim()}` : '');
+  const mapLabelTitleNaturalWidth = $derived(
+    mapLabelTitle.length * MAP_LABEL_TITLE_SIZE * 0.45
+  );
+  const mapLabelPanelWidth = $derived(
+    Math.min(
+      MAP_LABEL_PANEL_MAX_WIDTH,
+      Math.max(MAP_LABEL_PANEL_MIN_WIDTH, mapLabelTitleNaturalWidth + MAP_LABEL_PANEL_PADDING)
+    )
+  );
+  const mapLabelTitleLength = $derived(
+    mapLabelTitleNaturalWidth > mapLabelPanelWidth - MAP_LABEL_PANEL_PADDING
+      ? mapLabelPanelWidth - MAP_LABEL_PANEL_PADDING
+      : undefined
+  );
+  const mapLabelWidth = $derived(MAP_LABEL_LOGO_WIDTH + mapLabelPanelWidth);
+  const mapLabelX = $derived(
+    map.labelCorner.endsWith('right') ? 1 - MAP_LABEL_EDGE - mapLabelWidth : MAP_LABEL_EDGE
+  );
+  const mapLabelY = $derived(
+    map.labelCorner.startsWith('bottom')
+      ? height - MAP_LABEL_EDGE - MAP_LABEL_HEIGHT
+      : MAP_LABEL_EDGE
+  );
 
   interface ZonePatternDef {
     id: string;
@@ -749,7 +852,7 @@
         y2: end.y,
         oneWay: path.oneWay,
         modifier: path.modifier,
-        largeFighter: path.largeFighter,
+        largeFighter: showsLargeFighterMarker(map, path),
         modifierX: modifierPoint.x,
         modifierY: modifierPoint.y,
         modifierAngle,
@@ -1538,6 +1641,77 @@
         {note.text}
       </text>
     {/each}
+
+    {#if map.showLabel && mapLabelSources.base && mapLabelSources.ink}
+      <!--
+        The logo crop is drawn at half opacity, then its dark pixels are
+        restored with a separately cached `dark-only` raster. The adjoining
+        panel is native SVG so it can follow the title's width. A CSS/SVG mask
+        is deliberately avoided because masks on nested SVG content disappear
+        in the export photograph pipeline (see the asset-loader notes).
+      -->
+      <g class="map-identity" transform="translate({mapLabelX} {mapLabelY})">
+        <rect
+          x={MAP_LABEL_LOGO_WIDTH - MAP_LABEL_PANEL_STROKE / 2}
+          y={MAP_LABEL_PANEL_STROKE / 2}
+          width={mapLabelPanelWidth + MAP_LABEL_PANEL_STROKE / 2}
+          height={MAP_LABEL_PANEL_HEIGHT - MAP_LABEL_PANEL_STROKE}
+          style:fill={map.startInk}
+          fill-opacity="0.5"
+          style:stroke={map.pathColor}
+          stroke-width={MAP_LABEL_PANEL_STROKE}
+        />
+        <svg
+          x="0"
+          y="0"
+          width={MAP_LABEL_LOGO_WIDTH}
+          height={MAP_LABEL_HEIGHT}
+          viewBox="0 0 {MAP_LABEL_SOURCE_LOGO_WIDTH} {MAP_LABEL_SOURCE_HEIGHT}"
+          preserveAspectRatio="none"
+          overflow="hidden"
+        >
+          <image
+            href={mapLabelSources.base}
+            width={MAP_LABEL_SOURCE_WIDTH}
+            height={MAP_LABEL_SOURCE_HEIGHT}
+            opacity="0.5"
+            preserveAspectRatio="none"
+          />
+          <image
+            href={mapLabelSources.ink}
+            width={MAP_LABEL_SOURCE_WIDTH}
+            height={MAP_LABEL_SOURCE_HEIGHT}
+            preserveAspectRatio="none"
+          />
+        </svg>
+        {#if mapLabelTitle}
+          <text
+            class="map-title"
+            x={MAP_LABEL_LOGO_WIDTH + mapLabelPanelWidth / 2}
+            y={MAP_LABEL_PANEL_HEIGHT / 2}
+            font-size={MAP_LABEL_TITLE_SIZE}
+            textLength={mapLabelTitleLength}
+            lengthAdjust={mapLabelTitleLength === undefined ? undefined : 'spacingAndGlyphs'}
+            text-anchor="middle"
+            dominant-baseline="central"
+            style:fill={map.pathColor}
+          >{mapLabelTitle}</text>
+        {/if}
+        {#if mapLabelByline}
+          <text
+            class="map-byline"
+            x={MAP_LABEL_LOGO_WIDTH}
+            y={MAP_LABEL_HEIGHT * 0.885}
+            font-size={MAP_LABEL_BYLINE_SIZE}
+            text-anchor="start"
+            dominant-baseline="central"
+            style:fill={map.startInk}
+            style:stroke={map.pathColor}
+            stroke-width={MAP_LABEL_HEIGHT * 0.018}
+          >{mapLabelByline}</text>
+        {/if}
+      </g>
+    {/if}
   </svg>
 </div>
 
@@ -1599,6 +1773,20 @@
     font-family: var(--card-font-title, sans-serif);
     white-space: pre;
     paint-order: stroke;
+  }
+
+  .map-title {
+    font-family: var(--card-font-name, sans-serif);
+    font-weight: 700;
+    letter-spacing: 0.025em;
+  }
+
+  .map-byline {
+    font-family: var(--card-font-title, sans-serif);
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    paint-order: stroke;
+    stroke-linejoin: round;
   }
 
   .space text {

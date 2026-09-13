@@ -10,9 +10,11 @@
    * *inside* a ring the template draws, where the UMLABS hero frame is only
    * a line near the edge, so this back's own artwork runs the full bleed
    * canvas behind it rather than being boxed into a smaller window. The
-   * supplied lockup is split into frame and logo masks: the former follows
-   * `back.frame`, while the contrasting mark follows `back.ink` along with
-   * the hero name. That keeps both existing colour controls meaningful.
+   * supplied two-tone lockup is read directly from
+   * `UMLabs_Cardback_Template.png`: its complete alpha supplies the frame
+   * layer, while its white/luminance pixels supply the contrasting mark in
+   * `back.ink` along with the hero name. That keeps both existing colour
+   * controls meaningful without letting derived masks drift behind the source.
    */
   import { fillCss } from '$lib/cards/style';
   import type { Character } from '$lib/characters/types';
@@ -40,9 +42,9 @@
     <CardArt artwork={back.artwork} background="transparent" />
   </div>
 
-  <!-- The template's border and logo badge, recoloured — see the file note above. -->
-  <div class="mask frame" style:background={fillCss(back.frame)}></div>
-  <div class="mask logo" style:background={back.ink}></div>
+  <!-- Two readings of the one source template preserve its two colour roles. -->
+  <div class="mask template-frame" style:background={fillCss(back.frame)}></div>
+  <div class="mask template-ink" style:background={back.ink}></div>
 
   <div
     class="name"
@@ -65,20 +67,20 @@
     position: absolute;
     inset: 0;
     pointer-events: none;
+    mask-image: url('/assets/templates/UMLabs_Cardback_Template.png');
+    -webkit-mask-image: url('/assets/templates/UMLabs_Cardback_Template.png');
     mask-size: 100% 100%;
     -webkit-mask-size: 100% 100%;
     mask-repeat: no-repeat;
     -webkit-mask-repeat: no-repeat;
   }
 
-  .frame {
-    mask-image: url('/assets/templates/umlabs_cardback_frame.png');
-    -webkit-mask-image: url('/assets/templates/umlabs_cardback_frame.png');
+  .template-frame {
+    mask-mode: alpha;
   }
 
-  .logo {
-    mask-image: url('/assets/templates/umlabs_cardback_logo.png');
-    -webkit-mask-image: url('/assets/templates/umlabs_cardback_logo.png');
+  .template-ink {
+    mask-mode: luminance;
   }
 
   .name {

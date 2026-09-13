@@ -11,6 +11,7 @@ import { characterLabel } from '$lib/characters/factory';
 import type { Character, HeroCharacterCard } from '$lib/characters/types';
 import { hasArtwork } from '$lib/core/artwork';
 import { CARD_FORMATS } from '$lib/renderer/geometry';
+import type { CardFormat } from '$lib/renderer/geometry';
 import {
   characterForCard,
   initiativeSubjectForCard,
@@ -20,6 +21,7 @@ import {
 import type { AdventureSet, CharacterEntry } from '$lib/sets/types';
 import { formatForCard } from './card-image';
 import { photographThreatBoard, withCardStage } from './card-stage';
+import type { StageJob } from './card-stage';
 import { slugify } from './json';
 import type { ExportResult } from './types';
 import { createZip } from './zip';
@@ -46,7 +48,7 @@ const FOLDERS = {
   unfiled: 'Unfiled cards'
 } as const;
 
-interface CardJob {
+export interface CardPngJob {
   folder: string;
   name: string;
   card: Card | null;
@@ -81,9 +83,9 @@ export interface CardPngOptions {
  * release precisely because they were left out of a hand-written list of the
  * other roles; one function nobody has to remember to update is the fix.
  */
-function characterJobs(folder: string, entry: CharacterEntry): CardJob[] {
+function characterJobs(folder: string, entry: CharacterEntry): CardPngJob[] {
   const character = entry.character;
-  const jobs: CardJob[] = [];
+  const jobs: CardPngJob[] = [];
 
   for (const deck of entry.decks) {
     for (const card of deck.cards) {
@@ -118,10 +120,10 @@ function characterJobs(folder: string, entry: CharacterEntry): CardJob[] {
  * identity first, then `additionalCards` in order, which is how a duo's two
  * sheets are printed.
  */
-function characterCardJobs(folder: string, character: Character): CardJob[] {
+function characterCardJobs(folder: string, character: Character): CardPngJob[] {
   if (character.role !== 'hero') return [];
 
-  const jobs: CardJob[] = [
+  const jobs: CardPngJob[] = [
     {
       folder,
       name: `${characterLabel(character)} character card`,
@@ -148,8 +150,8 @@ function characterCardJobs(folder: string, character: Character): CardJob[] {
 }
 
 /** Everything printable in the set, in the order it should appear. */
-function planJobs(set: AdventureSet): CardJob[] {
-  const jobs: CardJob[] = [];
+export function planCardPngJobs(set: AdventureSet): CardPngJob[] {
+  const jobs: CardPngJob[] = [];
   const view = outline(set);
 
   /* Heroes first, matching the roster order the sidebar and every other
@@ -189,6 +191,41 @@ function planJobs(set: AdventureSet): CardJob[] {
   }
 
   return jobs;
+}
+
+/**
+ * The exact renderer inputs for one PNG job.
+ *
+ * Publication snapshots and downloadable PNGs both consume this function.
+ * Keeping the stage payload and format decision here prevents the gallery from
+ * becoming a subtly different export path when a renderer input is added.
+ */
+export function cardPngRenderJob(
+  set: AdventureSet,
+  job: CardPngJob
+): { stage: StageJob; format: CardFormat } {
+  const format = job.card
+    ? formatForCard(job.card)
+    : job.statCard
+      ? CARD_FORMATS.action
+      : job.cardback?.role === 'hero'
+        ? CARD_FORMATS.action
+        : CARD_FORMATS.cardback;
+
+  return {
+    stage: {
+      card: job.card,
+      character: job.character,
+      cardback: job.cardback,
+      statCard: job.statCard ?? null,
+      statCardEntry: job.statCardEntry ?? null,
+      theme: job.card ? resolveStyleForCard(set, job.card) : undefined,
+      side: job.side ?? 'front',
+      initiativeSubject: job.card ? initiativeSubjectForCard(set, job.card) : null,
+      customSymbols: set.customSymbols
+    },
+    format
+  };
 }
 
 /** Filesystem-safe, and never two the same inside one folder. */
@@ -320,7 +357,7 @@ interface PngRun {
  */
 async function photographJobs(
   set: AdventureSet,
-  jobs: readonly CardJob[],
+  jobs: readonly CardPngJob[],
   prefix: string,
   options: CardPngOptions,
   photograph: Parameters<Parameters<typeof withCardStage>[0]>[0],
@@ -328,42 +365,15 @@ async function photographJobs(
 ): Promise<void> {
   {
     for (const job of jobs) {
-      /*
-       * Which canvas to photograph on, and it has to agree with `CardRenderer`
-       * exactly — the renderer picks the format, and asking for a different
-       * one here does not resize the card, it photographs the wrong rectangle.
-       *
-       * The trap is the deck back. A *hero's* back is supplied on the action
-       * card's own 1632×2222 bleed canvas; a villain's or minion's uses the
-       * `cardback` template, which is drawn at trim size and is 373×520. Take
-       * the small one for a hero and their back exports as a 373px thumbnail
-       * of a card designed at four times that — which is exactly what it did
-       * the first time heroes were exported at all.
-       *
-       * A character card is the action sheet too (see `CHARACTER_CARD`), and
-       * only a real card can derive its format from itself.
-       */
-      const format = job.card
-        ? formatForCard(job.card)
-        : job.statCard
-          ? CARD_FORMATS.action
-          : job.cardback?.role === 'hero'
-            ? CARD_FORMATS.action
-            : CARD_FORMATS.cardback;
+      /* Stage payload and format both from `cardPngRenderJob`, which is where
+         that decision lives now — the gallery's own snapshots go through the
+         same function, so a box export cannot drift into photographing a
+         different rectangle than the one an author approved. */
+      const renderJob = cardPngRenderJob(set, job);
 
       const blob = await photograph(
-        {
-          card: job.card,
-          character: job.character,
-          cardback: job.cardback,
-          statCard: job.statCard ?? null,
-          statCardEntry: job.statCardEntry ?? null,
-          theme: job.card ? resolveStyleForCard(set, job.card) : undefined,
-          side: job.side ?? 'front',
-          initiativeSubject: job.card ? initiativeSubjectForCard(set, job.card) : null,
-          customSymbols: set.customSymbols
-        },
-        format,
+        renderJob.stage,
+        renderJob.format,
         { bleed: options.bleed }
       );
 
@@ -400,7 +410,7 @@ export async function exportCardPngs(
   set: AdventureSet,
   options: CardPngOptions
 ): Promise<ExportResult> {
-  const jobs = planJobs(set);
+  const jobs = planCardPngJobs(set);
   const root = slugify(set.name, 'adventure-set');
   const run: PngRun = {
     entries: [],
@@ -483,7 +493,7 @@ export async function exportCollectionCardPngs(
   name: string,
   options: CardPngOptions
 ): Promise<ExportResult> {
-  const planned = members.map((member) => ({ member, jobs: planJobs(member.set) }));
+  const planned = members.map((member) => ({ member, jobs: planCardPngJobs(member.set) }));
   const run: PngRun = {
     entries: [],
     taken: new Set<string>(),

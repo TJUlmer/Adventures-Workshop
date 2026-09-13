@@ -30,6 +30,7 @@
   import type { ExportSelection } from '$lib/sets/export-selection';
   import { computeScopedSet, parseScopeKey, scopeKeyOf, scopeOptionsFor } from '$lib/sets/scope';
   import type { PublishScope } from '$lib/sets/scope';
+  import { makeIndependentSetCopy } from '$lib/sets/copy';
   import type { AdventureSet } from '$lib/sets/types';
   import { readTtsSavedObjectsPath, writeTtsSavedObjectsPath } from '$lib/storage/settings';
   import { Icon, Select, TextInput } from '$lib/ui';
@@ -42,7 +43,7 @@
      * sheets are a screen rather than a file, so only a caller that can show
      * one may offer it.
      */
-    onprint?: () => void;
+    onprint?: (set: AdventureSet) => void;
     /**
      * The scope the picker below shows and edits — bindable so a caller can
      * both seed it (`SharedSetScreen`'s `characterHint`, one hero pre-selected
@@ -51,18 +52,27 @@
      * here rather than requiring every caller to pass one.
      */
     scope?: PublishScope;
+    /**
+     * Authors download an identity-preserving full backup. A public viewer
+     * downloads a freshly identified copy so importing it cannot replace the
+     * publisher's working document if both happen to be in one browser.
+     */
+    projectFileMode?: 'backup' | 'copy';
   }
 
-  let { set, onprint, scope = $bindable({ kind: 'full' }) }: Props = $props();
+  let {
+    set,
+    onprint,
+    scope = $bindable({ kind: 'full' }),
+    projectFileMode = 'backup'
+  }: Props = $props();
 
   /**
-   * Every export below reads from this, never from `set` directly — the one
-   * change that makes "export just this hero" apply everywhere at once
-   * instead of needing a scoped branch in each exporter. Reuses
-   * `sets/scope.ts`'s `computeScopedSet`, the same slice a scoped *publish*
-   * takes — the only difference is this one is computed on the visitor's own
-   * machine, from a set they already have the whole of, and thrown away
-   * rather than sent anywhere.
+   * Every rendered export below reads from this rather than `set` directly —
+   * the one change that makes "export just this hero" apply everywhere at
+   * once instead of needing a scoped branch in each renderer. The complete
+   * project backup is the deliberate exception: temporary export choices must
+   * never turn a backup into a partial document carrying the source set's id.
    */
   const scopedSet = $derived(computeScopedSet(set, scope));
 
@@ -87,7 +97,7 @@
     selection = defaultExportSelection();
   });
 
-  /** Every export reads this, one level further pruned than `scopedSet`. */
+  /** Every selection-aware export reads this, one level further pruned than `scopedSet`. */
   const finalSet = $derived(applyExportSelection(scopedSet, selection));
 
   const hasCustomizableContent = $derived(
@@ -111,11 +121,33 @@
     const exporter = getExporter(id);
     if (!exporter) return;
     try {
-      saveExport(await exporter.run(finalSet));
-      flash(`Exported ${exporter.label}.`);
+      const source =
+        exporter.input === 'selected-content'
+          ? finalSet
+          : projectFileMode === 'copy'
+            ? makeIndependentSetCopy(finalSet)
+            : set;
+      saveExport(await exporter.run(source));
+      flash(`Exported ${exportLabel(exporter)}.`);
     } catch (error) {
       flash(error instanceof Error ? error.message : 'Export failed.', 'error');
     }
+  }
+
+  function exportLabel(exporter: (typeof EXPORTERS)[number]): string {
+    return exporter.input === 'complete-project' && projectFileMode === 'copy'
+      ? 'Editable project copy (.json)'
+      : exporter.label;
+  }
+
+  function exportDescription(exporter: (typeof EXPORTERS)[number]): string {
+    return exporter.input === 'complete-project' && projectFileMode === 'copy'
+      ? 'A separate, re-importable copy of the selected content with its own project identity.'
+      : exporter.description;
+  }
+
+  function printSheets(): void {
+    onprint?.(finalSet);
   }
 
   /**
@@ -240,8 +272,9 @@
   <!--
     Only worth showing once there is an actual choice to make — a set with one
     hero and no villain has nothing a picker would do, same reasoning as
-    `SharePanel`'s own scope picker. Every export below reads `finalSet`, so
-    changing this changes what all four buttons produce at once.
+    `SharePanel`'s own scope picker. Every rendered export below reads
+    `finalSet`, so changing this changes the table-ready outputs together. The
+    complete project backup says explicitly that it remains untouched.
   -->
   {#if scopeOptions.length > 1}
     <label class="scope">
@@ -400,7 +433,7 @@
     the browser's own dialogue is what produces it.
   -->
   {#if onprint}
-    <button type="button" class="export" onclick={onprint}>
+    <button type="button" class="export" onclick={printSheets}>
       <Icon name="printer" size={13} />
       <span class="export-text">
         <span class="export-label">Print sheets</span>
@@ -421,9 +454,9 @@
     >
       <Icon name="download" size={13} />
       <span class="export-text">
-        <span class="export-label">{exporter.label}</span>
+        <span class="export-label">{exportLabel(exporter)}</span>
         <span class="export-hint">
-          {exporter.available ? exporter.description : 'Not built yet'}
+          {exporter.available ? exportDescription(exporter) : 'Not built yet'}
         </span>
       </span>
     </button>
@@ -437,6 +470,7 @@
     open={selectorOpen}
     set={scopedSet}
     {selection}
+    projectFileUsesSelection={projectFileMode === 'copy'}
     onchange={(next) => (selection = next)}
     onclose={() => (selectorOpen = false)}
   />

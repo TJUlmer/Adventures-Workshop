@@ -72,9 +72,10 @@ export interface CardbackDesign {
   /**
    * The printed border's own colour. Both `CardbackFace` (villain/minion)
    * and `HeroCardbackFace` draw their own template's line art as a themed
-   * mask over this — the same "art as an alpha mask over a fill" technique
-   * every other recolourable template in this app uses — rather than as a
-   * flat overlay.
+   * mask over this — the same "art as a mask over a fill" technique every
+   * other recolourable template in this app uses — rather than as a flat
+   * overlay. The Hero template is two-tone, so its second mask reading keeps
+   * the contrasting logo tied to `ink`.
    */
   frame: Fill;
 }
@@ -243,6 +244,8 @@ export interface CharacterCardDesign {
   quoteScale: number;
   /** The special ability's name, its rule and its body text — one colour for all three. */
   abilityInk: Fill;
+  /** Multiplier shared by the special ability's name and body text. */
+  abilityScale: number;
   /** The move value: its digit, the arrow beside it and the word MOVE, together. */
   moveInk: Fill;
   hero: CharacterBandStyle;

@@ -12,13 +12,13 @@
  * to Vercel's normal routing, which is `vercel.json`'s rewrite serving the
  * ordinary `index.html` SPA, exactly as if this file did not exist.
  *
- * Deliberately self-contained rather than importing from `src/lib/cloud/` —
  * Edge Middleware is bundled and run outside Vite entirely, so `$lib` is not
- * a resolvable alias here, and the one PostgREST call this needs is small
- * enough that duplicating it beats wiring up a shared build step for it. The
- * request shape (the `apikey` / `Authorization: Bearer` pair, the anonymous
- * RPC call) mirrors `cloud/http.ts`'s `headers()` and `cloud/sets.ts`'s
- * `fetchSetBySlug` exactly — see those for why each header is there.
+ * a resolvable alias here. Its HTTP calls therefore stay local, while the one
+ * pure relative import (`cloud/social-metadata.ts`) keeps the words and image
+ * choice identical to the creator-visible preview. The request shape (the
+ * `apikey` / `Authorization: Bearer` pair, the anonymous RPC call) mirrors
+ * `cloud/http.ts`'s `headers()` and `cloud/sets.ts`'s `fetchSetBySlug`
+ * exactly — see those for why each header is there.
  *
  * Reads `VITE_SUPABASE_URL` / `VITE_SUPABASE_PUBLISHABLE_KEY` from
  * `process.env` — the same two Environment Variables already configured in
@@ -27,6 +27,12 @@
  * bundle; it says nothing about what a server-side function may read). No
  * new configuration is needed for this to work.
  */
+
+import {
+  SITE_NAME,
+  socialMetadata,
+  type SocialMetadataSource
+} from './src/lib/cloud/social-metadata';
 
 /*
  * Both real paths this app has. Everything else routes on a hash, which never
@@ -83,17 +89,12 @@ interface CollectionRow {
   banner_url: string;
 }
 
-interface SetSummaryRow {
-  name: string;
-  subtitle: string;
-  thumbnail_url: string;
-  social_image_url: string;
-  character_count: number;
-  card_count: number;
+interface SetSummaryRow extends SocialMetadataSource {
+  owner_id: string;
 }
 
 /**
- * The same anonymous `set_by_slug` call the client makes — see
+ * The same anonymous by-slug call the client makes — see
  * `fetchSetBySlug` in `src/lib/cloud/sets.ts`. Returns `null` for anything
  * that goes wrong (no project configured, the slug leads nowhere, the network
  * is down): a preview that falls back to the generic one is a far better
@@ -123,34 +124,28 @@ async function fetchRow<T>(rpc: string, slug: string): Promise<T | null> {
   }
 }
 
-/**
- * One preview page. `path` is where a human is sent if they land on the HTML
- * a bot was served, which happens when somebody pastes a link into a client
- * that follows it themselves.
- */
-function page(
-  title: string,
-  description: string,
-  image: string,
-  path: string,
-  label: string
-): string {
-  return `<!doctype html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<title>${escapeAttr(title)}</title>
-<meta property="og:type" content="website">
-<meta property="og:title" content="${escapeAttr(title)}">
-<meta property="og:description" content="${escapeAttr(description)}">
-${image ? `<meta property="og:image" content="${escapeAttr(image)}">\n` : ''}<meta name="twitter:card" content="${image ? 'summary_large_image' : 'summary'}">
-</head>
-<body>
-<h1>${escapeAttr(title)}</h1>
-<p>${escapeAttr(description)}</p>
-<p><a href="${escapeAttr(path)}">${escapeAttr(label)}</a></p>
-</body>
-</html>`;
+/** A display name is enrichment only; the set preview remains useful without it. */
+async function fetchAuthorName(ownerId: string): Promise<string> {
+  const url = process.env['VITE_SUPABASE_URL'];
+  const key = process.env['VITE_SUPABASE_PUBLISHABLE_KEY'];
+  if (!url || !key) return '';
+
+  try {
+    const response = await fetch(
+      `${url.replace(/\/+$/, '')}/rest/v1/profiles?id=eq.${encodeURIComponent(ownerId)}&select=display_name&limit=1`,
+      {
+        headers: {
+          apikey: key,
+          Authorization: `Bearer ${key}`
+        }
+      }
+    );
+    if (!response.ok) return '';
+    const rows = (await response.json()) as { display_name: string }[];
+    return rows[0]?.display_name ?? '';
+  } catch {
+    return '';
+  }
 }
 
 /**
@@ -160,58 +155,92 @@ ${image ? `<meta property="og:image" content="${escapeAttr(image)}">\n` : ''}<me
  * its banner is a file its organizers uploaded, so there is nothing to fall
  * back to when they have not. That is the deliberate answer recorded in
  * `COLLECTIONS.md`: the cheap option is the right one here, and an absent
- * banner simply yields a text-only unfurl rather than borrowing some member's
+ * banner yields a text-only unfurl rather than borrowing some member's
  * artwork and implying it speaks for the whole box.
+ *
+ * It does *not* go through `socialMetadata`, which composes a set's words
+ * from character and card counts a collection does not have. It emits the
+ * same tags by hand instead, so the two kinds of link still unfurl looking
+ * like the same product.
  */
-function renderCollectionPreview(slug: string, row: CollectionRow | null): string {
+function renderCollectionPreview(
+  slug: string,
+  row: CollectionRow | null,
+  canonicalUrl: string
+): string {
   const title = row?.name || 'A collection on Unmatched Labs';
   const description =
     row?.subtitle || row?.blurb || 'A themed box of decks, each owned by the person who made it.';
-  return page(
-    title,
-    description,
-    row?.banner_url || '',
-    `/collection/${encodeURIComponent(slug)}`,
-    'Open in Unmatched Labs'
-  );
+  const image = row?.banner_url || '';
+  const imageTags = image
+    ? `<meta property="og:image" content="${escapeAttr(image)}">
+<meta name="twitter:image" content="${escapeAttr(image)}">
+`
+    : '';
+
+  return `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>${escapeAttr(title)} · ${SITE_NAME}</title>
+<meta name="description" content="${escapeAttr(description)}">
+<link rel="canonical" href="${escapeAttr(canonicalUrl)}">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="${SITE_NAME}">
+<meta property="og:locale" content="en_US">
+<meta property="og:url" content="${escapeAttr(canonicalUrl)}">
+<meta property="og:title" content="${escapeAttr(title)}">
+<meta property="og:description" content="${escapeAttr(description)}">
+${imageTags}<meta name="twitter:card" content="${image ? 'summary_large_image' : 'summary'}">
+<meta name="twitter:title" content="${escapeAttr(title)}">
+<meta name="twitter:description" content="${escapeAttr(description)}">
+</head>
+<body>
+<h1>${escapeAttr(title)}</h1>
+<p>${escapeAttr(description)}</p>
+<p><a href="/collection/${encodeURIComponent(slug)}">Open in Unmatched Labs</a></p>
+</body>
+</html>`;
 }
 
-function renderPreview(slug: string, summary: SetSummaryRow | null): string {
-  const title = summary?.name || 'Unmatched Labs';
+function renderPreview(
+  slug: string,
+  summary: SetSummaryRow | null,
+  authorName: string,
+  canonicalUrl: string
+): string {
+  const metadata = socialMetadata(summary, authorName);
+  const imageTags = metadata.image
+    ? `<meta property="og:image" content="${escapeAttr(metadata.image)}">
+<meta property="og:image:alt" content="${escapeAttr(metadata.imageAlt)}">
+<meta name="twitter:image" content="${escapeAttr(metadata.image)}">
+<meta name="twitter:image:alt" content="${escapeAttr(metadata.imageAlt)}">
+`
+    : '';
 
-  /*
-   * The subtitle first, then the one line of stats an author never has to
-   * write themselves — free information a reader would otherwise only get by
-   * opening the link. Skipped when both counts are zero, which is what an
-   * empty (never-hydrated) summary row looks like, so a broken lookup does
-   * not print "0 characters · 0 cards" under the generic fallback text.
-   */
-  const stats =
-    summary && (summary.character_count > 0 || summary.card_count > 0)
-      ? `${summary.character_count} ${summary.character_count === 1 ? 'character' : 'characters'} · ${summary.card_count} cards`
-      : '';
-  const description = summary?.subtitle
-    ? stats
-      ? `${summary.subtitle} — ${stats}`
-      : summary.subtitle
-    : stats || 'A local-first builder for custom Unmatched sets.';
-
-  /*
-   * The composed, trimmed render (`cloud/social-image.ts`) over the plain
-   * gallery-tile downscale — see `social_image_url`'s own note in
-   * `cloud/sets.ts` for why the two are different pictures at all. Empty for
-   * a row published before that existed, which is exactly when the fallback
-   * matters.
-   */
-  const image = summary?.social_image_url || summary?.thumbnail_url || '';
-
-  return page(
-    title,
-    description,
-    image,
-    `/shared/${encodeURIComponent(slug)}`,
-    'Open in Unmatched Labs'
-  );
+  return `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>${escapeAttr(metadata.title)} · ${SITE_NAME}</title>
+<meta name="description" content="${escapeAttr(metadata.description)}">
+<link rel="canonical" href="${escapeAttr(canonicalUrl)}">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="${SITE_NAME}">
+<meta property="og:locale" content="en_US">
+<meta property="og:url" content="${escapeAttr(canonicalUrl)}">
+<meta property="og:title" content="${escapeAttr(metadata.title)}">
+<meta property="og:description" content="${escapeAttr(metadata.description)}">
+${imageTags}<meta name="twitter:card" content="${metadata.image ? 'summary_large_image' : 'summary'}">
+<meta name="twitter:title" content="${escapeAttr(metadata.title)}">
+<meta name="twitter:description" content="${escapeAttr(metadata.description)}">
+</head>
+<body>
+<h1>${escapeAttr(metadata.title)}</h1>
+<p>${escapeAttr(metadata.description)}</p>
+<p><a href="/shared/${encodeURIComponent(slug)}">Open in Unmatched Labs</a></p>
+</body>
+</html>`;
 }
 
 export default async function middleware(request: Request): Promise<Response | undefined> {
@@ -224,12 +253,23 @@ export default async function middleware(request: Request): Promise<Response | u
   const collection = COLLECTION_PATTERN.exec(pathname)?.[1];
   if (collection) {
     const row = await fetchRow<CollectionRow>('collection_by_slug', collection);
-    return html(renderCollectionPreview(collection, row));
+    const canonicalUrl = new URL(
+      `/collection/${encodeURIComponent(collection)}`,
+      request.url
+    ).toString();
+    return html(renderCollectionPreview(collection, row, canonicalUrl));
   }
 
   const slug = SHARED_PATTERN.exec(pathname)?.[1];
   if (!slug) return undefined;
 
+  /* `fetchRow` rather than main's `fetchSummary`: this branch generalised the
+     same call to take an RPC name so `collection_by_slug` could reuse it, and
+     the two were otherwise identical. One reader, two routes. */
   const summary = await fetchRow<SetSummaryRow>('set_by_slug', slug);
-  return html(renderPreview(slug, summary));
+  const authorName = summary ? await fetchAuthorName(summary.owner_id) : '';
+  const canonicalUrl = new URL(`/shared/${encodeURIComponent(slug)}`, request.url).toString();
+  return new Response(renderPreview(slug, summary, authorName, canonicalUrl), {
+    headers: { 'content-type': 'text/html; charset=utf-8' }
+  });
 }

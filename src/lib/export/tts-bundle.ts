@@ -780,7 +780,9 @@ export async function exportTabletopSimulator(
        TTS refuses a texture over 4096, so it is photographed narrower. */
     const board = await photographMapBoard(set.map, {
       width: MAX_SHEET_PIXELS,
-      customSymbols: set.customSymbols
+      customSymbols: set.customSymbols,
+      setName: set.name,
+      authorName: set.meta.author
     });
     done += 1;
     options.onProgress?.(done, total, 'Map');

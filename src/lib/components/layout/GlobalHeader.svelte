@@ -18,6 +18,13 @@
   import AccountMenu from '$lib/components/cloud/AccountMenu.svelte';
   import { Icon, ThemeToggle } from '$lib/ui';
 
+  interface Props {
+    /** Reveal the public-name editor after an OAuth redirect. */
+    openAccountOnStart?: boolean;
+  }
+
+  let { openAccountOnStart = false }: Props = $props();
+
   let storage = $state<StorageEstimate | null>(null);
   let continueCover = $state<string | null>(null);
   let coverRequest = 0;
@@ -109,7 +116,7 @@
 
 <div class="bar">
   <div class="left-navigation">
-    <button class="brand" type="button" onclick={goHome} title="Home">
+    <button class="brand" type="button" aria-label="Home" onclick={goHome} title="Home">
       <img class="mark" src="/assets/labs_beaker5.png" alt="" aria-hidden="true" />
       <span class="identity">
         <span class="wordmark">Unmatched Labs</span>
@@ -127,10 +134,11 @@
       class="nav-link welcome-link"
       class:active={welcomeActive}
       aria-current={welcomeActive ? 'page' : undefined}
+      aria-label="Welcome"
       onclick={openWelcome}
     >
       <Icon name="sparkle" size={14} />
-      Welcome
+      <span class="welcome-label">Welcome</span>
     </button>
   </div>
 
@@ -149,7 +157,7 @@
           <span>{(latestSet.name || 'U').trim().charAt(0).toUpperCase()}</span>
         {/if}
       </span>
-      <span>Continue working</span>
+      <span class="continue-label">Continue working</span>
       <Icon name="chevronRight" size={13} />
     </button>
   {:else}
@@ -162,6 +170,7 @@
       class="nav-link"
       class:active={homeActive}
       aria-current={homeActive ? 'page' : undefined}
+      aria-label="Home"
       onclick={goHome}
     >
       <Icon name="grid" size={14} />
@@ -172,13 +181,14 @@
       class="nav-link"
       class:active={galleryActive}
       aria-current={galleryActive ? 'page' : undefined}
+      aria-label="Browse Gallery"
       onclick={openGallery}
     >
       <Icon name="layers" size={14} />
       <span class="nav-label">Browse Gallery</span>
     </button>
     <ThemeToggle />
-    <AccountMenu />
+    <AccountMenu openOnStart={openAccountOnStart} />
   </nav>
 </div>
 
@@ -370,16 +380,64 @@
     }
   }
 
-  @media (max-width: 620px) {
+  /* The centred Continue control needs room on both sides. Collapse descriptive
+     labels before the three grid columns can paint through one another. */
+  @media (max-width: 820px) {
     .wordmark,
     .nav-label,
-    .welcome-link :global(svg),
+    .welcome-label,
     .continue-link > :global(svg) {
       display: none;
     }
 
     .continue-link {
       padding-right: var(--space-3);
+    }
+  }
+
+  @media (max-width: 470px) {
+    .bar {
+      grid-template-columns: auto minmax(44px, 1fr) auto;
+      gap: var(--space-1);
+      padding-inline: var(--space-2);
+    }
+
+    .left-navigation,
+    .navigation {
+      gap: var(--space-1);
+    }
+
+    .continue-label {
+      display: none;
+    }
+
+    .continue-link {
+      justify-content: center;
+      width: 44px;
+      height: 44px;
+      padding: 3px;
+    }
+
+    .nav-link {
+      justify-content: center;
+      width: 44px;
+      height: 44px;
+      padding-inline: 0;
+    }
+
+    /* The brand is already Home; dropping the duplicate leaves every remaining
+       phone control room for a real touch target. */
+    .navigation > .nav-link:first-child {
+      display: none;
+    }
+
+    .brand,
+    .navigation :global(button) {
+      min-height: 44px;
+    }
+
+    .navigation :global(button) {
+      min-width: 44px;
     }
   }
 </style>

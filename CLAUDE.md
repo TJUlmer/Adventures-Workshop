@@ -448,7 +448,22 @@ block) and simply had nowhere to print before now.
 **A hero's action card is one field, not a new card type.** `ActionCard.type`
 stays `'action'`; `symbol` (one of the four combat symbols), `symbolValue` and
 `owner` (`hero` / `sidekick` / `any` — who may play it) are new fields, read
-only when the owning character's role is `hero`. Everywhere else —
+only when the owning character's role is `hero`. A hero may also enable the
+existing `split` layout from **Special card effects**: it reuses `attack`,
+`defense`, `ability` and `defenseAbility`, prints a fixed versatile glyph with
+no ribbon value, and restores the stored ordinary card type/value when turned
+off. Its split stack is bottom-anchored; the attack content hugs the separator
+while unused height collects above it, and the hero body's existing owner-line
+clearance replaces the villain-only bottom inset. The hero path also drops the
+villain/minion split floors, letting its symbol/copy establish the compact
+resting height. `HERO_SPLIT_DIVIDER_Y` is the one manual Y control for its title,
+divider and boost; the art and body heights derive from it so no seam can open.
+Both halves therefore stay compact until their copy needs the room. A blank
+`defenseAbility` does not draw the split body or horizontal separator: both
+values use the ordinary value column beside `ability`, making that attack-side
+copy apply to both. Any real defense copy switches the same card to the two
+halves and restores the separator. No second split model is needed.
+Everywhere else —
 `ActionCardFace`'s artwork, divider, boost disc, title, and the ability text's
 own left-aligned layout the moment there are no attack/defense values to
 separate it from — a hero card falls through the same code path a villain's
@@ -693,6 +708,13 @@ it remains visible where the stack overlaps instead of revealing the preceding
 disc or restoring a fixed black outline. Older designs normalise to the former
 `#858585` grey.
 
+`CharacterCardDesign.abilityScale` is the Special Ability content section's single
+text-size control: it multiplies the calibrated name and body sizes together,
+preserving their ratio. `HeroCharacterCardFace` re-runs `fitScale` when it changes and divides
+the fitter's absolute 70% floor by the author's multiplier, so increasing the
+slider does not accidentally prevent long copy from shrinking back to the same
+minimum legible size. Older designs normalise to `1`.
+
 A sidekick is **one sub-object, not a list**: every character-card template
 shows at most one sidekick concept — a single tracked individual, or an
 undifferentiated swarm of identical copies, never several distinct companions
@@ -794,11 +816,6 @@ strip's own fill, already one of `StylePanel`'s "Surfaces" — and
 bound to that same field, a shortcut so changing it does not mean a trip to
 Design for one colour. Same field, same cascade, two places to reach it.
 
-**It has its own toggle rather than being "on when a symbol is chosen."** The
-filled strip is the visible half of the idea — a card can want the unbroken
-line with no glyph in it — so `ribbonSymbol: ''` means an empty foot, not the
-absence of one.
-
 **The strip has no measurable size, which is what dictates how it is drawn.**
 Its top is wherever the ribbon's contents ended (the ribbon's length *is* its
 contents — see `.banner`) and its bottom is wherever the body panel has pushed
@@ -855,6 +872,43 @@ The smaller `symbols/bonus_attack.png` is a fifth **text** symbol and therefore
 lives in `TEXT_SYMBOLS`, while `CARD_SYMBOLS` deliberately remains the four
 combat types used by value controls and hero ribbons. This distinction prevents
 the bonus-attack token from appearing as a selectable primary card type.
+
+### Tuck effects
+
+`ActionCard.showTuckEffect` adds a short reminder intended to stay visible while
+the card is tucked behind another card. `tuckEffectOrientation` places the same
+160px treatment against either the bottom of the body panel or the full right
+interior edge. A bottom bar reserves that much body-panel space and moves the
+copies count upward; the right-side bar uses the long card edge so ordinary
+reminder copy still fits, and moves the count left. Both orientations therefore
+keep the fixed corner metadata out of the exposed reminder.
+
+The copy stays per card in `tuckEffect`; its independently cascading surface and
+ink are `CardTheme.tuckEffect`/`tuckEffectInk`. The Special card effects editor
+offers shortcuts to those two theme keys beside the text and orientation, while
+the Design tab exposes the same keys with the rest of the action-card palette.
+`TUCK_EFFECT` in `renderer/geometry.ts` owns the shared thickness, padding and
+type size; `text.size` is the manual size dial and `text.offsetY` optically
+centres the bottom bar's visible cap ink rather than merely its CSS line box.
+The vertical-writing variant has independent `text.right.size`, `lineHeight`,
+`offsetX` and `offsetY` dials: vertical CSS makes line height the physical width
+of the text box, so sharing a deliberately loose bottom leading clips it inside
+a narrow right-side bar.
+Printer-friendly mode resolves the bar to paper and its copy to ink through
+`MONO_LAYER`, without mutating the authored colours. When the bar is on the
+right, one translated `.boost-assembly` moves the capsule, disc, ring and value
+left together by the bar thickness so none of that lockup is obscured.
+
+An action card may also enable `showCornerBadge`, placing `cornerBadge` in a
+square notch at the upper-right of the artwork. The field uses the action-text
+symbol palette, so it accepts either a short typed value or a built-in/custom
+symbol. `CardTheme.cornerBadge`, `cornerBadgeOpacity` and `cornerBadgeInk`
+independently cascade its background fill, background-only opacity and content
+colour; the Special card effects editor exposes all three beside the toggle.
+`CORNER_BADGE` in
+`renderer/geometry.ts` owns its size, inset, type size and optical vertical
+offset. Its lower-left radius mirrors the card window's own corner curve; a
+right-side tuck effect moves the badge inward by the bar's thickness.
 
 **Two layers, not one flat colour.** The field is `CardTheme.ribbonFoot` —
 black on the printed card — and only a bar down its right edge, one ribbon
@@ -950,6 +1004,13 @@ untouched.
 when a combat modifier is also present, the pin moves along the real curve so
 the two marks remain readable. Its public SVG is fetched and inlined before
 photography rather than left as an external reference inside the exported SVG.
+`AdventureMap.autoLargeFighter` adds the same pin whenever two connected space
+centres are more than **87.5mm apart**. Both stored axes are fractions of the
+fixed 495mm board width, so `pathCentreDistanceMm` uses one uniform scale; the
+connection's visual curve is deliberately irrelevant to whether the 68mm T-Rex
+base can occupy both endpoint spaces. Automatic pins are additive to the
+per-path `largeFighter` choice: disabling automation restores the author's
+manual board exactly, and a short exceptional path can still be marked by hand.
 
 `from` → `to` is meaningful while either option is active. The first toggle
 enabled from one endpoint deliberately makes that endpoint `from`; enabling
@@ -1861,19 +1922,21 @@ reads that form *and* the old hash form, so a link already pasted somewhere
 keeps working, and every in-app navigation still only ever writes the hash —
 `shareUrl` is the one place that writes the path form at all.
 
-`middleware.ts` is a Vercel Edge Middleware matching `/shared/:slug`,
-deliberately self-contained rather than importing from `src/lib/cloud/` — it
-runs outside Vite entirely, so `$lib` does not resolve there, and the one
-PostgREST call it needs (the same anonymous `set_by_slug` RPC `fetchSetBySlug`
-already makes, read `VITE_SUPABASE_URL`/`VITE_SUPABASE_PUBLISHABLE_KEY` out of
-`process.env` — already-configured Environment Variables, since the client
-build needs them too; Vite's `VITE_` prefix only gates what reaches the
-browser bundle, not what a server-side function may read) is small enough
-that duplicating it beats a shared build step for it. It only ever answers a
-request whose User-Agent names a known unfurling bot, with a tiny hand-written
-HTML page carrying `og:title`/`og:description`/`og:image` — the image is
-`thumbnail_url`, already sitting on the row from `publishSet`, so nothing here
-renders a picture, it only ever echoes one that already exists. Every other
+`middleware.ts` is a Vercel Edge Middleware matching `/shared/:slug`. It runs
+outside Vite entirely, so `$lib` does not resolve there: the two small HTTP
+calls stay local, while one pure relative import from
+`cloud/social-metadata.ts` keeps the title, description, type, author credit
+and image choice identical to the creator-visible unfurl card in
+`SharePanel`. The middleware makes the same anonymous `set_by_slug` RPC
+`fetchSetBySlug` already makes, then a best-effort public profile lookup, and
+reads `VITE_SUPABASE_URL`/`VITE_SUPABASE_PUBLISHABLE_KEY` out of `process.env`
+— already-configured Environment Variables, since the client build needs them
+too; Vite's `VITE_` prefix only gates what reaches the browser bundle, not
+what a server-side function may read. It only ever answers a request whose
+User-Agent names a known unfurling bot, with a tiny hand-written HTML page
+carrying full Open Graph and Twitter metadata (canonical URL, site, title,
+description, image and accessible image text). Nothing here renders a picture;
+it only echoes `social_image_url`, falling back to `thumbnail_url`. Every other
 request — every real visitor — falls through untouched to `vercel.json`'s
 rewrite, which serves the ordinary SPA exactly as if this file did not exist.
 Untestable via `vite dev`, which has no Edge Runtime to run it in: verifying
@@ -1899,16 +1962,20 @@ downscale of whatever `coverArtwork` finds, never a render. That is the right
 job for a square gallery tile and the wrong one for a link preview, which is
 read much larger and has no tile to crop into. `cloud/social-image.ts`'s
 `renderSocialImage` is a second, purpose-built picture stored in its own
-`social_image_url` column: box art still wins outright when an author
-supplied one (unchanged from `coverArtwork`'s own priority), but failing
-that, a set with heroes gets an actual **rendered, trimmed** picture of its
-own cards — one hero's deck back beside their character card, several heroes'
-deck backs in a grid two to a row, capped at four before it would read as a
-contact sheet rather than a preview. Reuses `cloud/character-cards.ts`'s
-stage exactly (`withCardStage`/`photograph`), just with `cardback` instead of
-`statCard`, or both. A set with no heroes to compose from — villain-only, or
-still early — falls through to the same downscale `renderThumbnail` already
-does, checked *before* opening a card stage so that case pays nothing extra.
+`social_image_url` column. It always produces a **1200 × 630 landscape
+poster**, with a bold identity panel on the left and actual rendered, trimmed
+components on the right. One hero gets their deck back and character card;
+a heroes set gets up to four fanned deck backs; an adventure stages its
+villain in front of up to two heroes (or its minions when the published scope
+has no heroes). Box art no longer changes the output shape or bypasses that
+visual language — it becomes atmospheric background art underneath the
+poster. The palette and display face resolve from the set/lead character's
+own card theme, so this is branded by the author rather than by the app.
+Reuses `cloud/character-cards.ts`'s stage exactly
+(`withCardStage`/`photograph`), with every photograph remaining sequential:
+parallel stage use caused a real publish to store an empty image. A failed
+component render leaves the useful title poster intact; only an unavailable
+canvas or failed encode falls back to `renderThumbnail`.
 
 **This is the one column in this project that a migration cannot backfill.**
 Every prior denormalised-column addition (`kind`, `hero_count`) backfilled
@@ -1921,6 +1988,40 @@ re-publishes, and `middleware.ts` falls back to `thumbnail_url` whenever it
 is empty — an old link's preview does not regress, it just stays what it
 already was.
 
+An author can see that exact unfurl in `SharePanel` once a scope is published.
+It uses the stored `social_image_url` (or the same thumbnail fallback), not a
+fresh local render that could disagree with the public snapshot, and labels an
+older fallback explicitly. `cloud/social-metadata.ts` is deliberately pure and
+structural so both the Svelte panel and Edge middleware can call it; changes to
+the title, description or image priority belong there rather than in either
+consumer. Private rows still show the author what is ready, but say plainly
+that a private link itself does not unfurl.
+
+**Shared card galleries use authoritative publication PNGs.** Rebuilding cards
+from the document in every visitor's browser is a useful legacy fallback, but
+it is not a reliable public proof of what the author approved: a later renderer
+change can alter an old publication. `cloud/card-previews.ts` therefore mounts
+the ordinary `CardRenderer` through `withCardStage` during publication and
+photographs every printed face, deck back and hero character card as a lossless
+PNG at the renderer's native trimmed export resolution. `sets.card_previews` is a JSON object keyed by entity and side;
+`sets.card_preview_version` records the renderer revision. Both fields are
+derived publication data outside the authored document, so they do not affect
+document revisions or contribution fingerprints. A publish uploads the whole
+manifest before replacing the database row: a failed face leaves the previous
+published revision intact rather than exposing a partial gallery.
+
+`SharedSetScreen` gives `AssetsOverview` a manifest only when its version equals
+`CARD_PREVIEW_RENDERER_VERSION`. Tiles and `CardLightbox` then show those exact
+pixels; a missing, stale or failed URL falls back to the live renderer so legacy
+rows remain viewable. Bumping that constant queues every older row for the
+administrator-only backfill in `AccountMenu`. Migration 0020's narrow RPC
+verifies that each URL names a real PNG beneath the administrator's Storage
+prefix and changes only the manifest/version. It also excludes those columns
+from `touch_updated_at`, so refreshing derived pixels neither masquerades as a
+republish nor requires the original author. The existing orphan sweep already
+walks every string in `to_jsonb(sets)`, so manifest URLs stay referenced without
+a parallel cleanup path.
+
 **The shared-set screen's character filter is not a second picker.** It
 reads as one — pick a hero and the overview above narrows to just their
 content — but it is wired entirely through `ExportPanel`'s own scope
@@ -1930,6 +2031,37 @@ will this export" and "what am I looking at" were the same question the
 moment a viewer could filter at all, so `SharedSetScreen` mirrors that one
 control's value into what it passes `AssetsOverview`, rather than growing a
 second selector that could disagree with the first.
+
+**Opening a shared set has two documents with two different jobs.** The
+published JSON already contains public Storage URLs, and DOM renderers can
+show those directly, so `readPublishedSet` validates/normalises that copy and
+hands it to `SharedSetScreen` as soon as the row arrives. Waiting for
+`hydratePublishedSet` first used to make the entire page wait while every
+picture and model — including everything far below the fold — was downloaded
+and converted to a data URL. Hydration now begins after the first useful paint
+and produces a separate `portableSet`. Export, Print and Make a Copy only ever
+receive that portable copy: their canvases cannot safely photograph remote
+artwork, and a fork/project file must remain usable offline. Once it is ready,
+the viewer also promotes its rendering copy to the embedded document because
+token/dial textures and attached-model previews pass through canvas/WebGL and
+cannot reliably use cross-origin Storage URLs. Their 3D preview work is gated
+until that promotion, while ordinary cards and flat artwork still get the fast
+URL-backed first paint. Published card PNGs are already safe remote images and
+do not wait for hydration. An immediate action awaits the same guarded promise and
+shows its artwork progress; a share-link navigation aborts the stale requests,
+and the promise is also generation-checked so it cannot replace the next set
+even if an abort arrives too late.
+
+**The Overview preserves the whole page without mounting the whole page.** A
+deck or identity gallery below the shared view's internal scrollport starts as
+light card-shaped placeholders laid out by the exact same CSS grid. Its height,
+scrollbar and section anchor are therefore truthful, but none of its preview
+images or legacy `CardRenderer`s exists until an `IntersectionObserver` sees the
+gallery within 700px of the scrollport. Once revealed it stays revealed. Component reference
+tiles remain cheap, while WebGL/model snapshots wait until their section is
+near and run sequentially. Card inspection, the interactive component viewer,
+and their model helpers are dynamic chunks loaded on first use; the actual card
+renderer and every rendered result are unchanged.
 
 ### Contributions
 
@@ -2492,7 +2624,7 @@ a data URL is an address like any other to the sheet renderer.
 
 ### Schema
 
-`SET_SCHEMA_VERSION` (currently 12) is checked on import; newer files are
+`SET_SCHEMA_VERSION` (currently 59) is checked on import; newer files are
 refused. There is no migration ladder — `sets/normalize.ts` repairs on load,
 filling absent fields from the factories. **Any new persisted field needs a
 branch there**, or existing documents load without it. Absent is meaningfully
