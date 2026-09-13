@@ -6,15 +6,15 @@
  * show thirty thumbnails. The picture therefore has to be *on the row*, which
  * means making one at publish time — this is what makes it.
  *
- * Deliberately not a render of the set. Photographing a card costs a second
- * apiece and needs the whole card stage mounted; a set already carries pictures
- * an author chose, and the best of them is a better cover than anything
- * generated. So this only ever downscales something that already exists.
+ * An uploaded box cover is always shown exactly as supplied. A full Adventure
+ * or multi-hero product without one receives the lightweight derived
+ * compilation from `renderer/GeneratedBoxArt.svelte`; single heroes and scoped
+ * publications keep using the representative source-art fallback below.
  */
 import type { Artwork } from '$lib/core/artwork';
 import { hasArtwork } from '$lib/core/artwork';
-import type { Character } from '$lib/characters/types';
-import { cardsForCharacter } from '$lib/sets/queries';
+import { renderGeneratedBoxArt } from '$lib/export/box-art';
+import { characterCoverArtwork } from '$lib/sets/box-art';
 import type { AdventureSet } from '$lib/sets/types';
 
 /**
@@ -30,37 +30,26 @@ export const THUMBNAIL_MAX = 512;
 /** WebP quality. 0.8 is where the artefacts stop being visible at tile size. */
 const QUALITY = 0.8;
 
+/** Generated uploads carry their provenance without adding a database column. */
+export const AUTOMATIC_BOX_THUMBNAIL_STEM = 'auto-box';
+
+export function isAutomaticBoxThumbnail(url: string): boolean {
+  return url.includes(`/${AUTOMATIC_BOX_THUMBNAIL_STEM}-`);
+}
+
 /**
- * The picture that stands for one character.
+ * Whether the winning published tile image still carries printer's bleed.
  *
- * **Their deck back first.** It is the one picture in a set drawn deliberately
- * to *be* that character's face — their name and their portrait, composed by
- * the author for exactly this purpose — where a card's artwork is a scene from
- * one of their moves and `Character.artwork` is a portrait field most authors
- * never fill. `useReplacement` is checked before `artwork` because when the
- * flag is on the replacement *is* the back, and the artwork underneath it is
- * not what prints.
- *
- * Then the portrait, then the first picture off one of their own cards — in
- * document order, the one its author put first, not a random or a "best" one.
- * That last step is what rescues a set at all: of the first six published,
- * every character in every one had `artwork` null and their pictures on cards,
- * so a search stopping at the portrait came up empty for four of them and
- * their tiles drew initials on a coloured square over a set full of art.
- *
- * `character_image` in `supabase/migrations/0007_gallery_browse.sql` answers
- * this same question in SQL, for rows already published. The two must not
- * drift.
+ * `cover_bleeds` describes the raw database-derived fallback. Legacy `thumb-*`
+ * uploads are literal downscales of that same picture and therefore share the
+ * answer. The new `auto-box-*` composition is the sole exception and names
+ * itself in the existing content-addressed path so old rows remain correct.
  */
-function characterCover(set: AdventureSet, character: Character): Artwork | null {
-  const back = character.cardback;
-  if (back.useReplacement && hasArtwork(back.replacement)) return back.replacement;
-  if (hasArtwork(back.artwork)) return back.artwork;
-  if (hasArtwork(character.artwork)) return character.artwork;
-  for (const card of cardsForCharacter(set, character.id)) {
-    if (hasArtwork(card.artwork)) return card.artwork;
-  }
-  return null;
+export function thumbnailOrCoverBleeds(
+  thumbnailUrl: string,
+  coverBleeds: boolean
+): boolean {
+  return coverBleeds && !isAutomaticBoxThumbnail(thumbnailUrl);
 }
 
 /**
@@ -76,7 +65,7 @@ function characterCover(set: AdventureSet, character: Character): Artwork | null
  * sitting on a minion or a sidekick — and then, last, to any card in the set,
  * so that a set whose only pictures are on cards nobody owns still gets one.
  *
- * Every step reads through `characterCover`, so "the villain's picture" means
+ * Every step reads through `characterCoverArtwork`, so "the villain's picture" means
  * their portrait *or one of their cards*. Before that it meant the portrait
  * alone, and a set with no box art therefore got no thumbnail at all.
  *
@@ -92,18 +81,18 @@ export function coverArtwork(set: AdventureSet): Artwork | null {
 
   const villain = set.characters.find((character) => character.role === 'villain');
   if (villain) {
-    const cover = characterCover(set, villain);
+    const cover = characterCoverArtwork(set, villain);
     if (cover) return cover;
   }
 
   const hero = set.characters.find((character) => character.role === 'hero');
   if (hero) {
-    const cover = characterCover(set, hero);
+    const cover = characterCoverArtwork(set, hero);
     if (cover) return cover;
   }
 
   for (const character of set.characters) {
-    const cover = characterCover(set, character);
+    const cover = characterCoverArtwork(set, character);
     if (cover) return cover;
   }
 
@@ -133,7 +122,7 @@ function settled(image: HTMLImageElement): Promise<boolean> {
  * answers `null` for a format it does not support rather than throwing, which
  * is the only signal there is — so the fallback hangs off that.
  */
-export async function renderThumbnail(set: AdventureSet): Promise<Blob | null> {
+async function renderArtworkThumbnail(set: AdventureSet): Promise<Blob | null> {
   const artwork = coverArtwork(set);
   if (!artwork?.source) return null;
 
@@ -164,4 +153,38 @@ export async function renderThumbnail(set: AdventureSet): Promise<Blob | null> {
     new Promise((resolve) => canvas.toBlob(resolve, type, quality));
 
   return (await encode('image/webp', QUALITY)) ?? (await encode('image/png'));
+}
+
+export interface RenderedThumbnail {
+  blob: Blob;
+  kind: 'automatic-box' | 'artwork';
+}
+
+/**
+ * Render a tile and retain which path made it so the upload name can carry
+ * enough provenance for legacy bleed handling.
+ */
+export async function renderThumbnailWithKind(
+  set: AdventureSet,
+  options: { automaticBoxArt?: boolean } = {}
+): Promise<RenderedThumbnail | null> {
+  if (options.automaticBoxArt) {
+    try {
+      const generated = await renderGeneratedBoxArt(set);
+      if (generated) return { blob: generated, kind: 'automatic-box' };
+    } catch {
+      // A representative authored picture is still better than no tile.
+    }
+  }
+
+  const artwork = await renderArtworkThumbnail(set);
+  return artwork ? { blob: artwork, kind: 'artwork' } : null;
+}
+
+/** Downscale or compose a set thumbnail, discarding upload provenance. */
+export async function renderThumbnail(
+  set: AdventureSet,
+  options: { automaticBoxArt?: boolean } = {}
+): Promise<Blob | null> {
+  return (await renderThumbnailWithKind(set, options))?.blob ?? null;
 }

@@ -12,6 +12,7 @@ import type { Character } from '$lib/characters/types';
 import { hasArtwork } from '$lib/core/artwork';
 import type { FigureKind } from '$lib/figures/types';
 import { richTextIsEmpty } from '$lib/text/rich-text';
+import { usesAutomaticBoxArt } from './box-art';
 import type { AdventureSet } from './types';
 
 export type IssueSeverity = 'blocker' | 'gap' | 'polish';
@@ -215,7 +216,12 @@ export function assessSet(set: AdventureSet): SetHealth {
      second hero, so match the identity rule: while there are two heroes this
      is a box again and its missing cover remains worth calling out. */
   if (!standaloneHero && !hasArtwork(set.boxArt)) {
-    issues.push({ severity: 'polish', message: 'No box art.' });
+    issues.push({
+      severity: 'polish',
+      message: usesAutomaticBoxArt(set)
+        ? 'Using automatic box art; upload a custom cover for a finished presentation.'
+        : 'No box art.'
+    });
   }
 
   if (set.meta.author.trim().length === 0) {

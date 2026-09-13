@@ -1574,9 +1574,10 @@ reused rather than reinvented.** `LibraryEntry` still carries no thumbnail
 (the "no picture on the index" reasoning above is unchanged), so `HomeScreen`
 loads the full document once per set (`ensureCover`, gated by a plain
 `Set<SetId>` so a re-render never re-requests one already in flight) and
-reads `coverArtwork(set)` — already synchronous, no rendering, just picking
-through fields that are already there — the instant it resolves. The
-character-card half is the expensive one and stays lazy: `peekCard` only
+reads `coverArtwork(set)` for a solo/raw representative image, or photographs
+`GeneratedBoxArt` for an eligible Adventure or multi-hero set with no uploaded
+cover, the instant it resolves. The character-card half is the expensive one
+and stays lazy: `peekCard` only
 photographs a card stage (`renderCharacterCards`, the same publish-time
 function the gallery itself uses, genuinely local — nothing about it touches
 the network) the first time a tile is hovered or focused, gated the same way
@@ -1815,8 +1816,10 @@ published sets, which is easy to trigger by accident when tidying test users.
 
 A gallery tile is drawn from the **row**, never the document: `document` is the
 whole set, so thirty tiles would mean pulling thirty multi-megabyte documents to
-show thirty pictures. `thumbnail_url` is filled at publish by downscaling the
-box art (or the first character's artwork) to 512px of WebP.
+show thirty pictures. `thumbnail_url` is filled at publish with a 512px WebP:
+uploaded box art remains an exact downscale; a full Adventure or multi-hero set
+without it gets the derived compilation described below; solo and scoped
+publications keep the representative character-art fallback.
 
 Sorting is by `published_at`, not `updated_at` — the latter moves on every
 re-publish, so "newest" would really mean "most recently edited".
@@ -1946,20 +1949,42 @@ inherits Discord's own aggressive per-URL unfurl caching, so a fix does not
 show up on a re-paste of the same slug without a cache-busting change.
 
 `cloud/thumbnail.ts`'s `coverArtwork` — the function that decides what
-picture becomes `thumbnail_url`, and now also what a shared link's preview
-image shows — used to take "the first character in the set's array with
+raw picture represents a set, and what a shared link's social composition uses
+as atmospheric art — used to take "the first character in the set's array with
 artwork," i.e. creation order, whatever role that character happened to be.
 It now explicitly prefers the villain, then the first hero, before falling
 back to that same creation-order search — matching how an author thinks about
 their own adventure (see "Heroes, above Villains" in `SetSidebar`), not an
 accident of which character was added first.
 
+**Missing box art is now designed rather than merely substituted for full
+multi-character products.** `renderer/GeneratedBoxArt.svelte` divides a square
+cover equally among every hero in a heroes set, or every hero, villain and
+minion in an Adventure, then centres the set title in a lockup resolved from
+the lead character's card theme. Each panel deterministically chooses the
+active replacement deck back, deck-back art, portrait, then first illustrated
+owned card; missing art becomes a theme-coloured initial. The result is derived
+only — never written to `AdventureSet.boxArt`, fingerprints or contributions —
+so an author upload always wins intact and removing it immediately restores the
+live compilation. `export/box-art.ts` photographs that same DOM renderer at
+512px through `export/card-image.ts`; there is no second canvas drawing path.
+Single heroes deliberately remain on the old deck-back/representative-art path.
+
+Only a **full** publication may use it. A villain slice retains
+`kind: 'adventure'`, so `publishSet` requires a full scope as well as the
+derived eligibility check. Generated uploads use an
+`auto-box-*` stem while legacy/raw thumbnails remain `thumb-*`. That name is
+small but necessary provenance: the database's `cover_bleeds` describes the raw
+fallback and all historic downscales, while a generated square is already
+bleed-free. `thumbnailOrCoverBleeds` centralises that distinction without a
+schema migration or incorrectly changing old gallery rows.
+
 **A shared link's preview picture is not the gallery tile's.** It used to be
 — `thumbnail_url` did both jobs — until a link posted to Discord showed a
 hero's deck-back *replacement image* exactly as the author drew it: full
-bleed, margin and all, because `renderThumbnail` has only ever been a
-downscale of whatever `coverArtwork` finds, never a render. That is the right
-job for a square gallery tile and the wrong one for a link preview, which is
+bleed, margin and all, because its legacy `renderThumbnail` was a downscale of
+whatever `coverArtwork` found. That remains the right fallback for a solo or
+scoped square gallery tile and the wrong job for a link preview, which is
 read much larger and has no tile to crop into. `cloud/social-image.ts`'s
 `renderSocialImage` is a second, purpose-built picture stored in its own
 `social_image_url` column. It always produces a **1200 × 630 landscape

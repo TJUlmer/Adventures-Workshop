@@ -28,12 +28,14 @@
     listPublicSets
   } from '$lib/cloud/sets';
   import type { GalleryCharacter, GallerySet } from '$lib/cloud/sets';
-  import { coverArtwork } from '$lib/cloud/thumbnail';
+  import { coverArtwork, thumbnailOrCoverBleeds } from '$lib/cloud/thumbnail';
   import { asId } from '$lib/core/id';
+  import { renderGeneratedBoxArt } from '$lib/export/box-art';
   import { GUIDES } from '$lib/guides/content';
   import { draftRollout } from '$lib/persistence/rollout.svelte';
   import type { DraftLibraryEntry, LibraryAvailability } from '$lib/persistence/types';
   import { CARD_FORMATS, trimBox } from '$lib/renderer/geometry';
+  import { usesAutomaticBoxArt } from '$lib/sets/box-art';
   import { healthSummaryFromCounts } from '$lib/sets/health';
   import type { SetId, SetKind } from '$lib/sets/types';
   import { guides } from '$lib/state/guides.svelte';
@@ -76,12 +78,13 @@
   const welcomeMode = $derived(welcome || entries.length === 0);
 
   /**
-   * Each set's own cover picture, mirroring the gallery's tile — see
-   * `coverArtwork`. `LibraryEntry` carries no picture on purpose (see
-   * `storage/library.ts`), so this loads the full document once per set,
-   * off to the side, rather than putting one on the index. Keyed by id and
-   * built up as loads resolve; a set still loading, or with no picture at
-   * all, keeps showing `tint(entry.id)` underneath.
+   * Each set's own cover picture, mirroring the gallery's tile. `LibraryEntry`
+   * carries no picture on purpose (see `storage/library.ts`), so this loads
+   * the full document once per set, off to the side, rather than putting one
+   * on the index. Eligible products derive the same compilation used at
+   * publish; every other set reads the representative `coverArtwork` source.
+   * Keyed by id and built up as loads resolve; a set still loading, or with no
+   * picture at all, keeps showing `tint(entry.id)` underneath.
    */
   let covers = $state<Map<SetId, string>>(new Map());
   const coversRequested = new Set<SetId>();
@@ -90,7 +93,15 @@
     if (!entry.cached || coversRequested.has(entry.id)) return;
     coversRequested.add(entry.id);
     const set = await loadSet(entry.id);
-    const source = set ? coverArtwork(set)?.source : null;
+    let source = set ? coverArtwork(set)?.source : null;
+    if (set && usesAutomaticBoxArt(set)) {
+      try {
+        const generated = await renderGeneratedBoxArt(set);
+        if (generated) source = await blobToDataUrl(generated);
+      } catch {
+        // The representative source above remains a useful local fallback.
+      }
+    }
     if (source) covers = new Map(covers).set(entry.id, source);
   }
 
@@ -511,15 +522,14 @@
       slug: set.slug,
       name: set.name || 'Untitled Adventure',
       image: galleryImage(set),
-      bleeds: set.cover_bleeds,
+      bleeds: galleryImageBleeds(set),
       byline: `by ${set.author?.display_name || 'Anonymous'}`
     };
   }
 
-  /** Same fallback chain `GalleryScreen`'s own `characterImage`/
-      `characterImageBleeds` use — the two have to agree, since a thumbnail
-      is not automatically bleed-free the moment covers can fall through to a
-      deck back (see `GalleryScreen.svelte`). */
+  /** Same image and bleed fallback chain as `GalleryScreen` — legacy raw
+      thumbnails can still contain a deck back's bleed, while a named
+      automatic compilation cannot. */
   function characterPick(character: GalleryCharacter): GallerySlotPick {
     return {
       id: `${character.set_id}:${character.character_id}`,
@@ -527,7 +537,7 @@
       characterId: character.listing_scope === 'full' ? character.character_id : undefined,
       name: character.name,
       image: character.image_url || character.thumbnail_url || character.cover_url,
-      bleeds: character.image_url ? character.image_bleeds : character.cover_bleeds,
+      bleeds: galleryCharacterImageBleeds(character),
       byline:
         character.listing_scope === 'full'
           ? `In ${character.listing_name}`
@@ -574,7 +584,7 @@
       name: set.name || 'Untitled Adventure',
       subtitle: set.subtitle,
       image: galleryImage(set),
-      bleeds: set.cover_bleeds,
+      bleeds: galleryImageBleeds(set),
       ownerId: set.owner_id,
       authorName: set.author?.display_name || 'Anonymous',
       authorAvatar: set.author?.avatar_url || '',
@@ -608,7 +618,7 @@
           ? `In ${character.listing_name}`
           : 'Published on their own',
       image: character.image_url || character.thumbnail_url || character.cover_url,
-      bleeds: character.image_url ? character.image_bleeds : character.cover_bleeds,
+      bleeds: galleryCharacterImageBleeds(character),
       ownerId: character.owner_id,
       authorName: profile?.display_name || 'Anonymous',
       authorAvatar: profile?.avatar_url || '',
@@ -806,10 +816,9 @@
 
   /** A stable colour per character or set, for a tile with no picture — same
       formula the gallery's own tiles use, so something reads the same shade
-      whether found here or there. Doubles as the set-grid thumbnail swatch:
-      `LibraryEntry` deliberately carries no picture of its own (see
-      `storage/library.ts` — the index is kept light on purpose), so a
-      generated tint is the set grid's only affordable "picture" today. */
+      whether found here or there. It also sits underneath local cover loading:
+      `LibraryEntry` deliberately carries no picture of its own because the
+      index stays light (see `storage/library.ts`). */
   function tint(seed: string): string {
     let hash = 0;
     for (let index = 0; index < seed.length; index += 1) {
@@ -822,6 +831,15 @@
       own `setImage` uses. */
   function galleryImage(set: GallerySet): string {
     return set.thumbnail_url || set.cover_url;
+  }
+
+  function galleryImageBleeds(set: GallerySet): boolean {
+    return thumbnailOrCoverBleeds(set.thumbnail_url, set.cover_bleeds);
+  }
+
+  function galleryCharacterImageBleeds(character: GalleryCharacter): boolean {
+    if (character.image_url) return character.image_bleeds;
+    return thumbnailOrCoverBleeds(character.thumbnail_url, character.cover_bleeds);
   }
 
   interface GalleryPick {
@@ -2732,8 +2750,8 @@
    * The set grid's own "picture". `LibraryEntry` deliberately carries no
    * thumbnail (see `tint`'s own doc comment) — a generated colour swatch is
    * the fallback, same as a character with no portrait already gets, shown
-   * underneath until `ensureCover` resolves a real one (or forever, for a
-   * set with no picture anywhere in it).
+   * underneath until `ensureCover` resolves an uploaded, automatic or raw
+   * representative picture (or forever, for an ineligible set with no art).
    *
    * Card-proportioned (63:88) rather than the small square icon this used to
    * be, because a picture this small is not recognisable as one — and sized

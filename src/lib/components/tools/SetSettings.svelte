@@ -10,6 +10,8 @@
   import { listMyPublishedSets } from '$lib/cloud/sets';
   import { hasArtwork } from '$lib/core/artwork';
   import { readArtworkFile } from '$lib/core/image-import';
+  import GeneratedBoxArt from '$lib/renderer/GeneratedBoxArt.svelte';
+  import { usesAutomaticBoxArt } from '$lib/sets/box-art';
   import { SET_KINDS, SET_KIND_META } from '$lib/sets/types';
   import type { SetKind } from '$lib/sets/types';
   import { workshop } from '$lib/state/workshop.svelte';
@@ -22,6 +24,7 @@
   const usesHeroIdentity = $derived(
     set.singleHero && set.characters.filter((character) => character.role === 'hero').length <= 1
   );
+  const automaticBoxArt = $derived(usesAutomaticBoxArt(set));
 
   /**
    * The whole-set publish's own revision, read from the published row rather
@@ -192,7 +195,10 @@
       </div>
     </EditorSection>
 
-    <EditorSection title="Box art" hint="Shown on the set's home page and in the library.">
+    <EditorSection
+      title="Box art"
+      hint="Shown on the set's home page and in the library. Adventures and multi-hero sets get an automatic cover until you choose one."
+    >
       {#snippet actions()}
         {#if hasArtwork(set.boxArt)}
           <Button
@@ -220,19 +226,29 @@
         <button
           type="button"
           class="box-thumb"
-          class:empty={!hasArtwork(set.boxArt)}
+          class:automatic={automaticBoxArt}
+          class:empty={!hasArtwork(set.boxArt) && !automaticBoxArt}
+          aria-label={hasArtwork(set.boxArt) ? 'Replace box art' : 'Choose box art'}
           onclick={() => boxInput?.click()}
         >
           {#if hasArtwork(set.boxArt) && set.boxArt.source}
             <img src={set.boxArt.source} alt="" />
+          {:else if automaticBoxArt}
+            <GeneratedBoxArt {set} />
           {:else}
             <Icon name="image" size={18} />
           {/if}
         </button>
 
         <div class="box-text">
-          <span class="filename">{set.boxArt.label || 'No box art'}</span>
-          <span class="sub">Embedded in the set file.</span>
+          <span class="filename">
+            {set.boxArt.label || (automaticBoxArt ? 'Automatic compilation cover' : 'No box art')}
+          </span>
+          <span class="sub">
+            {automaticBoxArt
+              ? 'Derived from the roster; choosing an image replaces it.'
+              : 'Embedded in the set file.'}
+          </span>
           {#if error}<span class="error">{error}</span>{/if}
         </div>
 
@@ -455,6 +471,11 @@
 
   .box-thumb.empty {
     border-style: dashed;
+  }
+
+  .box-thumb.automatic {
+    width: 96px;
+    height: 96px;
   }
 
   .box-thumb img {

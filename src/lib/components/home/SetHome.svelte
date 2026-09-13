@@ -19,6 +19,8 @@
   import { characterLabel } from '$lib/characters/factory';
   import { CHARACTER_ROLE_META } from '$lib/characters/types';
   import { hasArtwork } from '$lib/core/artwork';
+  import GeneratedBoxArt from '$lib/renderer/GeneratedBoxArt.svelte';
+  import { usesAutomaticBoxArt } from '$lib/sets/box-art';
   import { assessSet, healthSummary } from '$lib/sets/health';
   import { SET_KIND_META } from '$lib/sets/types';
   import type { AdventureSet } from '$lib/sets/types';
@@ -40,6 +42,7 @@
   const outline = $derived(workshop.outline);
   const stats = $derived(workshop.stats);
   const health = $derived(assessSet(set));
+  const automaticBoxArt = $derived(usesAutomaticBoxArt(set));
 
   const severityLabel = { blocker: 'Blocker', gap: 'Gap', polish: 'Polish' } as const;
 
@@ -124,9 +127,15 @@
 <div class="home scroll-y">
   <!-- Identity ---------------------------------------------------------- -->
   <header class="hero">
-    <div class="box-art" class:empty={!hasArtwork(set.boxArt)}>
+    <div
+      class="box-art"
+      class:automatic={automaticBoxArt}
+      class:empty={!hasArtwork(set.boxArt) && !automaticBoxArt}
+    >
       {#if hasArtwork(set.boxArt) && set.boxArt.source}
         <img src={set.boxArt.source} alt="" />
+      {:else if automaticBoxArt}
+        <GeneratedBoxArt {set} />
       {:else}
         <Icon name="image" size={20} />
         <span class="box-hint">Box art</span>
@@ -435,6 +444,11 @@
 
   .box-art.empty {
     border-style: dashed;
+  }
+
+  .box-art.automatic {
+    width: 128px;
+    height: 128px;
   }
 
   .box-art img {

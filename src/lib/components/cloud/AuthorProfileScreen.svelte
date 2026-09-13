@@ -21,6 +21,7 @@
     listPublicSetsByOwner
   } from '$lib/cloud/sets';
   import type { ContributedSet, GallerySet, PublicProfile } from '$lib/cloud/sets';
+  import { thumbnailOrCoverBleeds } from '$lib/cloud/thumbnail';
   import { CARD_FORMATS, trimBox } from '$lib/renderer/geometry';
   import { navigation } from '$lib/state/navigation.svelte';
   import { Button, Icon } from '$lib/ui';
@@ -73,6 +74,10 @@
     return row.thumbnail_url || row.cover_url;
   }
 
+  function imageBleeds(row: { thumbnail_url: string; cover_bleeds: boolean }): boolean {
+    return thumbnailOrCoverBleeds(row.thumbnail_url, row.cover_bleeds);
+  }
+
   // Same hash as `GalleryScreen.svelte`'s own `tint`/`initials` — a set or a
   // person reads the same colour wherever it is shown.
   function tint(seed: string): string {
@@ -98,7 +103,7 @@
     <button type="button" class="tile" onclick={() => navigation.openShared(row.slug)}>
       <span class="cover" style:--trim-scale={TRIM_SCALE_WIDE} style:background={tint(row.id)}>
         {#if image(row)}
-          <img src={image(row)} class:trimmed={row.cover_bleeds} alt="" loading="lazy" />
+          <img src={image(row)} class:trimmed={imageBleeds(row)} alt="" loading="lazy" />
         {:else}
           <span class="initials">{initials(row.name)}</span>
         {/if}
