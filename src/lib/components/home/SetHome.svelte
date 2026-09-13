@@ -307,11 +307,14 @@
           </ul>
         {/if}
       </section>
+
+      <!-- Reference material belongs with the set overview. Keeping it in the
+           left column lets the action-oriented column begin with collaboration
+           and then move directly into export and publishing. -->
+      <StyleCascadePanel {outline} />
     </div>
 
     <div class="column">
-      <StyleCascadePanel {outline} />
-
       <!--
         Contributions, all three directions, and above Export on purpose.
         Offering changes back is the thing to do *with* a copied set, and
@@ -372,7 +375,10 @@
           claiming "everything here" is the whole set actively talks someone
           out of scrolling past it to find that.
         -->
-        <p class="panel-hint">Choose what to render below; the project backup always keeps the whole set.</p>
+        <p class="panel-hint">
+          Prepare files for printing, Tabletop Simulator or continued editing, then publish a copy
+          when you are ready to share it.
+        </p>
         <ExportPanel {set} {onprint} />
         <SharePanel {set} />
       </section>

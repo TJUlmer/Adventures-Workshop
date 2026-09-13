@@ -149,15 +149,32 @@
    * Listed first because it is the default, and a list whose default is in the
    * middle reads as though something else was expected of you.
    */
-  const visibilityOptions = $derived(
+  const sharingOptions = $derived(
     [
       ...(auth.isAnonymous
         ? []
-        : [{ value: 'public' as const, label: 'Listed publicly' }]),
-      { value: 'unlisted' as const, label: 'Anyone with the link' },
-      { value: 'private' as const, label: 'Only me — link stops working' }
+        : [{ value: 'public' as const, label: 'Public — visible in the Gallery' }]),
+      { value: 'unlisted' as const, label: 'Private link — shared by invitation' }
     ]
   );
+
+  /* Hidden is a state for an existing publication, not a useful way to create
+     one. It preserves the row, revision and stable link so the author can put
+     it back later, while making it inaccessible to everyone else. */
+  const publishedVisibilityOptions = $derived([
+    ...sharingOptions,
+    { value: 'private' as const, label: 'Hidden — take the published copy offline' }
+  ]);
+
+  function visibilityDescription(visibility: Visibility): string {
+    if (visibility === 'public') {
+      return 'Appears in the public Gallery. Anyone can discover it, open it and share its link.';
+    }
+    if (visibility === 'unlisted') {
+      return 'Does not appear in the Gallery. Only people given the link can find it, though they can pass that link on.';
+    }
+    return 'Takes the published copy offline without deleting it. Only you can open it until you make it Public or share it by Private link again.';
+  }
 
   /**
    * What a first publish does unless the author says otherwise.
@@ -178,6 +195,7 @@
     /* Clamped rather than trusted: `picked` survives a sign-out, so someone who
        chose "listed" while signed in and then dropped to an anonymous session
        would otherwise send a value the database is bound to refuse. */
+    if (choice === 'private') return defaultVisibility;
     return auth.isAnonymous && choice === 'public' ? 'unlisted' : choice;
   });
 
@@ -386,13 +404,14 @@
         </div>
 
         <label class="option">
-          <span class="option-label">Who can see it</span>
+          <span class="option-label">Visibility</span>
           <Select
             value={published.visibility}
-            options={visibilityOptions}
+            options={publishedVisibilityOptions}
             disabled={busy}
             onchange={(value) => void changeVisibility(value)}
           />
+          <span class="visibility-hint">{visibilityDescription(published.visibility)}</span>
         </label>
 
         <!--
@@ -457,18 +476,19 @@
             until it has already happened is not a choice — it is a surprise.
           -->
           <label class="option">
-            <span class="option-label">Who can see it</span>
+            <span class="option-label">Visibility</span>
             <Select
               value={wanted}
-              options={visibilityOptions}
+              options={sharingOptions}
               disabled={busy}
               onchange={(value) => (picked = value)}
             />
+            <span class="visibility-hint">{visibilityDescription(wanted)}</span>
           </label>
 
           <Button variant="primary" disabled={busy} onclick={publish}>
             <Icon name="upload" size={13} />
-            {wanted === 'public' ? 'Publish to the gallery' : 'Publish and get a link'}
+            {wanted === 'public' ? 'Publish to the Gallery' : 'Publish with a private link'}
           </Button>
         {/if}
       {/if}
@@ -641,6 +661,13 @@
   .option-label {
     font-size: var(--text-xs);
     color: var(--text-muted);
+  }
+
+  .visibility-hint {
+    font-size: var(--text-2xs);
+    line-height: var(--leading-normal);
+    color: var(--text-muted);
+    text-wrap: pretty;
   }
 
   .actions {
