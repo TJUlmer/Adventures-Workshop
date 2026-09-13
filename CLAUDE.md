@@ -794,12 +794,35 @@ sampled line colour, so an older document opens looking exactly as it always
 did, and the bump exists only because an older build opening a v35 document
 would otherwise silently drop a chosen frame colour back to that default.
 
+### Bonus abilities are card entries
+
+An action card's `AbilityBlocks.bonusAbilities` is an ordered list of at most
+two `BonusAbility` entries. Each entry owns its text, icon, colour, text size,
+and icon size, so editing the second bonus can never alter the first. A blank
+first entry remains in a new ability block to keep the ordinary editor ready
+without requiring an add action; the second is explicitly added and removable.
+
+`CardTheme.bonusAbilityInk`, `bonusIconSize`, and `abilityFontSize` remain as
+inherited defaults for bonus entries whose matching override is `null`. The
+last name is historical: ordinary ability copy is fixed to `ABILITY.size`, a
+measured template value, and only bonus copy consumes `abilityFontSize`.
+Schema v60 converts the former singleton `bonusAbility`/`bonusIcon` pair into
+the first list entry and leaves its three style overrides null, preserving the
+older card's inherited appearance.
+
+Schema v61 adds `BonusAbility.showDivider`. The optional rule is a border on
+that Bonus paragraph rather than a separate themed object, so it follows the
+entry's effective ink automatically. Its thickness is the fixed card-geometry
+value `BONUS_ABILITY_DIVIDER_HEIGHT`, not an `em`, so a Bonus text-size change
+cannot make the line heavier or lighter. It defaults off to preserve every v60
+and earlier composition.
+
 ### The ribbon's foot
 
 The strip between a name ribbon's point and the divider, filled so the ribbon's
 stroke and the divider bar read as one continuous line, with a symbol standing
 in it — `ActionCard.showRibbonSymbol`/`ribbonSymbol`, drawn by
-`ActionCardFace`'s `.ribbon-foot`. Modelled on `AbilityBlocks.bonusIcon`: the
+`ActionCardFace`'s `.ribbon-foot`. Modelled on a bonus ability's icon: the
 symbol is a token string resolved through the same `parseAbilityText` lookup,
 so a built-in and an author's own glyph are the same kind of thing, and its
 size is a themed key (`CardTheme.ribbonSymbolSize`) rather than card data.

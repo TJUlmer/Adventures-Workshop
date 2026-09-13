@@ -69,9 +69,9 @@
   const isHero = $derived(owner?.role === 'hero');
 
   /**
-   * For the Bonus ability colour and the ability text size, both edited from
-   * inside `AbilityStack` alongside the fields they affect rather than
-   * tucked away in Design — see that component.
+   * The resolved card design supplies defaults for each Bonus ability's own
+   * colour and sizes. Changes made beside a Bonus ability are stored on that
+   * entry rather than written back into this shared style layer.
    */
   const styleTarget = $derived({ entity: 'card' as const, id: card.id });
   const resolvedTheme = $derived(resolveStyleForCard(workshop.adventure, card));
@@ -296,7 +296,6 @@
         title="Ability"
         ability={card.ability}
         onchange={(patch) => edit((target) => Object.assign(target.ability, patch))}
-        target={styleTarget}
         resolved={resolvedTheme}
         {originFor}
         customSymbols={workshop.adventure.customSymbols}
@@ -367,7 +366,6 @@
         hint="Printed above the floating separator."
         ability={card.ability}
         onchange={(patch) => edit((target) => Object.assign(target.ability, patch))}
-        target={styleTarget}
         resolved={resolvedTheme}
         {originFor}
         customSymbols={workshop.adventure.customSymbols}
@@ -378,10 +376,8 @@
         hint="Printed below it. The separator moves up as this side fills."
         ability={card.defenseAbility}
         onchange={(patch) => edit((target) => Object.assign(target.defenseAbility, patch))}
-        target={styleTarget}
         resolved={resolvedTheme}
         {originFor}
-        textStyle={false}
         customSymbols={workshop.adventure.customSymbols}
       />
     {:else}
@@ -389,7 +385,6 @@
         title="Ability"
         ability={card.ability}
         onchange={(patch) => edit((target) => Object.assign(target.ability, patch))}
-        target={styleTarget}
         resolved={resolvedTheme}
         {originFor}
         customSymbols={workshop.adventure.customSymbols}
@@ -446,7 +441,6 @@
             : 'Applies to both attack and defense until the Defense side contains text.'}
           ability={card.ability}
           onchange={(patch) => edit((target) => Object.assign(target.ability, patch))}
-          target={styleTarget}
           resolved={resolvedTheme}
           {originFor}
           customSymbols={workshop.adventure.customSymbols}
@@ -459,10 +453,8 @@
             : 'Add text here to give defense its own effect and show the separator.'}
           ability={card.defenseAbility}
           onchange={(patch) => edit((target) => Object.assign(target.defenseAbility, patch))}
-          target={styleTarget}
           resolved={resolvedTheme}
           {originFor}
-          textStyle={false}
           customSymbols={workshop.adventure.customSymbols}
         />
       {/if}
@@ -716,7 +708,7 @@
 
 <style>
   /*
-   * The same chip row `AbilityStack` uses for the Bonus icon, repeated rather
+   * The same chip row `AbilityStack` uses for a Bonus ability icon, repeated rather
    * than shared: component styles are scoped, and the two rows are four
    * declarations, not a component's worth of behaviour.
    */

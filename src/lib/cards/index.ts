@@ -2,6 +2,7 @@ export type {
   AbilityBlocks,
   AbilityTiming,
   ActionCard,
+  BonusAbility,
   Card,
   CardCommon,
   CardId,
@@ -23,6 +24,7 @@ export {
   CARD_TYPE_META,
   CARD_TYPES,
   createAbilityBlocks,
+  createBonusAbility,
   INITIATIVE_BANDS,
   INITIATIVE_SUBJECT_LABELS,
   INITIATIVE_SUBJECTS,
@@ -33,6 +35,7 @@ export {
   isActionCard,
   isInitiativeCard,
   isRulesCard,
+  MAX_BONUS_ABILITIES,
   usedTimings
 } from './types';
 

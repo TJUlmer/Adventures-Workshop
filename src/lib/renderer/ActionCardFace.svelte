@@ -69,7 +69,6 @@
     HERO_RIBBON_SYMBOL,
     HERO_SPLIT_RIBBON_SYMBOL,
     HERO_RIBBON_VALUE,
-    inFace,
     inPanel,
     INTERIOR,
     INTERIOR_RADIUS,
@@ -125,11 +124,8 @@
 
   const isHero = $derived(character?.role === 'hero');
 
-  /**
-   * Ability text size, overriding `ABILITY.size` — see `CardTheme.abilityFontSize`
-   * for why this is a live override rather than the constant itself.
-   */
-  const abilitySize = $derived(inFace(theme.abilityFontSize));
+  /** Ordinary ability copy stays at the size measured into the card geometry. */
+  const abilitySize = ABILITY.size;
 
   /**
    * The primary character's name as the *ribbon* prints it.
@@ -341,7 +337,7 @@
   /* The ribbon's own stroke weight, so the bar below it is the same line. */
   const footEdgeWidth = $derived(isHero ? HERO_RIBBON.edgeWidth : BANNER.edge.width);
 
-  /* Resolved exactly as `AbilityText` resolves `bonusIcon` — same token, same
+  /* Resolved exactly as `AbilityText` resolves a Bonus ability icon — same token, same
      lookup — so a built-in and an author's own glyph behave identically. */
   const ribbonSymbolSrc = $derived.by(() => {
     if (!card.showRibbonSymbol || !card.ribbonSymbol) return null;
@@ -779,6 +775,7 @@
                 placeholder=""
                 subject={ribbonName}
                 bonusInk={theme.bonusAbilityInk}
+                bonusTextSize={theme.abilityFontSize}
                 bonusIconSize={theme.bonusIconSize}
                 {customSymbols}
               />
@@ -800,6 +797,7 @@
               placeholder=""
               subject={ribbonName}
               bonusInk={theme.bonusAbilityInk}
+              bonusTextSize={theme.abilityFontSize}
               bonusIconSize={theme.bonusIconSize}
               {customSymbols}
             />
@@ -1250,6 +1248,7 @@
                 placeholder=""
                 subject={ribbonName}
                 bonusInk={theme.bonusAbilityInk}
+                bonusTextSize={theme.abilityFontSize}
                 bonusIconSize={theme.bonusIconSize}
                 {customSymbols}
               />
