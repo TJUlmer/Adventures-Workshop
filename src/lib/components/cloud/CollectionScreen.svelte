@@ -189,6 +189,7 @@
   // -- Organizer editing --------------------------------------------------
 
   let organizer = $state(false);
+  let organizerCheck = $state<'idle' | 'checking' | 'ready' | 'error'>('idle');
   let organizerRequest = 0;
   let editing = $state(false);
   let saving = $state(false);
@@ -201,6 +202,40 @@
   let draftSubtitle = $state('');
   let draftBlurb = $state('');
 
+  function organizerRequestIsCurrent(request: number, id: string, accountId: string): boolean {
+    return (
+      request === organizerRequest &&
+      collection?.id === id &&
+      auth.user?.id === accountId
+    );
+  }
+
+  async function checkOrganizer(id: string, accountId: string, request: number): Promise<boolean | null> {
+    try {
+      const yes = await amOrganizer(id);
+      if (!organizerRequestIsCurrent(request, id, accountId)) return null;
+      organizer = yes;
+      organizerCheck = 'ready';
+      return yes;
+    } catch {
+      if (!organizerRequestIsCurrent(request, id, accountId)) return null;
+      /* A failed private read is not evidence that somebody is merely a
+         contributor. Hiding the management tabs in that case made Settings
+         appear to vanish, with no clue that retrying could restore it. */
+      organizerCheck = 'error';
+      return null;
+    }
+  }
+
+  function retryOrganizerCheck(): void {
+    const id = collection?.id;
+    const accountId = auth.signedIn ? (auth.user?.id ?? '') : '';
+    if (!id || !accountId) return;
+    const request = ++organizerRequest;
+    organizerCheck = 'checking';
+    void checkOrganizer(id, accountId, request);
+  }
+
   $effect(() => {
     const id = collection?.id;
     const accountId = auth.signedIn ? (auth.user?.id ?? '') : '';
@@ -209,17 +244,9 @@
        retaining them until this private read settles briefly shows authority
        the new account may not have. */
     organizer = false;
+    organizerCheck = id && accountId ? 'checking' : 'idle';
     if (!id || !accountId) return;
-    void (async () => {
-      const yes = await amOrganizer(id).catch(() => false);
-      if (
-        request === organizerRequest &&
-        collection?.id === id &&
-        auth.user?.id === accountId
-      ) {
-        organizer = yes;
-      }
-    })();
+    void checkOrganizer(id, accountId, request);
   });
 
   // -- Invitations ---------------------------------------------------------
@@ -385,12 +412,16 @@
    */
   async function refreshOrganizers(): Promise<void> {
     const id = collection?.id;
-    if (!id) {
+    const accountId = auth.signedIn ? (auth.user?.id ?? '') : '';
+    if (!id || !accountId) {
       organizers = [];
       return;
     }
-    organizer = await amOrganizer(id).catch(() => false);
-    organizers = organizer ? await listOrganizers(id).catch(() => []) : [];
+    const request = ++organizerRequest;
+    organizerCheck = 'checking';
+    const yes = await checkOrganizer(id, accountId, request);
+    if (yes === null) return;
+    organizers = yes ? await listOrganizers(id).catch(() => []) : [];
   }
 
   function promote(userId: string): void {
@@ -1449,9 +1480,6 @@
                 {#if collection.subtitle}<p class="subtitle">{collection.subtitle}</p>{/if}
               </div>
               <div class="hero-actions">
-                <button type="button" class="btn" onclick={showShowcase}>
-                  {collection.visibility === 'public' ? 'View public page' : 'Preview public page'}
-                </button>
                 <button
                   type="button"
                   class="btn"
@@ -1513,7 +1541,7 @@
               <button type="button" class="btn status-cta" onclick={showLaunch}>Share with the world</button>
             {:else}
               <button type="button" class="btn" onclick={showShowcase}>
-                {collection.visibility === 'public' ? 'View live page' : 'Preview page'}
+                {collection.visibility === 'public' ? 'View live page' : 'Preview public page'}
               </button>
             {/if}
           </div>
@@ -1547,6 +1575,17 @@
             Page &amp; publishing
           </button>
         </nav>
+      {:else if pageMode === 'workspace' && organizerCheck === 'checking'}
+        <div class="workspace-heading" role="status">
+          <p>Checking this account’s project access…</p>
+        </div>
+      {:else if pageMode === 'workspace' && organizerCheck === 'error'}
+        <div class="workspace-error" role="alert">
+          <span>
+            We couldn’t confirm whether this account is an organizer. The management tabs are hidden until that check succeeds.
+          </span>
+          <button type="button" class="btn" onclick={retryOrganizerCheck}>Try again</button>
+        </div>
       {:else if pageMode === 'workspace'}
         <div class="workspace-heading">
           <div>
