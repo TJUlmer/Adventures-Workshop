@@ -6,7 +6,9 @@ its **Where this stands** section first. This file is the part that document
 should not carry: where the work physically lives, what is safe to assume, and
 what will bite.
 
-Written 2026-09-13, at `110b239` on `collections`.
+Updated 2026-09-14. The committed base is `c3b0264` on `collections`; the
+management-workspace pass described below is intentionally uncommitted while it
+is being verified.
 
 ---
 
@@ -14,35 +16,28 @@ Written 2026-09-13, at `110b239` on `collections`.
 
 | worktree | branch | holds |
 |---|---|---|
-| `Adventures_Workshop` | `main` | production. **No collections code at all** — deliberately |
-| `Adventures_Workshop-collections` | `collections` | the whole feature |
+| `Adventures_Workshop` | `main` | the saved production checkout; its local branch is stale, so compare with `origin/main` before using it |
+| `Adventures_Workshop-collections` | `collections` | the deployed collection feature plus the current management pass |
 | `Adventures_Workshop-cloud-drafts` | `codex/cloud-drafts` | unrelated, another session's |
 
-The committed base of `collections` is **31 commits ahead of `main` and 0
-behind** — `main` was merged in on 2026-09-13 at `8c44598`, so there is no
-catching-up to do before working. The guest-showcase pass described below is
-currently uncommitted, so the worktree is intentionally no longer clean.
+At this update, `HEAD`, `origin/collections` and `origin/main` all point to
+`c3b0264`. The local `main` checkout is behind its remote and should not be used
+as evidence that production lacks a change. Collections is now intentionally on
+`main`: the public showcase is live, and the Home entry is rollout-allowlisted.
+The earlier instruction to keep the feature away from `main` is obsolete.
 
-Collections was on `main` once, by accident, and was reverted out at the
-author's explicit request: *it is not to reach `main` until the feature is ready
-to launch publicly.* Treat that as standing. The production site
-(`www.unmatchedlabs.com`) therefore 404s on `/collection/...` and that is
-correct, not a fault — `main`'s `vercel.json` and middleware matcher both route
-only `/shared/`.
-
-The preview deployment is
-`https://adventures-workshop-git-collections-adventures-workshop.vercel.app`.
-It is recorded nowhere in the repo or the database — share URLs are built from
-`location.origin` at runtime, so no hostname ever reaches storage. That URL came
-from the author, and is kept here for exactly that reason.
+Share URLs are built from `location.origin` at runtime, so neither the old
+preview hostname nor the production hostname is stored in collection rows.
 
 ---
 
 ## What is done
 
-Phase 1 (all eight build steps) and phase 2 (the combined box export) are
-complete, and `COLLECTIONS.md` marks each. Beyond what that document already
-records, this session closed the last open item on it:
+Phase 1, phase 2, the unfurl and the guest collection showcase are deployed on
+`main`. Migration `0027_collection_characters.sql` is applied; the public page
+has the collection identity, filterable character roster, creator credits, set
+gallery and the existing shared-set card/component/3D explorer. The collection
+founder is not presented as a public credit.
 
 **The unfurl is confirmed on a real deployment.** Vercel's array-form
 `config.matcher` does attach the middleware to both `/shared/:slug*` and
@@ -57,29 +52,34 @@ What remains untested is Discord's own rendering, which needs a real paste.
 Budget a throwaway slug for the second attempt: its per-URL unfurl cache is
 aggressive enough that re-pasting the same link shows the stale card.
 
-**The guest collection experience is implemented in the worktree.**
-`CollectionShowcase.svelte` is the public/read-only exhibition and
-`CollectionMemberExplorer.svelte` opens exactly one published member in place.
-It reuses `AssetsOverview`, including the existing authoritative card PNG
-lightbox and `ComponentModal`/`ModelViewer` 3D path. Character identities are
-composite (`set_id:character_id`) because forks preserve entity ids. Public
-collection identity, set tiles and character summaries now settle
-independently, so a failed enrichment cannot erase the masthead or delay the
-other projection. Organizer and contributor controls remain in their existing
-separate modes.
+**The management workspace pass is implemented locally.** It adds:
 
-The new public roster comes from
-`0027_collection_characters.sql`/`collection_characters_by_slug`. It repeats
-the collection/member/set visibility and moderation boundary used by
-`collection_members_by_slug`, returns presentation fields only, and grants
-execution to `anon` and `authenticated`. **It has not been applied to the live
-catalogue.** Until it is, the page deliberately keeps the collection and sets
-visible and labels the roster unavailable.
+- exact **Public page / Page preview** and **Project workspace** modes;
+- direct workspace entry from Home, with pasted links still opening publicly;
+- a single published-deck picker and clear submit, review, accept, edit,
+  republish and revision-bound Ready lifecycle;
+- a prominent organiser approval queue that refreshes after mutations, on
+  focus/visibility and periodically while the page is visible;
+- load-error states that cannot masquerade as an empty approval queue;
+- private per-deck discussion threads for the accepted project team; and
+- public projections that omit `created_by` while retaining deck-author credit;
+- server-guarded membership transitions, revoked direct membership deletion and
+  revision-scoped readiness, so the UI cannot manufacture consent or stale Ready
+  state.
 
-Verification for this pass: `npm run check` and `npm run build` both pass;
-desktop and 390 px browser review covered the hero, roster, sets, components
-picker, inline-explorer focus entry/return and runtime console. The only console
-warning was the existing local v60-document warning on this v59 branch.
+Two new migrations belong to this pass and were applied successfully to the
+live catalogue on 2026-09-14, in this order:
+
+1. `0028_collection_deck_comments.sql`
+2. `0029_collection_workspace.sql`
+
+The database is ready for the matching UI. `0029` expands the return type of
+`collection_memberships`; the old client safely ignores those extra fields.
+
+Local verification on 2026-09-14: `npm run check`, `npm run build` and
+`git diff --check` pass. A signed-out browser smoke test covered Home and the
+generic absent/private collection response with no console warnings or errors.
+The authenticated two-account matrix below still requires the client deployment.
 
 ---
 
@@ -97,13 +97,13 @@ Both branches independently used `0018`–`0022`:
 | `0021_reusable_invite_links` | `0021_card_preview_fingerprints` |
 | `0022_invitee_can_see_the_collection` | `0022_fix_card_preview_fingerprint_validation` |
 
-Both sets are present in this worktree now, because `main` was merged in — so
-the directory carries five duplicated numbers. Nothing is broken: production
-orders by the timestamp version, not the filename. But a replay that sorts by
-filename will interleave them in an order nobody chose, and the numbering can no
-longer be read as saying what ran first. Decide whether to renumber before this
-merges to `main`, and until then do not take a higher number to mean later
-application.
+Both sets are present on `main` now, so the directory carries five duplicated
+numbers. Nothing is broken: production orders by the timestamp version, not the
+filename. But a replay that sorts by filename will interleave them in an order
+nobody chose, and the old numbering cannot be read as saying what ran first.
+Do not casually renumber migrations that have already shipped. The new `0028`
+and `0029` files are ordered after the merged catalogue and must be applied in
+that explicit order.
 
 ### The migration history is not a record of what has been applied
 
@@ -133,9 +133,9 @@ a row type without it raises at runtime, on write, so **every update to every
 collections table was failing**: visibility, the submissions toggle, marking a
 deck ready, answering an invitation, revoking a link.
 
-It went unnoticed because the collections tables live in production while the
-feature using them lives on this branch, so nothing on `main` ever touched a row
-that could fail. Fixed in `0026`.
+It went unnoticed before the collections UI reached `main`, because nothing in
+the then-shipped app touched a row that could fail. Fixed in `0026` and now
+deployed.
 
 Three things to carry forward:
 
@@ -155,19 +155,28 @@ Three things to carry forward:
 
 ## What is left, in the order I would do it
 
-Before exposing this pass on the preview deployment, reconcile and apply
-`0027_collection_characters.sql` against the live catalogue. The migration
-history warning above applies: confirm the function signature, grants and
-definition through `pg_proc`/catalogue reads rather than trusting the filename.
+1. **Deploy the matching UI.** The new client expects
+   the expanded `collection_memberships` result; the old client has no comments
+   or revision-bound readiness. Treat the two migrations and this code as one
+   rollout.
 
-1. **Run one real collection with real creators.** `COLLECTIONS.md` says this
-   and it is still the single highest-value thing. Production holds two
-   collections, two accepted memberships and two organizers — all test data, and
-   **nothing has been made public**. Phase 3's four items are explicitly guesses
-   until a project has run, so building them first risks a column that has to be
-   unpicked rather than added.
+2. **Run the two-account acceptance matrix.** Use a private collection first:
 
-2. **Decide the empty-description case.** Found on the deploy: with both
+   - contributor selects a published deck and submits it;
+   - organiser sees the contribution after focus/refresh, opens the published
+     deck, and accepts it;
+   - contributor sees the accepted card, edits and republishes it, marks that
+     revision Ready, then republishes once more and confirms Ready clears;
+   - both team accounts can discuss the accepted deck, while a signed-out
+     browser and an unrelated account cannot read or write those comments;
+   - an unrelated account gets the generic absent/private result for the
+     collection, and the public page never names a collection founder.
+
+3. **Run one real collection with real creators.** This remains the
+   highest-value product test. The remaining phase 3 ideas should wait until a
+   project has run rather than turning guesses into schema.
+
+5. **Decide the empty-description case.** Found on the deploy: with both
    `subtitle` and `blurb` empty, a collection's `og:description` is
    byte-identical to the one an unknown slug gets, so apart from the title a
    real collection unfurls exactly like a dead link. The set half never has this
@@ -180,23 +189,23 @@ definition through `pg_proc`/catalogue reads rather than trusting the filename.
    backfill, one extra edge round-trip and only on bot requests. **Not built —
    the author has not chosen.**
 
-3. **Ordering is half-built.** `reorderMember` exists at
-   `src/lib/cloud/collections.ts:721` and **nothing calls it** — there is no
-   control anywhere in the UI. Either wire it up or delete it; a dead export
-   reads as a feature that exists.
+6. **Ordering is half-built.** `reorderMember` exists in
+   `src/lib/cloud/collections.ts` and **nothing calls it** — there is no control
+   anywhere in the UI. Either wire it up or delete it; a dead export reads as a
+   feature that exists.
 
-4. **No reporting path for collections.** Sets have one; collections have
+7. **No reporting path for collections.** Sets have one; collections have
    moderation (`moderateCollection`, admin-gated) but no way for a viewer to
    report one. Asymmetric, and the moderation route is already built to receive
    what it would send.
 
-5. **Anonymous accounts hit the publish wall at launch.** Supabase anonymous
+8. **Anonymous accounts hit the publish wall at launch.** Supabase anonymous
    users are rejected by policy from every collections write, which is correct,
    but the failure surfaces late and rawly. Two RLS errors were already mapped
    to readable text through `publishRefusalMessage`
    (`CollectionScreen.svelte:410`); check whether the rest are.
 
-6. ~~**A collection tile's author is not clickable.**~~ Done in the guest
+9. ~~**A collection tile's author is not clickable.**~~ Done in the guest
    showcase: both set and character credits, the masthead chips and the creator
    gallery open `AuthorProfileScreen`.
 

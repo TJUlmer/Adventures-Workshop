@@ -1,11 +1,11 @@
 # Collections — one box, many creators
 
-**Phase 1 is built, deployed, and carrying real data.** This was written as a
-specification before any of it existed, and everything below is still that
-document, kept as it was — the reasoning it records is what the code now does.
-Only the status has moved: build steps 1–8 are marked **done** at the foot of
-this file, and `0015_collections.sql` is applied to production with live
-collections in it.
+**Phases 1 and 2 and the guest showcase are deployed and carrying real data.**
+This was written as a specification before any of it existed, and most of the
+document remains as the reasoning behind the code. The 2026-09-14 management
+workspace pass described under *Where this stands* is implemented in the
+collections worktree. Its two migrations were applied successfully on
+2026-09-14; the matching client still needs deployment.
 
 See *Where this stands* for what is deployed and what is merely written, and
 *Phases beyond the first* for what is left.
@@ -23,8 +23,8 @@ later would be a migration, and taking it now costs nothing.
 
 ## Where this stands
 
-Phase 1 is deployed. All eight build steps at the foot of this file are
-**done**, and `0015_collections.sql` is applied to production — reconciled
+Phases 1 and 2 are deployed. All eight first-phase build steps at the foot of
+this file are **done**, and `0015_collections.sql` is applied to production — reconciled
 against the live catalogue rather than assumed to match it, after two drifts
 turned up that reading the file could never have shown: a deployed
 `my_collections()` that had never been folded back in (Home's Collections shelf
@@ -34,23 +34,44 @@ fails the moment the shelf loads), and four policies still carrying the
 `organizer` twin beside them. All eleven functions, nineteen policies and six
 triggers now agree.
 
-Production holds two collections, two accepted memberships and two organizers.
-So it is exercised — but **nothing has been made public yet**, and no real
-project with real creators has run through it. That is the next thing to learn
-from, and it is worth doing before phase 2: the combined export rests on
-assumptions about how a box gets assembled, and one actual Winter Extravaganza
-will correct more of them than any further design will.
+The first production exercise held two collections, two accepted memberships
+and two organisers. That proved the plumbing, but no real project with a full
+team has run through the workflow yet. One actual Winter Extravaganza remains
+more valuable than another round of speculative feature design.
 
-The guest presentation pass is implemented in the current collections
-worktree, but is not deployed. A collection link now opens on a dedicated
+The guest presentation is deployed on `main`. A collection link opens on a dedicated
 read-only showcase — cinematic identity, character roster, creator credits,
-set gallery and a local member explorer — while organizer and contributor
-tools remain a separate mode. The explorer reuses `AssetsOverview`,
+set gallery and a local member explorer — while organiser and contributor
+tools remain separate from the public experience. The explorer reuses `AssetsOverview`,
 `CardLightbox`, `ComponentModal` and `ModelViewer`, so published cards and 3D
 pieces have the same inspection path as an individual shared set. Migration
-`0027_collection_characters.sql` adds the consent-gated lightweight roster RPC;
-it still needs catalogue reconciliation and application before a deployed
-showcase can populate its character grid.
+`0027_collection_characters.sql` supplies the consent-gated lightweight roster RPC.
+
+### Management workspace pass — database applied, client not deployed
+
+The current collections worktree now has two explicit modes:
+
+- **Public page / page preview** is the exact guest showcase. For a private
+  project it says plainly that everybody outside the project sees nothing.
+- **Project workspace** is the quieter working surface. Home collection tiles
+  and attention links enter it directly; a pasted collection link still enters
+  the public page.
+- **Contributions** use one published-deck picker and one card per accepted
+  deck, with Edit working copy, View published version, the published revision,
+  and a deliberate Mark Ready action. Republishing clears Ready automatically.
+- **Organiser decisions** are prominent, include a review link, refresh on
+  focus/visibility and on a visible-only interval, and show load failures rather
+  than turning them into a convincing empty inbox.
+- **Deck discussions** are private, deck-specific project comments. They are
+  absent from every anonymous projection and never reach the public component.
+- The public page credits the work and its creators, but no longer presents or
+  returns the behind-the-scenes collection founder.
+
+This pass adds `0028_collection_deck_comments.sql` and
+`0029_collection_workspace.sql`. Both were applied successfully to the live
+catalogue, in that order, on 2026-09-14. The matching UI can now deploy; `0029`
+changes the return type of `collection_memberships`. New collections become
+genuinely private by default after that client deployment completes the rollout.
 
 - ~~**The unfurl.**~~ **Verified against production data.** `vite dev` has no
   Edge Runtime, but the middleware is a plain function of a `Request` and
@@ -432,7 +453,7 @@ repeating: **this is already applied to production and must not be re-run.**
 ```
 collections
   id           uuid primary key
-  created_by   uuid not null references profiles (id) on delete set null
+  created_by   uuid references profiles (id) on delete set null
   slug         text not null unique   -- unguessable, as sets.slug
   name, subtitle, blurb, banner_url
   visibility   text check (visibility in ('private','unlisted','public'))
@@ -466,6 +487,38 @@ Notes that are not obvious:
 - **`hidden` is held apart from `visibility`**, exactly as on `sets`, so a
   takedown leaves the organizers' own setting alone and kills the link as well
   as the listing.
+- **`created_by` is internal bookkeeping, not a public credit.** It seeds the
+  first organiser and helps preserve the project if that account goes away;
+  `collection_by_slug` deliberately omits it. The public page credits the decks
+  and their authors without naming one person as the collection's creator.
+
+### Workspace additions — migrations `0028` and `0029`
+
+The management pass adds one collaboration table and one revision-bound field:
+
+```
+collection_members
+  ready_revision integer null  -- the exact published revision declared ready
+
+collection_deck_comments
+  id            uuid primary key
+  collection_id uuid not null
+  set_id        uuid not null
+  author_id     uuid not null
+  body          text not null check (1..2000 characters)
+  created_at, updated_at
+```
+
+`ready_revision` makes Ready an honest statement about the current publication:
+publishing a newer revision clears it automatically. Comments are readable only
+by the project team, writable only against accepted decks, and are absent from
+every anonymous collection projection. The membership guard also owns the full
+status-transition matrix, so a creator cannot accept their own submission and an
+organiser cannot accept an unconsented invitation; direct membership deletion is
+revoked in favour of the existing soft statuses. Apply
+`0028_collection_deck_comments.sql` before `0029_collection_workspace.sql`; the
+latter also changes the result shape of `collection_memberships`, so its UI must
+deploy with it.
 
 ### One new function, and one footgun
 
@@ -503,10 +556,19 @@ boundary* above.
 - **The same published-set inspection path** — the local member explorer owns
   one `AssetsOverview`, including its authoritative PNG lightbox and lazy 3D
   component modal. Collection presentation does not fork either renderer.
-- **"Add my deck" / "Invite a deck"**, and a pending-decisions list on each
-  side. Reuse the contributions screen's shape; it is the same verb.
-- **A readiness line** — "4 of 6 ready" — computed from membership rows alone,
-  with no document fetches.
+- **Two explicit modes.** A pasted link opens the exact public page; Home opens
+  the quieter Project workspace. Private projects state that everybody outside
+  the team sees nothing, while the author can switch back to Page preview at
+  any time.
+- **One contribution path.** Pick a published deck, submit it, edit its working
+  copy, republish, and deliberately mark that published revision Ready. An
+  organiser gets a prominent review queue and can inspect the submitted public
+  deck before accepting or declining it.
+- **A revision-bound readiness line** — "4 of 6 ready" — computed from
+  membership rows alone. Republishing resets Ready instead of allowing a stale
+  declaration to survive a changed deck.
+- **Private deck discussions** inside the workspace, available to the project
+  team and never rendered or returned on the public page.
 - **A reverse link** on each member's own `/shared/{slug}`: *part of Winter
   Extravaganza*. Cheap, and it is what makes the thing read as a project
   rather than a list of links.
@@ -698,10 +760,8 @@ so budget a throwaway slug for the second attempt.
 
 ## Phases beyond the first
 
-Until phase 2 lands, every deck exports individually through its own shared
-page — exactly what the production phase of the worked timeline already
-assumes. The box download is the only thing missing, and it is missing on
-purpose.
+Before phase 2 landed, every deck exported individually through its own shared
+page. The combined box path described below is now deployed.
 
 ### Phase 2 — the combined box export — **done**
 
@@ -767,16 +827,14 @@ browse-and-download-individually page.
 
 ### Phase 3 — what a real project turns out to ask for
 
-Deliberately unscheduled. Every item here is a guess until a collection has run
-in public, and the cost of guessing wrong is a column or a flow that has to be
-unpicked rather than added:
+The remaining items are deliberately unscheduled until a collection has run in
+public; the cost of guessing wrong is a column or a flow that has to be unpicked
+rather than added:
 
 - **Pinned revisions** (`collection_members.pinned_revision`), freezing the box
   as it debuted so a ZIP downloaded in December is the one that shipped in
   October. An added column, not a migration — `forked_from_revision` is the
   existing precedent for storing exactly this.
-- **The launch flow**, where members choose public or unlisted at debut. The
-  open decision most in need of a real project to answer it.
 - **The collection's own social image.** An organizer-uploaded banner is the
   cheap answer and probably the right one; a composed picture would need a
   collection-shaped variant of `cloud/social-image.ts`.

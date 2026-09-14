@@ -221,7 +221,7 @@
           they do not have would answer a question they have not asked. It
           keeps the global banner above it, which every view now does.
         -->
-        <CollectionScreen slug={navigation.view.slug} />
+        <CollectionScreen slug={navigation.view.slug} startInWorkspace={navigation.view.workspace} />
       {:else if navigation.view.kind === 'gallery'}
         <GalleryScreen />
       {:else if navigation.view.kind === 'author'}

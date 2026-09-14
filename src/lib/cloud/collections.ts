@@ -41,7 +41,8 @@ export type MembershipStatus = 'invited' | 'submitted' | 'accepted' | 'declined'
 
 export interface Collection {
   id: string;
-  created_by: string | null;
+  /** Internal audit field; deliberately absent from the anonymous slug projection. */
+  created_by?: string | null;
   slug: string;
   name: string;
   subtitle: string;
@@ -128,12 +129,15 @@ export interface CollectionMembership {
   set_id: string;
   status: MembershipStatus;
   ready: boolean;
+  /** The published revision the author most recently marked ready. */
+  ready_revision: number | null;
   sort_order: number;
   invited_by: string | null;
   created_at: string;
   updated_at: string;
   set: {
     slug: string;
+    local_id: string;
     name: string;
     subtitle: string;
     thumbnail_url: string;
@@ -147,6 +151,7 @@ export interface CollectionMembership {
      * and only the deck's owner may make the second one.
      */
     visibility: string;
+    revision: number;
     author: { display_name: string; avatar_url: string } | null;
   } | null;
   collection: { slug: string; name: string; subtitle: string } | null;
@@ -159,9 +164,31 @@ export interface CollectionOrganizer {
   profile: { display_name: string; avatar_url: string } | null;
 }
 
+/**
+ * One private message about one deck in this collection's workspace.
+ *
+ * This is intentionally separate from `SetComment`, which is public gallery
+ * conversation. RLS admits only organizers and accepted collection creators,
+ * and no public collection reader projects this shape.
+ */
+export interface CollectionDeckComment {
+  id: string;
+  collection_id: string;
+  set_id: string;
+  author_id: string;
+  body: string;
+  created_at: string;
+  updated_at: string;
+  author: { display_name: string; avatar_url: string } | null;
+}
+
 const COLLECTION_COLUMNS =
   'id,created_by,slug,name,subtitle,blurb,banner_url,visibility,hidden,' +
   'open_submissions,created_at,updated_at';
+
+const COLLECTION_DECK_COMMENT_COLUMNS =
+  'id,collection_id,set_id,author_id,body,created_at,updated_at,' +
+  'author:profiles!collection_deck_comments_author_id_fkey(display_name,avatar_url)';
 
 /**
  * A membership row plus enough of both ends to name them.
@@ -184,16 +211,19 @@ interface MembershipRow {
   set_id: string;
   status: MembershipStatus;
   ready: boolean;
+  ready_revision: number | null;
   sort_order: number;
   invited_by: string | null;
   created_at: string;
   updated_at: string;
   set_slug: string;
+  set_local_id: string;
   set_name: string;
   set_subtitle: string;
   set_thumbnail_url: string;
   set_owner_id: string;
   set_visibility: string;
+  set_revision: number;
   author_name: string;
   author_avatar: string;
   collection_slug: string;
@@ -207,17 +237,20 @@ function asMembership(row: MembershipRow): CollectionMembership {
     set_id: row.set_id,
     status: row.status,
     ready: row.ready,
+    ready_revision: row.ready_revision,
     sort_order: row.sort_order,
     invited_by: row.invited_by,
     created_at: row.created_at,
     updated_at: row.updated_at,
     set: {
       slug: row.set_slug,
+      local_id: row.set_local_id,
       name: row.set_name,
       subtitle: row.set_subtitle,
       thumbnail_url: row.set_thumbnail_url,
       owner_id: row.set_owner_id,
       visibility: row.set_visibility,
+      revision: row.set_revision,
       author: { display_name: row.author_name, avatar_url: row.author_avatar }
     },
     collection: {
@@ -256,12 +289,41 @@ export async function fetchCollectionBySlug(slug: string): Promise<Collection | 
   return rows[0] ?? null;
 }
 
+/**
+ * One collection as a signed-in project participant sees it.
+ *
+ * Unlike the public slug function, this is an ordinary table read through
+ * RLS. That is what lets an organiser, accepted invitee or involved deck
+ * owner reopen a private working room without making its share link public.
+ */
+export async function fetchCollectionWorkspaceBySlug(
+  slug: string
+): Promise<Collection | null> {
+  await auth.ensureFresh();
+  if (!auth.user) return null;
+  const rows = await request<Collection[]>(
+    `/rest/v1/collections?select=${COLLECTION_COLUMNS}` +
+      `&slug=eq.${encodeURIComponent(slug.trim())}&limit=1`
+  );
+  return rows[0] ?? null;
+}
+
 /** The accepted decks in a collection, in the order its organizers set. */
 export async function fetchCollectionTiles(slug: string): Promise<CollectionTile[]> {
   return request<CollectionTile[]>('/rest/v1/rpc/collection_members_by_slug', {
     method: 'POST',
     body: { share_slug: slug.trim() },
     anonymous: true
+  });
+}
+
+/** Accepted deck summaries available inside an authenticated working room. */
+export async function fetchCollectionWorkspaceTiles(slug: string): Promise<CollectionTile[]> {
+  await auth.ensureFresh();
+  if (!auth.user) return [];
+  return request<CollectionTile[]>('/rest/v1/rpc/collection_members_by_slug', {
+    method: 'POST',
+    body: { share_slug: slug.trim() }
   });
 }
 
@@ -273,6 +335,28 @@ export async function fetchCollectionCharacters(
     method: 'POST',
     body: { share_slug: slug.trim() },
     anonymous: true
+  });
+}
+
+/** Indexed characters available inside an authenticated working room. */
+export async function fetchCollectionWorkspaceCharacters(
+  slug: string
+): Promise<CollectionCharacterSummary[]> {
+  await auth.ensureFresh();
+  if (!auth.user) return [];
+  return request<CollectionCharacterSummary[]>('/rest/v1/rpc/collection_characters_by_slug', {
+    method: 'POST',
+    body: { share_slug: slug.trim() }
+  });
+}
+
+/** Whether this signed-in person may offer a deck to this collection now. */
+export async function canSubmitToCollection(collectionId: string): Promise<boolean> {
+  await auth.ensureFresh();
+  if (!auth.user) return false;
+  return request<boolean>('/rest/v1/rpc/collection_accepts_submissions', {
+    method: 'POST',
+    body: { target: collectionId }
   });
 }
 
@@ -484,7 +568,7 @@ export async function createCollection(fields: CollectionFields = {}): Promise<C
       subtitle: fields.subtitle?.trim() ?? '',
       blurb: fields.blurb?.trim() ?? '',
       banner_url: fields.banner_url ?? '',
-      visibility: fields.visibility ?? 'unlisted',
+      visibility: fields.visibility ?? 'private',
       /* Open by default, matching the column's own default — the client was
          overriding it with `false` and quietly making every new collection
          invitation-only. A collection is usually made because somebody wants
@@ -632,15 +716,19 @@ async function join(
     });
   } catch (error) {
     if (!(error instanceof CloudError) || error.status !== 409) throw error;
-    /* Status only. `extra` carries `invited_by`, which is insert-only by
-       grant — sending it here is refused outright ("permission denied for
-       table collection_members"), and it should not be rewritten anyway:
-       it records who opened the membership, not who last reopened it. */
-    await request(`/rest/v1/collection_members?${memberFilter(collectionId, setId)}`, {
-      method: 'PATCH',
-      body: { status },
-      headers: { Prefer: 'return=minimal' }
-    });
+    /* Status only. `extra` carries `invited_by`, which is insert-only and
+       records who opened the relationship, not who reopened it. Re-open only
+       a finished relationship: a stale picker must never turn an accepted
+       deck back into a submission just because its insert raced another tab. */
+    await request(
+      `/rest/v1/collection_members?${memberFilter(collectionId, setId)}` +
+        '&status=in.(declined,removed)',
+      {
+        method: 'PATCH',
+        body: { status },
+        headers: { Prefer: 'return=minimal' }
+      }
+    );
   }
 }
 
@@ -689,7 +777,7 @@ export async function respondToInvitation(
   decision: 'accepted' | 'declined'
 ): Promise<void> {
   await auth.ensureFresh();
-  await request(`/rest/v1/collection_members?${memberFilter(collectionId, setId)}`, {
+  await request(`/rest/v1/collection_members?${memberFilter(collectionId, setId)}&status=eq.invited`, {
     method: 'PATCH',
     body: { status: decision },
     headers: { Prefer: 'return=minimal' }
@@ -703,7 +791,7 @@ export async function resolveSubmission(
   decision: 'accepted' | 'declined'
 ): Promise<void> {
   await auth.ensureFresh();
-  await request(`/rest/v1/collection_members?${memberFilter(collectionId, setId)}`, {
+  await request(`/rest/v1/collection_members?${memberFilter(collectionId, setId)}&status=eq.submitted`, {
     method: 'PATCH',
     body: { status: decision },
     headers: { Prefer: 'return=minimal' }
@@ -724,11 +812,15 @@ export async function resolveSubmission(
  */
 export async function removeMember(collectionId: string, setId: string): Promise<void> {
   await auth.ensureFresh();
-  await request(`/rest/v1/collection_members?${memberFilter(collectionId, setId)}`, {
-    method: 'PATCH',
-    body: { status: 'removed' },
-    headers: { Prefer: 'return=minimal' }
-  });
+  await request(
+    `/rest/v1/collection_members?${memberFilter(collectionId, setId)}` +
+      '&status=in.(invited,submitted,accepted)',
+    {
+      method: 'PATCH',
+      body: { status: 'removed' },
+      headers: { Prefer: 'return=minimal' }
+    }
+  );
 }
 
 /**
@@ -770,10 +862,11 @@ export async function reorderMember(
 /**
  * Every membership row of one collection, undecided ones included.
  *
- * The organizer's view, and deliberately not what the page draws for a
+ * The working-room view, and deliberately not what the page draws for a
  * visitor — that comes from `fetchCollectionTiles`, which returns accepted
- * rows only. Reading this as a stranger returns nothing; the policy decides,
- * so asking wrongly cannot widen it.
+ * rows only. Organisers and each deck owner retain the pending rows they need
+ * to decide; accepted summaries are shared with the whole project team so
+ * everyone can reach the internal deck discussions.
  */
 export async function listMemberships(collectionId: string): Promise<CollectionMembership[]> {
   await auth.ensureFresh();
@@ -784,15 +877,104 @@ export async function listMemberships(collectionId: string): Promise<CollectionM
   return rows.map(asMembership);
 }
 
+// -- Private deck discussion ---------------------------------------------
+
+function cleanCollectionDeckComment(body: string): string {
+  const value = body.trim();
+  if (value.length === 0) throw new CloudError('Write something before posting.', 0);
+  if (value.length > 2000) throw new CloudError('Comments can be up to 2,000 characters.', 0);
+  return value;
+}
+
+async function requireCollectionDiscussionUser(): Promise<void> {
+  await auth.ensureFresh();
+  if (!auth.user) {
+    throw new CloudError('Sign in to join the collection discussion.', 401);
+  }
+}
+
+/**
+ * Every private comment in a collection, ordered once and grouped by the UI.
+ *
+ * Never anonymous: unlike the public tile and character projections, this is
+ * working-room data. RLS restricts each returned row to an organizer or an
+ * accepted creator and also requires its target deck to remain accepted.
+ */
+export async function listCollectionDeckComments(
+  collectionId: string
+): Promise<CollectionDeckComment[]> {
+  await auth.ensureFresh();
+  if (!auth.user) return [];
+  return request<CollectionDeckComment[]>(
+    `/rest/v1/collection_deck_comments?select=${COLLECTION_DECK_COMMENT_COLUMNS}` +
+      `&collection_id=eq.${encodeURIComponent(collectionId)}` +
+      '&order=created_at.asc,id.asc'
+  );
+}
+
+/** Add one message to an accepted deck's internal collection thread. */
+export async function createCollectionDeckComment(
+  collectionId: string,
+  setId: string,
+  body: string
+): Promise<CollectionDeckComment> {
+  await requireCollectionDiscussionUser();
+  const rows = await request<CollectionDeckComment[]>(
+    `/rest/v1/collection_deck_comments?select=${COLLECTION_DECK_COMMENT_COLUMNS}`,
+    {
+      method: 'POST',
+      body: {
+        collection_id: collectionId,
+        set_id: setId,
+        body: cleanCollectionDeckComment(body)
+      },
+      headers: { Prefer: 'return=representation' }
+    }
+  );
+  const created = rows[0];
+  if (!created) throw new CloudError('That comment was not created.', 500);
+  return created;
+}
+
+/** Revise the caller's own comment while they still belong to the workspace. */
+export async function editCollectionDeckComment(
+  commentId: string,
+  body: string
+): Promise<CollectionDeckComment> {
+  await requireCollectionDiscussionUser();
+  const rows = await request<CollectionDeckComment[]>(
+    `/rest/v1/collection_deck_comments?id=eq.${encodeURIComponent(commentId)}` +
+      `&select=${COLLECTION_DECK_COMMENT_COLUMNS}`,
+    {
+      method: 'PATCH',
+      body: { body: cleanCollectionDeckComment(body) },
+      headers: { Prefer: 'return=representation' }
+    }
+  );
+  const updated = rows[0];
+  if (!updated) {
+    throw new CloudError('That comment is gone, belongs to somebody else, or is no longer editable.', 404);
+  }
+  return updated;
+}
+
+/** Delete the caller's own comment. No other collection data is affected. */
+export async function deleteCollectionDeckComment(commentId: string): Promise<void> {
+  await requireCollectionDiscussionUser();
+  await request(
+    `/rest/v1/collection_deck_comments?id=eq.${encodeURIComponent(commentId)}`,
+    { method: 'DELETE', headers: { Prefer: 'return=minimal' } }
+  );
+}
+
 /**
  * Everything waiting on *this person* to decide, across every collection.
  *
  * Both directions in one call, because Home's attention strip asks one
  * question — "is anything waiting on me?" — and already answers it for
  * contributions. An `invited` row waits on the deck's owner; a `submitted`
- * row waits on an organizer; `members_read` means each side only ever sees
- * the rows it is a party to, so a single unfiltered fetch cannot leak the
- * other side's pending work.
+ * row waits on an organiser. The RPC restricts pending rows to those two
+ * parties, so a single unfiltered fetch cannot leak the other side's work.
  */
 export async function listPendingMemberships(): Promise<CollectionMembership[]> {
   await auth.ensureFresh();
@@ -1059,11 +1241,16 @@ export async function myPendingInvites(): Promise<CollectionInvite[]> {
 /** Accept or decline an invitation addressed to me. */
 export async function respondToInvite(inviteId: string, accept: boolean): Promise<void> {
   await auth.ensureFresh();
-  await request(`/rest/v1/collection_invites?id=eq.${encodeURIComponent(inviteId)}`, {
-    method: 'PATCH',
-    body: { status: accept ? 'accepted' : 'declined' },
-    headers: { Prefer: 'return=minimal' }
-  });
+  const rows = await request<{ id: string }[]>(
+    `/rest/v1/collection_invites?id=eq.${encodeURIComponent(inviteId)}` +
+      '&status=eq.open&select=id',
+    {
+      method: 'PATCH',
+      body: { status: accept ? 'accepted' : 'declined' },
+      headers: { Prefer: 'return=representation' }
+    }
+  );
+  if (!rows[0]) throw new CloudError('That invitation is no longer waiting for an answer.', 409);
 }
 
 /**
@@ -1140,11 +1327,11 @@ export function collectionUrl(slug: string): string {
  * guarantee is the part that matters — that `ready` can only ever have been
  * set by the deck's own author.
  */
-export function readinessOf(tiles: readonly CollectionTile[]): {
+export function readinessOf(rows: readonly { ready: boolean; name: string }[]): {
   ready: number;
   total: number;
   waitingOn: string[];
 } {
-  const waitingOn = tiles.filter((tile) => !tile.ready).map((tile) => tile.name);
-  return { ready: tiles.length - waitingOn.length, total: tiles.length, waitingOn };
+  const waitingOn = rows.filter((row) => !row.ready).map((row) => row.name);
+  return { ready: rows.length - waitingOn.length, total: rows.length, waitingOn };
 }

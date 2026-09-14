@@ -111,28 +111,6 @@
    */
   let myCollections = $state<MyCollection[]>([]);
 
-  $effect(() => {
-    void auth.signedIn;
-    if (!cloudEnabled() || !auth.signedIn) {
-      myCollections = [];
-      return;
-    }
-    void listMyCollections()
-      .then((rows) => (myCollections = rows))
-      .catch(() => (myCollections = []));
-  });
-
-  $effect(() => {
-    void auth.signedIn;
-    if (!cloudEnabled() || !auth.signedIn) {
-      pendingMemberships = [];
-      return;
-    }
-    void listPendingMemberships()
-      .then((rows) => (pendingMemberships = rows))
-      .catch(() => (pendingMemberships = []));
-  });
-
   /**
    * Invitations addressed to me personally, as against decisions about a deck
    * of mine that is already in a collection.
@@ -144,16 +122,77 @@
    * waiting" mean two unrelated things.
    */
   let personalInvites = $state<Awaited<ReturnType<typeof myPendingInvites>>>([]);
+  let collectionHomeError = $state<string | null>(null);
+  let collectionHomeRefreshing = $state(false);
+  let collectionHomeRequest = 0;
+  let collectionHomeOwnerId: string | null = null;
+
+  /**
+   * Refresh the collection shelf and inbox as one account-scoped snapshot.
+   *
+   * Submissions happen in somebody else's browser, so auth changes alone are
+   * not an invalidation signal. Home refreshes again whenever this window
+   * regains focus, and keeps the last good rows if one endpoint fails instead
+   * of turning a network error into a convincing empty state.
+   */
+  async function refreshCollectionHome(): Promise<void> {
+    const request = ++collectionHomeRequest;
+    const userId = auth.signedIn ? (auth.user?.id ?? null) : null;
+    if (collectionHomeOwnerId !== userId) {
+      collectionHomeOwnerId = userId;
+      myCollections = [];
+      pendingMemberships = [];
+      personalInvites = [];
+      collectionHomeError = null;
+    }
+    if (!cloudEnabled() || !userId) {
+      myCollections = [];
+      pendingMemberships = [];
+      personalInvites = [];
+      collectionHomeError = null;
+      collectionHomeRefreshing = false;
+      return;
+    }
+
+    collectionHomeRefreshing = true;
+    const [collectionsResult, membershipsResult, invitesResult] = await Promise.allSettled([
+      listMyCollections(),
+      listPendingMemberships(),
+      myPendingInvites()
+    ]);
+    if (request !== collectionHomeRequest || auth.user?.id !== userId) return;
+
+    if (collectionsResult.status === 'fulfilled') myCollections = collectionsResult.value;
+    if (membershipsResult.status === 'fulfilled') pendingMemberships = membershipsResult.value;
+    if (invitesResult.status === 'fulfilled') personalInvites = invitesResult.value;
+
+    const failed = [collectionsResult, membershipsResult, invitesResult].some(
+      (result) => result.status === 'rejected'
+    );
+    collectionHomeError = failed
+      ? 'Some collection updates could not be loaded. Your last known collection information is still shown.'
+      : null;
+    collectionHomeRefreshing = false;
+  }
 
   $effect(() => {
     void auth.signedIn;
-    if (!cloudEnabled() || !auth.signedIn) {
-      personalInvites = [];
-      return;
-    }
-    void myPendingInvites()
-      .then((rows) => (personalInvites = rows))
-      .catch(() => (personalInvites = []));
+    void auth.user?.id;
+    void refreshCollectionHome();
+  });
+
+  $effect(() => {
+    const refreshWhenVisible = (): void => {
+      if (document.visibilityState === 'visible') void refreshCollectionHome();
+    };
+    const interval = window.setInterval(refreshWhenVisible, 45_000);
+    window.addEventListener('focus', refreshWhenVisible);
+    document.addEventListener('visibilitychange', refreshWhenVisible);
+    return () => {
+      window.clearInterval(interval);
+      window.removeEventListener('focus', refreshWhenVisible);
+      document.removeEventListener('visibilitychange', refreshWhenVisible);
+    };
   });
 
   async function answerInvite(inviteId: string, accept: boolean, slug: string): Promise<void> {
@@ -162,7 +201,7 @@
       personalInvites = personalInvites.filter((row) => row.id !== inviteId);
       /* Accepting takes you there: the next thing to do is offer a deck, and
          that control lives on the collection. Declining leaves you here. */
-      if (accept && slug) navigation.openCollection(slug);
+      if (accept && slug) navigation.openCollection(slug, true);
       else void listMyCollections().then((rows) => (myCollections = rows));
     } catch {
       message = 'That invitation could not be answered. It may have been withdrawn.';
@@ -174,9 +213,17 @@
    * several of your decks are involved, and a strip listing the same project
    * three times reads as three problems.
    */
+  const actionableMemberships = $derived(
+    pendingMemberships.filter((row) =>
+      row.status === 'invited'
+        ? row.set?.owner_id === auth.user?.id
+        : myCollections.some((entry) => entry.id === row.collection_id && entry.is_organizer)
+    )
+  );
+
   const pendingByCollection = $derived.by(() => {
     const grouped = new Map<string, { slug: string; name: string; count: number }>();
-    for (const row of pendingMemberships) {
+    for (const row of actionableMemberships) {
       const slug = row.collection?.slug;
       if (!slug) continue;
       const found = grouped.get(slug);
@@ -207,7 +254,7 @@
          them here is how a shelf starts disagreeing with the page it links
          to. */
       void listMyCollections().then((rows) => (myCollections = rows));
-      navigation.openCollection(created.slug);
+      navigation.openCollection(created.slug, true);
     } catch (error) {
       message = error instanceof Error ? error.message : 'Could not create the collection.';
     } finally {
@@ -1371,6 +1418,18 @@
     <p class="message">{message}</p>
   {/if}
 
+  {#if collectionHomeError}
+    <div class="library-notice" data-tone="warning" role="alert">
+      <Icon name="rotate" size={15} />
+      <span>
+        {collectionHomeError}
+        <button type="button" disabled={collectionHomeRefreshing} onclick={() => void refreshCollectionHome()}>
+          {collectionHomeRefreshing ? 'Refreshing…' : 'Try again'}
+        </button>
+      </span>
+    </div>
+  {/if}
+
   {#if workshop.libraryLoading}
     <div class="library-notice" data-tone="neutral" role="status">
       <Icon name="hourglass" size={15} />
@@ -1531,7 +1590,7 @@
             <button
               type="button"
               class="collection-tile"
-              onclick={() => navigation.openCollection(entry.slug)}
+              onclick={() => navigation.openCollection(entry.slug, true)}
             >
               <span class="collection-banner" style:background={tint(entry.id)}>
                 {#if entry.banner_url}
@@ -1763,7 +1822,7 @@
       {/each}
 
       {#if pendingByCollection.length > 0}
-        {@const total = pendingMemberships.length}
+        {@const total = actionableMemberships.length}
         <div class="attention-card waiting">
           <Icon name="users" size={15} />
           <div class="attention-body">
@@ -1776,7 +1835,7 @@
                 <button
                   type="button"
                   class="attention-link"
-                  onclick={() => navigation.openCollection(row.slug)}
+                  onclick={() => navigation.openCollection(row.slug, true)}
                 >
                   {row.name} ({row.count})
                 </button>

@@ -91,7 +91,7 @@ export type View =
    * Like `shared`, and unlike everything above it, this one lives in the
    * address bar — see the slug readers below for why it has to.
    */
-  | { kind: 'collection'; slug: string };
+  | { kind: 'collection'; slug: string; workspace?: boolean };
 
 /**
  * The one URL this app has.
@@ -366,9 +366,9 @@ class Navigation {
    * `pushState` otherwise, because arriving from Home or the gallery *is* a
    * fresh navigation and wants a back-button-reachable entry.
    */
-  openCollection(slug: string): void {
+  openCollection(slug: string, workspace = false): void {
     if (this.view.kind !== 'collection') this.#returnTo = this.view;
-    this.view = { kind: 'collection', slug };
+    this.view = { kind: 'collection', slug, workspace };
 
     const base = window.location.pathname.replace(ROUTE_TAIL_PATTERN, '');
     const wanted = `${base}collection/${slug}${window.location.search}`;

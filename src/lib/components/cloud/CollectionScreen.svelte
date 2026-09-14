@@ -2,8 +2,8 @@
   /**
    * A collection's own page — the one link a project is announced with.
    *
-   * The default mode is a read-only public exhibition. Organizer and member
-   * modes live beside it in this controller, but never leak their invitations,
+   * The default mode is a read-only public exhibition. Organiser and member
+   * tools share one quieter workspace beside it, but never leak invitations,
    * readiness or mutation controls into the experience a guest opens.
    *
    * Rendered outside `AppShell`, beside `GalleryScreen` and
@@ -20,6 +20,7 @@
    */
   import {
     amOrganizer,
+    canSubmitToCollection,
     collectionUrl,
     combinableProblem,
     deleteCollection,
@@ -29,6 +30,9 @@
     fetchCollectionBySlug,
     fetchCollectionCharacters,
     fetchCollectionTiles,
+    fetchCollectionWorkspaceBySlug,
+    fetchCollectionWorkspaceCharacters,
+    fetchCollectionWorkspaceTiles,
     addOwnDeckDirectly,
     inviteDeck,
     listMemberships,
@@ -75,18 +79,23 @@
   import { setVisibility as setDeckVisibility } from '$lib/cloud/sets';
   import { readTtsSavedObjectsPath, writeTtsSavedObjectsPath } from '$lib/storage/settings';
   import { initials, tint } from '$lib/core/swatch';
+  import { asId } from '$lib/core/id';
   import { auth } from '$lib/cloud/auth.svelte';
   import { navigation } from '$lib/state/navigation.svelte';
   import { workshop } from '$lib/state/workshop.svelte';
   import { applyCharacterExportSelection } from '$lib/sets/export-selection';
+  import type { SetId } from '$lib/sets/types';
   import CollectionExportSelector from '$lib/components/export/CollectionExportSelector.svelte';
+  import CollectionDeckDiscussion from './CollectionDeckDiscussion.svelte';
   import CollectionShowcase from './CollectionShowcase.svelte';
 
   interface Props {
     slug: string;
+    /** Home and attention links open the working surface; pasted links show the public page. */
+    startInWorkspace?: boolean;
   }
 
-  let { slug }: Props = $props();
+  let { slug, startInWorkspace = false }: Props = $props();
 
   let collection = $state<Collection | null>(null);
   let tiles = $state<CollectionTile[]>([]);
@@ -98,9 +107,12 @@
   let charactersLoading = $state(false);
   let charactersFailed = $state(false);
   let projectionGeneration = 0;
+  let projectionReload = $state(0);
 
   $effect(() => {
+    void projectionReload;
     const wanted = slug;
+    const accountId = auth.signedIn ? (auth.user?.id ?? '') : '';
     const generation = ++projectionGeneration;
     loading = true;
     failed = false;
@@ -114,11 +126,16 @@
 
     void (async () => {
       try {
-        const found = await fetchCollectionBySlug(wanted);
+        let found = await fetchCollectionBySlug(wanted);
+        /* A public read stays anonymous, including for signed-in visitors. If
+           it finds nothing, an authenticated collaborator gets one narrow
+           second chance through collection-table RLS. That is what makes a
+           genuinely private project editable without making its slug public. */
+        if (!found && accountId) found = await fetchCollectionWorkspaceBySlug(wanted);
         /* The slug can change under an in-flight fetch — one collection page
            linking to another — so a late answer for a previous slug must not
            overwrite the current one. */
-        if (wanted !== slug) return;
+        if (wanted !== slug || generation !== projectionGeneration) return;
         collection = found;
         loading = false;
         if (!found) return;
@@ -128,7 +145,14 @@
            header that was already fetched successfully. */
         tilesLoading = true;
         charactersLoading = true;
-        void fetchCollectionTiles(wanted)
+        const privateWorkspace = found.visibility === 'private';
+        const tileRequest = privateWorkspace
+          ? fetchCollectionWorkspaceTiles(wanted)
+          : fetchCollectionTiles(wanted);
+        const characterRequest = privateWorkspace
+          ? fetchCollectionWorkspaceCharacters(wanted)
+          : fetchCollectionCharacters(wanted);
+        void tileRequest
           .then((foundTiles) => {
             if (wanted === slug && generation === projectionGeneration) tiles = foundTiles;
           })
@@ -138,7 +162,7 @@
           .finally(() => {
             if (wanted === slug && generation === projectionGeneration) tilesLoading = false;
           });
-        void fetchCollectionCharacters(wanted)
+        void characterRequest
           .then((foundCharacters) => {
             if (wanted === slug && generation === projectionGeneration) {
               characters = foundCharacters;
@@ -151,9 +175,9 @@
             if (wanted === slug && generation === projectionGeneration) charactersLoading = false;
           });
       } catch {
-        if (wanted === slug) failed = true;
+        if (wanted === slug && generation === projectionGeneration) failed = true;
       } finally {
-        if (wanted === slug) {
+        if (wanted === slug && generation === projectionGeneration) {
           loading = false;
         }
       }
@@ -165,6 +189,7 @@
   // -- Organizer editing --------------------------------------------------
 
   let organizer = $state(false);
+  let organizerRequest = 0;
   let editing = $state(false);
   let saving = $state(false);
   let notice = $state<string | null>(null);
@@ -178,18 +203,22 @@
 
   $effect(() => {
     const id = collection?.id;
-    if (!id) {
-      organizer = false;
-      return;
-    }
-    /* Read `auth.signedIn` synchronously so signing in *while this page is
-       open* is a tracked dependency — inside the async closure it would not
-       be, and the edit controls would never appear without a reload. Same
-       reason `HomeScreen`'s published-sets effect reads it at the top. */
-    void auth.signedIn;
+    const accountId = auth.signedIn ? (auth.user?.id ?? '') : '';
+    const request = ++organizerRequest;
+    /* Account changes must withdraw the old account's controls immediately;
+       retaining them until this private read settles briefly shows authority
+       the new account may not have. */
+    organizer = false;
+    if (!id || !accountId) return;
     void (async () => {
       const yes = await amOrganizer(id).catch(() => false);
-      if (collection?.id === id) organizer = yes;
+      if (
+        request === organizerRequest &&
+        collection?.id === id &&
+        auth.user?.id === accountId
+      ) {
+        organizer = yes;
+      }
     })();
   });
 
@@ -282,12 +311,13 @@
 
   $effect(() => {
     const token = new URLSearchParams(window.location.search).get('join') ?? '';
-    if (!token || claimAttempted === token) return;
-    claimAttempted = token;
-    void auth.signedIn;
+    const accountId = auth.signedIn ? (auth.user?.id ?? '') : '';
+    const attempt = token ? `${token}:${accountId || 'signed-out'}` : '';
+    if (!token || claimAttempted === attempt) return;
+    claimAttempted = attempt;
     void (async () => {
-      if (!auth.signedIn) {
-        claimNotice = 'Sign in to accept this invitation, then open the link again.';
+      if (!accountId) {
+        claimNotice = 'Sign in to accept this invitation.';
         return;
       }
       const result = await claimInviteLink(token).catch(() => null);
@@ -297,10 +327,15 @@
       if (!result || result.outcome === 'not_found') {
         claimNotice = 'That invitation link is not valid.';
       } else if (result.outcome === 'revoked') {
-        claimNotice = 'That invitation link has been turned off. Ask the organizers for a new one.';
+        claimNotice = 'That invitation link has been turned off. Ask the organisers for a new one.';
       } else {
         claimNotice = `You have joined ${result.collection_name || 'this collection'}. Offer a deck whenever one is ready.`;
-        await refreshAfterDecision();
+        if (result.collection_slug && result.collection_slug !== slug) {
+          navigation.openCollection(result.collection_slug, true);
+          return;
+        }
+        pageMode = 'workspace';
+        projectionReload += 1;
       }
     })();
   });
@@ -507,6 +542,39 @@
   let myPublished = $state<PublishedSet[]>([]);
   let inviteLink = $state('');
   let busy = $state<string | null>(null);
+  let membershipLoading = $state(false);
+  let membershipError = $state<string | null>(null);
+  let membershipRowsCurrent = $state(false);
+  let membershipRowsAvailable = $state(false);
+  let publishedRowsCurrent = $state(false);
+  let submissionAccess = $state(false);
+  let submissionAccessCurrent = $state(false);
+  let membershipRequest = 0;
+  let membershipScope = '';
+  let selectedOfferId = $state('');
+
+  function publicationFor(setId: string): PublishedSet | undefined {
+    return myPublished.find((row) => row.id === setId);
+  }
+
+  async function editContribution(setId: string): Promise<void> {
+    const publication = publicationFor(setId);
+    if (!publication || !draftIsOnHome(publication)) {
+      notice = 'That published deck has no editable draft on this device.';
+      return;
+    }
+    if (!(await workshop.openSet(asId<SetId>(publication.local_id)))) {
+      notice = 'That draft could not be opened on this device.';
+    }
+  }
+
+  function viewPublishedContribution(row: CollectionMembership): void {
+    if (!row.set?.slug) {
+      notice = 'That published deck does not have a working share link.';
+      return;
+    }
+    navigation.openShared(row.set.slug);
+  }
 
   /** Rows this visitor is a party to, split by which side has to move. */
   const submissions = $derived(memberships.filter((row) => row.status === 'submitted'));
@@ -535,6 +603,13 @@
       return !existing || existing.status === 'removed' || existing.status === 'declined';
     })
   );
+
+  $effect(() => {
+    if (offerable.some((row) => row.id === selectedOfferId)) return;
+    selectedOfferId = offerable[0]?.id ?? '';
+  });
+
+  const selectedOffer = $derived(offerable.find((row) => row.id === selectedOfferId));
 
   /**
    * Home is an editable-draft library; this picker is a publication library.
@@ -593,9 +668,10 @@
   const joining = $derived.by(() => {
     if (organizer || iHaveADeckHere) return 'settled';
     if (!auth.signedIn) return 'signed-out';
+    if (!submissionAccess) return 'invite-only';
     if (myPublished.length === 0) return 'nothing-published';
     if (offerable.length === 0) return 'settled';
-    return collection?.open_submissions ? 'can-offer' : 'invite-only';
+    return 'can-offer';
   });
 
   /**
@@ -614,23 +690,83 @@
     )
   );
 
-  async function loadMembership(): Promise<void> {
+  async function loadMembership(): Promise<CollectionMembership[] | null> {
+    const request = ++membershipRequest;
+    const collectionId = collection?.id ?? '';
+    const userId = auth.signedIn ? (auth.user?.id ?? '') : '';
+    const nextScope = collectionId && userId ? `${collectionId}:${userId}` : '';
+    if (nextScope !== membershipScope) {
+      membershipScope = nextScope;
+      memberships = [];
+      myPublished = [];
+      membershipRowsCurrent = false;
+      membershipRowsAvailable = false;
+      publishedRowsCurrent = false;
+      submissionAccess = false;
+      submissionAccessCurrent = false;
+      membershipError = null;
+    }
     if (!collection || !auth.signedIn) {
       memberships = [];
       myPublished = [];
-      return;
+      membershipRowsAvailable = false;
+      submissionAccess = false;
+      submissionAccessCurrent = false;
+      membershipError = null;
+      membershipLoading = false;
+      return null;
     }
-    const [rows, mine] = await Promise.all([
-      listMemberships(collection.id).catch(() => []),
-      listMyPublishedSets().catch(() => [])
+    membershipLoading = true;
+    const [membershipResult, publishedResult, submissionResult] = await Promise.allSettled([
+      listMemberships(collectionId),
+      listMyPublishedSets(),
+      canSubmitToCollection(collectionId)
     ]);
-    memberships = rows;
-    myPublished = mine;
+    if (
+      request !== membershipRequest ||
+      collection?.id !== collectionId ||
+      auth.user?.id !== userId
+    ) {
+      return null;
+    }
+    if (membershipResult.status === 'fulfilled') {
+      memberships = membershipResult.value;
+      membershipRowsCurrent = true;
+      membershipRowsAvailable = true;
+    } else {
+      membershipRowsCurrent = false;
+    }
+    if (publishedResult.status === 'fulfilled') {
+      myPublished = publishedResult.value;
+      publishedRowsCurrent = true;
+    } else {
+      publishedRowsCurrent = false;
+    }
+    if (submissionResult.status === 'fulfilled') {
+      submissionAccess = submissionResult.value;
+      submissionAccessCurrent = true;
+    } else {
+      submissionAccess = false;
+      submissionAccessCurrent = false;
+    }
+    membershipError =
+      membershipResult.status === 'rejected'
+        ? membershipResult.reason instanceof Error
+          ? membershipResult.reason.message
+          : 'Could not load the collection workspace.'
+        : publishedResult.status === 'rejected'
+          ? 'Your published-deck list could not be refreshed.'
+          : submissionResult.status === 'rejected'
+            ? 'Your permission to contribute could not be checked.'
+          : null;
+    membershipLoading = false;
+    return membershipResult.status === 'fulfilled' ? membershipResult.value : null;
   }
 
   $effect(() => {
     void collection?.id;
     void auth.signedIn;
+    void auth.user?.id;
     void loadMembership();
   });
 
@@ -639,13 +775,18 @@
     if (!collection) return;
     const collectionId = collection.id;
     const collectionSlug = collection.slug;
+    const privateWorkspace = collection.visibility === 'private';
     const generation = ++projectionGeneration;
     tilesLoading = true;
     charactersLoading = true;
-    const [membershipResult, tileResult, characterResult] = await Promise.allSettled([
-      listMemberships(collectionId),
-      fetchCollectionTiles(collectionSlug),
-      fetchCollectionCharacters(collectionSlug)
+    const [, tileResult, characterResult] = await Promise.allSettled([
+      loadMembership(),
+      privateWorkspace
+        ? fetchCollectionWorkspaceTiles(collectionSlug)
+        : fetchCollectionTiles(collectionSlug),
+      privateWorkspace
+        ? fetchCollectionWorkspaceCharacters(collectionSlug)
+        : fetchCollectionCharacters(collectionSlug)
     ]);
     if (
       collection?.id !== collectionId ||
@@ -654,7 +795,6 @@
     ) {
       return;
     }
-    if (membershipResult.status === 'fulfilled') memberships = membershipResult.value;
     if (tileResult.status === 'fulfilled') {
       tiles = tileResult.value;
       tilesFailed = false;
@@ -729,14 +869,25 @@
   // -- Readiness, and the gate on going public ----------------------------
 
   /**
-   * Read off the *tiles*, not the membership rows.
+   * Read off the authenticated membership snapshot, never the public tiles.
    *
-   * Tiles are the accepted members, which is exactly the set the question is
-   * about — a pending invitation is not a deck that is late, it is a deck
-   * that has not joined. Membership rows would also be empty for a signed-out
-   * visitor, so the count would silently read zero rather than being absent.
+   * A contributor can republish from another browser, which clears Ready in
+   * the database. Membership rows refresh while this workspace is open; tiles
+   * do not, so using the exhibition projection here could let an organiser
+   * publish against a stale Ready claim. Pending rows are excluded because a
+   * deck that has not joined is not a deck that is late.
    */
-  const readiness = $derived(readinessOf(tiles));
+  const acceptedMemberships = $derived(
+    memberships.filter((row) => row.status === 'accepted')
+  );
+  const readiness = $derived(
+    readinessOf(
+      acceptedMemberships.map((row) => ({
+        ready: row.ready,
+        name: row.set?.name || 'Untitled'
+      }))
+    )
+  );
 
   /**
    * Accepted memberships whose deck is mine, so I can say it is finished.
@@ -747,9 +898,7 @@
    * The UI simply agrees with that rather than being what enforces it.
    */
   const myAccepted = $derived(
-    memberships.filter(
-      (row) => row.status === 'accepted' && row.set?.owner_id === auth.user?.id
-    )
+    acceptedMemberships.filter((row) => row.set?.owner_id === auth.user?.id)
   );
 
   /**
@@ -807,6 +956,7 @@
    * so it names who, and lets an organizer go anyway having read the names.
    */
   let publishGate = $state<string[] | null>(null);
+  let checkingPublication = $state(false);
 
   // -- Downloading the whole box ------------------------------------------
 
@@ -1073,7 +1223,7 @@
   const liveMembers = $derived(liveMemberCount(memberships));
   let confirmingDelete = $state(false);
 
-  type PageMode = 'showcase' | 'manage' | 'member';
+  type PageMode = 'showcase' | 'workspace';
   type ManageTab = 'decks' | 'people' | 'settings';
   type ExportChoice = 'print' | 'images' | 'tts' | null;
 
@@ -1083,14 +1233,31 @@
 
   $effect(() => {
     void slug;
-    pageMode = 'showcase';
+    pageMode = startInWorkspace ? 'workspace' : 'showcase';
     manageTab = 'decks';
   });
 
+  /** Another creator's submission cannot invalidate this browser by itself. */
+  $effect(() => {
+    const collectionId = collection?.id;
+    const userId = auth.signedIn ? auth.user?.id : null;
+    if (!collectionId || !userId) return;
+
+    const refreshWhenVisible = (): void => {
+      if (document.visibilityState === 'visible') void loadMembership();
+    };
+    const interval = window.setInterval(refreshWhenVisible, 45_000);
+    window.addEventListener('focus', refreshWhenVisible);
+    document.addEventListener('visibilitychange', refreshWhenVisible);
+    return () => {
+      window.clearInterval(interval);
+      window.removeEventListener('focus', refreshWhenVisible);
+      document.removeEventListener('visibilitychange', refreshWhenVisible);
+    };
+  });
+
   const displayedRemovable = $derived(
-    pageMode === 'member'
-      ? removable.filter((row) => row.set?.owner_id === auth.user?.id)
-      : removable
+    organizer ? removable : removable.filter((row) => row.set?.owner_id === auth.user?.id)
   );
 
   const creators = $derived.by(() => {
@@ -1117,11 +1284,13 @@
   function showShowcase(): void {
     pageMode = 'showcase';
     editing = false;
+    void refreshAfterDecision();
   }
 
-  function showManage(tab: ManageTab = 'decks'): void {
-    pageMode = 'manage';
+  function showWorkspace(tab: ManageTab = 'decks'): void {
+    pageMode = 'workspace';
     manageTab = tab;
+    void loadMembership();
   }
 
   function showCollectionExport(): void {
@@ -1146,16 +1315,36 @@
   }
 
   async function askToPublish(): Promise<void> {
-    if (!collection) return;
-    if (readiness.waitingOn.length > 0) {
-      publishGate = readiness.waitingOn;
-      return;
+    if (!collection || checkingPublication) return;
+    checkingPublication = true;
+    notice = null;
+    publishGate = null;
+    try {
+      /* Ready is revision-scoped and another creator can republish at any
+         moment. Re-read it for this click instead of trusting the workspace's
+         last polling snapshot. */
+      const latestMemberships = await loadMembership();
+      if (!latestMemberships) {
+        notice = 'Could not refresh every creator’s Ready status. Try publishing again.';
+        return;
+      }
+      const latestReadiness = readinessOf(
+        latestMemberships
+          .filter((row) => row.status === 'accepted')
+          .map((row) => ({ ready: row.ready, name: row.set?.name || 'Untitled' }))
+      );
+      if (latestReadiness.waitingOn.length > 0) {
+        publishGate = latestReadiness.waitingOn;
+        return;
+      }
+      await setVisibility('public');
+    } finally {
+      checkingPublication = false;
     }
-    await setVisibility('public');
   }
 
   const VISIBILITIES: { value: CollectionVisibility; label: string; hint: string }[] = [
-    { value: 'private', label: 'Private', hint: 'Only organizers. The link stops working.' },
+    { value: 'private', label: 'Private', hint: 'Only the project team. The public link shows nothing.' },
     { value: 'unlisted', label: 'Unlisted', hint: 'Anyone with the link. Not in the gallery.' },
     { value: 'public', label: 'Public', hint: 'Listed for everyone to find.' }
   ];
@@ -1187,6 +1376,7 @@
         tell them apart — saying which would confirm that a private
         collection exists, which is what turning it private was meant to stop.
       -->
+      {#if claimNotice}<p class="notice claim" role="status">{claimNotice}</p>{/if}
       <p class="message">No collection here. The link may be wrong, or no longer shared.</p>
     {:else}
       {#if pageMode === 'showcase'}
@@ -1202,8 +1392,9 @@
             canManage={organizer}
             canUseMemberTools={hasMemberTools}
             announcement={claimNotice}
-            onmanage={() => showManage()}
-            onmember={() => (pageMode = 'member')}
+            workspaceAttention={organizer ? submissions.length : myInvitations.length}
+            onmanage={() => showWorkspace()}
+            onmember={() => showWorkspace()}
             onopenset={(setSlug, characterId) => navigation.openShared(setSlug, characterId)}
             onopenauthor={(ownerId) => navigation.openAuthor(ownerId)}
             onplay={showCollectionExport}
@@ -1217,7 +1408,7 @@
           {:else}
             <span class="banner-initials">{initials(heading)}</span>
           {/if}
-          {#if organizer && pageMode === 'manage' && manageTab === 'settings'}
+          {#if organizer && pageMode === 'workspace' && manageTab === 'settings'}
             <input
               bind:this={bannerInput}
               class="sr-only"
@@ -1256,19 +1447,36 @@
           {:else}
             <div class="title-row">
               <div>
-                <p class="eyebrow">Community collection</p>
+                <p class="eyebrow">Project workspace</p>
                 <h1 id="collection-heading" class="collection-title">{heading}</h1>
                 {#if collection.subtitle}<p class="subtitle">{collection.subtitle}</p>{/if}
               </div>
               <div class="hero-actions">
-                <button type="button" class="btn" onclick={showShowcase}>View collection</button>
+                <button type="button" class="btn" onclick={showShowcase}>
+                  {collection.visibility === 'public' ? 'View public page' : 'Preview public page'}
+                </button>
+                <button
+                  type="button"
+                  class="btn"
+                  disabled={membershipLoading}
+                  onclick={() => void refreshAfterDecision()}
+                >
+                  {membershipLoading ? 'Refreshing…' : 'Refresh project'}
+                </button>
               </div>
             </div>
             {#if collection.blurb}<p class="blurb">{collection.blurb}</p>{/if}
             <div class="hero-meta">
+              <span class="visibility-state" data-visibility={collection.visibility}>
+                {collection.visibility === 'private'
+                  ? 'Private · everybody outside the project sees nothing'
+                  : collection.visibility === 'unlisted'
+                    ? 'Shared by link · not listed publicly'
+                    : 'Public · listed for everybody'}
+              </span>
               <span>{tiles.length} {tiles.length === 1 ? 'deck' : 'decks'}</span>
               <span>{creators.length} {creators.length === 1 ? 'creator' : 'creators'}</span>
-              {#if collection.visibility !== 'public' && tiles.length > 0 && auth.signedIn}
+              {#if collection.visibility !== 'public' && membershipRowsCurrent && readiness.total > 0}
                 <span class:ready={readiness.waitingOn.length === 0}>
                   {readiness.ready} of {readiness.total} ready
                 </span>
@@ -1290,7 +1498,7 @@
       </section>
       {/if}
 
-      {#if pageMode === 'manage' && organizer}
+      {#if pageMode === 'workspace' && organizer}
         <nav class="manage-tabs" aria-label="Collection management">
           <button
             type="button"
@@ -1298,7 +1506,7 @@
             aria-current={manageTab === 'decks' ? 'page' : undefined}
             onclick={() => (manageTab = 'decks')}
           >
-            Decks {#if deckAttention > 0}<span>{deckAttention}</span>{/if}
+            Contributions {#if deckAttention > 0}<span>{deckAttention}</span>{/if}
           </button>
           <button
             type="button"
@@ -1306,7 +1514,7 @@
             aria-current={manageTab === 'people' ? 'page' : undefined}
             onclick={() => (manageTab = 'people')}
           >
-            People {#if peopleAttention > 0}<span>{peopleAttention}</span>{/if}
+            Team {#if peopleAttention > 0}<span>{peopleAttention}</span>{/if}
           </button>
           <button
             type="button"
@@ -1314,17 +1522,20 @@
             aria-current={manageTab === 'settings' ? 'page' : undefined}
             onclick={() => (manageTab = 'settings')}
           >
-            Settings
+            Page &amp; publishing
           </button>
         </nav>
-      {:else if pageMode === 'member'}
+      {:else if pageMode === 'workspace'}
         <div class="workspace-heading">
-          <p class="eyebrow">Contributor tools</p>
-          <h2>Your decks in {heading}</h2>
+          <div>
+            <p class="eyebrow">Contributions</p>
+            <h2>Work on your part of {heading}</h2>
+          </div>
+          <p>Choose a published deck, keep its working copy up to date, then mark the latest revision Ready.</p>
         </div>
       {/if}
 
-      {#if organizer && pageMode === 'manage' && (manageTab === 'settings' || manageTab === 'people')}
+      {#if organizer && pageMode === 'workspace' && (manageTab === 'settings' || manageTab === 'people')}
         <!--
           Organizer-only, and each control says what the setting *does* rather
           than naming it: "unlisted" means nothing to somebody who has not read
@@ -1332,7 +1543,7 @@
           made about their collaborators' work.
         -->
         <section class="admin">
-          <h2>{manageTab === 'settings' ? 'Collection settings' : 'Organizers'}</h2>
+          <h2>{manageTab === 'settings' ? 'Collection settings' : 'Organisers'}</h2>
           {#if manageTab === 'settings'}
             <div class="admin-row presentation-row">
               <span class="field-label">Presentation</span>
@@ -1349,6 +1560,7 @@
                   class="choice"
                   class:on={collection.visibility === option.value}
                   title={option.hint}
+                  disabled={checkingPublication || busy !== null}
                   onclick={() =>
                     option.value === 'public' ? askToPublish() : setVisibility(option.value)}
                 >
@@ -1414,7 +1626,11 @@
                 checked={collection.open_submissions}
                 onchange={(event) => setOpenSubmissions(event.currentTarget.checked)}
               />
-              <span>Let anyone with this link offer their own deck</span>
+              <span>
+                {collection.visibility === 'private'
+                  ? 'Allow open submissions when this page is shared'
+                  : 'Let anyone with this link offer their own deck'}
+              </span>
             </label>
             <!--
               Says what it does to *other people's* view, because that is the
@@ -1423,14 +1639,18 @@
               unless they are told why.
             -->
             <span class="hint">
-              {collection.open_submissions
-                ? 'You still decide what is added — an offer is only a request.'
-                : 'Visitors are told the collection is invitation-only and asked to send you a link.'}
+              {collection.visibility === 'private'
+                ? collection.open_submissions
+                  ? 'Open submissions do not expose this private project. Invited teammates can contribute now; other visitors can offer decks only after you share the page.'
+                  : 'While private, only invited teammates can contribute. It will remain invitation-only when you share the page.'
+                : collection.open_submissions
+                  ? 'You still decide what is added — an offer is only a request.'
+                  : 'Visitors are told the collection is invitation-only and asked to send you a link.'}
             </span>
           </div>
 
           <div class="admin-row" class:hidden={manageTab !== 'people'}>
-            <span class="field-label">Organizers</span>
+            <span class="field-label">Organisers</span>
 
             <ul class="organizers">
               {#each organizers as row (row.user_id)}
@@ -1487,19 +1707,19 @@
                   disabled={busy !== null || !promoteTarget}
                   onclick={() => promote(promoteTarget)}
                 >
-                  {busy === 'promote' ? 'Adding…' : 'Make organizer'}
+                  {busy === 'promote' ? 'Adding…' : 'Make organiser'}
                 </button>
               </div>
               <span class="hint">
-                An organizer can invite decks, decide on offers, edit this page and publish it.
+                An organiser can invite decks, decide on offers, edit this page and publish it.
                 Anyone with a deck here can be one.
               </span>
             {:else if tiles.length === 0}
               <span class="hint">
-                Once a deck is in the collection, its creator can be made an organizer too.
+                Once a deck is in the collection, its creator can be made an organiser too.
               </span>
             {:else}
-              <span class="hint">Everyone with a deck here is already an organizer.</span>
+              <span class="hint">Everyone with a deck here is already an organiser.</span>
             {/if}
           </div>
 
@@ -1556,79 +1776,26 @@
 
       {#if notice}<p class="notice">{notice}</p>{/if}
 
+      {#if pageMode === 'workspace' && membershipError}
+        <div class="workspace-error" role="alert">
+          <span>{membershipError}</span>
+          <button type="button" class="btn" disabled={membershipLoading} onclick={() => void loadMembership()}>
+            {membershipLoading ? 'Refreshing…' : 'Try again'}
+          </button>
+        </div>
+      {:else if pageMode === 'workspace' && membershipLoading && memberships.length === 0}
+        <p class="notice" role="status">Refreshing project activity…</p>
+      {/if}
+
       <div class="content-flow">
 
-      {#if pageMode === 'member' && myPending.length > 0}
-        <section class="panel">
-          <h2>Waiting on the organizers</h2>
+      {#if organizer && pageMode === 'workspace' && manageTab === 'decks' && submissions.length > 0}
+        <section class="panel attention">
+          <h2>Waiting for your decision</h2>
           <p class="hint">
-            Offered, and not decided yet. It will appear in the collection once an organizer
-            accepts it; you can withdraw it before then.
+            These creators offered a deck to the project. Choose whether each one belongs in the
+            collection. This list refreshes when you return to the tab, or you can use Refresh project.
           </p>
-          <ul class="rows">
-            {#each myPending as row (row.set_id)}
-              <li>
-                <span class="row-name">{row.set?.name || 'Untitled'}</span>
-                <button
-                  type="button"
-                  class="btn"
-                  disabled={busy !== null}
-                  onclick={() =>
-                    run(`withdraw-${row.set_id}`, () => removeMember(collection!.id, row.set_id))}
-                >
-                  Withdraw
-                </button>
-              </li>
-            {/each}
-          </ul>
-        </section>
-      {/if}
-
-      {#if pageMode === 'member' && myInvitations.length > 0}
-        <!--
-          The deck owner's own decision, and the one place the consent
-          sentence has to appear — see `CONSENT`.
-        -->
-        <section class="panel invitations">
-          <h2>Invitations for you</h2>
-          <p class="consent">{CONSENT}</p>
-          <ul class="rows">
-            {#each myInvitations as row (row.set_id)}
-              <li>
-                <span class="row-name">{row.set?.name || 'Untitled'}</span>
-                <span class="row-actions">
-                  <button
-                    type="button"
-                    class="btn primary"
-                    disabled={busy !== null}
-                    onclick={() =>
-                      run(`accept-${row.set_id}`, () =>
-                        respondToInvitation(collection!.id, row.set_id, 'accepted')
-                      )}
-                  >
-                    Accept
-                  </button>
-                  <button
-                    type="button"
-                    class="btn"
-                    disabled={busy !== null}
-                    onclick={() =>
-                      run(`decline-${row.set_id}`, () =>
-                        respondToInvitation(collection!.id, row.set_id, 'declined')
-                      )}
-                  >
-                    Decline
-                  </button>
-                </span>
-              </li>
-            {/each}
-          </ul>
-        </section>
-      {/if}
-
-      {#if organizer && pageMode === 'manage' && manageTab === 'decks' && submissions.length > 0}
-        <section class="panel">
-          <h2>Decks offered to this collection</h2>
           <ul class="rows">
             {#each submissions as row (row.set_id)}
               <li>
@@ -1637,10 +1804,13 @@
                   <span class="row-by">{row.set?.author?.display_name || 'Anonymous'}</span>
                 </span>
                 <span class="row-actions">
+                  <button type="button" class="btn" onclick={() => viewPublishedContribution(row)}>
+                    View published
+                  </button>
                   <button
                     type="button"
                     class="btn primary"
-                    disabled={busy !== null}
+                    disabled={busy !== null || membershipLoading || !membershipRowsCurrent}
                     onclick={() =>
                       run(`take-${row.set_id}`, () =>
                         resolveSubmission(collection!.id, row.set_id, 'accepted')
@@ -1651,7 +1821,7 @@
                   <button
                     type="button"
                     class="btn"
-                    disabled={busy !== null}
+                    disabled={busy !== null || membershipLoading || !membershipRowsCurrent}
                     onclick={() =>
                       run(`pass-${row.set_id}`, () =>
                         resolveSubmission(collection!.id, row.set_id, 'declined')
@@ -1666,178 +1836,95 @@
         </section>
       {/if}
 
-      {#if organizer && pageMode === 'manage' && manageTab === 'decks'}
-        <section class="panel">
-          <h2>Invite a deck</h2>
-          <p class="hint">
-            Paste the share link of a published deck. Its author decides whether to join.
-          </p>
-          <div class="invite-row">
-            <input
-              type="text"
-              bind:value={inviteLink}
-              placeholder="https://…/shared/… or the code at its end"
-            />
-            <button
-              type="button"
-              class="btn primary"
-              disabled={busy !== null || inviteLink.trim().length === 0}
-              onclick={invite}
-            >
-              {busy === 'invite' ? 'Inviting…' : 'Invite'}
-            </button>
-          </div>
-          {#if invitedOut.length > 0}
-            <p class="hint">
-              Waiting on {invitedOut.length}
-              {invitedOut.length === 1 ? 'author' : 'authors'}:
-              {invitedOut.map((row) => row.set?.name || 'Untitled').join(', ')}
-            </p>
-          {/if}
-        </section>
-      {/if}
-
-      {#if (pageMode === 'member' || (organizer && pageMode === 'manage' && manageTab === 'decks')) && displayedRemovable.length > 0}
-        <section class="panel">
-          <h2>In this collection</h2>
-          <p class="hint">
-            Removing a deck only unlinks it. Its own page, link and listing are untouched.
-          </p>
+      {#if pageMode === 'workspace' && manageTab === 'decks' && myInvitations.length > 0}
+        <!-- The deck owner's decision is the consent boundary; see `CONSENT`. -->
+        <section class="panel invitations">
+          <h2>Invitations for you</h2>
+          <p class="consent">{CONSENT}</p>
           <ul class="rows">
-            {#each displayedRemovable as row (row.set_id)}
+            {#each myInvitations as row (row.set_id)}
               <li>
-                <span class="row-name">
-                  {row.set?.name || 'Untitled'}
-                  {#if row.set?.owner_id !== auth.user?.id}
-                    <span class="row-by">{row.set?.author?.display_name || 'Anonymous'}</span>
-                  {/if}
-                </span>
-                <button
-                  type="button"
-                  class="btn"
-                  disabled={busy !== null}
-                  onclick={() =>
-                    run(`remove-${row.set_id}`, () => removeMember(collection!.id, row.set_id))}
-                >
-                  {row.set?.owner_id === auth.user?.id ? 'Leave' : 'Remove'}
-                </button>
-              </li>
-            {/each}
-          </ul>
-        </section>
-      {/if}
-
-      <!--
-        Always answers "can I join, and how?" — see the `joining` derived for
-        why every branch here has to exist rather than the panel simply not
-        rendering.
-      -->
-      {#if pageMode === 'member' && joining !== 'settled'}
-        <section class="panel joining">
-          <h2>Offer one of your published decks</h2>
-
-          {#if joining === 'signed-out'}
-            <p class="hint">
-              Sign in to offer one of your published decks to this collection. Your deck stays
-              yours — a collection only points at it.
-            </p>
-          {:else if joining === 'nothing-published'}
-            <p class="hint">
-              A collection gathers decks that are already published, so publish one first:
-              open it, then <strong>Export → Publish</strong>. Come back here afterwards and
-              it will be offerable.
-            </p>
-          {:else if joining === 'invite-only'}
-            <p class="hint">
-              This collection is invitation-only. Send an organizer the share link of the deck
-              you would like to add, and they can invite it.
-            </p>
-          {:else}
-            <p class="consent">{CONSENT}</p>
-            <p class="hint publication-note">
-              Home shows editable drafts in this browser. This list shows published copies owned
-              by your account, including copies whose draft is on another device or no longer in Home.
-            </p>
-            <ul class="rows">
-              {#each offerable as row (row.id)}
-                <li>
-                  <span class="row-name deck-source">
-                    <span>{row.name || 'Untitled'}</span>
-                    {#if !draftIsOnHome(row)}
-                      <span class="row-source">Published copy · draft not in Home on this browser</span>
-                    {/if}
-                  </span>
+                <span class="row-name">{row.set?.name || 'Untitled'}</span>
+                <span class="row-actions">
                   <button
                     type="button"
                     class="btn primary"
-                    disabled={busy !== null}
-                    onclick={() => addOwnDeck(row.id)}
-                  >
-                    Offer this deck
-                  </button>
-                </li>
-              {/each}
-            </ul>
-          {/if}
-        </section>
-      {/if}
-
-      {#if organizer && pageMode === 'manage' && manageTab === 'decks' && offerable.length > 0}
-        <section class="panel">
-          <h2>Add one of your published decks</h2>
-          <p class="hint">
-            Published copies owned by your account go straight in. Home shows editable drafts,
-            so a copy published on another device or left after its draft was deleted may also appear.
-          </p>
-          <ul class="rows">
-            {#each offerable as row (row.id)}
-              <li>
-                <span class="row-name deck-source">
-                  <span>{row.name || 'Untitled'}</span>
-                  {#if !draftIsOnHome(row)}
-                    <span class="row-source">Published copy · draft not in Home on this browser</span>
-                  {/if}
-                </span>
-                <button
-                  type="button"
-                  class="btn"
-                  disabled={busy !== null}
-                  onclick={() => addOwnDeck(row.id)}
-                >
-                  Add this deck
-                </button>
-              </li>
-            {/each}
-          </ul>
-        </section>
-      {/if}
-
-      {#if pageMode === 'member' && myAccepted.length > 0}
-        <section class="panel">
-          <h2>Your deck{myAccepted.length === 1 ? '' : 's'} here</h2>
-          <p class="hint">
-            Marking a deck ready tells the organizers it is finished. Only you can, and you
-            can change your mind while the collection is still unpublished.
-          </p>
-          <ul class="rows">
-            {#each myAccepted as row (row.set_id)}
-              <li>
-                <span class="row-name">{row.set?.name || 'Untitled'}</span>
-                <label class="toggle">
-                  <input
-                    type="checkbox"
-                    checked={row.ready}
-                    disabled={busy !== null}
-                    onchange={(event) =>
-                      run(`ready-${row.set_id}`, () =>
-                        setMemberReady(collection!.id, row.set_id, event.currentTarget.checked)
+                    disabled={busy !== null || membershipLoading || !membershipRowsCurrent}
+                    onclick={() =>
+                      run(`accept-${row.set_id}`, () =>
+                        respondToInvitation(collection!.id, row.set_id, 'accepted')
                       )}
-                  />
-                  <span>Ready</span>
-                </label>
+                  >Accept</button>
+                  <button
+                    type="button"
+                    class="btn"
+                    disabled={busy !== null || membershipLoading || !membershipRowsCurrent}
+                    onclick={() =>
+                      run(`decline-${row.set_id}`, () =>
+                        respondToInvitation(collection!.id, row.set_id, 'declined')
+                      )}
+                  >Decline</button>
+                </span>
               </li>
             {/each}
           </ul>
+        </section>
+      {/if}
+
+      {#if pageMode === 'workspace' && manageTab === 'decks' && myAccepted.length > 0}
+        <section class="panel contributions">
+          <h2>Your contribution{myAccepted.length === 1 ? '' : 's'}</h2>
+          <p class="hint">
+            Keep editing your local draft and publish each update as usual. Mark the published
+            revision Ready when the team should treat it as finished.
+          </p>
+          <div class="contribution-grid">
+            {#each myAccepted as row (row.set_id)}
+              {@const publication = publicationFor(row.set_id)}
+              {@const localDraft = publication ? draftIsOnHome(publication) : false}
+              <article class="contribution-card">
+                <header class="contribution-head">
+                  <span>
+                    <strong>{row.set?.name || 'Untitled'}</strong>
+                    <small>Published revision {row.set?.revision ?? '—'}</small>
+                  </span>
+                  <span class:ready={row.ready} class="status-pill">
+                    {row.ready ? 'Ready' : 'In progress'}
+                  </span>
+                </header>
+                <p>
+                  {row.ready
+                    ? 'The team knows this published revision is finished. Publishing another revision will automatically return it to In progress.'
+                    : 'Edit and publish your latest changes, then mark this revision Ready for the team.'}
+                </p>
+                <div class="contribution-actions">
+                  <button
+                    type="button"
+                    class="btn"
+                    disabled={busy !== null || !localDraft}
+                    title={localDraft ? undefined : 'The editable draft is not on this device.'}
+                    onclick={() => void editContribution(row.set_id)}
+                  >Edit working copy</button>
+                  <button type="button" class="btn" onclick={() => viewPublishedContribution(row)}>
+                    View published version
+                  </button>
+                  <button
+                    type="button"
+                    class:primary={!row.ready}
+                    class="btn ready-action"
+                    disabled={busy !== null || membershipLoading || !membershipRowsCurrent}
+                    onclick={() =>
+                      run(`ready-${row.set_id}`, () =>
+                        setMemberReady(collection!.id, row.set_id, !row.ready)
+                      )}
+                  >{row.ready ? 'Mark not ready' : 'Mark Ready'}</button>
+                </div>
+                {#if !localDraft}
+                  <p class="device-note">The published version is available, but its editable draft is not on this device.</p>
+                {/if}
+              </article>
+            {/each}
+          </div>
 
           {#if myUnlistedHere.length > 0}
             <!--
@@ -1878,7 +1965,184 @@
         </section>
       {/if}
 
-      {#if organizer && pageMode === 'manage' && manageTab === 'people'}
+      {#if pageMode === 'workspace' && manageTab === 'decks' && myPending.length > 0}
+        <section class="panel">
+          <h2>Submitted for review</h2>
+          <p class="hint">
+            The organisers have your offer. You can keep editing and republishing while it waits,
+            or withdraw it before they decide.
+          </p>
+          <ul class="rows">
+            {#each myPending as row (row.set_id)}
+              {@const publication = publicationFor(row.set_id)}
+              <li>
+                <span class="row-name deck-source">
+                  <span>{row.set?.name || 'Untitled'}</span>
+                  <span class="row-source">Published revision {row.set?.revision ?? '—'}</span>
+                </span>
+                <span class="row-actions">
+                  <button
+                    type="button"
+                    class="btn"
+                    disabled={busy !== null || !publication || !draftIsOnHome(publication)}
+                    onclick={() => void editContribution(row.set_id)}
+                  >Edit working copy</button>
+                  <button type="button" class="btn" onclick={() => viewPublishedContribution(row)}>
+                    View published
+                  </button>
+                  <button
+                    type="button"
+                    class="btn"
+                    disabled={busy !== null || membershipLoading || !membershipRowsCurrent}
+                    onclick={() =>
+                      run(`withdraw-${row.set_id}`, () => removeMember(collection!.id, row.set_id))}
+                  >Withdraw</button>
+                </span>
+              </li>
+            {/each}
+          </ul>
+        </section>
+      {/if}
+
+      <!-- Every visitor gets an explicit answer to “how do I add my deck?” -->
+      {#if pageMode === 'workspace' && manageTab === 'decks' && (
+        joining === 'signed-out'
+        || (
+          membershipRowsCurrent
+          && publishedRowsCurrent
+          && (organizer || submissionAccessCurrent)
+          && (organizer ? offerable.length > 0 : joining !== 'settled')
+        )
+      )}
+        <section class="panel joining">
+          <h2>{organizer ? 'Add one of your decks' : 'Choose a deck to contribute'}</h2>
+          {#if joining === 'signed-out'}
+            <p class="hint">Sign in to choose one of your published decks for this collection.</p>
+          {:else if joining === 'nothing-published'}
+            <p class="hint">
+              First open the deck you want to contribute and choose <strong>Export → Publish</strong>.
+              Return here and it will appear in this picker.
+            </p>
+            <button
+              type="button"
+              class="btn"
+              onclick={() => navigation.leaveCollection({ kind: 'home' })}
+            >Open your sets</button>
+          {:else if joining === 'invite-only'}
+            <p class="hint">
+              This project is invitation-only. Send an organiser the published deck’s share link
+              so they can invite it.
+            </p>
+          {:else}
+            {#if !organizer}<p class="consent">{CONSENT}</p>{/if}
+            <div class="deck-picker">
+              <label class="field" for="collection-deck-picker">
+                <span class="field-label">Published deck</span>
+                <select id="collection-deck-picker" bind:value={selectedOfferId}>
+                  {#each offerable as row (row.id)}
+                    <option value={row.id}>{row.name || 'Untitled'}</option>
+                  {/each}
+                </select>
+              </label>
+              <button
+                type="button"
+                class="btn primary"
+                disabled={busy !== null || membershipLoading || !selectedOffer}
+                onclick={() => selectedOffer && void addOwnDeck(selectedOffer.id)}
+              >
+                {busy === `offer-${selectedOfferId}`
+                  ? organizer ? 'Adding…' : 'Submitting…'
+                  : organizer ? 'Add this deck' : 'Submit to organisers'}
+              </button>
+            </div>
+            {#if selectedOffer}
+              <p class="hint publication-note">
+                Published revision {selectedOffer.revision}.
+                {draftIsOnHome(selectedOffer)
+                  ? ' Its working copy is available on this device.'
+                  : ' Its working copy is not on this device, but the published deck can still be used.'}
+              </p>
+            {/if}
+          {/if}
+        </section>
+      {/if}
+
+      {#if organizer && pageMode === 'workspace' && manageTab === 'decks' && displayedRemovable.length > 0}
+        <section class="panel">
+          <h2>Decks in this collection</h2>
+          <p class="hint">
+            Ready belongs to the current published revision. Removing a deck only unlinks it;
+            the deck’s own page and working copy are untouched.
+          </p>
+          <ul class="rows roster-rows">
+            {#each displayedRemovable as row (row.set_id)}
+              <li>
+                <span class="row-name deck-source">
+                  <span>
+                    {row.set?.name || 'Untitled'}
+                    <span class="row-by">{row.set?.author?.display_name || 'Anonymous'}</span>
+                  </span>
+                  <span class="row-source">
+                    Revision {row.set?.revision ?? '—'} · {row.ready ? 'Ready' : 'In progress'}
+                  </span>
+                </span>
+                <span class="row-actions">
+                  <button type="button" class="btn" onclick={() => viewPublishedContribution(row)}>
+                    View published
+                  </button>
+                  <button
+                    type="button"
+                    class="btn"
+                    disabled={busy !== null || membershipLoading || !membershipRowsCurrent}
+                    onclick={() =>
+                      run(`remove-${row.set_id}`, () => removeMember(collection!.id, row.set_id))}
+                  >Remove</button>
+                </span>
+              </li>
+            {/each}
+          </ul>
+        </section>
+      {/if}
+
+      {#if organizer && pageMode === 'workspace' && manageTab === 'decks'}
+        <section class="panel">
+          <h2>Invite a deck</h2>
+          <p class="hint">Paste a published deck’s share link. Its author decides whether to join.</p>
+          <div class="invite-row">
+            <input
+              type="text"
+              bind:value={inviteLink}
+              placeholder="https://…/shared/… or the code at its end"
+            />
+            <button
+              type="button"
+              class="btn primary"
+              disabled={busy !== null || membershipLoading || !membershipRowsCurrent || inviteLink.trim().length === 0}
+              onclick={invite}
+            >{busy === 'invite' ? 'Inviting…' : 'Invite'}</button>
+          </div>
+          {#if invitedOut.length > 0}
+            <p class="hint">
+              Waiting on {invitedOut.length} {invitedOut.length === 1 ? 'author' : 'authors'}:
+              {invitedOut.map((row) => row.set?.name || 'Untitled').join(', ')}
+            </p>
+          {/if}
+        </section>
+      {/if}
+
+      {#if membershipRowsAvailable && auth.user?.id}
+        <div class:hidden={pageMode !== 'workspace' || manageTab !== 'decks'}>
+          <CollectionDeckDiscussion
+            collectionId={collection.id}
+            {memberships}
+            currentUserId={auth.user.id}
+            {organizer}
+            workspaceCurrent={membershipRowsCurrent && !membershipLoading}
+          />
+        </div>
+      {/if}
+
+      {#if organizer && pageMode === 'workspace' && manageTab === 'people'}
         <section class="panel invites">
           <h2>Invite people</h2>
           <!--
@@ -2202,6 +2466,19 @@
     margin: 0 0 var(--space-4);
   }
 
+  .workspace-error {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
+    margin-bottom: var(--space-4);
+    padding: var(--space-3) var(--space-4);
+    border: 1px solid var(--warning);
+    border-radius: var(--radius-sm);
+    background: var(--surface-raised);
+    color: var(--text-secondary);
+  }
+
   .banner {
     position: relative;
   }
@@ -2477,6 +2754,10 @@
     border-color: var(--border-accent);
     background: var(--accent-soft);
   }
+  .panel.attention {
+    border-color: var(--border-accent);
+    background: var(--accent-soft);
+  }
 
   /* The promise being made, so it is read before the button beneath it. */
   .consent {
@@ -2523,6 +2804,112 @@
   }
   .publication-note {
     margin-top: 0;
+  }
+
+  .deck-picker {
+    display: flex;
+    align-items: flex-end;
+    gap: var(--space-3);
+    margin-top: var(--space-4);
+  }
+
+  .deck-picker .field {
+    flex: 1 1 auto;
+  }
+
+  .deck-picker select {
+    width: 100%;
+    min-width: 0;
+    padding: var(--space-2) var(--space-3);
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-sm);
+    background: var(--surface-raised);
+    color: var(--text-primary);
+    font: inherit;
+  }
+
+  .deck-picker select:focus-visible {
+    outline: none;
+    box-shadow: var(--focus-ring);
+  }
+
+  .contribution-grid {
+    display: grid;
+    gap: var(--space-3);
+    margin-top: var(--space-4);
+  }
+
+  .contribution-card {
+    padding: var(--space-4);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-md);
+    background: var(--surface-raised);
+  }
+
+  .contribution-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: var(--space-3);
+  }
+
+  .contribution-head > span:first-child {
+    display: grid;
+    gap: var(--space-1);
+    min-width: 0;
+  }
+
+  .contribution-head strong {
+    color: var(--text-primary);
+    font-size: var(--text-md);
+  }
+
+  .contribution-head small,
+  .device-note {
+    color: var(--text-muted);
+    font-size: var(--text-xs);
+  }
+
+  .status-pill {
+    flex: none;
+    padding: var(--space-1) var(--space-2);
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-full);
+    color: var(--text-secondary);
+    font-size: var(--text-xs);
+    font-weight: var(--weight-semibold);
+  }
+
+  .status-pill.ready {
+    border-color: var(--success);
+    color: var(--success);
+  }
+
+  .contribution-card > p {
+    max-width: 68ch;
+    margin: var(--space-3) 0;
+    color: var(--text-secondary);
+    font-size: var(--text-sm);
+    line-height: var(--leading-normal);
+  }
+
+  .contribution-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+  }
+
+  .device-note {
+    margin-bottom: 0 !important;
+  }
+
+  .roster-rows li {
+    padding: var(--space-2) 0;
+    border-top: 1px solid var(--border-subtle);
+  }
+
+  .roster-rows li:first-child {
+    border-top: 0;
   }
   .row-actions {
     display: flex;
@@ -2585,16 +2972,25 @@
     margin: 0;
   }
 
-  /* The collection is a showcase first; management is a deliberate mode. */
+  /* The working surface keeps the collection identifiable without borrowing
+     the public page's dramatic, overlapping masthead. */
   .hero {
-    margin-bottom: var(--space-8);
+    display: grid;
+    grid-template-columns: minmax(10rem, 14rem) minmax(0, 1fr);
+    align-items: stretch;
+    gap: var(--space-4);
+    margin-bottom: var(--space-5);
+    padding: var(--space-4);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-lg);
+    background: var(--surface-base);
   }
 
   .hero .banner {
-    height: clamp(10rem, 24vw, 19rem);
+    height: auto;
+    min-height: 9rem;
     margin: 0;
-    border-radius: var(--radius-lg);
-    box-shadow: var(--shadow-sm);
+    border-radius: var(--radius-md);
   }
 
   .banner-initials {
@@ -2610,14 +3006,8 @@
   }
 
   .hero-copy {
-    position: relative;
-    width: calc(100% - var(--space-8));
-    margin: calc(var(--space-7) * -1) auto 0;
-    padding: var(--space-6);
-    border: 1px solid var(--border-subtle);
-    border-radius: var(--radius-lg);
-    background: var(--surface-raised);
-    box-shadow: var(--shadow-md);
+    min-width: 0;
+    padding: var(--space-3) var(--space-2);
   }
 
   .eyebrow {
@@ -2740,7 +3130,26 @@
   }
 
   .workspace-heading {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: var(--space-5);
     margin-bottom: var(--space-5);
+    padding-bottom: var(--space-4);
+    border-bottom: 1px solid var(--border-subtle);
+  }
+
+  .workspace-heading p {
+    max-width: 48ch;
+    margin: 0;
+    color: var(--text-tertiary);
+    font-size: var(--text-sm);
+    line-height: var(--leading-normal);
+  }
+
+  .workspace-heading .eyebrow {
+    margin-bottom: var(--space-1);
+    color: var(--text-accent);
   }
 
   .workspace-heading h2,
@@ -2841,10 +3250,12 @@
       padding: var(--space-4) var(--space-4) var(--space-9);
     }
 
+    .hero {
+      grid-template-columns: 1fr;
+    }
+
     .hero-copy {
-      width: calc(100% - var(--space-4));
-      margin-top: calc(var(--space-5) * -1);
-      padding: var(--space-4);
+      padding: var(--space-2) 0 0;
     }
 
     .hero .title-row {
@@ -2871,6 +3282,13 @@
 
     .manage-tabs button {
       white-space: nowrap;
+    }
+
+    .workspace-heading,
+    .deck-picker,
+    .workspace-error {
+      align-items: stretch;
+      flex-direction: column;
     }
 
     .export-choices {

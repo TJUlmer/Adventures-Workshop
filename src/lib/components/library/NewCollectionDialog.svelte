@@ -86,8 +86,8 @@
       <li>
         <Icon name="eye" size={15} />
         <span>
-          It starts unlisted — reachable only by its link, so a project can be built in
-          private and shown off when it is ready.
+          It starts private — only the project team can see it. Preview the finished page
+          whenever you like, then share or publish it when everybody is ready.
         </span>
       </li>
     </ul>

@@ -32,6 +32,7 @@
     charactersFailed?: boolean;
     canManage?: boolean;
     canUseMemberTools?: boolean;
+    workspaceAttention?: number;
     announcement?: string | null;
     onmanage: () => void;
     onmember: () => void;
@@ -50,6 +51,7 @@
     charactersFailed = false,
     canManage = false,
     canUseMemberTools = false,
+    workspaceAttention = 0,
     announcement = null,
     onmanage,
     onmember,
@@ -274,14 +276,23 @@
       <span class="hero-scrim"></span>
     </div>
 
-    <div class="hero-tools">
-      {#if canUseMemberTools}
-        <Button variant="ghost" onclick={onmember}>Your decks</Button>
-      {/if}
-      {#if canManage}
-        <Button variant="secondary" onclick={onmanage}>Manage collection</Button>
-      {/if}
-    </div>
+    {#if canManage || canUseMemberTools}
+      <div class="hero-tools">
+        <span class="preview-copy">
+          <strong>{collection.visibility === 'public' ? 'Public page' : 'Page preview'}</strong>
+          <small>
+            {collection.visibility === 'private'
+              ? 'Everybody outside the project sees nothing.'
+              : collection.visibility === 'unlisted'
+                ? 'This is exactly what anyone with the link sees.'
+                : 'This is exactly what everybody sees.'}
+          </small>
+        </span>
+        <Button variant="secondary" onclick={canManage ? onmanage : onmember}>
+          Project workspace{workspaceAttention > 0 ? ` · ${workspaceAttention}` : ''}
+        </Button>
+      </div>
+    {/if}
 
     <div class="hero-copy">
       <p class="eyebrow inverse">Community collection</p>
@@ -318,7 +329,7 @@
 
       {#if creators.length > 0}
         <div class="hero-creators">
-          <span>Created together by</span>
+          <span>Featuring work by</span>
           <div class="creator-chips">
             {#each creators.slice(0, 8) as creator (creator.id)}
               <button type="button" onclick={() => onopenauthor(creator.id)}>
@@ -729,7 +740,8 @@
     top: var(--space-4);
     right: var(--space-4);
     display: flex;
-    gap: var(--space-2);
+    align-items: center;
+    gap: var(--space-3);
     padding: var(--space-1);
     border-radius: var(--radius-md);
     background: color-mix(in oklab, var(--grey-1000) 55%, transparent);
@@ -738,6 +750,22 @@
 
   .hero-tools :global(.btn) {
     color: var(--grey-100);
+    white-space: nowrap;
+  }
+
+  .preview-copy {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    gap: 1px;
+    color: var(--grey-100);
+    font-size: var(--text-xs);
+    line-height: var(--leading-snug);
+  }
+
+  .preview-copy small {
+    color: var(--grey-300);
+    font: inherit;
   }
 
   .hero-copy {
@@ -1444,7 +1472,7 @@
       top: var(--space-3);
       right: var(--space-3);
       left: var(--space-3);
-      justify-content: flex-end;
+      justify-content: space-between;
     }
 
     .hero-collage {
