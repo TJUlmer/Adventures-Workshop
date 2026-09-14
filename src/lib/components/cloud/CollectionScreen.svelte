@@ -1306,17 +1306,6 @@
     void loadMembership();
   }
 
-  function showLaunch(): void {
-    pageMode = 'workspace';
-    manageTab = 'settings';
-    requestAnimationFrame(() => {
-      document.getElementById('collection-launch')?.scrollIntoView({
-        behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth',
-        block: 'center'
-      });
-    });
-  }
-
   function showCollectionExport(): void {
     const behavior = window.matchMedia('(prefers-reduced-motion: reduce)').matches
       ? 'auto'
@@ -1537,13 +1526,9 @@
                 : 'The team is still working. The page is available by Private link but is not listed publicly.'}
           </p>
           <div class="status-actions">
-            {#if organizer && collection.visibility !== 'public'}
-              <button type="button" class="btn status-cta" onclick={showLaunch}>Share with the world</button>
-            {:else}
-              <button type="button" class="btn" onclick={showShowcase}>
-                {collection.visibility === 'public' ? 'View live page' : 'Preview public page'}
-              </button>
-            {/if}
+            <button type="button" class="btn" onclick={showShowcase}>
+              {collection.visibility === 'public' ? 'View live page' : 'Preview public page'}
+            </button>
           </div>
         </section>
       {/if}
@@ -2962,12 +2947,6 @@
   .status-actions {
     display: flex;
     justify-content: flex-end;
-  }
-
-  .status-cta {
-    border-color: color-mix(in oklab, var(--warning) 65%, var(--border-default));
-    background: color-mix(in oklab, var(--warning) 20%, var(--surface-raised));
-    font-weight: var(--weight-semibold);
   }
 
   .launch-panel {
