@@ -706,7 +706,10 @@ The small discs representing a 1–2 HP swarm sidekick take their fill from
 Their measured ring is transparent and backed with the Sidekick Band fill so
 it remains visible where the stack overlaps instead of revealing the preceding
 disc or restoring a fixed black outline. Older designs normalise to the former
-`#858585` grey.
+`#858585` grey. The filled centre is a real `.token-disc` child, not a
+`::after` pseudo-element: `card-image.ts` freezes and serialises DOM nodes into
+its standalone SVG, and a pseudo-element has no node to carry across. Drawing
+the centre that way left only the dark backing disc in published previews.
 
 `CharacterCardDesign.abilityScale` is the Special Ability content section's single
 text-size control: it multiplies the calibrated name and body sizes together,

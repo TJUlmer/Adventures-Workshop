@@ -935,7 +935,7 @@
         style:border-width={pu(CHARACTER_TOKENS.ring)}
         style:--sidekick-disc={fillCss(design.sidekickDisc)}
         style:--sidekick-ring={fillCss(design.sidekick.fill)}
-      ></span>
+      ><span class="token-disc"></span></span>
     {/each}
 
     <span
@@ -964,7 +964,7 @@
         style:border-width={pu(CHARACTER_TOKENS.ring)}
         style:--sidekick-disc={fillCss(design.sidekickDisc)}
         style:--sidekick-ring={fillCss(design.sidekick.fill)}
-      ></span>
+      ><span class="token-disc"></span></span>
     {/each}
 
     {#each [-1, 1] as sign, index (index)}
@@ -1364,8 +1364,7 @@
     background: var(--sidekick-ring);
   }
 
-  .token::after {
-    content: '';
+  .token-disc {
     position: absolute;
     inset: 0;
     border-radius: inherit;
