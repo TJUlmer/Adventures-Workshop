@@ -45,6 +45,7 @@
     GallerySort,
     ScopeFilter
   } from '$lib/cloud/sets';
+  import { thumbnailOrCoverBleeds } from '$lib/cloud/thumbnail';
   import { CHARACTER_ROLE_META, SELECTABLE_ROLES } from '$lib/characters/types';
   import type { CharacterRole } from '$lib/characters/types';
   import { CARD_FORMATS, trimBox } from '$lib/renderer/geometry';
@@ -428,6 +429,10 @@
     return set.thumbnail_url || set.cover_url;
   }
 
+  function setImageBleeds(set: GallerySet): boolean {
+    return thumbnailOrCoverBleeds(set.thumbnail_url, set.cover_bleeds);
+  }
+
   function characterImage(character: GalleryCharacter): string {
     return character.image_url || character.thumbnail_url || character.cover_url;
   }
@@ -438,18 +443,14 @@
    * Follows the same fallback in the same order, because the answer belongs to
    * whichever candidate actually won.
    *
-   * **A thumbnail follows `cover_bleeds`, and that is not an approximation.**
-   * `renderThumbnail` downscales whatever `coverArtwork` picks, and
-   * `set_cover_picture` is written to mirror `coverArtwork` step for step — so
-   * the two always choose the same artwork, and a plain downscale keeps the
-   * bleed as the same proportion of the frame. The tempting reading is that a
-   * thumbnail is a finished picture and never bleeds; that was true only while
-   * the cover was box art or a portrait, and stopped being true the moment
-   * covers started falling through to deck backs.
+   * Legacy `thumb-*` images are literal downscales of `cover_url`, so they
+   * inherit `cover_bleeds`. An `auto-box-*` thumbnail is instead a finished,
+   * bleed-free compilation. Its content-addressed stem is deliberate metadata
+   * for this old/new distinction; see `thumbnailOrCoverBleeds`.
    */
   function characterImageBleeds(character: GalleryCharacter): boolean {
     if (character.image_url) return character.image_bleeds;
-    return character.cover_bleeds;
+    return thumbnailOrCoverBleeds(character.thumbnail_url, character.cover_bleeds);
   }
 
   function roleLabel(value: string): string {
@@ -641,13 +642,14 @@
                 >
                   {#if setImage(set)}
                     <!-- Lazy, because a gallery page is mostly pictures nobody has
-                         scrolled to yet.
-
-                         `cover_bleeds` governs the thumbnail as well as the
-                         cover, because both are the same artwork — see
-                         `characterImageBleeds` for why a thumbnail is not
-                         automatically bleed-free. -->
-                    <img src={setImage(set)} class:trimmed={set.cover_bleeds} alt="" loading="lazy" />
+                         scrolled to yet. The helper preserves bleed on legacy raw
+                         thumbnails while leaving an automatic compilation alone. -->
+                    <img
+                      src={setImage(set)}
+                      class:trimmed={setImageBleeds(set)}
+                      alt=""
+                      loading="lazy"
+                    />
                   {:else}
                     <span class="initials">{initials(set.name)}</span>
                   {/if}

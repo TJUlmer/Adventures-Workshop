@@ -1,15 +1,16 @@
 <script lang="ts">
   /**
-   * Every way a set leaves the app, as one list.
+   * Every way a set leaves the app, organised by what the author wants next.
    *
    * Lifted out of Set Home because it is no longer only Set Home that offers
    * them: a published set someone else made is looked at and exported, never
-   * edited, so the same four buttons have to work against a set that is *not*
+   * edited, so the same export paths have to work against a set that is *not*
    * the one open in the workshop. Everything here therefore takes the set as a
-   * prop and reads nothing from the store — which is why they could move at
-   * all, the exporters having always taken a set rather than reaching for one.
+   * prop and reads nothing from the store — which is why the paths can be
+   * grouped here at all, the exporters having always taken a set rather than
+   * reaching for one.
    *
-   * The panel chrome is the caller's: this is the list, not the box round it.
+   * The outer panel chrome is the caller's; the decision flow inside is ours.
    */
   import {
     EXPORTERS,
@@ -269,198 +270,240 @@
 </script>
 
 <div class="exports">
-  <!--
-    Only worth showing once there is an actual choice to make — a set with one
-    hero and no villain has nothing a picker would do, same reasoning as
-    `SharePanel`'s own scope picker. Every rendered export below reads
-    `finalSet`, so changing this changes the table-ready outputs together. The
-    complete project backup says explicitly that it remains untouched.
-  -->
-  {#if scopeOptions.length > 1}
-    <label class="scope">
-      <span class="scope-label">Export</span>
-      <Select
-        value={scopeKeyOf(scope)}
-        options={scopeOptions}
-        onchange={(key) => (scope = parseScopeKey(key))}
-      />
-      {#if scope.kind !== 'full'}
-        <span class="scope-hint">
-          Just {scopeOptions.find((option) => option.value === scopeKeyOf(scope))?.label} —
-          not the rest of {set.name || 'this set'}.
-        </span>
+  <section class="selection-step" aria-labelledby="export-content-title">
+    <div class="step-heading">
+      <span class="step-number">1</span>
+      <div>
+        <h3 id="export-content-title">Choose content</h3>
+        <p>
+          This choice applies to print files, card images and Tabletop Simulator.
+          {projectFileMode === 'backup'
+            ? ' The full project backup always keeps everything.'
+            : ' The editable project copy uses this choice too.'}
+        </p>
+      </div>
+    </div>
+
+    <div class="selection-controls">
+      <!-- A single-scope set still gets a useful summary, without a picker that
+           offers one option and asks a question the author cannot answer differently. -->
+      {#if scopeOptions.length > 1}
+        <label class="scope">
+          <span class="scope-label">Set or character</span>
+          <Select
+            value={scopeKeyOf(scope)}
+            options={scopeOptions}
+            onchange={(key) => (scope = parseScopeKey(key))}
+          />
+          {#if scope.kind !== 'full'}
+            <span class="scope-hint">
+              Just {scopeOptions.find((option) => option.value === scopeKeyOf(scope))?.label} —
+              not the rest of {set.name || 'this set'}.
+            </span>
+          {/if}
+        </label>
+      {:else}
+        <div class="scope-summary">
+          <span class="scope-label">Set or character</span>
+          <strong>{scopeOptions[0]?.label ?? 'Whole set'}</strong>
+        </div>
       {/if}
-    </label>
-  {/if}
 
-  <!--
-    A finer prune on top of whichever scope is picked above — see
-    `ExportSelection`. Shown whenever there is anything at all to uncheck,
-    not gated behind the scope picker's own "more than one option" rule:
-    a single-hero set with no villain still has decks worth toggling off one
-    at a time.
-  -->
-  {#if hasCustomizableContent}
-    <button type="button" class="customize" onclick={() => (selectorOpen = true)}>
-      <Icon name="list" size={13} />
-      {selectionActive ? 'Customize what’s included — editing' : 'Customize what’s included'}
-    </button>
-  {/if}
+      <!-- A finer prune on top of the scope: temporary for this export and
+           offered whenever the chosen content contains something to uncheck. -->
+      {#if hasCustomizableContent}
+        <button type="button" class="customize" onclick={() => (selectorOpen = true)}>
+          <Icon name="list" size={14} />
+          <span>
+            <strong>{selectionActive ? 'Included items customised' : 'Use all included items'}</strong>
+            <small>{selectionActive ? 'Review or reset your selections' : 'Choose individual decks and components'}</small>
+          </span>
+          <Icon name="chevronRight" size={14} />
+        </button>
+      {/if}
+    </div>
+  </section>
 
-  <!--
-    One PNG per card, foldered by what it is. Bleed is the printer's question,
-    not the card's, so it sits with the button rather than being two
-    near-identical entries.
-  -->
-  <div class="bundle">
-    <button type="button" class="export" disabled={pngProgress !== null} onclick={exportPngs}>
-      <Icon name="download" size={13} />
-      <span class="export-text">
-        <span class="export-label">All cards as PNGs (.zip)</span>
-        <span class="export-hint">
-          {pngProgress ?? 'One image per card, in folders by kind, under the set’s name.'}
-        </span>
-      </span>
-    </button>
-
-    <label class="bleed">
-      <input type="checkbox" bind:checked={pngBleed} disabled={pngProgress !== null} />
-      Include bleed
-    </label>
+  <div class="step-heading output-heading">
+    <span class="step-number">2</span>
+    <div>
+      <h3>Choose an output</h3>
+      <p>Pick the destination that matches what you want to do next.</p>
+    </div>
   </div>
 
-  <!--
-    The whole set as one Tabletop Simulator saved object: a pile per figure, the
-    initiative and event decks at their own scale, the threat track as a card,
-    and every component behind them.
-  -->
-  <div class="bundle">
-    <button type="button" class="export" disabled={ttsProgress !== null} onclick={exportTts}>
-      <Icon name="download" size={13} />
-      <span class="export-text">
-        <span class="export-label">Tabletop Simulator (one saved object)</span>
-        <span class="export-hint">
-          {ttsProgress ??
-            (hostTtsAssets
-              ? `${ttsPiles.length} ${ttsPiles.length === 1 ? 'pile' : 'piles'}, face sheets and components — hosted for multiplayer, with one JSON to download.`
-              : `${ttsPiles.length} ${ttsPiles.length === 1 ? 'pile' : 'piles'}, face sheets and components — as a local folder here, or a .zip to your downloads.`)}
-        </span>
-      </span>
-    </button>
+  <div class="export-groups">
+    <section class="export-group" aria-labelledby="print-export-title">
+      <header class="group-heading">
+        <span class="group-icon"><Icon name="printer" size={17} /></span>
+        <div>
+          <h4 id="print-export-title">Print &amp; image files</h4>
+          <p>Make ready-to-print sheets or individual high-resolution card artwork.</p>
+        </div>
+      </header>
 
-    <label class="tts-hosting">
-      <input type="checkbox" bind:checked={hostTtsAssets} disabled={ttsProgress !== null} />
-      <span>
-        <strong>Host assets online</strong>
-        <small>Recommended — other players can see the artwork in multiplayer.</small>
-      </span>
-    </label>
-
-    {#if hostTtsAssets}
-      <p class="tts-note">
-        The generated sheets, map and models are uploaded to public links, then the saved-object
-        JSON downloads to this device. Put that JSON in Tabletop Simulator’s Saved Objects folder.
-        No image folder is needed.
-      </p>
-      <p class="tts-note account-note">
-        {#if auth.isAnonymous}
-          These hosted assets belong to this browser’s temporary identity. Sign in from Account
-          if you want to keep control of them after clearing browser data or changing devices.
-        {:else if auth.signedIn}
-          Hosted assets are managed under your signed-in account.
-        {:else}
-          Your first online export creates a temporary identity for this browser. You can connect
-          it to an account later without moving the assets.
+      <div class="group-actions">
+        <!-- Print sheets are a browser screen rather than a file exporter. -->
+        {#if onprint}
+          <button type="button" class="export" onclick={printSheets}>
+            <Icon name="printer" size={14} />
+            <span class="export-text">
+              <span class="export-label">Open print sheets</span>
+              <span class="export-hint">
+                True-size A4 or Letter layouts, including a printer-friendly mode.
+              </span>
+            </span>
+          </button>
         {/if}
-      </p>
-      {#if !ttsOnlineAvailable}
-        <p class="warning">
-          Online hosting is not configured for this copy of Unmatched Labs. Turn this option off
-          to make a local export.
-        </p>
-      {/if}
-    {:else}
-      <p class="tts-note">
-        Local-only export: unzip the folder, then copy the <strong>entire unzipped folder</strong>
-        into your Tabletop Simulator Saved Objects folder. Other players will not see locally
-        stored artwork unless you later use <strong>Upload → Cloud Manager → Upload All</strong>
-        in Tabletop Simulator and save the object again.
-      </p>
 
-      <!-- Typed once and remembered; online hosting never asks for a machine-specific path. -->
-      <label class="saved-objects">
-        <span class="saved-objects-label">Tabletop Simulator Saved Objects folder</span>
-        <TextInput
-          bind:value={savedObjectsPath}
-          onchange={saveSavedObjectsPath}
-          placeholder="C:\Users\you\Documents\My Games\Tabletop Simulator\Saves\Saved Objects"
-        />
-        <span class="saved-objects-hint">
-          Set this once and every local export’s images already point here — no editing the JSON
-          by hand. Copy the path from File Explorer or Finder.
-        </span>
-      </label>
-    {/if}
+        <div class="bundle">
+          <button type="button" class="export" disabled={pngProgress !== null} onclick={exportPngs}>
+            <Icon name="download" size={14} />
+            <span class="export-text">
+              <span class="export-label">Download individual card PNGs</span>
+              <span class="export-hint">
+                {pngProgress ?? 'One full-resolution image per card, organised by kind in a .zip.'}
+              </span>
+            </span>
+          </button>
 
-    {#if ttsResult}
-      {#if ttsResult.hosting === 'online'}
-        <p class="landed hosted-result">
-          Hosted {ttsResult.uploadedCount} new
-          {ttsResult.uploadedCount === 1 ? 'asset' : 'assets'}; reused {ttsResult.reusedCount}
-          unchanged {ttsResult.reusedCount === 1 ? 'asset' : 'assets'}.
-        </p>
-      {:else if ttsResult.directory}
-        <p class="landed">{ttsResult.directory}</p>
-        {#if ttsResult.removedCount > 0}
-          <!-- Images are named after their contents so TTS cannot cache a stale
-               one, which leaves the previous file behind. Said out loud so the
-               tidying is visibly happening. -->
-          <p class="landed">
-            Cleared {ttsResult.removedCount} superseded
-            {ttsResult.removedCount === 1 ? 'file' : 'files'}.
-          </p>
-        {/if}
-      {/if}
-      {#each ttsResult.warnings as warning, index (index)}
-        <p class="warning">{warning}</p>
-      {/each}
-    {/if}
+          <label class="bleed">
+            <input type="checkbox" bind:checked={pngBleed} disabled={pngProgress !== null} />
+            <span>
+              <strong>Include bleed</strong>
+              <small>Extra artwork beyond the cut line for professional printing.</small>
+            </span>
+          </label>
+        </div>
+      </div>
+    </section>
+
+    <section class="export-group" aria-labelledby="tts-export-title">
+      <header class="group-heading">
+        <span class="group-icon"><Icon name="grid" size={17} /></span>
+        <div>
+          <h4 id="tts-export-title">Tabletop Simulator</h4>
+          <p>Build one saved object containing the selected cards, boards and components.</p>
+        </div>
+      </header>
+
+      <div class="group-actions">
+        <div class="bundle tts-bundle">
+          <button type="button" class="export" disabled={ttsProgress !== null} onclick={exportTts}>
+            <Icon name="download" size={14} />
+            <span class="export-text">
+              <span class="export-label">Export Tabletop Simulator object</span>
+              <span class="export-hint">
+                {ttsProgress ??
+                  (hostTtsAssets
+                    ? `${ttsPiles.length} ${ttsPiles.length === 1 ? 'pile' : 'piles'}, face sheets and components — hosted for multiplayer.`
+                    : `${ttsPiles.length} ${ttsPiles.length === 1 ? 'pile' : 'piles'}, face sheets and components — stored locally.`)}
+              </span>
+            </span>
+          </button>
+
+          <label class="tts-hosting">
+            <input type="checkbox" bind:checked={hostTtsAssets} disabled={ttsProgress !== null} />
+            <span>
+              <strong>Host assets online</strong>
+              <small>Recommended — other players can see the artwork in multiplayer.</small>
+            </span>
+          </label>
+
+          {#if hostTtsAssets}
+            <p class="tts-note">
+              Downloads one saved-object JSON whose generated assets use public links. Put the JSON
+              in Tabletop Simulator’s Saved Objects folder; no image folder is needed.
+            </p>
+            <p class="tts-note account-note">
+              {#if auth.isAnonymous}
+                These hosted assets belong to this browser’s temporary identity. Sign in from Account
+                if you want to keep control of them after clearing browser data or changing devices.
+              {:else if auth.signedIn}
+                Hosted assets are managed under your signed-in account.
+              {:else}
+                Your first online export creates a temporary identity for this browser. You can connect
+                it to an account later without moving the assets.
+              {/if}
+            </p>
+            {#if !ttsOnlineAvailable}
+              <p class="warning">
+                Online hosting is not configured for this copy of Unmatched Labs. Turn this option off
+                to make a local export.
+              </p>
+            {/if}
+          {:else}
+            <p class="tts-note">
+              Unzip and copy the <strong>entire folder</strong> into Tabletop Simulator’s Saved Objects
+              folder. Other players cannot see local artwork until you upload it through TTS Cloud Manager.
+            </p>
+
+            <label class="saved-objects">
+              <span class="saved-objects-label">Your Tabletop Simulator Saved Objects folder</span>
+              <TextInput
+                bind:value={savedObjectsPath}
+                onchange={saveSavedObjectsPath}
+                placeholder="C:\Users\you\Documents\My Games\Tabletop Simulator\Saves\Saved Objects"
+              />
+              <span class="saved-objects-hint">
+                Saved on this device so future local exports can use it automatically.
+              </span>
+            </label>
+          {/if}
+
+          {#if ttsResult}
+            {#if ttsResult.hosting === 'online'}
+              <p class="landed hosted-result">
+                Hosted {ttsResult.uploadedCount} new
+                {ttsResult.uploadedCount === 1 ? 'asset' : 'assets'}; reused {ttsResult.reusedCount}
+                unchanged {ttsResult.reusedCount === 1 ? 'asset' : 'assets'}.
+              </p>
+            {:else if ttsResult.directory}
+              <p class="landed">{ttsResult.directory}</p>
+              {#if ttsResult.removedCount > 0}
+                <p class="landed">
+                  Cleared {ttsResult.removedCount} superseded
+                  {ttsResult.removedCount === 1 ? 'file' : 'files'}.
+                </p>
+              {/if}
+            {/if}
+            {#each ttsResult.warnings as warning, index (index)}
+              <p class="warning">{warning}</p>
+            {/each}
+          {/if}
+        </div>
+      </div>
+    </section>
+
+    <section class="export-group" aria-labelledby="project-export-title">
+      <header class="group-heading">
+        <span class="group-icon"><Icon name="save" size={17} /></span>
+        <div>
+          <h4 id="project-export-title">Editable project file</h4>
+          <p>Keep a portable Unmatched Labs file for backup, transfer or further editing.</p>
+        </div>
+      </header>
+
+      <div class="group-actions">
+        {#each EXPORTERS as exporter (exporter.id)}
+          <button
+            type="button"
+            class="export"
+            disabled={!exporter.available}
+            onclick={() => runExport(exporter.id)}
+          >
+            <Icon name="download" size={14} />
+            <span class="export-text">
+              <span class="export-label">{exportLabel(exporter)}</span>
+              <span class="export-hint">
+                {exporter.available ? exportDescription(exporter) : 'Not built yet'}
+              </span>
+            </span>
+          </button>
+        {/each}
+      </div>
+    </section>
   </div>
-
-  <!--
-    The print sheets are a screen rather than a file, so they sit with the
-    exports but do not go through `EXPORTERS`: what they produce is paper, and
-    the browser's own dialogue is what produces it.
-  -->
-  {#if onprint}
-    <button type="button" class="export" onclick={printSheets}>
-      <Icon name="printer" size={13} />
-      <span class="export-text">
-        <span class="export-label">Print sheets</span>
-        <span class="export-hint">
-          Cards laid out at true size on A4 or Letter, with a printer-friendly
-          black-and-white mode.
-        </span>
-      </span>
-    </button>
-  {/if}
-
-  {#each EXPORTERS as exporter (exporter.id)}
-    <button
-      type="button"
-      class="export"
-      disabled={!exporter.available}
-      onclick={() => runExport(exporter.id)}
-    >
-      <Icon name="download" size={13} />
-      <span class="export-text">
-        <span class="export-label">{exportLabel(exporter)}</span>
-        <span class="export-hint">
-          {exporter.available ? exportDescription(exporter) : 'Not built yet'}
-        </span>
-      </span>
-    </button>
-  {/each}
 
   {#if message}<p class="message" class:error={messageKind === 'error'}>{message}</p>{/if}
 </div>
@@ -480,17 +523,120 @@
   .exports {
     display: flex;
     flex-direction: column;
-    gap: var(--space-1);
+    gap: var(--space-4);
+  }
+
+  .selection-step,
+  .export-group {
+    overflow: hidden;
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-md);
+    background: var(--surface-raised);
+  }
+
+  .selection-step {
+    padding: var(--space-3);
+    background: var(--surface-sunken);
+  }
+
+  .step-heading,
+  .group-heading {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-3);
+  }
+
+  .step-heading h3,
+  .step-heading p,
+  .group-heading h4,
+  .group-heading p {
+    margin: 0;
+  }
+
+  .step-heading h3 {
+    font-size: var(--text-sm);
+    font-weight: var(--weight-semibold);
+    color: var(--text-primary);
+  }
+
+  .step-heading p,
+  .group-heading p {
+    margin-top: 2px;
+    font-size: var(--text-2xs);
+    line-height: var(--leading-normal);
+    color: var(--text-muted);
+    text-wrap: pretty;
+  }
+
+  .step-number {
+    display: grid;
+    width: 24px;
+    height: 24px;
+    flex: none;
+    place-items: center;
+    border-radius: var(--radius-full);
+    background: var(--accent-soft);
+    color: var(--text-accent);
+    font-size: var(--text-xs);
+    font-weight: var(--weight-bold);
+  }
+
+  .selection-controls {
+    display: grid;
+    gap: var(--space-2);
+    padding-top: var(--space-3);
+    margin-top: var(--space-3);
+    border-top: 1px solid var(--border-default);
+  }
+
+  .output-heading {
+    padding: 0 var(--space-1);
+  }
+
+  .export-groups {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+  }
+
+  .group-heading {
+    padding: var(--space-3);
+    border-bottom: 1px solid var(--border-subtle);
+    background: var(--surface-sunken);
+  }
+
+  .group-heading h4 {
+    font-size: var(--text-sm);
+    font-weight: var(--weight-semibold);
+    color: var(--text-primary);
+  }
+
+  .group-icon {
+    display: grid;
+    width: 28px;
+    height: 28px;
+    flex: none;
+    place-items: center;
+    border: 1px solid var(--border-accent);
+    border-radius: var(--radius-sm);
+    background: var(--accent-soft);
+    color: var(--text-accent);
+  }
+
+  .group-actions {
+    display: flex;
+    flex-direction: column;
+    padding: var(--space-1);
+  }
+
+  .group-actions > :not(:first-child) {
+    border-top: 1px solid var(--border-subtle);
   }
 
   .scope {
     display: flex;
     flex-direction: column;
     gap: var(--space-1);
-    padding: var(--space-2);
-    padding-bottom: var(--space-3);
-    margin-bottom: var(--space-1);
-    border-bottom: 1px solid var(--border-subtle);
   }
 
   .scope-label {
@@ -504,46 +650,96 @@
     color: var(--text-muted);
   }
 
-  .customize {
+  .scope-summary {
     display: flex;
-    align-items: center;
-    gap: var(--space-2);
-    padding: var(--space-2);
-    padding-bottom: var(--space-3);
-    margin-bottom: var(--space-1);
-    border-bottom: 1px solid var(--border-subtle);
-    color: var(--text-tertiary);
-    font-size: var(--text-xs);
-    text-align: left;
-    transition: color var(--duration-fast) var(--ease-out);
+    flex-direction: column;
+    gap: 2px;
   }
 
-  .customize:hover {
+  .scope-summary strong {
+    font-size: var(--text-sm);
+    font-weight: var(--weight-semibold);
     color: var(--text-primary);
   }
 
-  /* The bleed choice belongs to the button above it, so they share a box. */
+  .customize {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: center;
+    gap: var(--space-2);
+    padding: var(--space-2) var(--space-3);
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-sm);
+    background: var(--surface-raised);
+    color: var(--text-secondary);
+    text-align: left;
+    transition:
+      border-color var(--duration-fast) var(--ease-out),
+      background-color var(--duration-fast) var(--ease-out);
+  }
+
+  .customize > span {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    gap: 1px;
+  }
+
+  .customize strong {
+    font-size: var(--text-xs);
+    font-weight: var(--weight-semibold);
+    color: var(--text-primary);
+  }
+
+  .customize small {
+    font-size: var(--text-2xs);
+    line-height: var(--leading-normal);
+    color: var(--text-muted);
+  }
+
+  .customize:hover {
+    border-color: var(--border-accent);
+    background: var(--surface-hover);
+  }
+
   .bundle {
     display: flex;
     flex-direction: column;
     gap: var(--space-1);
-    padding-bottom: var(--space-2);
-    margin-bottom: var(--space-1);
-    border-bottom: 1px solid var(--border-subtle);
   }
 
   .bleed {
     display: flex;
-    align-items: center;
+    align-items: flex-start;
     gap: var(--space-2);
-    padding-left: var(--space-2);
-    font-size: var(--text-xs);
-    color: var(--text-muted);
+    margin: 0 var(--space-2) var(--space-2);
+    padding: var(--space-2);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-sm);
+    color: var(--text-secondary);
     cursor: pointer;
   }
 
   .bleed input {
+    margin-top: 2px;
     accent-color: var(--accent-press);
+  }
+
+  .bleed > span {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+  }
+
+  .bleed strong {
+    font-size: var(--text-xs);
+    font-weight: var(--weight-semibold);
+  }
+
+  .bleed small {
+    font-size: var(--text-2xs);
+    line-height: var(--leading-normal);
+    color: var(--text-muted);
   }
 
   .bleed:has(input:disabled) {

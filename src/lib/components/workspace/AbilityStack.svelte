@@ -10,14 +10,17 @@
   import { CARD_SYMBOLS, CARD_SYMBOL_LABELS } from '$lib/renderer/assets';
   import type { CardSymbolName } from '$lib/renderer/assets';
   import type { CardTheme } from '$lib/cards/style';
-  import { ABILITY_TIMING_LABELS, ABILITY_TIMINGS } from '$lib/cards/types';
-  import type { AbilityBlocks } from '$lib/cards/types';
-  import type { StyleTarget } from '$lib/state/workshop.svelte';
-  import { workshop } from '$lib/state/workshop.svelte';
+  import {
+    ABILITY_TIMING_LABELS,
+    ABILITY_TIMINGS,
+    createBonusAbility,
+    MAX_BONUS_ABILITIES
+  } from '$lib/cards/types';
+  import type { AbilityBlocks, BonusAbility } from '$lib/cards/types';
   import type { CustomSymbol } from '$lib/symbols/types';
   import { customSymbolLabel } from '$lib/symbols/types';
   import { customSymbolToken, symbolToken } from '$lib/text/tokens';
-  import { ColorInput, Slider } from '$lib/ui';
+  import { ColorInput, Slider, Switch } from '$lib/ui';
   import AbilityField from './AbilityField.svelte';
   import EditorSection from './EditorSection.svelte';
 
@@ -28,17 +31,9 @@
     hint?: string;
     ability: AbilityBlocks;
     onchange: (patch: Partial<AbilityBlocks>) => void;
-    /** For the Bonus ability colour and the ability text size, below. */
-    target: StyleTarget;
+    /** Theme values are inherited until one Bonus ability overrides them. */
     resolved: CardTheme;
     originFor: (key: keyof CardTheme) => string;
-    /**
-     * A split card's two stacks share one size and one Bonus ability colour
-     * — both are printed the same whichever side they are on — so showing
-     * the controls twice would just be the same value in two places. Off on
-     * every stack but the first.
-     */
-    textStyle?: boolean;
     /** Author-uploaded glyphs, offered in every block's symbol palette. */
     customSymbols?: CustomSymbol[];
   }
@@ -49,16 +44,30 @@
     hint,
     ability,
     onchange,
-    target,
     resolved,
     originFor,
-    textStyle = true,
     customSymbols = []
   }: Props = $props();
 
-  const layer = $derived(workshop.styleFor(target) ?? {});
-
   const SYMBOL_NAMES = Object.keys(CARD_SYMBOLS) as CardSymbolName[];
+
+  function updateBonus(index: number, patch: Partial<BonusAbility>): void {
+    onchange({
+      bonusAbilities: ability.bonusAbilities.map((bonus, at) =>
+        at === index ? { ...bonus, ...patch } : bonus
+      )
+    });
+  }
+
+  function addBonus(): void {
+    if (ability.bonusAbilities.length >= MAX_BONUS_ABILITIES) return;
+    onchange({ bonusAbilities: [...ability.bonusAbilities, createBonusAbility()] });
+  }
+
+  function removeBonus(index: number): void {
+    if (index === 0) return;
+    onchange({ bonusAbilities: ability.bonusAbilities.filter((_, at) => at !== index) });
+  }
 </script>
 
 <EditorSection {title} {hint}>
@@ -109,93 +118,121 @@
     {/each}
   </div>
 
-  <!-- Printed last, below After Combat, with no label — see `AbilityBlocks.bonusAbility`. -->
-  <AbilityField
-    label="Bonus ability"
-    value={ability.bonusAbility}
-    rows={2}
-    formatted
-    placeholder="An extra ability, printed below After Combat…"
-    onchange={(value) => onchange({ bonusAbility: value })}
-    {customSymbols}
-  />
+  <div class="bonus-abilities">
+    {#each ability.bonusAbilities as bonus, index}
+      <section class="bonus-ability">
+        <div class="bonus-heading">
+          <span class="bonus-title">
+            {index === 0 ? 'Bonus ability' : `Bonus ability ${index + 1}`}
+          </span>
+          {#if index > 0}
+            <button
+              type="button"
+              class="remove-bonus"
+              aria-label="Remove Bonus ability {index + 1}"
+              onclick={() => removeBonus(index)}
+            >
+              Remove
+            </button>
+          {/if}
+        </div>
 
-  <!--
-    A larger icon printed beside the Bonus ability paragraph, in its own
-    column rather than inline with the text — a select-one control, unlike
-    the insert-at-caret palette on the field above. Per side, not gated by
-    `textStyle`, since it travels with this side's own Bonus ability text.
-  -->
-  <div class="bonus-icon-picker" role="group" aria-label="Bonus ability icon">
-    <span class="bonus-icon-label">Bonus icon</span>
-    <button
-      type="button"
-      class="icon-choice"
-      class:active={!ability.bonusIcon}
-      onclick={() => onchange({ bonusIcon: '' })}
-    >
-      None
-    </button>
-    {#each SYMBOL_NAMES as name (name)}
-      <button
-        type="button"
-        class="icon-choice"
-        class:active={ability.bonusIcon === symbolToken(name)}
-        onclick={() => onchange({ bonusIcon: symbolToken(name) })}
-      >
-        <img src={CARD_SYMBOLS[name]} alt="" />
-        {CARD_SYMBOL_LABELS[name]}
-      </button>
-    {/each}
-    {#each customSymbols.filter((s) => s.source) as symbol (symbol.id)}
-      <button
-        type="button"
-        class="icon-choice"
-        class:active={ability.bonusIcon === customSymbolToken(symbol.id)}
-        onclick={() => onchange({ bonusIcon: customSymbolToken(symbol.id) })}
-      >
-        <img src={symbol.source} alt="" />
-        {customSymbolLabel(symbol)}
-      </button>
-    {/each}
-  </div>
-
-  {#if textStyle}
-    <div class="text-style">
-      <label class="ink">
-        <span class="ink-label">Bonus ability colour</span>
-        <ColorInput
-          value={layer.bonusAbilityInk}
-          inherited={resolved.bonusAbilityInk}
-          origin={originFor('bonusAbilityInk')}
-          onchange={(value) => workshop.setStyle(target, 'bonusAbilityInk', value)}
+        <Switch
+          label="Divider above"
+          hint="Draw a line in this Bonus ability's colour."
+          checked={bonus.showDivider}
+          onchange={(showDivider) => updateBonus(index, { showDivider })}
         />
-      </label>
 
-      <Slider
-        label="Ability text size"
-        value={resolved.abilityFontSize}
-        min={50}
-        max={130}
-        step={1}
-        neutral={90}
-        format={(value) => `${Math.round(value)}`}
-        onchange={(abilityFontSize) => workshop.setStyle(target, 'abilityFontSize', abilityFontSize)}
-      />
+        <AbilityField
+          label="Bonus ability text"
+          value={bonus.text}
+          rows={2}
+          formatted
+          placeholder="An extra ability, printed below After Combat…"
+          onchange={(text) => updateBonus(index, { text })}
+          {customSymbols}
+        />
 
-      <!-- The icon's size, not its choice — see `AbilityBlocks.bonusIcon` for that. -->
-      <Slider
-        label="Bonus icon size"
-        value={resolved.bonusIconSize}
-        min={1}
-        max={4}
-        step={0.1}
-        neutral={2.1}
-        format={(value) => value.toFixed(1)}
-        onchange={(bonusIconSize) => workshop.setStyle(target, 'bonusIconSize', bonusIconSize)}
-      />
-    </div>
-  {/if}
+        <!-- A block decoration rather than an insert-at-caret symbol. -->
+        <div
+          class="bonus-icon-picker"
+          role="group"
+          aria-label="Bonus ability {index + 1} icon"
+        >
+          <span class="bonus-icon-label">Bonus icon</span>
+          <button
+            type="button"
+            class="icon-choice"
+            class:active={!bonus.icon}
+            onclick={() => updateBonus(index, { icon: '' })}
+          >
+            None
+          </button>
+          {#each SYMBOL_NAMES as name (name)}
+            <button
+              type="button"
+              class="icon-choice"
+              class:active={bonus.icon === symbolToken(name)}
+              onclick={() => updateBonus(index, { icon: symbolToken(name) })}
+            >
+              <img src={CARD_SYMBOLS[name]} alt="" />
+              {CARD_SYMBOL_LABELS[name]}
+            </button>
+          {/each}
+          {#each customSymbols.filter((symbol) => symbol.source) as symbol (symbol.id)}
+            <button
+              type="button"
+              class="icon-choice"
+              class:active={bonus.icon === customSymbolToken(symbol.id)}
+              onclick={() => updateBonus(index, { icon: customSymbolToken(symbol.id) })}
+            >
+              <img src={symbol.source} alt="" />
+              {customSymbolLabel(symbol)}
+            </button>
+          {/each}
+        </div>
+
+        <div class="text-style">
+          <label class="ink">
+            <span class="ink-label">Bonus ability colour</span>
+            <ColorInput
+              value={bonus.ink ?? undefined}
+              inherited={resolved.bonusAbilityInk}
+              origin={originFor('bonusAbilityInk')}
+              onchange={(ink) => updateBonus(index, { ink: ink ?? null })}
+            />
+          </label>
+
+          <Slider
+            label="Ability text size"
+            value={bonus.textSize ?? resolved.abilityFontSize}
+            min={50}
+            max={130}
+            step={1}
+            neutral={resolved.abilityFontSize}
+            format={(value) => `${Math.round(value)}`}
+            onchange={(textSize) => updateBonus(index, { textSize })}
+          />
+
+          <Slider
+            label="Bonus icon size"
+            value={bonus.iconSize ?? resolved.bonusIconSize}
+            min={1}
+            max={4}
+            step={0.1}
+            neutral={resolved.bonusIconSize}
+            format={(value) => value.toFixed(1)}
+            onchange={(iconSize) => updateBonus(index, { iconSize })}
+          />
+        </div>
+      </section>
+    {/each}
+
+    {#if ability.bonusAbilities.length < MAX_BONUS_ABILITIES}
+      <button type="button" class="add-bonus" onclick={addBonus}>+ Bonus Ability</button>
+    {/if}
+  </div>
 </EditorSection>
 
 <style>
@@ -237,6 +274,52 @@
     align-items: center;
     flex-wrap: wrap;
     gap: var(--space-2);
+  }
+
+  .bonus-abilities {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+  }
+
+  .bonus-ability {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    padding: var(--space-3);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-sm);
+    background: var(--surface-inset);
+  }
+
+  .bonus-heading {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
+  }
+
+  .bonus-title {
+    font-size: var(--text-xs);
+    font-weight: var(--weight-semibold);
+    color: var(--text-secondary);
+  }
+
+  .remove-bonus,
+  .add-bonus {
+    width: fit-content;
+    font-size: var(--text-xs);
+    color: var(--text-muted);
+  }
+
+  .remove-bonus:hover,
+  .add-bonus:hover {
+    color: var(--text-primary);
+  }
+
+  .add-bonus {
+    padding: var(--space-1) 0;
+    color: var(--text-accent);
   }
 
   .bonus-icon-label {

@@ -258,7 +258,7 @@ export const GUIDES: readonly Guide[] = [
       },
       {
         text:
-          'A Bonus ability — the colored text printed last on the card — can carry a larger icon of its own beside the text, picked the same way. Its size is independent of everywhere else the symbol appears: the "Bonus icon size" slider only scales this one instance, so the same upload can sit small inside a sentence and large beside the bonus ability on the very same card.',
+          'A card can carry up to two Bonus abilities — the coloured paragraphs printed after its ordinary ability — and each can have a larger icon and an optional divider of its own. Its divider, colour, text size and icon size belong only to that Bonus ability, so adjusting one never changes ordinary ability copy or the other Bonus ability.',
         shot: 'custom-symbols/04-bonus.webp',
         alt: 'The Bonus icon picker with Hook selected and its size slider, next to the printed card showing a large Hook glyph beside the bonus ability text.',
         hotspots: [

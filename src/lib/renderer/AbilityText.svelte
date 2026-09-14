@@ -5,12 +5,13 @@
    * Inline `{{attack}}` tokens become print-resolution symbols, and `{{name}}`
    * becomes whoever the card belongs to.
    */
-  import type { AbilityBlocks } from '$lib/cards/types';
+  import type { AbilityBlocks, BonusAbility } from '$lib/cards/types';
   import { ABILITY_TIMING_LABELS, usedTimings } from '$lib/cards/types';
   import type { CustomSymbol } from '$lib/symbols/types';
   import { actionTextIsEmpty, renderActionText } from '$lib/text/action-text';
   import { parseAbilityText } from '$lib/text/tokens';
   import { symbolUrl } from './assets';
+  import { BONUS_ABILITY_DIVIDER_HEIGHT, pu } from './geometry';
 
   interface Props {
     ability: AbilityBlocks;
@@ -18,9 +19,9 @@
     placeholder?: string;
     /** What `{{name}}` prints as — the figure this card belongs to. */
     subject?: string;
-    /** Ink for the Bonus ability line. Defaults to whatever `.ability` inherits. */
+    /** Inherited defaults; an individual Bonus ability may override each one. */
     bonusInk?: string;
-    /** `CardTheme.bonusIconSize` — the Bonus icon's height, in multiples of the ability text size. */
+    bonusTextSize?: number;
     bonusIconSize?: number;
     /** The set's author-uploaded glyphs, for resolving `{{custom:…}}` tokens. */
     customSymbols?: CustomSymbol[];
@@ -31,34 +32,37 @@
     placeholder = 'Ability text appears here.',
     subject = 'Villain Name',
     bonusInk,
+    bonusTextSize = 90,
     bonusIconSize = 2.1,
     customSymbols = []
   }: Props = $props();
 
   const timings = $derived(usedTimings(ability));
   const hasPlain = $derived(!actionTextIsEmpty(ability.plain));
-  const hasBonus = $derived(!actionTextIsEmpty(ability.bonusAbility));
-  const empty = $derived(!hasPlain && !hasBonus && timings.length === 0);
+  const bonuses = $derived(
+    ability.bonusAbilities.filter((bonus) => !actionTextIsEmpty(bonus.text))
+  );
+  const empty = $derived(!hasPlain && bonuses.length === 0 && timings.length === 0);
 
   /**
-   * Resolved the same way an inline `{{token}}` is — `bonusIcon` is stored as
+   * Resolved the same way an inline `{{token}}` is — `BonusAbility.icon` stores
    * that same token string rather than a separate reference type, so it runs
    * through the same built-in/custom-symbol lookup, just read once
    * instead of per glyph in a run of text.
    */
-  const bonusIconSrc = $derived.by(() => {
-    if (!ability.bonusIcon) return null;
-    const [segment] = parseAbilityText(ability.bonusIcon);
+  function bonusIconSource(bonus: BonusAbility): string | null {
+    if (!bonus.icon) return null;
+    const [segment] = parseAbilityText(bonus.icon);
     if (segment?.kind === 'symbol') return symbolUrl(segment.name);
     if (segment?.kind === 'customSymbol') {
       return customSymbols.find((s) => s.id === segment.id)?.source ?? null;
     }
     return null;
-  });
+  }
 </script>
 
 <!-- `renderActionText` sanitises the stored inline HTML before this insertion. -->
-<div class="ability">
+<div class="ability" style:--bonus-divider-thickness={pu(BONUS_ABILITY_DIVIDER_HEIGHT)}>
   {#if empty}
     {#if placeholder}
       <p class="line placeholder">{placeholder}</p>
@@ -75,14 +79,25 @@
       </p>
     {/each}
 
-    {#if hasBonus}
-      <p class="line bonus" style:color={bonusInk}>
+    {#each bonuses as bonus}
+      {@const bonusIconSrc = bonusIconSource(bonus)}
+      <p
+        class="line bonus"
+        class:with-divider={bonus.showDivider}
+        style:color={bonus.ink ?? bonusInk}
+        style:font-size={`${(bonus.textSize ?? bonusTextSize) / 90}em`}
+      >
         {#if bonusIconSrc}
-          <img class="bonus-icon" src={bonusIconSrc} alt="" style:height="{bonusIconSize}em" />
+          <img
+            class="bonus-icon"
+            src={bonusIconSrc}
+            alt=""
+            style:height={`${bonus.iconSize ?? bonusIconSize}em`}
+          />
         {/if}
-        <span>{@html renderActionText(ability.bonusAbility, subject, customSymbols)}</span>
+        <span>{@html renderActionText(bonus.text, subject, customSymbols)}</span>
       </p>
-    {/if}
+    {/each}
   {/if}
 </div>
 
@@ -127,9 +142,16 @@
     gap: 0.35em;
   }
 
+  .line.bonus.with-divider {
+    /* The rule belongs to the paragraph, so it automatically follows that
+       Bonus ability's colour without gaining a second colour control. */
+    border-top: var(--bonus-divider-thickness) solid currentColor;
+    padding-top: 0.4em;
+  }
+
   .bonus-icon {
     flex: 0 0 auto;
-    /* Height set inline from `CardTheme.bonusIconSize` — see the prop above. */
+    /* Height set inline from this Bonus ability's effective icon size. */
     width: auto;
     object-fit: contain;
   }

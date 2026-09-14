@@ -14,8 +14,10 @@ import {
   CARD_OWNERS,
   COMBAT_SYMBOLS,
   createAbilityBlocks,
+  createBonusAbility,
   createHeadingPlacement,
-  HEADING_ALIGNMENTS
+  HEADING_ALIGNMENTS,
+  MAX_BONUS_ABILITIES
 } from '$lib/cards/types';
 import type {
   AdventureMap,
@@ -44,6 +46,7 @@ import {
 } from '$lib/map/types';
 import type {
   ActionCard,
+  BonusAbility,
   Card,
   CardOwner,
   CombatSymbol,
@@ -314,15 +317,36 @@ function cardback(value: unknown, role: string) {
   };
 }
 
+function bonusAbility(value: unknown): BonusAbility {
+  const raw = asRecord(value);
+  const textSize = nullableNum(raw['textSize'], null);
+  const iconSize = nullableNum(raw['iconSize'], null);
+  return createBonusAbility({
+    text: str(raw['text']),
+    icon: str(raw['icon']),
+    showDivider: bool(raw['showDivider'], false),
+    ink: typeof raw['ink'] === 'string' && raw['ink'] !== '' ? raw['ink'] : null,
+    textSize: textSize === null ? null : Math.min(130, Math.max(50, textSize)),
+    iconSize: iconSize === null ? null : Math.min(4, Math.max(1, iconSize))
+  });
+}
+
 function abilityBlocks(value: unknown) {
   const raw = asRecord(value);
+  /* v59 and earlier stored one Bonus ability as two sibling strings. It becomes
+     the first entry with inherited presentation, preserving both its copy and
+     the card-theme values that already styled it. */
+  const rawBonuses = Array.isArray(raw['bonusAbilities'])
+    ? raw['bonusAbilities']
+    : [{ text: raw['bonusAbility'], icon: raw['bonusIcon'] }];
   return createAbilityBlocks({
     plain: str(raw['plain']),
     immediately: str(raw['immediately']),
     duringCombat: str(raw['duringCombat']),
     afterCombat: str(raw['afterCombat']),
-    bonusAbility: str(raw['bonusAbility']),
-    bonusIcon: str(raw['bonusIcon'])
+    bonusAbilities: rawBonuses
+      .slice(0, MAX_BONUS_ABILITIES)
+      .map((bonus) => bonusAbility(bonus))
   });
 }
 

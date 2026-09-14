@@ -250,18 +250,13 @@ export interface CardTheme {
   tuckEffect: Fill;
   tuckEffectInk: string;
   /**
-   * The Bonus ability line, printed last on an action card's ability text —
-   * its own ink rather than `bodyInk`, since it is meant to stand apart from
-   * the timed blocks above it.
+   * Inherited ink for Bonus abilities. An individual entry can override it
+   * without changing its neighbour or the ordinary ability copy.
    */
   bonusAbilityInk: string;
   /**
-   * `AbilityBlocks.bonusIcon`'s printed height, in multiples of the ability
-   * text's own font size — the same unit `AbilityText.svelte`'s `.bonus-icon`
-   * already sizes itself in, just promoted from a fixed constant to a themed
-   * one. Shared across a split card's two sides, like `bonusAbilityInk` and
-   * `abilityFontSize` below, since it is a look rather than content — the
-   * icon *choice* stays per side, on `AbilityBlocks` itself.
+   * Inherited Bonus icon height, in multiples of that Bonus ability's own text
+   * size. Individual entries override it alongside their icon choice.
    */
   bonusIconSize: number;
   /**
@@ -273,11 +268,10 @@ export interface CardTheme {
    */
   ribbonSymbolSize: number;
   /**
-   * Ability text size on an action card, in the same "artwork units" every
-   * other measured size in `renderer/geometry.ts` is expressed in — see
-   * `ABILITY.size` there, which this overrides. A temporary dial rather than
-   * a genuine author-facing surface: it exists to find the right printed
-   * size by eye, not to let two cards in one set carry different ones.
+   * Inherited Bonus ability text size, in the same artwork units as
+   * `renderer/geometry.ts`. The persisted name predates repeatable Bonus
+   * abilities; ordinary ability copy now stays at `ABILITY.size` while each
+   * Bonus entry can override this default independently.
    */
   abilityFontSize: number;
   /** Pattern laid over the body panel. */

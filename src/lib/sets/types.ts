@@ -430,10 +430,24 @@ export type SetId = Id<'Set'>;
  *      and author credit to be hidden without discarding their content. Older
  *      boards default on; older builds would discard the visibility choice.
  *
+ * v60 — an action-card ability's single `bonusAbility`/`bonusIcon` pair became
+ *      an ordered list of up to two Bonus abilities. Each entry may override
+ *      its own ink, text size and icon size while inheriting the old card-theme
+ *      values when unset. Older documents repair their existing Bonus ability
+ *      into the first entry; older builds would discard the second entry and
+ *      every per-entry presentation choice. Ordinary ability copy now stays at
+ *      its measured template size instead of following `abilityFontSize`, which
+ *      remains the inherited Bonus ability text-size default.
+ *
+ * v61 — each Bonus ability gained `showDivider`, an optional rule immediately
+ *      above that paragraph in its own effective ink. Older documents default
+ *      it off, preserving their existing composition; older builds would
+ *      silently discard the choice.
+ *
  * Older documents are *repaired*, not rejected — see `sets/normalize.ts`. Only
  * a version newer than this build understands is refused.
  */
-export const SET_SCHEMA_VERSION = 59;
+export const SET_SCHEMA_VERSION = 61;
 
 /**
  * What a set is for.

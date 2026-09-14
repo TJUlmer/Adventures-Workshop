@@ -39,7 +39,10 @@ import type {
   ReusableCardPreviews
 } from './card-previews';
 import { renderSocialImage, SOCIAL_IMAGE_RENDERER_VERSION } from './social-image';
-import { renderThumbnail } from './thumbnail';
+import {
+  AUTOMATIC_BOX_THUMBNAIL_STEM,
+  renderThumbnailWithKind
+} from './thumbnail';
 import { ASSET_BUCKET, cloudConfig } from './config';
 import { CloudError, endpoint, headers, request } from './http';
 
@@ -63,7 +66,7 @@ export interface PublishedSet {
   visibility: Visibility;
   created_at: string;
   updated_at: string;
-  /** Small cover for a gallery tile. Empty when the set has no artwork. */
+  /** Small gallery cover: authored art, or an automatic full-product compilation. */
   thumbnail_url: string;
   /**
    * The picture a link unfurler shows — Discord, Slack, and the rest. See
@@ -492,8 +495,16 @@ export async function publishSet(
    */
   let thumbnailUrl = '';
   try {
-    const thumbnail = await renderThumbnail(scoped);
-    if (thumbnail) thumbnailUrl = await uploadBlob(thumbnail, user.id, set.id, 'thumb');
+    const thumbnail = await renderThumbnailWithKind(scoped, {
+      // A villain slice remains `kind: 'adventure'`, but it is one side of a
+      // product rather than a box to advertise in its own right.
+      automaticBoxArt: scope.kind === 'full'
+    });
+    if (thumbnail) {
+      const stem =
+        thumbnail.kind === 'automatic-box' ? AUTOMATIC_BOX_THUMBNAIL_STEM : 'thumb';
+      thumbnailUrl = await uploadBlob(thumbnail.blob, user.id, set.id, stem);
+    }
   } catch {
     thumbnailUrl = '';
   }

@@ -45,6 +45,7 @@
   let status = $state<string | null>(null);
   let error = $state<string | null>(null);
   let busy = $state(false);
+  let publishing = $state(false);
   let copied = $state(false);
   let size = $state<{ assets: number; bytes: number } | null>(null);
   let changeNote = $state('');
@@ -149,15 +150,32 @@
    * Listed first because it is the default, and a list whose default is in the
    * middle reads as though something else was expected of you.
    */
-  const visibilityOptions = $derived(
+  const sharingOptions = $derived(
     [
       ...(auth.isAnonymous
         ? []
-        : [{ value: 'public' as const, label: 'Listed publicly' }]),
-      { value: 'unlisted' as const, label: 'Anyone with the link' },
-      { value: 'private' as const, label: 'Only me — link stops working' }
+        : [{ value: 'public' as const, label: 'Public — visible in the Gallery' }]),
+      { value: 'unlisted' as const, label: 'Private link — shared by invitation' }
     ]
   );
+
+  /* Hidden is a state for an existing publication, not a useful way to create
+     one. It preserves the row, revision and stable link so the author can put
+     it back later, while making it inaccessible to everyone else. */
+  const publishedVisibilityOptions = $derived([
+    ...sharingOptions,
+    { value: 'private' as const, label: 'Hidden — take the published copy offline' }
+  ]);
+
+  function visibilityDescription(visibility: Visibility): string {
+    if (visibility === 'public') {
+      return 'Appears in the public Gallery. Anyone can discover it, open it and share its link.';
+    }
+    if (visibility === 'unlisted') {
+      return 'Does not appear in the Gallery. Only people given the link can find it, though they can pass that link on.';
+    }
+    return 'Takes the published copy offline without deleting it. Only you can open it until you make it Public or share it by Private link again.';
+  }
 
   /**
    * What a first publish does unless the author says otherwise.
@@ -178,6 +196,7 @@
     /* Clamped rather than trusted: `picked` survives a sign-out, so someone who
        chose "listed" while signed in and then dropped to an anonymous session
        would otherwise send a value the database is bound to refuse. */
+    if (choice === 'private') return defaultVisibility;
     return auth.isAnonymous && choice === 'public' ? 'unlisted' : choice;
   });
 
@@ -252,32 +271,38 @@
   let acknowledged = $state(false);
   const needsForkWarning = $derived(set.origin !== null && published === null && !acknowledged);
 
-  const publish = () =>
-    guard(async () => {
-      status = 'Preparing…';
-      const row = await publishSet(set, {
-        // Re-publishing keeps whatever the set already is; only a first publish
-        // takes the default, because changing visibility is its own control.
-        visibility: published?.visibility ?? wanted,
-        changeNote,
-        scope: selectedScope,
-        onProgress: (progress) => {
-          status =
-            progress.stage === 'assets'
-              ? `Uploading artwork ${progress.done} of ${progress.total}…`
-              : progress.stage === 'previews'
-                ? `Preparing gallery cards ${progress.done} of ${progress.total}…`
-                : 'Saving the set…';
-        }
+  async function publish(): Promise<void> {
+    publishing = true;
+    try {
+      await guard(async () => {
+        status = 'Preparing…';
+        const row = await publishSet(set, {
+          // Re-publishing keeps whatever the set already is; only a first publish
+          // takes the default, because changing visibility is its own control.
+          visibility: published?.visibility ?? wanted,
+          changeNote,
+          scope: selectedScope,
+          onProgress: (progress) => {
+            status =
+              progress.stage === 'assets'
+                ? `Uploading artwork ${progress.done} of ${progress.total}…`
+                : progress.stage === 'previews'
+                  ? `Preparing gallery cards ${progress.done} of ${progress.total}…`
+                  : 'Saving the set…';
+          }
+        });
+        // Replace this scope's row if it already had one, otherwise add it —
+        // the other rows in `mine` (other heroes, the villain side) are untouched.
+        mine = [...mine.filter((entry) => entry.id !== row.id), row];
+        // Cleared on success: a note describes one update, not the set.
+        changeNote = '';
+        status = 'Published.';
+        setTimeout(() => (status = null), 2500);
       });
-      // Replace this scope's row if it already had one, otherwise add it —
-      // the other rows in `mine` (other heroes, the villain side) are untouched.
-      mine = [...mine.filter((entry) => entry.id !== row.id), row];
-      // Cleared on success: a note describes one update, not the set.
-      changeNote = '';
-      status = 'Published.';
-      setTimeout(() => (status = null), 2500);
-    });
+    } finally {
+      publishing = false;
+    }
+  }
 
   const changeVisibility = (value: Visibility) =>
     guard(async () => {
@@ -386,13 +411,14 @@
         </div>
 
         <label class="option">
-          <span class="option-label">Who can see it</span>
+          <span class="option-label">Visibility</span>
           <Select
             value={published.visibility}
-            options={visibilityOptions}
+            options={publishedVisibilityOptions}
             disabled={busy}
             onchange={(value) => void changeVisibility(value)}
           />
+          <span class="visibility-hint">{visibilityDescription(published.visibility)}</span>
         </label>
 
         <!--
@@ -457,20 +483,33 @@
             until it has already happened is not a choice — it is a surprise.
           -->
           <label class="option">
-            <span class="option-label">Who can see it</span>
+            <span class="option-label">Visibility</span>
             <Select
               value={wanted}
-              options={visibilityOptions}
+              options={sharingOptions}
               disabled={busy}
               onchange={(value) => (picked = value)}
             />
+            <span class="visibility-hint">{visibilityDescription(wanted)}</span>
           </label>
 
           <Button variant="primary" disabled={busy} onclick={publish}>
             <Icon name="upload" size={13} />
-            {wanted === 'public' ? 'Publish to the gallery' : 'Publish and get a link'}
+            {wanted === 'public' ? 'Publish to the Gallery' : 'Publish with a private link'}
           </Button>
         {/if}
+      {/if}
+
+      {#if publishing}
+        <div class="caution publishing-notice" role="status" aria-live="polite">
+          <Icon name="hourglass" size={17} />
+          <div>
+            <p class="caution-title">
+              {published ? 'Updating the published copy' : 'Publishing the set'}
+            </p>
+            <p class="line">Leave this page open until publishing completes.</p>
+          </div>
+        </div>
       {/if}
 
       <div class="who">
@@ -523,6 +562,16 @@
     margin: 0;
     font-size: var(--text-xs);
     font-weight: var(--weight-semibold);
+    color: var(--warning);
+  }
+
+  .publishing-notice {
+    flex-direction: row;
+    align-items: flex-start;
+  }
+
+  .publishing-notice > :global(.icon) {
+    margin-top: 1px;
     color: var(--warning);
   }
 
@@ -641,6 +690,13 @@
   .option-label {
     font-size: var(--text-xs);
     color: var(--text-muted);
+  }
+
+  .visibility-hint {
+    font-size: var(--text-2xs);
+    line-height: var(--leading-normal);
+    color: var(--text-muted);
+    text-wrap: pretty;
   }
 
   .actions {

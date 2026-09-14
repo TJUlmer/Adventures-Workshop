@@ -15,10 +15,45 @@ export const CARD_TYPES = ['action', 'initiative', 'rules', 'event'] as const;
 export type CardType = (typeof CARD_TYPES)[number];
 
 /**
+ * One optional rules paragraph printed after the ordinary ability timings.
+ *
+ * Its presentation belongs to this one paragraph rather than to the whole card:
+ * each Bonus ability can independently show a divider and override the
+ * inherited ink, text size and icon size. `null` means to keep using the
+ * resolved card-theme default.
+ */
+export interface BonusAbility {
+  text: string;
+  /** The same `{{token}}` representation used by symbols inside ability copy. */
+  icon: string;
+  /** A rule above this paragraph, in the same effective ink as its copy. */
+  showDivider: boolean;
+  ink: string | null;
+  /** Artwork units; the measured ordinary ability size is 90. */
+  textSize: number | null;
+  /** Icon height in multiples of this Bonus ability's own text size. */
+  iconSize: number | null;
+}
+
+/** The editor intentionally offers one optional second Bonus ability, no more. */
+export const MAX_BONUS_ABILITIES = 2;
+
+export function createBonusAbility(init: Partial<BonusAbility> = {}): BonusAbility {
+  return {
+    text: '',
+    icon: '',
+    showDivider: false,
+    ink: null,
+    textSize: null,
+    iconSize: null,
+    ...init
+  };
+}
+
+/**
  * Timed ability blocks. Rendered in declaration order — plain text first, then
- * Immediately, During Combat, After Combat, then Bonus ability last — and only
- * where non-empty, which is what keeps a one-line card from printing empty
- * labels.
+ * Immediately, During Combat, After Combat, then Bonus abilities last — and
+ * only where non-empty, which keeps a one-line card from printing empty labels.
  */
 export interface AbilityBlocks {
   /** Untimed text, printed with no label. */
@@ -26,23 +61,8 @@ export interface AbilityBlocks {
   immediately: string;
   duringCombat: string;
   afterCombat: string;
-  /**
-   * Printed last, below After Combat, with no label of its own — like `plain`
-   * rather than a fourth timing, since it has no "when" to name. Kept out of
-   * `ABILITY_TIMINGS` because it also takes its own ink
-   * (`CardTheme.bonusAbilityInk`) instead of sharing the rest of the block's
-   * colour, which is what sets it apart on the card without a label.
-   */
-  bonusAbility: string;
-  /**
-   * A larger icon printed beside the Bonus ability paragraph, in its own
-   * column rather than inline with the text — unlike every other symbol in
-   * ability copy. Stored as the same `{{token}}` string an inline symbol
-   * would use (`{{attack}}`, `{{custom:<id>}}`), so it resolves through the
-   * same `parseAbilityText`/`TEXT_SYMBOLS`/`CustomSymbol` machinery instead
-   * of a second symbol-reference type. Empty string prints no icon.
-   */
-  bonusIcon: string;
+  /** Printed last, in author order, without timing labels of their own. */
+  bonusAbilities: BonusAbility[];
 }
 
 export const ABILITY_TIMINGS = ['immediately', 'duringCombat', 'afterCombat'] as const;
@@ -55,14 +75,19 @@ export const ABILITY_TIMING_LABELS: Readonly<Record<AbilityTiming, string>> = {
 } as const;
 
 export function createAbilityBlocks(init: Partial<AbilityBlocks> = {}): AbilityBlocks {
+  const bonusAbilities =
+    init.bonusAbilities && init.bonusAbilities.length > 0
+      ? init.bonusAbilities
+          .slice(0, MAX_BONUS_ABILITIES)
+          .map((bonus) => createBonusAbility(bonus))
+      : [createBonusAbility()];
   return {
     plain: '',
     immediately: '',
     duringCombat: '',
     afterCombat: '',
-    bonusAbility: '',
-    bonusIcon: '',
-    ...init
+    ...init,
+    bonusAbilities
   };
 }
 
@@ -88,7 +113,7 @@ export function usedTimings(ability: AbilityBlocks): AbilityTiming[] {
 export function abilityIsEmpty(ability: AbilityBlocks): boolean {
   return (
     !actionTextHasContent(ability.plain) &&
-    !actionTextHasContent(ability.bonusAbility) &&
+    ability.bonusAbilities.every((bonus) => !actionTextHasContent(bonus.text)) &&
     ABILITY_TIMINGS.every((timing) => !actionTextHasContent(ability[timing]))
   );
 }
@@ -203,7 +228,7 @@ export interface ActionCard extends CardCommon {
    * unbroken line with no glyph in it, and `''` then means an empty foot
    * rather than no foot at all.
    *
-   * `ribbonSymbol` is a token string, exactly like `AbilityBlocks.bonusIcon`
+   * `ribbonSymbol` is a token string, exactly like `BonusAbility.icon`,
    * and resolved through the same `parseAbilityText` lookup, so a built-in
    * and an author's own glyph are the same kind of thing here.
    */

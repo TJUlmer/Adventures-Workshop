@@ -226,8 +226,7 @@
           immediately: '',
           duringCombat: '',
           afterCombat: '',
-          bonusAbility: '',
-          bonusIcon: ''
+          bonusAbilities: []
         }}
         subject={abilitySubject}
         {customSymbols}
@@ -294,8 +293,7 @@
           immediately: '',
           duringCombat: '',
           afterCombat: '',
-          bonusAbility: '',
-          bonusIcon: ''
+          bonusAbilities: []
         }}
         subject={abilitySubject}
         {customSymbols}

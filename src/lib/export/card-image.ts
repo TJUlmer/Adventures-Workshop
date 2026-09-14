@@ -257,11 +257,13 @@ async function rasterise(
   return image;
 }
 
-/** Draw a region of a rasterised image out to a PNG at the asked-for width. */
+/** Draw a region of a rasterised image into the requested bitmap format. */
 async function encode(
   image: HTMLImageElement,
   region: { x: number; y: number; width: number; height: number },
-  outWidth: number
+  outWidth: number,
+  mimeType = 'image/png',
+  quality?: number
 ): Promise<Blob> {
   const scale = outWidth / region.width;
   const canvas = document.createElement('canvas');
@@ -282,7 +284,9 @@ async function encode(
     canvas.height
   );
 
-  const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/png'));
+  const blob = await new Promise<Blob | null>((resolve) =>
+    canvas.toBlob(resolve, mimeType, quality)
+  );
   if (!blob) throw new Error('Could not encode the image.');
   return blob;
 }
@@ -292,6 +296,29 @@ export interface CardImageOptions {
   bleed: boolean;
   /** Output width in pixels. Defaults to the template's own resolution. */
   width?: number;
+}
+
+/**
+ * Photograph an arbitrary DOM renderer at a fixed size.
+ *
+ * Cards, boards and the generated set cover all need the same style/font/image
+ * freezing guarantees. Keeping the primitive here means each derived bitmap
+ * cannot quietly grow a second, less faithful DOM-to-canvas path.
+ */
+export async function renderElementImage(
+  element: HTMLElement,
+  width: number,
+  height: number,
+  options: { mimeType?: string; quality?: number } = {}
+): Promise<Blob> {
+  const image = await rasterise(element, width, height);
+  return encode(
+    image,
+    { x: 0, y: 0, width, height },
+    width,
+    options.mimeType,
+    options.quality
+  );
 }
 
 /**

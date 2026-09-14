@@ -209,6 +209,10 @@ export const CHROME_SEAM = 6;
  */
 export const DIVIDER = { y: 1204, height: 19 } as const;
 
+/* Matches the requested doubled rule at the neutral 90-unit Bonus text size,
+   but lives in card geometry so changing that text size cannot change it. */
+export const BONUS_ABILITY_DIVIDER_HEIGHT = 14.4;
+
 export const ART_WINDOW = {
   x: INTERIOR.x,
   y: INTERIOR.y,
