@@ -2,9 +2,9 @@
   /**
    * A collection's own page — the one link a project is announced with.
    *
-   * Read-only at this step: it draws what is there and links onward, and the
-   * authoring controls (creating, inviting, accepting, readiness) come in
-   * steps 5–7 of `COLLECTIONS.md`'s build order. Nothing here writes.
+   * The default mode is a read-only public exhibition. Organizer and member
+   * modes live beside it in this controller, but never leak their invitations,
+   * readiness or mutation controls into the experience a guest opens.
    *
    * Rendered outside `AppShell`, beside `GalleryScreen` and
    * `SharedSetScreen`, and for the same reason: this is very often somebody's
@@ -13,7 +13,7 @@
    * scrolling — `base.css` sets `body { overflow: hidden }` because the shell
    * normally owns it, so a screen outside the shell has its own or has none.
    *
-   * **Both reads are anonymous**, through `cloud/collections.ts`. RLS answers
+   * **All public reads are anonymous**, through `cloud/collections.ts`. RLS answers
    * a public read the same either way, but PostgREST refuses a *stale* token
    * outright — and a collection link is exactly the kind opened weeks after
    * it was pasted, by somebody who signed in once and forgot.
@@ -27,6 +27,7 @@
     liveMemberCount,
     readinessOf,
     fetchCollectionBySlug,
+    fetchCollectionCharacters,
     fetchCollectionTiles,
     addOwnDeckDirectly,
     inviteDeck,
@@ -55,6 +56,7 @@
   import type { CharacterId } from '$lib/characters/types';
   import type {
     Collection,
+    CollectionCharacterSummary,
     CollectionMembership,
     CollectionTile,
     CollectionVisibility
@@ -73,12 +75,12 @@
   import { setVisibility as setDeckVisibility } from '$lib/cloud/sets';
   import { readTtsSavedObjectsPath, writeTtsSavedObjectsPath } from '$lib/storage/settings';
   import { initials, tint } from '$lib/core/swatch';
-  import { CARD_FORMATS, trimBox } from '$lib/renderer/geometry';
   import { auth } from '$lib/cloud/auth.svelte';
   import { navigation } from '$lib/state/navigation.svelte';
   import { workshop } from '$lib/state/workshop.svelte';
   import { applyCharacterExportSelection } from '$lib/sets/export-selection';
   import CollectionExportSelector from '$lib/components/export/CollectionExportSelector.svelte';
+  import CollectionShowcase from './CollectionShowcase.svelte';
 
   interface Props {
     slug: string;
@@ -88,27 +90,27 @@
 
   let collection = $state<Collection | null>(null);
   let tiles = $state<CollectionTile[]>([]);
+  let characters = $state<CollectionCharacterSummary[]>([]);
   let loading = $state(true);
   let failed = $state(false);
-
-  /*
-   * How much of a bleed-canvas picture to scale away to reach the trim.
-   * Derived rather than typed in, the same as `GalleryScreen`'s — a cover
-   * that says `cover_bleeds` is a full print plate, and showing its margin
-   * would put a band of frame round a tile that is already a frame.
-   */
-  const TRIM_SCALE_WIDE = CARD_FORMATS.action.bleed.width / trimBox(CARD_FORMATS.action).width;
-
-  /** The same fallback order the gallery uses: a real thumbnail, then the
-      database-derived cover, then nothing and let the tint show. */
-  function tileImage(tile: CollectionTile): string {
-    return tile.thumbnail_url || tile.cover_url;
-  }
+  let tilesLoading = $state(false);
+  let tilesFailed = $state(false);
+  let charactersLoading = $state(false);
+  let charactersFailed = $state(false);
+  let projectionGeneration = 0;
 
   $effect(() => {
     const wanted = slug;
+    const generation = ++projectionGeneration;
     loading = true;
     failed = false;
+    collection = null;
+    tiles = [];
+    characters = [];
+    tilesLoading = false;
+    tilesFailed = false;
+    charactersLoading = false;
+    charactersFailed = false;
 
     void (async () => {
       try {
@@ -118,13 +120,42 @@
            overwrite the current one. */
         if (wanted !== slug) return;
         collection = found;
-        const rows = found ? await fetchCollectionTiles(wanted) : [];
-        if (wanted !== slug) return;
-        tiles = rows;
+        loading = false;
+        if (!found) return;
+
+        /* Identity is useful on its own. Sets and the character index enrich
+           it independently, so either may fail without erasing a collection
+           header that was already fetched successfully. */
+        tilesLoading = true;
+        charactersLoading = true;
+        void fetchCollectionTiles(wanted)
+          .then((foundTiles) => {
+            if (wanted === slug && generation === projectionGeneration) tiles = foundTiles;
+          })
+          .catch(() => {
+            if (wanted === slug && generation === projectionGeneration) tilesFailed = true;
+          })
+          .finally(() => {
+            if (wanted === slug && generation === projectionGeneration) tilesLoading = false;
+          });
+        void fetchCollectionCharacters(wanted)
+          .then((foundCharacters) => {
+            if (wanted === slug && generation === projectionGeneration) {
+              characters = foundCharacters;
+            }
+          })
+          .catch(() => {
+            if (wanted === slug && generation === projectionGeneration) charactersFailed = true;
+          })
+          .finally(() => {
+            if (wanted === slug && generation === projectionGeneration) charactersLoading = false;
+          });
       } catch {
         if (wanted === slug) failed = true;
       } finally {
-        if (wanted === slug) loading = false;
+        if (wanted === slug) {
+          loading = false;
+        }
       }
     })();
   });
@@ -603,15 +634,41 @@
     void loadMembership();
   });
 
-  /** Re-read both the private rows and the public tiles after any decision. */
+  /** Re-read the private rows and both public showcase projections after a decision. */
   async function refreshAfterDecision(): Promise<void> {
     if (!collection) return;
-    const [rows, freshTiles] = await Promise.all([
-      listMemberships(collection.id).catch(() => []),
-      fetchCollectionTiles(collection.slug).catch(() => tiles)
+    const collectionId = collection.id;
+    const collectionSlug = collection.slug;
+    const generation = ++projectionGeneration;
+    tilesLoading = true;
+    charactersLoading = true;
+    const [membershipResult, tileResult, characterResult] = await Promise.allSettled([
+      listMemberships(collectionId),
+      fetchCollectionTiles(collectionSlug),
+      fetchCollectionCharacters(collectionSlug)
     ]);
-    memberships = rows;
-    tiles = freshTiles;
+    if (
+      collection?.id !== collectionId ||
+      collection.slug !== collectionSlug ||
+      generation !== projectionGeneration
+    ) {
+      return;
+    }
+    if (membershipResult.status === 'fulfilled') memberships = membershipResult.value;
+    if (tileResult.status === 'fulfilled') {
+      tiles = tileResult.value;
+      tilesFailed = false;
+    } else {
+      tilesFailed = true;
+    }
+    if (characterResult.status === 'fulfilled') {
+      characters = characterResult.value;
+      charactersFailed = false;
+    } else {
+      charactersFailed = true;
+    }
+    tilesLoading = false;
+    charactersLoading = false;
     boxDecks = null;
     excludedExportCharacters = new Map();
     exportSelectorOpen = false;
@@ -1023,7 +1080,12 @@
   let pageMode = $state<PageMode>('showcase');
   let manageTab = $state<ManageTab>('decks');
   let exportChoice = $state<ExportChoice>(null);
-  let previewed = $state(new Set<string>());
+
+  $effect(() => {
+    void slug;
+    pageMode = 'showcase';
+    manageTab = 'decks';
+  });
 
   const displayedRemovable = $derived(
     pageMode === 'member'
@@ -1062,9 +1124,14 @@
     manageTab = tab;
   }
 
-  function primePreview(setId: string): void {
-    if (previewed.has(setId)) return;
-    previewed = new Set(previewed).add(setId);
+  function showCollectionExport(): void {
+    const behavior = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+      ? 'auto'
+      : 'smooth';
+    requestAnimationFrame(() => {
+      document.getElementById('collection-export-heading')?.focus({ preventScroll: true });
+      document.getElementById('collection-export')?.scrollIntoView({ behavior, block: 'start' });
+    });
   }
 
   async function removeCollection(): Promise<void> {
@@ -1122,6 +1189,27 @@
       -->
       <p class="message">No collection here. The link may be wrong, or no longer shared.</p>
     {:else}
+      {#if pageMode === 'showcase'}
+        {#key collection.id}
+          <CollectionShowcase
+            {collection}
+            {tiles}
+            {characters}
+            {tilesLoading}
+            {tilesFailed}
+            {charactersLoading}
+            {charactersFailed}
+            canManage={organizer}
+            canUseMemberTools={hasMemberTools}
+            announcement={claimNotice}
+            onmanage={() => showManage()}
+            onmember={() => (pageMode = 'member')}
+            onopenset={(setSlug, characterId) => navigation.openShared(setSlug, characterId)}
+            onopenauthor={(ownerId) => navigation.openAuthor(ownerId)}
+            onplay={showCollectionExport}
+          />
+        {/key}
+      {:else}
       <section class="hero" aria-labelledby="collection-heading">
         <div class="banner" style:background={tint(collection.id)}>
           {#if collection.banner_url}
@@ -1173,20 +1261,7 @@
                 {#if collection.subtitle}<p class="subtitle">{collection.subtitle}</p>{/if}
               </div>
               <div class="hero-actions">
-                {#if pageMode === 'showcase'}
-                  {#if hasMemberTools}
-                    <button type="button" class="btn" onclick={() => (pageMode = 'member')}>
-                      Your decks
-                    </button>
-                  {/if}
-                  {#if organizer}
-                    <button type="button" class="btn primary" onclick={() => showManage()}>
-                      Manage collection
-                    </button>
-                  {/if}
-                {:else}
-                  <button type="button" class="btn" onclick={showShowcase}>View collection</button>
-                {/if}
+                <button type="button" class="btn" onclick={showShowcase}>View collection</button>
               </div>
             </div>
             {#if collection.blurb}<p class="blurb">{collection.blurb}</p>{/if}
@@ -1213,6 +1288,7 @@
           {/if}
         </div>
       </section>
+      {/if}
 
       {#if pageMode === 'manage' && organizer}
         <nav class="manage-tabs" aria-label="Collection management">
@@ -1474,7 +1550,7 @@
         </section>
       {/if}
 
-      {#if claimNotice}
+      {#if claimNotice && pageMode !== 'showcase'}
         <p class="notice claim">{claimNotice}</p>
       {/if}
 
@@ -1736,23 +1812,6 @@
         </section>
       {/if}
 
-      {#if pageMode === 'showcase'}
-      <p class="count showcase-count">
-        {tiles.length}
-        {tiles.length === 1 ? 'deck' : 'decks'}
-        <!--
-          Only while a collection is still being built. Once it is public the
-          line has done its job, and a permanent "6 of 6 ready" is noise on a
-          page whose visitors are readers rather than contributors.
-        -->
-        {#if collection.visibility !== 'public' && tiles.length > 0}
-          <span class="ready-line" class:all={readiness.waitingOn.length === 0}>
-            · {readiness.ready} of {readiness.total} ready
-          </span>
-        {/if}
-      </p>
-      {/if}
-
       {#if pageMode === 'member' && myAccepted.length > 0}
         <section class="panel">
           <h2>Your deck{myAccepted.length === 1 ? '' : 's'} here</h2>
@@ -1943,74 +2002,10 @@
         </section>
       {/if}
 
-      {#if pageMode === 'showcase' && tiles.length === 0}
-        <!-- An empty project is a beginning, not a broken collection. -->
-        <p class="message empty-collection">
-          No decks yet. Whoever is organizing this can invite them, or open it for submissions.
-        </p>
-      {:else if pageMode === 'showcase'}
-        <ul class="grid showcase-grid">
-          {#each tiles as tile (tile.set_id)}
-            <li>
-              <button
-                type="button"
-                class="tile"
-                aria-label={`Open ${tile.name || 'Untitled'} deck by ${tile.author_name || 'Anonymous'}`}
-                onclick={() => navigation.openShared(tile.slug)}
-                onmouseenter={() => tile.preview_card_url && primePreview(tile.set_id)}
-                onfocus={() => tile.preview_card_url && primePreview(tile.set_id)}
-              >
-                <span
-                  class="cover"
-                  style:--trim-scale={TRIM_SCALE_WIDE}
-                  style:background={tint(tile.set_id)}
-                >
-                  {#if tileImage(tile)}
-                    <img
-                      src={tileImage(tile)}
-                      class="cover-art"
-                      class:trimmed={tile.cover_bleeds}
-                      alt=""
-                      loading="lazy"
-                    />
-                  {:else}
-                    <span class="initials">{initials(tile.name)}</span>
-                  {/if}
-                  {#if tile.preview_card_url && previewed.has(tile.set_id)}
-                    <img class="preview-card" src={tile.preview_card_url} alt="" />
-                  {/if}
-                </span>
-
-                <span class="card-body">
-                  <span class="deck-name">{tile.name || 'Untitled'}</span>
-                  {#if tile.subtitle}<span class="subtitle-line">{tile.subtitle}</span>{/if}
-                  <span class="by">
-                    {#if tile.author_avatar}
-                      <img class="avatar" src={tile.author_avatar} alt="" loading="lazy" />
-                    {/if}
-                    <span class="author">{tile.author_name || 'Anonymous'}</span>
-                  </span>
-                  <span class="meta">
-                    <span>revision {tile.revision}</span>
-                    {#if tile.hero_count > 0}
-                      <span>{tile.hero_count} {tile.hero_count === 1 ? 'hero' : 'heroes'}</span>
-                    {/if}
-                    <span>{tile.card_count} {tile.card_count === 1 ? 'card' : 'cards'}</span>
-                  </span>
-                  <span class="open-deck">
-                    Explore this deck <span aria-hidden="true">→</span>
-                  </span>
-                </span>
-              </button>
-            </li>
-          {/each}
-        </ul>
-      {/if}
-
       {#if pageMode === 'showcase' && tiles.length > 0}
-        <section class="panel box showcase-export">
+        <section id="collection-export" class="panel box showcase-export">
           <p class="eyebrow">Ready for the table</p>
-          <h2>Play or print this collection</h2>
+          <h2 id="collection-export-heading" tabindex="-1">Play or print this collection</h2>
           <p class="hint">
             Take every deck together, while preserving each creator's artwork and styling.
           </p>
@@ -2153,7 +2148,8 @@
   .screen {
     display: flex;
     flex-direction: column;
-    height: 100vh;
+    height: 100%;
+    min-height: 0;
     overflow-y: auto;
     background: var(--surface-canvas);
   }
@@ -2191,12 +2187,6 @@
     margin: 0 0 var(--space-4);
     max-width: 62ch;
     color: var(--text-secondary);
-  }
-
-  .count {
-    margin: 0 0 var(--space-5);
-    color: var(--text-tertiary);
-    font-size: var(--text-sm);
   }
 
   .message {
@@ -2573,13 +2563,6 @@
     cursor: default;
   }
 
-  .ready-line {
-    color: var(--warning);
-  }
-  .ready-line.all {
-    color: var(--success);
-  }
-
   .gate {
     display: flex;
     flex-direction: column;
@@ -2600,113 +2583,6 @@
   }
   .gate .hint {
     margin: 0;
-  }
-
-  .grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr));
-    gap: var(--space-4);
-    list-style: none;
-    margin: 0;
-    padding: 0;
-  }
-
-  .tile {
-    display: flex;
-    flex-direction: column;
-    width: 100%;
-    text-align: left;
-    gap: var(--space-3);
-    padding: var(--space-3);
-    border: 1px solid var(--border-subtle);
-    border-radius: var(--radius-md);
-    background: var(--surface-raised);
-    cursor: pointer;
-    font: inherit;
-    color: inherit;
-    transition: border-color var(--duration-fast) var(--ease-out);
-  }
-  .tile:hover {
-    border-color: var(--border-strong);
-  }
-  .tile:focus-visible {
-    outline: none;
-    box-shadow: var(--focus-ring);
-  }
-
-  .cover {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    aspect-ratio: 4 / 3;
-    border-radius: var(--radius-sm);
-    overflow: hidden;
-  }
-  .cover img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-  }
-
-  /*
-   * A cover drawn from a full print plate is scaled up and re-centred so the
-   * bleed margin falls outside the box, rather than printing a band of empty
-   * frame inside a tile that is already framed. `--trim-scale` carries the
-   * ratio; see its derivation above.
-   */
-  .cover img.trimmed {
-    transform: scale(var(--trim-scale));
-  }
-
-  .initials {
-    font-size: var(--text-2xl);
-    font-weight: 600;
-    color: var(--text-on-accent);
-    opacity: 0.7;
-  }
-
-  .card-body {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-1);
-    min-width: 0;
-  }
-
-  .subtitle-line {
-    color: var(--text-tertiary);
-    font-size: var(--text-sm);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-
-  .by {
-    display: flex;
-    align-items: center;
-    gap: var(--space-2);
-    margin-top: var(--space-1);
-    min-width: 0;
-  }
-  .avatar {
-    width: 18px;
-    height: 18px;
-    border-radius: 50%;
-    flex: none;
-  }
-  .author {
-    color: var(--text-secondary);
-    font-size: var(--text-sm);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-
-  .meta {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0 var(--space-3);
-    color: var(--text-muted);
-    font-size: var(--text-xs);
   }
 
   /* The collection is a showcase first; management is a deliberate mode. */
@@ -2884,21 +2760,7 @@
     flex-direction: column;
   }
 
-  .showcase-count {
-    order: 0;
-    margin-bottom: var(--space-3);
-    font-size: var(--text-xs);
-    font-weight: var(--weight-semibold);
-    letter-spacing: var(--tracking-caps);
-    text-transform: uppercase;
-  }
-
-  .showcase-grid {
-    order: 1;
-  }
-
   .showcase-export {
-    order: 2;
     margin-top: var(--space-9);
     margin-bottom: 0;
     padding: var(--space-6);
@@ -2972,107 +2834,6 @@
     margin: 0;
     color: var(--text-secondary);
     font-size: var(--text-sm);
-  }
-
-  .grid {
-    grid-template-columns: repeat(auto-fill, minmax(16rem, 1fr));
-    gap: var(--space-5);
-  }
-
-  .grid li {
-    display: flex;
-  }
-
-  .tile {
-    height: 100%;
-    gap: 0;
-    padding: 0;
-    overflow: hidden;
-    box-shadow: var(--shadow-sm);
-  }
-
-  .tile:hover {
-    border-color: var(--border-accent);
-    box-shadow: var(--shadow-md);
-  }
-
-  .cover {
-    position: relative;
-    width: 100%;
-    padding: 0;
-    border: 0;
-    border-radius: 0;
-    font: inherit;
-  }
-
-  .cover img.cover-art,
-  .cover img.preview-card {
-    position: absolute;
-    inset: 0;
-    width: 100%;
-    height: 100%;
-  }
-
-  .cover img.cover-art {
-    object-fit: cover;
-  }
-
-  .cover img.preview-card {
-    object-fit: contain;
-    background: inherit;
-    opacity: 0;
-    transition: opacity var(--duration-normal) var(--ease-out);
-  }
-
-  .tile:focus .preview-card {
-    opacity: 1;
-  }
-
-  @media (hover: hover) {
-    .tile:hover .preview-card {
-      opacity: 1;
-    }
-  }
-
-  .card-body {
-    flex: 1;
-    gap: var(--space-2);
-    padding: var(--space-4);
-  }
-
-  .deck-name {
-    overflow: hidden;
-    padding: 0;
-    border: 0;
-    background: transparent;
-    color: var(--text-primary);
-    font: inherit;
-    font-size: var(--text-md);
-    font-weight: var(--weight-semibold);
-    text-align: left;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .open-deck {
-    display: flex;
-    min-height: calc(var(--space-7) + var(--space-3));
-    align-items: center;
-    align-self: flex-start;
-    margin-top: auto;
-    padding: var(--space-2) 0 0;
-    border: 0;
-    background: transparent;
-    color: var(--text-accent);
-    font: inherit;
-    font-size: var(--text-sm);
-    font-weight: var(--weight-semibold);
-  }
-
-  @media (prefers-reduced-motion: reduce) {
-    .cover img.preview-card {
-      transition: none;
-    }
   }
 
   @media (max-width: 720px) {

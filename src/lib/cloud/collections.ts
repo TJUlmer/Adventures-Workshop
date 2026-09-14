@@ -90,6 +90,31 @@ export interface CollectionTile {
 }
 
 /**
+ * One character in an accepted collection member, without its set document.
+ *
+ * This comes from a consent-gated function rather than `set_characters`
+ * directly, because an unlisted deck remains reachable through a collection
+ * its author accepted. The explicit set and owner fields let the showcase
+ * group and credit the roster without joining private tables in the browser.
+ */
+export interface CollectionCharacterSummary {
+  set_id: string;
+  set_slug: string;
+  set_name: string;
+  set_sort_order: number;
+  owner_id: string;
+  author_name: string;
+  author_avatar: string;
+  character_id: string;
+  character_name: string;
+  character_role: string;
+  character_position: number;
+  image_url: string;
+  image_bleeds: boolean;
+  card_url: string;
+}
+
+/**
  * A membership row as the two parties to it see it — an organizer reviewing
  * what is waiting, or an author looking at their own invitations.
  *
@@ -234,6 +259,17 @@ export async function fetchCollectionBySlug(slug: string): Promise<Collection | 
 /** The accepted decks in a collection, in the order its organizers set. */
 export async function fetchCollectionTiles(slug: string): Promise<CollectionTile[]> {
   return request<CollectionTile[]>('/rest/v1/rpc/collection_members_by_slug', {
+    method: 'POST',
+    body: { share_slug: slug.trim() },
+    anonymous: true
+  });
+}
+
+/** The indexed characters in accepted decks, in collection and roster order. */
+export async function fetchCollectionCharacters(
+  slug: string
+): Promise<CollectionCharacterSummary[]> {
+  return request<CollectionCharacterSummary[]>('/rest/v1/rpc/collection_characters_by_slug', {
     method: 'POST',
     body: { share_slug: slug.trim() },
     anonymous: true

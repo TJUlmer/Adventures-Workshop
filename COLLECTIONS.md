@@ -41,6 +41,17 @@ from, and it is worth doing before phase 2: the combined export rests on
 assumptions about how a box gets assembled, and one actual Winter Extravaganza
 will correct more of them than any further design will.
 
+The guest presentation pass is implemented in the current collections
+worktree, but is not deployed. A collection link now opens on a dedicated
+read-only showcase — cinematic identity, character roster, creator credits,
+set gallery and a local member explorer — while organizer and contributor
+tools remain a separate mode. The explorer reuses `AssetsOverview`,
+`CardLightbox`, `ComponentModal` and `ModelViewer`, so published cards and 3D
+pieces have the same inspection path as an individual shared set. Migration
+`0027_collection_characters.sql` adds the consent-gated lightweight roster RPC;
+it still needs catalogue reconciliation and application before a deployed
+showcase can populate its character grid.
+
 - ~~**The unfurl.**~~ **Verified against production data.** `vite dev` has no
   Edge Runtime, but the middleware is a plain function of a `Request` and
   imports nothing, so it can be called directly under Node — which exercises
@@ -486,8 +497,12 @@ boundary* above.
   a hash route cannot be previewed in Discord. It needs a `middleware.ts`
   match beside the existing one. **Do not read this as permission for more
   real paths.**
-- **Banner, blurb, and a tile grid** — each tile the gallery's own, showing
-  cover, deck name, creator, and revision.
+- **A guest showcase, separate from the working view** — banner-led identity,
+  a filterable character roster, a set gallery and creator credits. A guest can
+  inspect one member in place without being dropped into organizer controls.
+- **The same published-set inspection path** — the local member explorer owns
+  one `AssetsOverview`, including its authoritative PNG lightbox and lazy 3D
+  component modal. Collection presentation does not fork either renderer.
 - **"Add my deck" / "Invite a deck"**, and a pending-decisions list on each
   side. Reuse the contributions screen's shape; it is the same verb.
 - **A readiness line** — "4 of 6 ready" — computed from membership rows alone,

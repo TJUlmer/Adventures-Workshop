@@ -67,6 +67,12 @@
     onCardSizeChange?: (value: number) => void;
     /** Stable section targets for a parent-owned gallery navigation bar. */
     anchorPrefix?: string;
+    /**
+     * The collection showcase can celebrate physical pieces without mounting
+     * a second component gallery. This keeps the existing preview/modal path
+     * but omits cards and boards from that focused view.
+     */
+    figuresOnly?: boolean;
   }
 
   let {
@@ -80,7 +86,8 @@
     cardSize,
     showZoom = true,
     onCardSizeChange,
-    anchorPrefix
+    anchorPrefix,
+    figuresOnly = false
   }: Props = $props();
 
   const set = $derived(given ?? workshop.adventure);
@@ -413,11 +420,13 @@
   }
 
   const hasContent = $derived(
-    set.characters.length > 0 ||
-      set.cards.length > 0 ||
-      set.figures.length > 0 ||
-      set.threat.enabled ||
-      set.map.enabled
+    figuresOnly
+      ? set.figures.length > 0
+      : set.characters.length > 0 ||
+          set.cards.length > 0 ||
+          set.figures.length > 0 ||
+          set.threat.enabled ||
+          set.map.enabled
   );
 
   let lightboxItems = $state<GalleryCardItem[]>([]);
@@ -776,9 +785,13 @@
     <header class="head">
       {#if heading}
         <div>
-          <span class="eyebrow">Set tool</span>
-          <h1 class="title">Overview</h1>
-          <p class="lede">Every card, board, and physical component in the set.</p>
+          <span class="eyebrow">{figuresOnly ? 'On the table' : 'Set tool'}</span>
+          <h1 class="title">{figuresOnly ? 'Components' : 'Overview'}</h1>
+          <p class="lede">
+            {figuresOnly
+              ? 'Every published miniature, token, and dial in the set.'
+              : 'Every card, board, and physical component in the set.'}
+          </p>
         </div>
       {/if}
 
@@ -802,12 +815,14 @@
   {#if !hasContent}
     <EmptyState
       icon="layers"
-      title="Nothing to review yet"
-      description="Cards, boards, and components all appear here once the set has some."
+      title={figuresOnly ? 'No physical components here' : 'Nothing to review yet'}
+      description={figuresOnly
+        ? 'Choose another set, or explore this one to see its cards.'
+        : 'Cards, boards, and components all appear here once the set has some.'}
     />
   {/if}
 
-  {#if set.threat.enabled || set.map.enabled}
+  {#if !figuresOnly && (set.threat.enabled || set.map.enabled)}
     <section class="showcase battlefield" id={anchorId('battlefield')}>
       <header class="section-heading">
         <div>
@@ -932,7 +947,7 @@
     </section>
   {/if}
 
-  {#if set.characters.length > 0}
+  {#if !figuresOnly && set.characters.length > 0}
     <section class="collections">
       <header class="section-heading collection-heading">
         <div>
@@ -986,7 +1001,7 @@
     </section>
   {/if}
 
-  {#if setGroups.length > 0}
+  {#if !figuresOnly && setGroups.length > 0}
     <section class="showcase set-decks" id={anchorId('set-decks')}>
       <header class="section-heading">
         <div>

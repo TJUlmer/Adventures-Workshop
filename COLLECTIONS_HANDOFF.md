@@ -18,9 +18,10 @@ Written 2026-09-13, at `110b239` on `collections`.
 | `Adventures_Workshop-collections` | `collections` | the whole feature |
 | `Adventures_Workshop-cloud-drafts` | `codex/cloud-drafts` | unrelated, another session's |
 
-`collections` is **31 commits ahead of `main` and 0 behind** — `main` was merged
-in on 2026-09-13 at `8c44598`, so there is no catching-up to do before working.
-Everything is pushed and the tree is clean.
+The committed base of `collections` is **31 commits ahead of `main` and 0
+behind** — `main` was merged in on 2026-09-13 at `8c44598`, so there is no
+catching-up to do before working. The guest-showcase pass described below is
+currently uncommitted, so the worktree is intentionally no longer clean.
 
 Collections was on `main` once, by accident, and was reverted out at the
 author's explicit request: *it is not to reach `main` until the feature is ready
@@ -55,6 +56,30 @@ not merely the listing.
 What remains untested is Discord's own rendering, which needs a real paste.
 Budget a throwaway slug for the second attempt: its per-URL unfurl cache is
 aggressive enough that re-pasting the same link shows the stale card.
+
+**The guest collection experience is implemented in the worktree.**
+`CollectionShowcase.svelte` is the public/read-only exhibition and
+`CollectionMemberExplorer.svelte` opens exactly one published member in place.
+It reuses `AssetsOverview`, including the existing authoritative card PNG
+lightbox and `ComponentModal`/`ModelViewer` 3D path. Character identities are
+composite (`set_id:character_id`) because forks preserve entity ids. Public
+collection identity, set tiles and character summaries now settle
+independently, so a failed enrichment cannot erase the masthead or delay the
+other projection. Organizer and contributor controls remain in their existing
+separate modes.
+
+The new public roster comes from
+`0027_collection_characters.sql`/`collection_characters_by_slug`. It repeats
+the collection/member/set visibility and moderation boundary used by
+`collection_members_by_slug`, returns presentation fields only, and grants
+execution to `anon` and `authenticated`. **It has not been applied to the live
+catalogue.** Until it is, the page deliberately keeps the collection and sets
+visible and labels the roster unavailable.
+
+Verification for this pass: `npm run check` and `npm run build` both pass;
+desktop and 390 px browser review covered the hero, roster, sets, components
+picker, inline-explorer focus entry/return and runtime console. The only console
+warning was the existing local v60-document warning on this v59 branch.
 
 ---
 
@@ -130,6 +155,11 @@ Three things to carry forward:
 
 ## What is left, in the order I would do it
 
+Before exposing this pass on the preview deployment, reconcile and apply
+`0027_collection_characters.sql` against the live catalogue. The migration
+history warning above applies: confirm the function signature, grants and
+definition through `pg_proc`/catalogue reads rather than trusting the filename.
+
 1. **Run one real collection with real creators.** `COLLECTIONS.md` says this
    and it is still the single highest-value thing. Production holds two
    collections, two accepted memberships and two organizers — all test data, and
@@ -166,8 +196,9 @@ Three things to carry forward:
    to readable text through `publishRefusalMessage`
    (`CollectionScreen.svelte:410`); check whether the rest are.
 
-6. **A collection tile's author is not clickable**, though `AuthorProfileScreen`
-   exists and sets already link to it.
+6. ~~**A collection tile's author is not clickable.**~~ Done in the guest
+   showcase: both set and character credits, the masthead chips and the creator
+   gallery open `AuthorProfileScreen`.
 
 ---
 
