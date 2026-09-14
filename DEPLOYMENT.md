@@ -40,6 +40,18 @@ variable to `opt-in` for **Production only**, leave the internal-id list empty, 
 cohort percentage at `0`. Preview can remain `opt-in` for acceptance work. Changing a Vite
 variable requires a new deployment because its value is compiled into the browser bundle.
 
+Collection creation has its own build-time allowlist:
+
+    VITE_COLLECTIONS_INTERNAL_USER_IDS
+
+Set it to a comma-separated list of permanent Supabase Auth user UUIDs. An empty or missing
+value hides Home's **New collection** button from everyone. The list controls only that creation
+entry point: public collection links, existing collection shelves and invitation decisions stay
+available. This is a rollout aid rather than a security boundary; Supabase RLS still authorises
+the underlying reads and writes. The UUIDs are compiled into the browser bundle and therefore
+must not be treated as secrets. Set the variable for Production (and Preview if wanted), then
+redeploy for a change to take effect.
+
 Ticking Preview is the part that gets missed, and the failure is quiet:
 `cloud/config.ts` returns `null` when either is absent and the whole app
 switches sharing off rather than erroring. A preview build with no variables

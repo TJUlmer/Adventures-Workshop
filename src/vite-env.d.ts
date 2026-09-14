@@ -15,6 +15,8 @@ interface ImportMetaEnv {
   readonly VITE_CLOUD_DRAFTS_INTERNAL_USER_IDS?: string;
   /** Stable percentage of remaining permanent accounts included in cohort mode. */
   readonly VITE_CLOUD_DRAFTS_COHORT_PERCENT?: string;
+  /** Comma-separated permanent Supabase user ids allowed to create collections. */
+  readonly VITE_COLLECTIONS_INTERNAL_USER_IDS?: string;
 }
 
 interface ImportMeta {

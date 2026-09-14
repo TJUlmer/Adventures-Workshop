@@ -28,6 +28,11 @@ export interface CloudDraftRolloutConfig {
   readonly cohortPercent: number;
 }
 
+export interface CollectionsRolloutConfig {
+  /** Permanent Supabase accounts allowed to create a collection. */
+  readonly internalUserIds: readonly string[];
+}
+
 /**
  * Bucket published artwork is lifted into.
  *
@@ -69,21 +74,33 @@ function rolloutMode(value: unknown): CloudDraftRolloutMode {
   return value === 'opt-in' || value === 'cohort' || value === 'on' ? value : 'off';
 }
 
+function userIdList(value: unknown): readonly string[] {
+  if (typeof value !== 'string') return [];
+  return [
+    ...new Set(
+      value
+        .split(',')
+        .map((entry) => entry.trim())
+        .filter((entry) => entry.length > 0)
+    )
+  ];
+}
+
 const DRAFT_ROLLOUT: CloudDraftRolloutConfig = (() => {
   const rawPercent = Number(import.meta.env['VITE_CLOUD_DRAFTS_COHORT_PERCENT'] ?? '0');
   const cohortPercent = Number.isFinite(rawPercent)
     ? Math.min(100, Math.max(0, Math.floor(rawPercent)))
     : 0;
-  const internalUserIds = (import.meta.env['VITE_CLOUD_DRAFTS_INTERNAL_USER_IDS'] ?? '')
-    .split(',')
-    .map((value) => value.trim())
-    .filter((value) => value.length > 0);
   return {
     mode: rolloutMode(import.meta.env['VITE_CLOUD_DRAFTS_ROLLOUT']),
-    internalUserIds: [...new Set(internalUserIds)],
+    internalUserIds: userIdList(import.meta.env['VITE_CLOUD_DRAFTS_INTERNAL_USER_IDS']),
     cohortPercent
   };
 })();
+
+const COLLECTIONS_ROLLOUT: CollectionsRolloutConfig = {
+  internalUserIds: userIdList(import.meta.env['VITE_COLLECTIONS_INTERNAL_USER_IDS'])
+};
 
 /** The configured project, or `null` when sharing is not set up. */
 export function cloudConfig(): CloudConfig | null {
@@ -98,4 +115,23 @@ export function cloudEnabled(): boolean {
 /** Private-draft rollout policy, deliberately separate from public sharing. */
 export function cloudDraftRolloutConfig(): CloudDraftRolloutConfig {
   return DRAFT_ROLLOUT;
+}
+
+/** Collection creation rollout, independent of public reading and membership. */
+export function collectionsRolloutConfig(): CollectionsRolloutConfig {
+  return COLLECTIONS_ROLLOUT;
+}
+
+/**
+ * Whether this account should be offered collection creation.
+ *
+ * This is a discoverability gate compiled into the client, not an access
+ * policy. Supabase RLS remains the boundary for every collection write.
+ */
+export function collectionCreationEnabled(userId: string | null | undefined): boolean {
+  return (
+    cloudEnabled() &&
+    typeof userId === 'string' &&
+    COLLECTIONS_ROLLOUT.internalUserIds.includes(userId)
+  );
 }

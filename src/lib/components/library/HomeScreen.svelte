@@ -19,7 +19,7 @@
   import { auth } from '$lib/cloud/auth.svelte';
   import { renderCharacterCards } from '$lib/cloud/character-cards';
   import { openContributionCounts } from '$lib/cloud/contributions';
-  import { cloudEnabled } from '$lib/cloud/config';
+  import { collectionCreationEnabled, cloudEnabled } from '$lib/cloud/config';
   import {
     fetchProfile,
     fetchSetSummaryBySlug,
@@ -85,6 +85,11 @@
 
   let makingCollection = $state(false);
   let choosingCollection = $state(false);
+  const canCreateCollection = $derived(
+    auth.signedIn &&
+      !auth.isAnonymous &&
+      collectionCreationEnabled(auth.user?.id)
+  );
 
   /**
    * Collection decisions waiting on this person, in either direction.
@@ -192,7 +197,7 @@
    * bare button was the wrong shape for a noun nobody has met before.
    */
   async function newCollection(name: string): Promise<void> {
-    if (makingCollection) return;
+    if (!canCreateCollection || makingCollection) return;
     makingCollection = true;
     try {
       const created = await createCollection({ name });
@@ -1337,12 +1342,11 @@
         they are app-wide chrome, and Home stopped being their only home when
         the banner arrived. What stays here is what acts on *this* screen.
 
-        Signed-in only, and not because of a policy — an anonymous visitor
-        could create one — but because a collection nobody can find again is
-        worse than no collection. It is reached solely by its link, and the
-        only place that link is listed is the Collections shelf below.
+        The build-time account allowlist controls collection creation only.
+        Public readers, existing memberships and invitations remain available
+        outside the rollout; Supabase RLS is still the write boundary.
       -->
-      {#if cloudEnabled() && auth.signedIn}
+      {#if canCreateCollection}
         <Button variant="ghost" onclick={() => (choosingCollection = true)}>
           <Icon name="users" size={14} />
           New collection
@@ -2319,7 +2323,7 @@
 </div>
 
 <NewCollectionDialog
-  open={choosingCollection}
+  open={choosingCollection && canCreateCollection}
   busy={makingCollection}
   oncreate={(name) => void newCollection(name)}
   oncancel={() => (choosingCollection = false)}
