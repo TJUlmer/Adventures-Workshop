@@ -59,7 +59,11 @@ aggressive enough that re-pasting the same link shows the stale card.
 - direct workspace entry from Home, with pasted links still opening publicly;
 - a single published-deck picker and clear submit, review, accept, edit,
   republish and revision-bound Ready lifecycle;
-- a prominent organiser approval queue that refreshes after mutations, on
+- a colored In progress / Live workspace status, a roster-first Contributions
+  tab, Private link guidance and a large Ready checkbox;
+- a dedicated celebratory launch card for taking the collection Public, separate
+  from its ordinary working-access settings;
+- a prominent organizer approval queue that refreshes after mutations, on
   focus/visibility and periodically while the page is visible;
 - load-error states that cannot masquerade as an empty approval queue;
 - private per-deck discussion threads for the accepted project team; and
@@ -164,7 +168,7 @@ Three things to carry forward:
 2. **Run the two-account acceptance matrix.** Use a private collection first:
 
    - contributor selects a published deck and submits it;
-   - organiser sees the contribution after focus/refresh, opens the published
+   - organizer sees the contribution after focus/refresh, opens the published
      deck, and accepts it;
    - contributor sees the accepted card, edits and republishes it, marks that
      revision Ready, then republishes once more and confirms Ready clears;

@@ -31,7 +31,7 @@ import type { ZipEntry } from './zip';
  * The folders the archive unpacks into.
  *
  * Named for what a person would look for rather than for how the document is
- * organised — someone opening this zip has never read the data model, and
+ * organized — someone opening this zip has never read the data model, and
  * "Heroes" tells them where a hero's cards are in a way "Characters" did not.
  * Heroes and the villain side are separated for the same reason: they are the
  * two halves of a box and are printed, sleeved and stored apart.

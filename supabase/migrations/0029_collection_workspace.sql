@@ -12,7 +12,7 @@
  * helper is also the definition of a collaborator used below.
  */
 
--- New projects are genuinely private until an organiser chooses otherwise.
+-- New projects are genuinely private until an organizer chooses otherwise.
 alter table public.collections
   alter column visibility set default 'private';
 
@@ -70,7 +70,7 @@ declare
 begin
   /* Policies constrain the resulting status, but cannot compare it with OLD.
      Without this transition guard an owner can turn their own submission into
-     accepted, or an organiser can accept a deck they only invited — either
+     accepted, or an organizer can accept a deck they only invited — either
      skips the other party's decision and would also grant private-comment
      access. */
   if caller_id is not null then
@@ -116,7 +116,7 @@ begin
 
     if new.sort_order is distinct from old.sort_order
        and not caller_organizes then
-      raise exception 'only an organiser may reorder a collection';
+      raise exception 'only an organizer may reorder a collection';
     end if;
   end if;
 
@@ -231,7 +231,7 @@ grant execute on function public.collection_accepts_submissions(uuid)
 
 /* A recipient may answer only an invitation that is still open. The older
    policy constrained NEW.status but not OLD.status, so a named recipient could
-   turn an organiser-revoked invitation back into accepted access. */
+   turn an organizer-revoked invitation back into accepted access. */
 drop policy if exists invites_recipient_decide on public.collection_invites;
 create policy invites_recipient_decide on public.collection_invites
   for update to authenticated
@@ -246,7 +246,7 @@ create policy invites_recipient_decide on public.collection_invites
 
 /*
  * The authenticated membership reader doubles as the workspace roster.
- * Owners and organisers retain their pending rows. Every collaborator may
+ * Owners and organizers retain their pending rows. Every collaborator may
  * additionally see accepted summaries, which is what lets the team navigate
  * all private discussion threads; nobody else sees another person's pending
  * invitation or submission.

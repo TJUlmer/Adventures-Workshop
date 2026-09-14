@@ -30,18 +30,18 @@ turned up that reading the file could never have shown: a deployed
 `my_collections()` that had never been folded back in (Home's Collections shelf
 calls it, so a clean replay would have built a database that looks complete and
 fails the moment the shelf loads), and four policies still carrying the
-`organiser` spelling, which a replay would have left in place while adding an
+British spelling variant, which a replay would have left in place while adding an
 `organizer` twin beside them. All eleven functions, nineteen policies and six
 triggers now agree.
 
 The first production exercise held two collections, two accepted memberships
-and two organisers. That proved the plumbing, but no real project with a full
+and two organizers. That proved the plumbing, but no real project with a full
 team has run through the workflow yet. One actual Winter Extravaganza remains
 more valuable than another round of speculative feature design.
 
 The guest presentation is deployed on `main`. A collection link opens on a dedicated
 read-only showcase — cinematic identity, character roster, creator credits,
-set gallery and a local member explorer — while organiser and contributor
+set gallery and a local member explorer — while organizer and contributor
 tools remain separate from the public experience. The explorer reuses `AssetsOverview`,
 `CardLightbox`, `ComponentModal` and `ModelViewer`, so published cards and 3D
 pieces have the same inspection path as an individual shared set. Migration
@@ -58,8 +58,12 @@ The current collections worktree now has two explicit modes:
   the public page.
 - **Contributions** use one published-deck picker and one card per accepted
   deck, with Edit working copy, View published version, the published revision,
-  and a deliberate Mark Ready action. Republishing clears Ready automatically.
-- **Organiser decisions** are prominent, include a review link, refresh on
+  explicit Private link guidance and a large Ready checkbox. Republishing clears
+  Ready automatically. The complete deck roster comes first in the tab.
+- **Project status** is a colored In progress / Live bar at the top of the
+  workspace. Going Public is a dedicated team-launch card rather than another
+  small visibility option in settings.
+- **Organizer decisions** are prominent, include a review link, refresh on
   focus/visibility and on a visible-only interval, and show load failures rather
   than turning them into a convincing empty inbox.
 - **Deck discussions** are private, deck-specific project comments. They are
@@ -488,7 +492,7 @@ Notes that are not obvious:
   takedown leaves the organizers' own setting alone and kills the link as well
   as the listing.
 - **`created_by` is internal bookkeeping, not a public credit.** It seeds the
-  first organiser and helps preserve the project if that account goes away;
+  first organizer and helps preserve the project if that account goes away;
   `collection_by_slug` deliberately omits it. The public page credits the decks
   and their authors without naming one person as the collection's creator.
 
@@ -514,7 +518,7 @@ publishing a newer revision clears it automatically. Comments are readable only
 by the project team, writable only against accepted decks, and are absent from
 every anonymous collection projection. The membership guard also owns the full
 status-transition matrix, so a creator cannot accept their own submission and an
-organiser cannot accept an unconsented invitation; direct membership deletion is
+organizer cannot accept an unconsented invitation; direct membership deletion is
 revoked in favour of the existing soft statuses. Apply
 `0028_collection_deck_comments.sql` before `0029_collection_workspace.sql`; the
 latter also changes the result shape of `collection_memberships`, so its UI must
@@ -562,7 +566,7 @@ boundary* above.
   any time.
 - **One contribution path.** Pick a published deck, submit it, edit its working
   copy, republish, and deliberately mark that published revision Ready. An
-  organiser gets a prominent review queue and can inspect the submitted public
+  organizer gets a prominent review queue and can inspect the submitted public
   deck before accepting or declining it.
 - **A revision-bound readiness line** — "4 of 6 ready" — computed from
   membership rows alone. Republishing resets Ready instead of allowing a stale

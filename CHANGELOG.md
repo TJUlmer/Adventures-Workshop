@@ -149,7 +149,7 @@ removed and rebuilt from nothing.
 - Recreated the two-sided token skin template for the same licensing reason,
   marking the thing no one would guess: the pixel at the dead centre of a
   two-sided image is what paints the token's rim.
-- Reorganised where things live — working files out of `public/` (which ships
+- Reorganized where things live — working files out of `public/` (which ships
   verbatim into the build) and into `assets/`, which does not.
 - New minion/villain card back and initiative card back.
 - Fixed the boost value, which sat 12px low in an 89px disc. The cause was

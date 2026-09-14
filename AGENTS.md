@@ -81,7 +81,8 @@ TypeScript is pinned to `~6` because `svelte-check` does not run on 7 yet.
 - **`src/styles/tokens.css` is the only source of colour.** No component hardcodes a hex.
 - **Comments explain *why*** — usually the failure that forced the code — and never
   restate the line. Some carry a bug's history so it is not reintroduced.
-- **British spelling** in prose and comments; `colour` in user-facing copy, `color`
+- **British spelling** in prose and comments, using Oxford `-ize` forms such as
+  `organize`, `organizer`, and `recognize`; `colour` in user-facing copy, `color`
   only where a CSS or DOM API demands it.
 
 ## Persistence and cloud

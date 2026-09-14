@@ -1,6 +1,6 @@
 <script lang="ts">
   /**
-   * Every way a set leaves the app, organised by what the author wants next.
+   * Every way a set leaves the app, organized by what the author wants next.
    *
    * Lifted out of Set Home because it is no longer only Set Home that offers
    * them: a published set someone else made is looked at and exported, never
@@ -362,7 +362,7 @@
             <span class="export-text">
               <span class="export-label">Download individual card PNGs</span>
               <span class="export-hint">
-                {pngProgress ?? 'One full-resolution image per card, organised by kind in a .zip.'}
+                {pngProgress ?? 'One full-resolution image per card, organized by kind in a .zip.'}
               </span>
             </span>
           </button>

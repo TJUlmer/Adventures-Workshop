@@ -2067,7 +2067,7 @@
                 <h2 class="principles-title">What sets this tool apart</h2>
               </div>
               <p>
-                Unmatched Labs is organised around the practical needs of finishing and sharing a
+                Unmatched Labs is organized around the practical needs of finishing and sharing a
                 complete fan-made set, not around a collection of disconnected generators.
               </p>
             </header>

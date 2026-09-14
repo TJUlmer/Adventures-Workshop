@@ -293,7 +293,7 @@ export async function fetchCollectionBySlug(slug: string): Promise<Collection | 
  * One collection as a signed-in project participant sees it.
  *
  * Unlike the public slug function, this is an ordinary table read through
- * RLS. That is what lets an organiser, accepted invitee or involved deck
+ * RLS. That is what lets an organizer, accepted invitee or involved deck
  * owner reopen a private working room without making its share link public.
  */
 export async function fetchCollectionWorkspaceBySlug(
@@ -864,7 +864,7 @@ export async function reorderMember(
  *
  * The working-room view, and deliberately not what the page draws for a
  * visitor — that comes from `fetchCollectionTiles`, which returns accepted
- * rows only. Organisers and each deck owner retain the pending rows they need
+ * rows only. Organizers and each deck owner retain the pending rows they need
  * to decide; accepted summaries are shared with the whole project team so
  * everyone can reach the internal deck discussions.
  */
@@ -973,7 +973,7 @@ export async function deleteCollectionDeckComment(commentId: string): Promise<vo
  * Both directions in one call, because Home's attention strip asks one
  * question — "is anything waiting on me?" — and already answers it for
  * contributions. An `invited` row waits on the deck's owner; a `submitted`
- * row waits on an organiser. The RPC restricts pending rows to those two
+ * row waits on an organizer. The RPC restricts pending rows to those two
  * parties, so a single unfiltered fetch cannot leak the other side's work.
  */
 export async function listPendingMemberships(): Promise<CollectionMembership[]> {

@@ -2,7 +2,7 @@
   /**
    * A collection's own page — the one link a project is announced with.
    *
-   * The default mode is a read-only public exhibition. Organiser and member
+   * The default mode is a read-only public exhibition. Organizer and member
    * tools share one quieter workspace beside it, but never leak invitations,
    * readiness or mutation controls into the experience a guest opens.
    *
@@ -327,7 +327,7 @@
       if (!result || result.outcome === 'not_found') {
         claimNotice = 'That invitation link is not valid.';
       } else if (result.outcome === 'revoked') {
-        claimNotice = 'That invitation link has been turned off. Ask the organisers for a new one.';
+        claimNotice = 'That invitation link has been turned off. Ask the organizers for a new one.';
       } else {
         claimNotice = `You have joined ${result.collection_name || 'this collection'}. Offer a deck whenever one is ready.`;
         if (result.collection_slug && result.collection_slug !== slug) {
@@ -674,22 +674,6 @@
     return 'can-offer';
   });
 
-  /**
-   * Accepted rows this visitor may end.
-   *
-   * Both parties can, and the governance table says so: a deck's author
-   * leaves, an organizer unlinks. Neither is destructive — `removeMember`
-   * writes a status, and the set's own row, slug, shelf entry and gallery
-   * listing are untouched by either.
-   */
-  const removable = $derived(
-    memberships.filter(
-      (row) =>
-        row.status === 'accepted' &&
-        (organizer || row.set?.owner_id === auth.user?.id)
-    )
-  );
-
   async function loadMembership(): Promise<CollectionMembership[] | null> {
     const request = ++membershipRequest;
     const collectionId = collection?.id ?? '';
@@ -873,7 +857,7 @@
    *
    * A contributor can republish from another browser, which clears Ready in
    * the database. Membership rows refresh while this workspace is open; tiles
-   * do not, so using the exhibition projection here could let an organiser
+   * do not, so using the exhibition projection here could let an organizer
    * publish against a stale Ready claim. Pending rows are excluded because a
    * deck that has not joined is not a deck that is late.
    */
@@ -883,8 +867,10 @@
   const readiness = $derived(
     readinessOf(
       acceptedMemberships.map((row) => ({
-        ready: row.ready,
-        name: row.set?.name || 'Untitled'
+        ready: row.ready && row.set?.visibility !== 'private',
+        name: row.set?.visibility === 'private'
+          ? `${row.set?.name || 'Untitled'} (Private link needed)`
+          : row.set?.name || 'Untitled'
       }))
     )
   );
@@ -1256,10 +1242,6 @@
     };
   });
 
-  const displayedRemovable = $derived(
-    organizer ? removable : removable.filter((row) => row.set?.owner_id === auth.user?.id)
-  );
-
   const creators = $derived.by(() => {
     const seen = new Set<string>();
     return tiles.flatMap((tile) => {
@@ -1291,6 +1273,17 @@
     pageMode = 'workspace';
     manageTab = tab;
     void loadMembership();
+  }
+
+  function showLaunch(): void {
+    pageMode = 'workspace';
+    manageTab = 'settings';
+    requestAnimationFrame(() => {
+      document.getElementById('collection-launch')?.scrollIntoView({
+        behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth',
+        block: 'center'
+      });
+    });
   }
 
   function showCollectionExport(): void {
@@ -1331,7 +1324,12 @@
       const latestReadiness = readinessOf(
         latestMemberships
           .filter((row) => row.status === 'accepted')
-          .map((row) => ({ ready: row.ready, name: row.set?.name || 'Untitled' }))
+          .map((row) => ({
+            ready: row.ready && row.set?.visibility !== 'private',
+            name: row.set?.visibility === 'private'
+              ? `${row.set?.name || 'Untitled'} (Private link needed)`
+              : row.set?.name || 'Untitled'
+          }))
       );
       if (latestReadiness.waitingOn.length > 0) {
         publishGate = latestReadiness.waitingOn;
@@ -1343,10 +1341,9 @@
     }
   }
 
-  const VISIBILITIES: { value: CollectionVisibility; label: string; hint: string }[] = [
-    { value: 'private', label: 'Private', hint: 'Only the project team. The public link shows nothing.' },
-    { value: 'unlisted', label: 'Unlisted', hint: 'Anyone with the link. Not in the gallery.' },
-    { value: 'public', label: 'Public', hint: 'Listed for everyone to find.' }
+  const WORKING_VISIBILITIES: { value: CollectionVisibility; label: string; hint: string }[] = [
+    { value: 'private', label: 'Private project', hint: 'Only the project team. The public link shows nothing.' },
+    { value: 'unlisted', label: 'Private link', hint: 'Anyone with the link. Not listed publicly.' }
   ];
 </script>
 
@@ -1467,13 +1464,6 @@
             </div>
             {#if collection.blurb}<p class="blurb">{collection.blurb}</p>{/if}
             <div class="hero-meta">
-              <span class="visibility-state" data-visibility={collection.visibility}>
-                {collection.visibility === 'private'
-                  ? 'Private · everybody outside the project sees nothing'
-                  : collection.visibility === 'unlisted'
-                    ? 'Shared by link · not listed publicly'
-                    : 'Public · listed for everybody'}
-              </span>
               <span>{tiles.length} {tiles.length === 1 ? 'deck' : 'decks'}</span>
               <span>{creators.length} {creators.length === 1 ? 'creator' : 'creators'}</span>
               {#if collection.visibility !== 'public' && membershipRowsCurrent && readiness.total > 0}
@@ -1496,6 +1486,38 @@
           {/if}
         </div>
       </section>
+      {/if}
+
+      {#if pageMode === 'workspace'}
+        <section
+          class="project-status"
+          class:live={collection.visibility === 'public'}
+          aria-labelledby="collection-project-status"
+        >
+          <span class="status-signal" aria-hidden="true"></span>
+          <div class="status-name">
+            <span>Status</span>
+            <strong id="collection-project-status">
+              {collection.visibility === 'public' ? 'Live' : 'In progress'}
+            </strong>
+          </div>
+          <p>
+            {collection.visibility === 'public'
+              ? 'The collection is out in the world. Everyone can visit the finished page.'
+              : collection.visibility === 'private'
+                ? 'The team is still working. Everyone outside this project sees nothing.'
+                : 'The team is still working. The page is available by Private link but is not listed publicly.'}
+          </p>
+          <div class="status-actions">
+            {#if organizer && collection.visibility !== 'public'}
+              <button type="button" class="btn status-cta" onclick={showLaunch}>Share with the world</button>
+            {:else}
+              <button type="button" class="btn" onclick={showShowcase}>
+                {collection.visibility === 'public' ? 'View live page' : 'Preview page'}
+              </button>
+            {/if}
+          </div>
+        </section>
       {/if}
 
       {#if pageMode === 'workspace' && organizer}
@@ -1535,6 +1557,86 @@
         </div>
       {/if}
 
+      {#if organizer && pageMode === 'workspace' && manageTab === 'settings'}
+        <section
+          id="collection-launch"
+          class="launch-panel"
+          class:live={collection.visibility === 'public'}
+          aria-labelledby="collection-launch-heading"
+        >
+          <span class="launch-mark" aria-hidden="true">✦</span>
+          <div class="launch-copy">
+            <p class="eyebrow">{collection.visibility === 'public' ? 'Shared with the world' : 'The big moment'}</p>
+            <h2 id="collection-launch-heading">
+              {collection.visibility === 'public'
+                ? `${heading} is live!`
+                : 'Ready to share this collection with the world?'}
+            </h2>
+            <p>
+              {collection.visibility === 'public'
+                ? 'The public page is listed for everyone to discover. The team can keep improving its decks after launch.'
+                : 'Launch makes the finished collection page public and discoverable. Decks published with Private link appear inside it but remain out of the standalone Gallery.'}
+            </p>
+            <div class="launch-facts">
+              <span>{acceptedMemberships.length} {acceptedMemberships.length === 1 ? 'deck' : 'decks'}</span>
+              {#if membershipRowsCurrent && readiness.total > 0}
+                <span class:ready={readiness.waitingOn.length === 0}>
+                  {readiness.ready} of {readiness.total} marked Ready
+                </span>
+              {/if}
+              {#if unlistedMemberCount > 0}
+                <span>{unlistedMemberCount} staying on Private link</span>
+              {/if}
+            </div>
+          </div>
+          <div class="launch-actions">
+            {#if collection.visibility === 'public'}
+              <button type="button" class="btn launch-button" onclick={showShowcase}>View the live collection</button>
+              <button type="button" class="btn" onclick={copyLink}>Copy public link</button>
+            {:else}
+              <button
+                type="button"
+                class="btn launch-button"
+                disabled={checkingPublication || membershipLoading || !membershipRowsCurrent}
+                onclick={askToPublish}
+              >
+                {checkingPublication ? 'Checking with the team…' : 'Share this collection with the world!'}
+              </button>
+              <span class="launch-note">We will check everyone’s current Ready status first.</span>
+            {/if}
+          </div>
+
+          {#if publishGate}
+            <div class="gate">
+              <p class="gate-title">
+                {publishGate.length}
+                {publishGate.length === 1 ? 'deck is' : 'decks are'} not marked Ready
+              </p>
+              <p class="gate-names">{publishGate.join(', ')}</p>
+              <p class="hint">
+                Their creators have not said these revisions are finished. You can still launch if the team has agreed elsewhere.
+              </p>
+              <div class="row-actions">
+                <button
+                  type="button"
+                  class="btn launch-button"
+                  disabled={busy !== null}
+                  onclick={() => {
+                    publishGate = null;
+                    void setVisibility('public');
+                  }}
+                >
+                  Launch anyway
+                </button>
+                <button type="button" class="btn" onclick={() => (publishGate = null)}>
+                  Wait for the team
+                </button>
+              </div>
+            </div>
+          {/if}
+        </section>
+      {/if}
+
       {#if organizer && pageMode === 'workspace' && (manageTab === 'settings' || manageTab === 'people')}
         <!--
           Organizer-only, and each control says what the setting *does* rather
@@ -1543,7 +1645,7 @@
           made about their collaborators' work.
         -->
         <section class="admin">
-          <h2>{manageTab === 'settings' ? 'Collection settings' : 'Organisers'}</h2>
+          <h2>{manageTab === 'settings' ? 'Collection settings' : 'Organizers'}</h2>
           {#if manageTab === 'settings'}
             <div class="admin-row presentation-row">
               <span class="field-label">Presentation</span>
@@ -1552,24 +1654,25 @@
             </div>
           {/if}
           <div class="admin-row" class:hidden={manageTab !== 'settings'}>
-            <span class="field-label">Who can see this</span>
+            <span class="field-label">Working access</span>
             <div class="choices">
-              {#each VISIBILITIES as option (option.value)}
+              {#each WORKING_VISIBILITIES as option (option.value)}
                 <button
                   type="button"
                   class="choice"
                   class:on={collection.visibility === option.value}
                   title={option.hint}
                   disabled={checkingPublication || busy !== null}
-                  onclick={() =>
-                    option.value === 'public' ? askToPublish() : setVisibility(option.value)}
+                  onclick={() => setVisibility(option.value)}
                 >
                   {option.label}
                 </button>
               {/each}
             </div>
             <span class="hint">
-              {VISIBILITIES.find((entry) => entry.value === collection?.visibility)?.hint}
+              {collection.visibility === 'public'
+                ? 'This collection is Live. Choose a working-access option here only if you need to take it out of public view.'
+                : WORKING_VISIBILITIES.find((entry) => entry.value === collection?.visibility)?.hint}
             </span>
 
             <!--
@@ -1588,35 +1691,6 @@
               </span>
             {/if}
           </div>
-
-          {#if publishGate && manageTab === 'settings'}
-            <div class="gate">
-              <p class="gate-title">
-                {publishGate.length}
-                {publishGate.length === 1 ? 'deck is' : 'decks are'} not marked ready
-              </p>
-              <p class="gate-names">{publishGate.join(', ')}</p>
-              <p class="hint">
-                Their authors have not said they are finished. You can publish anyway.
-              </p>
-              <div class="row-actions">
-                <button
-                  type="button"
-                  class="btn primary"
-                  disabled={busy !== null}
-                  onclick={() => {
-                    publishGate = null;
-                    void setVisibility('public');
-                  }}
-                >
-                  Publish anyway
-                </button>
-                <button type="button" class="btn" onclick={() => (publishGate = null)}>
-                  Wait for them
-                </button>
-              </div>
-            </div>
-          {/if}
 
           <div class="admin-row" class:hidden={manageTab !== 'settings'}>
             <span class="field-label">Submissions</span>
@@ -1650,7 +1724,7 @@
           </div>
 
           <div class="admin-row" class:hidden={manageTab !== 'people'}>
-            <span class="field-label">Organisers</span>
+            <span class="field-label">Organizers</span>
 
             <ul class="organizers">
               {#each organizers as row (row.user_id)}
@@ -1707,19 +1781,19 @@
                   disabled={busy !== null || !promoteTarget}
                   onclick={() => promote(promoteTarget)}
                 >
-                  {busy === 'promote' ? 'Adding…' : 'Make organiser'}
+                  {busy === 'promote' ? 'Adding…' : 'Make organizer'}
                 </button>
               </div>
               <span class="hint">
-                An organiser can invite decks, decide on offers, edit this page and publish it.
+                An organizer can invite decks, decide on offers, edit this page and publish it.
                 Anyone with a deck here can be one.
               </span>
             {:else if tiles.length === 0}
               <span class="hint">
-                Once a deck is in the collection, its creator can be made an organiser too.
+                Once a deck is in the collection, its creator can be made an organizer too.
               </span>
             {:else}
-              <span class="hint">Everyone with a deck here is already an organiser.</span>
+              <span class="hint">Everyone with a deck here is already an organizer.</span>
             {/if}
           </div>
 
@@ -1788,6 +1862,168 @@
       {/if}
 
       <div class="content-flow">
+
+      {#if pageMode === 'workspace' && manageTab === 'decks' && acceptedMemberships.length > 0}
+        <section class="panel collection-roster">
+          <h2>Decks in this collection</h2>
+          <p class="hint">
+            The complete team lineup. Ready always belongs to the published revision shown here.
+          </p>
+          <ul class="rows roster-rows">
+            {#each acceptedMemberships as row (row.set_id)}
+              <li>
+                <span class="row-name deck-source">
+                  <span>
+                    {row.set?.name || 'Untitled'}
+                    <span class="row-by">{row.set?.author?.display_name || 'Anonymous'}</span>
+                  </span>
+                  <span class="row-source">
+                    Revision {row.set?.revision ?? '—'} ·
+                    {row.set?.visibility === 'private'
+                      ? 'Private link needed'
+                      : row.ready ? 'Ready' : 'In progress'}
+                  </span>
+                </span>
+                <span class="row-actions">
+                  <button type="button" class="btn" onclick={() => viewPublishedContribution(row)}>
+                    View published
+                  </button>
+                  {#if organizer || row.set?.owner_id === auth.user?.id}
+                    <button
+                      type="button"
+                      class="btn"
+                      disabled={busy !== null || membershipLoading || !membershipRowsCurrent}
+                      onclick={() =>
+                        run(`remove-${row.set_id}`, () => removeMember(collection!.id, row.set_id))}
+                    >{organizer ? 'Remove' : 'Leave collection'}</button>
+                  {/if}
+                </span>
+              </li>
+            {/each}
+          </ul>
+        </section>
+      {/if}
+
+      {#if pageMode === 'workspace' && manageTab === 'decks' && myAccepted.length > 0}
+        <section class="panel contributions">
+          <h2>Your contribution{myAccepted.length === 1 ? '' : 's'}</h2>
+          <p class="hint">
+            Keep the working copy private while you edit. Publish each version with
+            <strong>Private link</strong> to confirm its spot here without listing it in the Gallery,
+            then mark that published revision Ready when the team should treat it as finished.
+          </p>
+          <div class="contribution-grid">
+            {#each myAccepted as row (row.set_id)}
+              {@const publication = publicationFor(row.set_id)}
+              {@const localDraft = publication ? draftIsOnHome(publication) : false}
+              {@const readyHere = row.ready && row.set?.visibility !== 'private'}
+              <article class="contribution-card">
+                <header class="contribution-head">
+                  <span>
+                    <strong>{row.set?.name || 'Untitled'}</strong>
+                    <small>Published revision {row.set?.revision ?? '—'}</small>
+                  </span>
+                  <span class:ready={readyHere} class="status-pill">
+                    {readyHere ? 'Ready' : 'In progress'}
+                  </span>
+                </header>
+
+                <div class="private-link-guidance" class:confirmed={row.set?.visibility === 'unlisted'}>
+                  <strong>
+                    {row.set?.visibility === 'unlisted'
+                      ? 'Private link confirmed'
+                      : 'Publish with Private link'}
+                  </strong>
+                  <span>
+                    {row.set?.visibility === 'unlisted'
+                      ? 'This revision holds its place in the collection without appearing in the standalone Gallery.'
+                      : row.set?.visibility === 'public'
+                        ? 'This deck is currently listed in the Gallery. Choose Private link in its publishing controls if it should launch only through this collection.'
+                        : 'The published copy is hidden. Share it by Private link so the collection can display it when the project launches.'}
+                  </span>
+                </div>
+
+                <p>
+                  {readyHere
+                    ? 'The team knows this published revision is finished. Publishing another revision will automatically return it to In progress.'
+                    : 'Edit and publish your latest changes, then check Ready for this exact published revision.'}
+                </p>
+                <div class="contribution-actions">
+                  <button
+                    type="button"
+                    class="btn"
+                    disabled={busy !== null || !localDraft}
+                    title={localDraft ? undefined : 'The editable draft is not on this device.'}
+                    onclick={() => void editContribution(row.set_id)}
+                  >Edit working copy</button>
+                  <button type="button" class="btn" onclick={() => viewPublishedContribution(row)}>
+                    View published version
+                  </button>
+                </div>
+
+                <label class="ready-check" class:checked={readyHere}>
+                  <input
+                    type="checkbox"
+                    checked={readyHere}
+                    disabled={busy !== null || membershipLoading || !membershipRowsCurrent || row.set?.visibility === 'private'}
+                    onchange={(event) => {
+                      const next = event.currentTarget.checked;
+                      event.currentTarget.checked = readyHere;
+                      void run(`ready-${row.set_id}`, () =>
+                        setMemberReady(collection!.id, row.set_id, next)
+                      );
+                    }}
+                  />
+                  <span>
+                    <strong>{readyHere ? 'Ready' : 'Mark Ready'}</strong>
+                    <small>
+                      {row.set?.visibility === 'private'
+                        ? 'Publish with Private link before marking this contribution Ready.'
+                        : readyHere
+                          ? `Published revision ${row.set?.revision ?? '—'} is complete.`
+                          : 'Confirm that this published revision is finished for the team.'}
+                    </small>
+                  </span>
+                </label>
+
+                {#if !localDraft}
+                  <p class="device-note">The published version is available, but its editable draft is not on this device.</p>
+                {/if}
+              </article>
+            {/each}
+          </div>
+
+          {#if myUnlistedHere.length > 0}
+            <div class="launch-ask">
+              <p class="hint">
+                This collection is Live.
+                {myUnlistedHere.length === 1 ? 'Your deck is' : 'Your decks are'}
+                still on Private link — reachable through the collection and its own link, but not
+                shown in the Gallery. The collection never changes that choice.
+              </p>
+              {#each myUnlistedHere as row (row.set_id)}
+                <div class="row-actions">
+                  <span class="row-name">{row.set?.name || 'Untitled'}</span>
+                  <button
+                    type="button"
+                    class="btn"
+                    disabled={busy !== null}
+                    onclick={() => void publishMyDeck(row.set_id)}
+                  >
+                    {busy === `publish-deck-${row.set_id}`
+                      ? 'Publishing…'
+                      : 'List it in the Gallery'}
+                  </button>
+                </div>
+              {/each}
+              <p class="hint">
+                Leaving it on Private link is a real choice—some decks are meant to exist
+                only as part of their collection.
+              </p>
+            </div>
+          {/if}
+        </section>
+      {/if}
 
       {#if organizer && pageMode === 'workspace' && manageTab === 'decks' && submissions.length > 0}
         <section class="panel attention">
@@ -1871,105 +2107,11 @@
         </section>
       {/if}
 
-      {#if pageMode === 'workspace' && manageTab === 'decks' && myAccepted.length > 0}
-        <section class="panel contributions">
-          <h2>Your contribution{myAccepted.length === 1 ? '' : 's'}</h2>
-          <p class="hint">
-            Keep editing your local draft and publish each update as usual. Mark the published
-            revision Ready when the team should treat it as finished.
-          </p>
-          <div class="contribution-grid">
-            {#each myAccepted as row (row.set_id)}
-              {@const publication = publicationFor(row.set_id)}
-              {@const localDraft = publication ? draftIsOnHome(publication) : false}
-              <article class="contribution-card">
-                <header class="contribution-head">
-                  <span>
-                    <strong>{row.set?.name || 'Untitled'}</strong>
-                    <small>Published revision {row.set?.revision ?? '—'}</small>
-                  </span>
-                  <span class:ready={row.ready} class="status-pill">
-                    {row.ready ? 'Ready' : 'In progress'}
-                  </span>
-                </header>
-                <p>
-                  {row.ready
-                    ? 'The team knows this published revision is finished. Publishing another revision will automatically return it to In progress.'
-                    : 'Edit and publish your latest changes, then mark this revision Ready for the team.'}
-                </p>
-                <div class="contribution-actions">
-                  <button
-                    type="button"
-                    class="btn"
-                    disabled={busy !== null || !localDraft}
-                    title={localDraft ? undefined : 'The editable draft is not on this device.'}
-                    onclick={() => void editContribution(row.set_id)}
-                  >Edit working copy</button>
-                  <button type="button" class="btn" onclick={() => viewPublishedContribution(row)}>
-                    View published version
-                  </button>
-                  <button
-                    type="button"
-                    class:primary={!row.ready}
-                    class="btn ready-action"
-                    disabled={busy !== null || membershipLoading || !membershipRowsCurrent}
-                    onclick={() =>
-                      run(`ready-${row.set_id}`, () =>
-                        setMemberReady(collection!.id, row.set_id, !row.ready)
-                      )}
-                  >{row.ready ? 'Mark not ready' : 'Mark Ready'}</button>
-                </div>
-                {#if !localDraft}
-                  <p class="device-note">The published version is available, but its editable draft is not on this device.</p>
-                {/if}
-              </article>
-            {/each}
-          </div>
-
-          {#if myUnlistedHere.length > 0}
-            <!--
-              Shown only to the deck's own author, and only once the collection
-              is public. Both outcomes are stated because neither is the
-              default-correct one: a deck can belong to a box without wanting a
-              listing of its own.
-            -->
-            <div class="launch-ask">
-              <p class="hint">
-                This collection is public.
-                {myUnlistedHere.length === 1 ? 'Your deck is' : 'Your decks are'}
-                still unlisted — reachable through the box and its own link, but not
-                shown in the gallery. Publishing is yours to decide; the collection
-                never changes it.
-              </p>
-              {#each myUnlistedHere as row (row.set_id)}
-                <div class="row-actions">
-                  <span class="row-name">{row.set?.name || 'Untitled'}</span>
-                  <button
-                    type="button"
-                    class="btn"
-                    disabled={busy !== null}
-                    onclick={() => void publishMyDeck(row.set_id)}
-                  >
-                    {busy === `publish-deck-${row.set_id}`
-                      ? 'Publishing…'
-                      : 'List it in the gallery'}
-                  </button>
-                </div>
-              {/each}
-              <p class="hint">
-                Leaving it unlisted is a real choice — some decks are meant to exist
-                only as part of their collection.
-              </p>
-            </div>
-          {/if}
-        </section>
-      {/if}
-
       {#if pageMode === 'workspace' && manageTab === 'decks' && myPending.length > 0}
         <section class="panel">
           <h2>Submitted for review</h2>
           <p class="hint">
-            The organisers have your offer. You can keep editing and republishing while it waits,
+            The organizers have your offer. You can keep editing and republishing while it waits,
             or withdraw it before they decide.
           </p>
           <ul class="rows">
@@ -2030,7 +2172,7 @@
             >Open your sets</button>
           {:else if joining === 'invite-only'}
             <p class="hint">
-              This project is invitation-only. Send an organiser the published deck’s share link
+              This project is invitation-only. Send an organizer the published deck’s share link
               so they can invite it.
             </p>
           {:else}
@@ -2052,7 +2194,7 @@
               >
                 {busy === `offer-${selectedOfferId}`
                   ? organizer ? 'Adding…' : 'Submitting…'
-                  : organizer ? 'Add this deck' : 'Submit to organisers'}
+                  : organizer ? 'Add this deck' : 'Submit to organizers'}
               </button>
             </div>
             {#if selectedOffer}
@@ -2064,43 +2206,6 @@
               </p>
             {/if}
           {/if}
-        </section>
-      {/if}
-
-      {#if organizer && pageMode === 'workspace' && manageTab === 'decks' && displayedRemovable.length > 0}
-        <section class="panel">
-          <h2>Decks in this collection</h2>
-          <p class="hint">
-            Ready belongs to the current published revision. Removing a deck only unlinks it;
-            the deck’s own page and working copy are untouched.
-          </p>
-          <ul class="rows roster-rows">
-            {#each displayedRemovable as row (row.set_id)}
-              <li>
-                <span class="row-name deck-source">
-                  <span>
-                    {row.set?.name || 'Untitled'}
-                    <span class="row-by">{row.set?.author?.display_name || 'Anonymous'}</span>
-                  </span>
-                  <span class="row-source">
-                    Revision {row.set?.revision ?? '—'} · {row.ready ? 'Ready' : 'In progress'}
-                  </span>
-                </span>
-                <span class="row-actions">
-                  <button type="button" class="btn" onclick={() => viewPublishedContribution(row)}>
-                    View published
-                  </button>
-                  <button
-                    type="button"
-                    class="btn"
-                    disabled={busy !== null || membershipLoading || !membershipRowsCurrent}
-                    onclick={() =>
-                      run(`remove-${row.set_id}`, () => removeMember(collection!.id, row.set_id))}
-                  >Remove</button>
-                </span>
-              </li>
-            {/each}
-          </ul>
         </section>
       {/if}
 
@@ -2608,6 +2713,10 @@
     border-color: var(--border-accent);
     color: var(--text-accent);
   }
+  .choice:disabled {
+    opacity: 0.55;
+    cursor: default;
+  }
   .choice:focus-visible {
     outline: none;
     box-shadow: var(--focus-ring);
@@ -2754,6 +2863,171 @@
     border-color: var(--border-accent);
     background: var(--accent-soft);
   }
+
+  .project-status {
+    display: grid;
+    grid-template-columns: auto auto minmax(0, 1fr) auto;
+    align-items: center;
+    gap: var(--space-3) var(--space-4);
+    margin: calc(var(--space-2) * -1) 0 var(--space-5);
+    padding: var(--space-3) var(--space-4);
+    border: 1px solid color-mix(in oklab, var(--warning) 55%, var(--border-default));
+    border-radius: var(--radius-md);
+    background: color-mix(in oklab, var(--warning) 10%, var(--surface-raised));
+  }
+
+  .project-status.live {
+    border-color: color-mix(in oklab, var(--success) 55%, var(--border-default));
+    background: color-mix(in oklab, var(--success) 10%, var(--surface-raised));
+  }
+
+  .status-signal {
+    width: var(--space-3);
+    height: var(--space-3);
+    border-radius: var(--radius-full);
+    background: var(--warning);
+    box-shadow: 0 0 0 var(--space-1) color-mix(in oklab, var(--warning) 20%, transparent);
+  }
+
+  .project-status.live .status-signal {
+    background: var(--success);
+    box-shadow: 0 0 0 var(--space-1) color-mix(in oklab, var(--success) 20%, transparent);
+  }
+
+  .status-name {
+    display: grid;
+    min-width: 6rem;
+  }
+
+  .status-name > span {
+    color: var(--text-muted);
+    font-size: var(--text-2xs);
+    font-weight: var(--weight-semibold);
+    letter-spacing: var(--tracking-caps);
+    text-transform: uppercase;
+  }
+
+  .status-name strong {
+    color: var(--text-primary);
+    font-family: var(--font-display);
+    font-size: var(--text-lg);
+  }
+
+  .project-status > p {
+    margin: 0;
+    color: var(--text-secondary);
+    font-size: var(--text-sm);
+    line-height: var(--leading-normal);
+  }
+
+  .status-actions {
+    display: flex;
+    justify-content: flex-end;
+  }
+
+  .status-cta {
+    border-color: color-mix(in oklab, var(--warning) 65%, var(--border-default));
+    background: color-mix(in oklab, var(--warning) 20%, var(--surface-raised));
+    font-weight: var(--weight-semibold);
+  }
+
+  .launch-panel {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: var(--space-4) var(--space-5);
+    margin-bottom: var(--space-5);
+    padding: clamp(var(--space-5), 4vw, var(--space-8));
+    border: 1px solid color-mix(in oklab, var(--warning) 65%, var(--border-default));
+    border-radius: var(--radius-lg);
+    background:
+      linear-gradient(135deg, color-mix(in oklab, var(--warning) 15%, transparent), transparent 65%),
+      var(--surface-raised);
+    box-shadow: var(--shadow-md);
+  }
+
+  .launch-panel.live {
+    border-color: color-mix(in oklab, var(--success) 65%, var(--border-default));
+    background:
+      linear-gradient(135deg, color-mix(in oklab, var(--success) 16%, transparent), transparent 65%),
+      var(--surface-raised);
+  }
+
+  .launch-mark {
+    display: grid;
+    width: var(--space-10);
+    height: var(--space-10);
+    place-items: center;
+    border-radius: var(--radius-full);
+    background: color-mix(in oklab, var(--warning) 25%, var(--surface-raised));
+    color: var(--warning);
+    font-size: var(--text-2xl);
+  }
+
+  .launch-panel.live .launch-mark {
+    background: color-mix(in oklab, var(--success) 22%, var(--surface-raised));
+    color: var(--success);
+  }
+
+  .launch-copy h2 {
+    margin: 0;
+    color: var(--text-primary);
+    font-family: var(--font-display);
+    font-size: clamp(var(--text-xl), 3vw, var(--text-2xl));
+  }
+
+  .launch-copy > p:not(.eyebrow) {
+    max-width: 66ch;
+    margin: var(--space-2) 0 0;
+    color: var(--text-secondary);
+    line-height: var(--leading-relaxed);
+  }
+
+  .launch-facts {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2) var(--space-4);
+    margin-top: var(--space-4);
+    color: var(--text-tertiary);
+    font-size: var(--text-sm);
+  }
+
+  .launch-facts .ready {
+    color: var(--success);
+    font-weight: var(--weight-semibold);
+  }
+
+  .launch-actions {
+    grid-column: 2;
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: var(--space-3);
+  }
+
+  .launch-button {
+    min-height: var(--space-10);
+    padding: var(--space-2) var(--space-5);
+    border-color: color-mix(in oklab, var(--warning) 70%, var(--border-default));
+    background: color-mix(in oklab, var(--warning) 25%, var(--surface-raised));
+    font-size: var(--text-base);
+    font-weight: var(--weight-bold);
+  }
+
+  .launch-panel.live .launch-button {
+    border-color: color-mix(in oklab, var(--success) 70%, var(--border-default));
+    background: color-mix(in oklab, var(--success) 24%, var(--surface-raised));
+  }
+
+  .launch-note {
+    color: var(--text-muted);
+    font-size: var(--text-xs);
+  }
+
+  .launch-panel > .gate {
+    grid-column: 2;
+    border-color: color-mix(in oklab, var(--warning) 50%, var(--border-default));
+    background: color-mix(in oklab, var(--warning) 8%, var(--surface-inset));
+  }
   .panel.attention {
     border-color: var(--border-accent);
     background: var(--accent-soft);
@@ -2846,6 +3120,32 @@
     background: var(--surface-raised);
   }
 
+  .private-link-guidance {
+    display: grid;
+    gap: var(--space-1);
+    margin-top: var(--space-3);
+    padding: var(--space-3);
+    border-left: var(--space-1) solid var(--warning);
+    border-radius: var(--radius-sm);
+    background: color-mix(in oklab, var(--warning) 8%, var(--surface-inset));
+  }
+
+  .private-link-guidance.confirmed {
+    border-left-color: var(--success);
+    background: color-mix(in oklab, var(--success) 8%, var(--surface-inset));
+  }
+
+  .private-link-guidance strong {
+    color: var(--text-primary);
+    font-size: var(--text-sm);
+  }
+
+  .private-link-guidance span {
+    color: var(--text-secondary);
+    font-size: var(--text-sm);
+    line-height: var(--leading-normal);
+  }
+
   .contribution-head {
     display: flex;
     align-items: flex-start;
@@ -2897,6 +3197,53 @@
     display: flex;
     flex-wrap: wrap;
     gap: var(--space-2);
+  }
+
+  .ready-check {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    margin-top: var(--space-4);
+    padding: var(--space-3) var(--space-4);
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-md);
+    background: var(--surface-inset);
+    cursor: pointer;
+  }
+
+  .ready-check.checked {
+    border-color: color-mix(in oklab, var(--success) 60%, var(--border-default));
+    background: color-mix(in oklab, var(--success) 9%, var(--surface-inset));
+  }
+
+  .ready-check:has(input:disabled) {
+    cursor: default;
+    opacity: 0.68;
+  }
+
+  .ready-check input {
+    width: var(--space-7);
+    height: var(--space-7);
+    flex: none;
+    margin: 0;
+    accent-color: var(--success);
+    cursor: inherit;
+  }
+
+  .ready-check > span {
+    display: grid;
+    gap: var(--space-1);
+  }
+
+  .ready-check strong {
+    color: var(--text-primary);
+    font-size: var(--text-base);
+  }
+
+  .ready-check small {
+    color: var(--text-secondary);
+    font-size: var(--text-xs);
+    line-height: var(--leading-normal);
   }
 
   .device-note {
@@ -3286,9 +3633,29 @@
 
     .workspace-heading,
     .deck-picker,
-    .workspace-error {
+    .workspace-error,
+    .project-status {
       align-items: stretch;
       flex-direction: column;
+    }
+
+    .project-status {
+      display: flex;
+    }
+
+    .status-actions,
+    .status-actions .btn {
+      width: 100%;
+    }
+
+    .launch-panel {
+      grid-template-columns: 1fr;
+    }
+
+    .launch-mark,
+    .launch-actions,
+    .launch-panel > .gate {
+      grid-column: 1;
     }
 
     .export-choices {

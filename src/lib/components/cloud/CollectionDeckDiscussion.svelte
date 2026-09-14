@@ -245,7 +245,7 @@
   <section class="discussion" aria-labelledby="collection-deck-discussion-heading">
     <header class="discussion-heading">
       <div>
-        <p class="eyebrow">{organizer ? 'Organiser workspace' : 'Creator workspace'}</p>
+        <p class="eyebrow">{organizer ? 'Organizer workspace' : 'Creator workspace'}</p>
         <h2 id="collection-deck-discussion-heading">Deck discussions</h2>
       </div>
       <div class="discussion-tools">

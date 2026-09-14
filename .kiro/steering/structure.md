@@ -155,5 +155,6 @@ a thing is the way it is** — usually the failure that forced it — and never 
 what the line does. Several files carry the history of a bug in a comment precisely
 so it is not reintroduced. Follow that.
 
-**British spelling** in prose and comments; `colour` in user-facing copy, `color`
+**British spelling** in prose and comments, using Oxford `-ize` forms such as
+`organize`, `organizer`, and `recognize`; `colour` in user-facing copy, `color`
 only where a CSS or DOM API demands it.
