@@ -6,9 +6,9 @@ its **Where this stands** section first. This file is the part that document
 should not carry: where the work physically lives, what is safe to assume, and
 what will bite.
 
-Updated 2026-09-14. The committed base is `c3b0264` on `collections`; the
-management-workspace pass described below is intentionally uncommitted while it
-is being verified.
+Updated 2026-09-14. The management-workspace pass is committed, its migrations
+are applied, and collection development now ships through `main`. The account
+allowlist—not a long-lived feature branch—is the release boundary.
 
 ---
 
@@ -17,14 +17,15 @@ is being verified.
 | worktree | branch | holds |
 |---|---|---|
 | `Adventures_Workshop` | `main` | the saved production checkout; its local branch is stale, so compare with `origin/main` before using it |
-| `Adventures_Workshop-collections` | `collections` | the deployed collection feature plus the current management pass |
+| `Adventures_Workshop-collections` | `collections` | the collection worktree; the local branch name is historical, and all new commits push to `origin/main` |
 | `Adventures_Workshop-cloud-drafts` | `codex/cloud-drafts` | unrelated, another session's |
 
-At this update, `HEAD`, `origin/collections` and `origin/main` all point to
-`c3b0264`. The local `main` checkout is behind its remote and should not be used
-as evidence that production lacks a change. Collections is now intentionally on
-`main`: the public showcase is live, and the Home entry is rollout-allowlisted.
-The earlier instruction to keep the feature away from `main` is obsolete.
+`origin/main` is the release authority. The local `main` checkout can lag its
+remote and should not be used as evidence that production lacks a change. This
+worktree may retain its `collections` branch name because `main` is checked out
+in the saved production worktree, but push new work explicitly to `origin/main`;
+do not advance `origin/collections`. The Home entry remains rollout-allowlisted,
+so shipping collection code on `main` does not expose it to other accounts.
 
 Share URLs are built from `location.origin` at runtime, so neither the old
 preview hostname nor the production hostname is stored in collection rows.
