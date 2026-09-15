@@ -1975,8 +1975,8 @@
                 <div class="capability-copy">
                   <h3>Card editor</h3>
                   <p>
-                    Design action, initiative, rules, and event cards with live previews, layered
-                    styling, split effects, and custom symbols.
+                    Design action, initiative, rules, and event cards with layered styling, special
+                    card effects, and custom symbols.
                   </p>
                 </div>
               </article>
@@ -2088,8 +2088,8 @@
                 <div>
                   <h3>A comprehensive card editor</h3>
                   <p>
-                    Build action, initiative, rules, event, and character cards with layered styles,
-                    custom symbols, and print-faithful live previews.
+                    Build action, initiative, rules, event, and character cards with near-limitless
+                    creative freedom.
                   </p>
                 </div>
               </article>
@@ -2098,8 +2098,8 @@
                 <div>
                   <h3>Built-in collaboration</h3>
                   <p>
-                    Fork a published set, offer specific changes back, and keep its origin and creator
-                    credits attached throughout the process.
+                    Work together on a published set, offer specific changes back, and keep its origin
+                    and creator credits attached throughout the process.
                   </p>
                 </div>
               </article>
@@ -2110,16 +2110,6 @@
                   <p>
                     Author locally without an account, or sign in to keep private drafts available
                     across browsers. Publishing remains a separate choice.
-                  </p>
-                </div>
-              </article>
-              <article class="principle wide">
-                <span class="principle-index numeric">05</span>
-                <div>
-                  <h3>The preview is the export</h3>
-                  <p>
-                    The same renderer used while editing produces card images and print output, so
-                    there is no second approximation to discover at the end.
                   </p>
                 </div>
               </article>
@@ -3711,10 +3701,6 @@
     background: var(--surface-base);
   }
 
-  .principle.wide {
-    grid-column: 1 / -1;
-  }
-
   .principle-index {
     padding-top: 2px;
     font-size: var(--text-2xs);
@@ -4271,10 +4257,6 @@
 
     .principle-grid {
       grid-template-columns: 1fr;
-    }
-
-    .principle.wide {
-      grid-column: 1;
     }
 
     .capability-card.major,

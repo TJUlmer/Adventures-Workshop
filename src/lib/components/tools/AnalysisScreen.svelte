@@ -17,7 +17,7 @@
     type OfficialDataStatus,
     type OfficialRosterType
   } from '$lib/analysis/official';
-  import { COMBAT_SYMBOLS, type CombatSymbol } from '$lib/cards/types';
+  import { COMBAT_SYMBOLS, isHybridCombatSymbol, type CombatSymbol } from '$lib/cards/types';
   import {
     ATTACK_TYPE_LABELS,
     CHARACTER_ROLE_META,
@@ -109,6 +109,11 @@
   );
   const analysis = $derived(
     selectedCharacterId ? analyseCharacter(set, selectedCharacterId) : null
+  );
+  const compositionSymbols = $derived(
+    COMBAT_SYMBOLS.filter(
+      (symbol) => !isHybridCombatSymbol(symbol) || (analysis?.symbols[symbol].copyCount ?? 0) > 0
+    )
   );
   const deckNames = $derived.by(() => {
     if (!analysis) return [];
@@ -410,7 +415,7 @@
 
           {#if analysis.combatSupport === 'hero-symbols'}
             <div class="combat-grid">
-              {#each COMBAT_SYMBOLS as symbol (symbol)}
+              {#each compositionSymbols as symbol (symbol)}
                 {@const summary = analysis.symbols[symbol]}
                 {@const meta = COMBAT_META[symbol]}
                 <article class="combat-card" style:--combat-color="var({meta.colorVar})">

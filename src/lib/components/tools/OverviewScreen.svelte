@@ -127,7 +127,7 @@
 <style>
   .screen {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) 330px;
+    grid-template-columns: minmax(0, 1fr) clamp(480px, 48vw, 640px);
     height: 100%;
     min-height: 0;
     background: var(--surface-canvas);
@@ -294,14 +294,11 @@
     background: var(--warning);
   }
 
-  @media (max-width: 980px) {
-    .screen {
-      grid-template-columns: minmax(0, 1fr) 286px;
-    }
-
+  @media (max-width: 1500px) {
     .overview-head {
       align-items: flex-start;
       flex-direction: column;
+      gap: var(--space-3);
     }
 
     .summary {
@@ -309,7 +306,21 @@
     }
 
     .review-controls {
+      flex-wrap: wrap;
       justify-content: flex-start;
+      max-width: 100%;
+    }
+  }
+
+  @media (max-width: 1100px) {
+    .overview-head {
+      padding-inline: var(--space-4);
+    }
+  }
+
+  @media (max-width: 900px) {
+    .screen {
+      grid-template-columns: minmax(0, 1fr) min(640px, 50vw);
     }
   }
 </style>
