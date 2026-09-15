@@ -650,7 +650,35 @@
       and ability text below it — down with it. See `TITLE_RULE_GAP` and
       `belowTitleRule`.
     -->
-    <div class="panel-lead" style:height={pu(inPanel(TITLE_BOX_TOP))}></div>
+    <div class="title-zone">
+      <div class="panel-lead" style:height={pu(inPanel(TITLE_BOX_TOP))}></div>
+
+      {#if card.boost !== null && card.showBoostEffect}
+        <!-- The capsule belongs to the divider, which moves with this panel.
+             A same-width invisible float lets inline layout decide whether the
+             entire title fits beside it without measuring either text run. -->
+        <div
+          class="boost-title-clearance"
+          style:height={pu(BOOST_EFFECT.titleClearanceHeight)}
+          style:margin-right={pu(
+            INTERIOR.x + INTERIOR.width - (BOOST.cx + BOOST_EFFECT.offsetX) +
+              (hasRightTuckEffect ? TUCK_EFFECT.thickness : 0)
+          )}
+          style:min-width={pu(BOOST_EFFECT.minWidth)}
+          style:max-width={pu(BOOST.cx + BOOST_EFFECT.offsetX - INTERIOR.x)}
+          style:border-width={pu(BOOST_EFFECT.borderWidth)}
+          style:padding-left={pu(BOOST_EFFECT.label.left - BOOST_EFFECT.borderWidth)}
+          style:padding-right={pu(
+            Math.max(
+              0,
+              BOOST_EFFECT.label.right + BOOST_EFFECT.offsetX - BOOST_EFFECT.borderWidth
+            )
+          )}
+          style:font-size={pu(BOOST_EFFECT.label.size)}
+        >
+          {card.boostEffect}
+        </div>
+      {/if}
 
     <!--
       Set in flow rather than pinned, so a long title wraps to a second line
@@ -659,8 +687,10 @@
     -->
     <div
       class="title"
+      class:boost-aware={card.boost !== null && card.showBoostEffect}
       style:margin-left={pu(TITLE.x - BODY_PANEL.x)}
-      style:width={pu(TITLE.width)}
+      style:width={card.boost !== null && card.showBoostEffect ? 'max-content' : pu(TITLE.width)}
+      style:max-width={pu(TITLE.width)}
       style:font-size={pu(TITLE.size)}
       style:line-height={TITLE.lineHeight}
       style:letter-spacing="{TITLE.tracking}em"
@@ -695,6 +725,7 @@
       style:height={pu(TITLE_RULE.height)}
       style:background={theme.bodyInk}
     ></div>
+    </div>
 
     <!--
       Everything from here down is positioned against this wrapper's own top
@@ -1789,6 +1820,24 @@
     border-style: solid;
   }
 
+  .title-zone {
+    flex: none;
+    font-size: 0;
+    line-height: 0;
+  }
+
+  .boost-title-clearance {
+    float: right;
+    box-sizing: border-box;
+    width: max-content;
+    overflow: hidden;
+    border-style: solid;
+    visibility: hidden;
+    font-family: var(--card-font-text);
+    font-weight: var(--card-font-text-weight);
+    white-space: nowrap;
+  }
+
   .boost-assembly {
     position: absolute;
     inset: 0;
@@ -2059,6 +2108,11 @@
     display: flex;
     flex-direction: column;
     overflow: hidden;
+  }
+
+  .title.boost-aware {
+    display: inline-block;
+    vertical-align: top;
   }
 
   /* A compact split stack belongs at the panel's foot. Any unused room sits

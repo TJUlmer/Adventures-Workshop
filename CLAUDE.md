@@ -2415,6 +2415,16 @@ below along with it, the same as the name ribbon's own length falling out of
 its column. Bounded to two lines rather than left to run on indefinitely, so a
 long title cannot push the ability text an unbounded distance down the card.
 
+An optional boost-effect capsule can reach left across the title's usual first
+line. The title and rule now share a small `title-zone`: when the capsule is
+present, an invisible float repeats its intrinsic text width beside an atomic
+inline-block title. If both fit, the measured title position is unchanged; if
+not, inline layout moves the whole title below the float, taking the rule and
+the remaining copy with it. The float's height is a tuneable clearance for the
+lower title position, not a text-length threshold or a runtime measurement.
+Its hidden copy must remain the same font, size, border and
+padding as the visible capsule or the collision decision drifts.
+
 **That bound is a `max-height`, and it must not go back to `-webkit-line-clamp`.**
 Clamping was the obvious way to do it and buys an ellipsis on the clipped line,
 but `-webkit-line-clamp` needs `display: -webkit-box`, and legacy box layout

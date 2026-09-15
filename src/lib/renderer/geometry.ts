@@ -692,6 +692,10 @@ export const BOOST_EFFECT = {
   /** Short copy keeps at least the supplied artwork's measured length. */
   minWidth: 346,
   height: BOOST.outerRadius * 2,
+  /** The invisible capsule-width float needs vertical clearance to put a
+   * colliding title below it; keeping this separate from the visible capsule
+   * lets the lower title position be tuned without moving the boost assembly. */
+  titleClearanceHeight: 20,
   /** Exactly the same stroke that draws `BOOST_RING`. */
   borderWidth: BOOST.outerRadius - BOOST.innerRadius,
   /** Positive values move the capsule right/down without moving the boost disc. */
