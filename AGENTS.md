@@ -65,6 +65,9 @@ TypeScript is pinned to `~6` because `svelte-check` does not run on 7 yet.
   plus set-level singletons (style, threat track, map); every grouping the UI shows is
   derived. `sets/queries.ts` holds the derivations. IDs are branded types, preserved
   across a fork except the set's own.
+- **Analysis is derived and read-only.** `src/lib/analysis/official/` is a versioned
+  reference snapshot, never data inside a user's editable set. Statistical bands are
+  descriptive context and must not become Set Health severities.
 - **Style cascade:** `stock template → set.style → character.style → card.style`,
   flattened by `resolveStyleForCard()`. Overrides are sparse — "inherit" is an
   absent key. Card colours are concrete values, never `var(--…)`. The hero character
@@ -76,7 +79,7 @@ TypeScript is pinned to `~6` because `svelte-check` does not run on 7 yet.
   (`{ entity: 'card', id }`) and mutate through store commands. Library commands are
   `async` (IndexedDB has no sync API).
 - **Any new persisted field needs a branch in `sets/normalize.ts`**, or existing
-  documents load without it. `SET_SCHEMA_VERSION` is 59; newer files are refused.
+  documents load without it. `SET_SCHEMA_VERSION` is 62; newer files are refused.
   `normalizeSet` must be idempotent.
 - **`src/styles/tokens.css` is the only source of colour.** No component hardcodes a hex.
 - **Comments explain *why*** — usually the failure that forced the code — and never

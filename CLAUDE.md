@@ -123,6 +123,39 @@ will not compile.
 `README.md` covers the document model, the style cascade and the shell layout in
 depth. What follows is what it does not, or where it has drifted.
 
+### Analysis and the official catalogue
+
+`src/lib/analysis/` is deliberately outside the editable set model. The author’s
+document remains the only mutable input; analysis is derived on demand and adds
+no persisted fields or schema migration. `character.ts` counts both distinct
+designs and physical copies, but totals and averages weight by copy quantity.
+Opaque full-face replacements stay in deck totals while their printed values are
+reported as unavailable, since the app cannot safely infer what is in an image.
+Hero Attack/Defense/Versatile/Scheme fields are never projected onto villain or
+minion cards, whose two-value template means something different.
+
+The comparison source is the compact, versioned, read-only snapshot at
+`analysis/official/catalogue.json`, not records mixed into an `AdventureSet`.
+`tools/generate-official-catalogue.py` rebuilds it from the maintained workbook
+using only Python’s standard library, validates controlled values and expected
+row counts, and records the source file hash. Exceptional official deck shapes
+(choice pools, a starting card outside the shuffled deck, and partial captures)
+are explicit data rather than guessed from a count.
+
+`official-comparisons.ts` compares one current hero with every official character
+in the displayed cohort, counting each matching character once. It starts with
+range/roster peers, broadens the cohort when needed, and names the cohort and
+sample size in every result. Incomplete records and choice pools are excluded
+where they would make a deck total misleading, and deck-value comparisons wait
+until the current hero has 30 interpretable physical cards. Per-stat comparisons
+may name the nearest official value; the fighter profile may list structural
+neighbours using roster, range, health, card-type quantities, printed totals and
+numeric boost. Neither form interprets ability text or claims similar playstyle or
+balance. These bands are descriptive design context only: they must never become
+Set Health severities, because raw stats cannot judge the ability, matchups or the
+way a deck works together. The retained catalogue explorer is feature-gated; when
+enabled, its session-only filters must not silently change those comparison cohorts.
+
 ### The renderer is the export
 
 `src/lib/renderer/` draws cards as DOM, and `src/lib/export/card-image.ts`
@@ -446,7 +479,7 @@ level is small. Health, move, attack type and ability text already existed on
 block) and simply had nowhere to print before now.
 
 **A hero's action card is one field, not a new card type.** `ActionCard.type`
-stays `'action'`; `symbol` (one of the four combat symbols), `symbolValue` and
+stays `'action'`; `symbol` (one of the combat symbols), `symbolValue` and
 `owner` (`hero` / `sidekick` / `any` — who may play it) are new fields, read
 only when the owning character's role is `hero`. A hero may also enable the
 existing `split` layout from **Special card effects**: it reuses `attack`,
@@ -833,7 +866,7 @@ size is a themed key (`CardTheme.ribbonSymbolSize`) rather than card data.
 **The symbol itself is not recolourable, and that was tried and reverted.**
 Every other themed shape in this file — the frame, the ribbon, the boost ring
 — is single-colour art on transparency, which is what makes masking it to an
-author's chosen colour work at all. The four combat symbols, and any custom
+author's chosen colour work at all. The bundled combat symbols, and any custom
 upload, are not: they are small multi-colour illustrations with an opaque
 background, so masking one to a flat fill just painted a rectangle and hid
 the art underneath it. What *is* an author's choice is `ribbonFoot` — the
@@ -2382,6 +2415,16 @@ below along with it, the same as the name ribbon's own length falling out of
 its column. Bounded to two lines rather than left to run on indefinitely, so a
 long title cannot push the ability text an unbounded distance down the card.
 
+An optional boost-effect capsule can reach left across the title's usual first
+line. The title and rule now share a small `title-zone`: when the capsule is
+present, an invisible float repeats its intrinsic text width beside an atomic
+inline-block title. If both fit, the measured title position is unchanged; if
+not, inline layout moves the whole title below the float, taking the rule and
+the remaining copy with it. The float's height is a tuneable clearance for the
+lower title position, not a text-length threshold or a runtime measurement.
+Its hidden copy must remain the same font, size, border and
+padding as the visible capsule or the collision decision drifts.
+
 **That bound is a `max-height`, and it must not go back to `-webkit-line-clamp`.**
 Clamping was the obvious way to do it and buys an ellipsis on the clipped line,
 but `-webkit-line-clamp` needs `display: -webkit-box`, and legacy box layout
@@ -2675,7 +2718,7 @@ a data URL is an address like any other to the sheet renderer.
 
 ### Schema
 
-`SET_SCHEMA_VERSION` (currently 59) is checked on import; newer files are
+`SET_SCHEMA_VERSION` (currently 62) is checked on import; newer files are
 refused. There is no migration ladder — `sets/normalize.ts` repairs on load,
 filling absent fields from the factories. **Any new persisted field needs a
 branch there**, or existing documents load without it. Absent is meaningfully

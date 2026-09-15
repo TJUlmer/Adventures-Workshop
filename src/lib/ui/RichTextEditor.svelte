@@ -6,8 +6,12 @@
    * typed, pasted or dropped — goes through the allowlist sanitiser before it
    * reaches the document.
    */
-  import { TEXT_SYMBOL_LABELS, TEXT_SYMBOLS } from '$lib/renderer/assets';
-  import type { TextSymbolName } from '$lib/renderer/assets';
+	import {
+		INSERTABLE_TEXT_SYMBOL_NAMES,
+		TEXT_SYMBOL_LABELS,
+		TEXT_SYMBOLS
+	} from '$lib/renderer/assets';
+	import type { InsertableTextSymbolName } from '$lib/renderer/assets';
   import type { CustomSymbol } from '$lib/symbols/types';
   import { customSymbolLabel } from '$lib/symbols/types';
   import {
@@ -29,7 +33,7 @@
     placeholder?: string;
     minHeight?: number;
     onchange: (html: string) => void;
-    /** Author-uploaded glyphs, offered alongside the four built-in symbols. */
+    /** Author-uploaded glyphs, offered alongside the built-in symbols. */
     customSymbols?: CustomSymbol[];
   }
 
@@ -167,7 +171,7 @@
     { tag: 'p', label: 'Body' }
   ] as const;
 
-  const SYMBOL_NAMES = Object.keys(TEXT_SYMBOLS) as TextSymbolName[];
+  const SYMBOL_NAMES = INSERTABLE_TEXT_SYMBOL_NAMES;
 
   function setBlock(tag: string): void {
     editor?.focus();
@@ -178,6 +182,7 @@
   /** The size and colour of whatever the caret is inside, for the toolbar to show. */
   let size = $state<number>(TEXT_SIZE.normal);
   let color = $state<string | null>(null);
+  let hasTextSelection = $state(false);
 
   /** One walk up from the caret answers both, rather than one each. */
   function syncSelectionFormatting(): void {
@@ -185,10 +190,15 @@
     if (!editor || !selection || selection.rangeCount === 0) {
       size = TEXT_SIZE.normal;
       color = null;
+      hasTextSelection = false;
       return;
     }
 
     const range = selection.getRangeAt(0);
+    hasTextSelection =
+      !selection.isCollapsed &&
+      editor.contains(range.startContainer) &&
+      editor.contains(range.endContainer);
     /*
      * A text-node caret's `startContainer` already *is* the node to read from,
      * but `applySize`/`applyColor` select the wrapping span with `selectNode`
@@ -388,7 +398,7 @@
     commit();
   }
 
-  function insertSymbol(name: TextSymbolName): void {
+	function insertSymbol(name: InsertableTextSymbolName): void {
     editor?.focus();
     document.execCommand(
       'insertHTML',
@@ -477,6 +487,7 @@
         step={TEXT_SIZE.step}
         value={size}
         aria-label="Text size, per cent"
+        disabled={!hasTextSelection}
         style:--fill="{(((size - TEXT_SIZE.min) / (TEXT_SIZE.max - TEXT_SIZE.min)) * 100).toFixed(2)}%"
         onmousedown={(event) => event.stopPropagation()}
         oninput={(event) => applySize(event.currentTarget.valueAsNumber)}
@@ -490,6 +501,7 @@
         step={TEXT_SIZE.step}
         value={size}
         aria-label="Text size, per cent"
+        disabled={!hasTextSelection}
         onmousedown={(event) => event.stopPropagation()}
         onchange={(event) => applySize(event.currentTarget.valueAsNumber || TEXT_SIZE.normal)}
       />
@@ -499,11 +511,16 @@
         type="button"
         class="tool text"
         title="Back to the card’s own size"
+        disabled={!hasTextSelection}
         onmousedown={(event) => event.preventDefault()}
         onclick={() => applySize(TEXT_SIZE.normal)}
       >
         Reset
       </button>
+
+      {#if !hasTextSelection}
+        <span class="selection-hint">Select text to resize</span>
+      {/if}
     </div>
 
     <span class="divider"></span>
@@ -713,6 +730,18 @@
   .size-unit {
     font-size: var(--text-2xs);
     color: var(--text-muted);
+  }
+
+  .selection-hint {
+    margin-inline-start: var(--space-1);
+    font-size: var(--text-2xs);
+    color: var(--text-muted);
+    white-space: nowrap;
+  }
+
+  .size :is(.size-range, .size-value, .tool):disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
   }
 
   /* Compact enough to sit inline in the toolbar row — see Slider.svelte for

@@ -22,6 +22,7 @@
     'figures',
     'symbols',
     'assets',
+    'analysis',
     'settings'
   ];
 

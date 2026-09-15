@@ -101,7 +101,7 @@ export type SetId = Id<'Set'>;
  *      template's own measured size, exactly as it printed before.
  *
  * v19 — a set gained `customSymbols`: author-uploaded glyphs, usable inline in
- *      ability text and rich text anywhere the four built-in combat symbols
+ *      ability text and rich text anywhere the built-in combat symbols
  *      are. Absent on an older document, which opens with an empty registry
  *      and no `{{custom:…}}` tokens to resolve, exactly as before.
  *
@@ -444,10 +444,15 @@ export type SetId = Id<'Set'>;
  *      it off, preserving their existing composition; older builds would
  *      silently discard the choice.
  *
+ * v62 — a hero action card's combat symbol gained the three Scheme/combat
+ *      hybrid values. The field itself already existed and normalization reads
+ *      the expanded enum; the bump prevents an older build from repairing a
+ *      newer hybrid choice to `null` and silently discarding it.
+ *
  * Older documents are *repaired*, not rejected — see `sets/normalize.ts`. Only
  * a version newer than this build understands is refused.
  */
-export const SET_SCHEMA_VERSION = 61;
+export const SET_SCHEMA_VERSION = 62;
 
 /**
  * What a set is for.

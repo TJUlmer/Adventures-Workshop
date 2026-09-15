@@ -692,6 +692,10 @@ export const BOOST_EFFECT = {
   /** Short copy keeps at least the supplied artwork's measured length. */
   minWidth: 346,
   height: BOOST.outerRadius * 2,
+  /** The invisible capsule-width float needs vertical clearance to put a
+   * colliding title below it; keeping this separate from the visible capsule
+   * lets the lower title position be tuned without moving the boost assembly. */
+  titleClearanceHeight: 20,
   /** Exactly the same stroke that draws `BOOST_RING`. */
   borderWidth: BOOST.outerRadius - BOOST.innerRadius,
   /** Positive values move the capsule right/down without moving the boost disc. */
@@ -937,6 +941,13 @@ export const HERO_POINT_BELOW = BLEED.height - 935;
  * head, which is where the value it prints instead of would have gone.
  */
 export const HERO_RIBBON_SYMBOL = { top: 187, centerX: HERO_RIBBON.centerX } as const;
+
+/**
+ * The combined Scheme/Attack asset is almost as tall as the valueless Scheme
+ * glyph at its native width. A valued ribbon needs the lower half for its
+ * number, so this width reduces it to the normal Attack symbol's height.
+ */
+export const HERO_HYBRID_ATTACK_SYMBOL_WIDTH = 100;
 
 /**
  * Split combat prints no value beneath its fixed Versatile symbol, so the

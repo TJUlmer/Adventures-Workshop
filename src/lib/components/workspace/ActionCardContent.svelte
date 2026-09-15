@@ -10,7 +10,12 @@
   import type { CardTheme } from '$lib/cards/style';
   import type { StyleOrigin } from '$lib/cards/theme';
   import { STYLE_ORIGIN_LABELS } from '$lib/cards/theme';
-  import { abilityIsEmpty, COMBAT_SYMBOLS } from '$lib/cards/types';
+  import {
+    abilityIsEmpty,
+    HYBRID_COMBAT_SYMBOLS,
+    isHybridCombatSymbol,
+    TRADITIONAL_COMBAT_SYMBOLS
+  } from '$lib/cards/types';
   import type {
     ActionCard,
     CardOwner,
@@ -27,6 +32,7 @@
   import { customSymbolToken, symbolToken } from '$lib/text/tokens';
   import { workshop } from '$lib/state/workshop.svelte';
   import {
+    Button,
     Field,
     FillEditor,
     ColorInput,
@@ -82,17 +88,23 @@
     return STYLE_ORIGIN_LABELS[origin];
   }
 
-  /**
-   * The four combat symbols, as a toggle rather than a menu.
-   *
-   * Four short fixed choices with a visible effect on the card, exactly like
-   * "who may play this card" below it — a menu hides three of them behind a
-   * click and gives nothing back for it.
-   */
-  const symbolOptions = COMBAT_SYMBOLS.map((symbol) => ({
+  const traditionalSymbolOptions = TRADITIONAL_COMBAT_SYMBOLS.map((symbol) => ({
     value: symbol,
     label: CARD_SYMBOL_LABELS[symbol]
   }));
+  const hybridSymbolOptions = HYBRID_COMBAT_SYMBOLS.map((symbol) => ({
+    value: symbol,
+    label: CARD_SYMBOL_LABELS[symbol]
+  }));
+  let hybridTypesExpanded = $state(false);
+  let hybridPickerCardId = $state<ActionCard['id'] | null>(null);
+  $effect(() => {
+    if (hybridPickerCardId === card.id) return;
+    hybridPickerCardId = card.id;
+    hybridTypesExpanded = false;
+  });
+  const cardUsesHybrid = $derived(isHybridCombatSymbol(card.symbol));
+  const showHybridTypes = $derived(hybridTypesExpanded || cardUsesHybrid);
 
   const tuckEffectOrientations = [
     { value: 'bottom', label: 'Bottom' },
@@ -231,12 +243,38 @@
   >
     {#if !card.split}
       <Field label="Card type">
-        <SegmentedControl
-          label="Card type"
-          value={card.symbol ?? 'attack'}
-          segments={symbolOptions}
-          onchange={(value) => edit((target) => (target.symbol = value as CombatSymbol))}
-        />
+        <div class="card-type-picker">
+          <SegmentedControl
+            label="Traditional card type"
+            value={card.symbol ?? 'attack'}
+            segments={traditionalSymbolOptions}
+            onchange={(value) => edit((target) => (target.symbol = value as CombatSymbol))}
+          />
+
+          <div class="hybrid-picker">
+            {#if cardUsesHybrid}
+              <span class="hybrid-caption">Hybrid</span>
+            {:else}
+              <Button
+                variant="secondary"
+                size="sm"
+                aria-expanded={hybridTypesExpanded}
+                onclick={() => (hybridTypesExpanded = !hybridTypesExpanded)}
+              >
+                {hybridTypesExpanded ? 'Hide hybrid types' : 'Show hybrid types'}
+              </Button>
+            {/if}
+
+            {#if showHybridTypes}
+              <SegmentedControl
+                label="Hybrid card type"
+                value={card.symbol ?? 'hybrid-attack'}
+                segments={hybridSymbolOptions}
+                onchange={(value) => edit((target) => (target.symbol = value as CombatSymbol))}
+              />
+            {/if}
+          </div>
+        </div>
       </Field>
     {/if}
 
@@ -479,7 +517,7 @@
         >
           None
         </button>
-        {#each COMBAT_SYMBOLS as name (name)}
+        {#each TRADITIONAL_COMBAT_SYMBOLS as name (name)}
           <button
             type="button"
             class="icon-choice"
@@ -521,7 +559,7 @@
         one of `StylePanel`'s "Surfaces", but a change here is exactly what
         this section is for, so it gets a shortcut to the same field rather
         than sending an author to Design for one colour. A per-symbol colour
-        was tried instead and reverted — the four combat symbols (and any
+        was tried instead and reverted — the combat symbols (and any
         custom upload) are small multi-colour illustrations with no
         transparency of their own, so masking one to a single colour just
         filled a rectangle and hid the art.
@@ -716,6 +754,24 @@
     display: flex;
     flex-wrap: wrap;
     gap: var(--space-2);
+  }
+
+  .card-type-picker,
+  .hybrid-picker {
+    display: grid;
+    gap: var(--space-2);
+  }
+
+  .hybrid-picker :global(.btn) {
+    justify-self: start;
+  }
+
+  .hybrid-caption {
+    font-size: var(--text-2xs);
+    font-weight: var(--weight-semibold);
+    letter-spacing: var(--tracking-caps);
+    text-transform: uppercase;
+    color: var(--text-muted);
   }
 
   .boost-symbol-picker {

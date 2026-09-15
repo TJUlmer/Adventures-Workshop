@@ -4,7 +4,7 @@ import { createId, now } from '$lib/core/id';
 export type CustomSymbolId = Id<'CustomSymbol'>;
 
 /**
- * An author-supplied glyph, usable anywhere the four built-in combat symbols
+ * An author-supplied glyph, usable anywhere the built-in combat symbols
  * are: inline in ability text, and in rules/event rich text. Deliberately not
  * an `Artwork` — every use is a small, fixed-height inline icon the author
  * already exported at the right proportions, exactly like the bundled symbol

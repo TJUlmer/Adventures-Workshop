@@ -1778,7 +1778,7 @@
     flex: 1;
     min-height: 0;
     display: grid;
-    grid-template-columns: minmax(0, 1fr) clamp(240px, 24vw, 320px);
+    grid-template-columns: minmax(0, 1fr) clamp(480px, 48vw, 640px);
   }
 
   /* The overview owns its own scrolling; this is only the box it fills. */
@@ -2106,6 +2106,10 @@
   /* The export rail still exists just above the phone breakpoint, leaving the
      gallery column too narrow for three useful controls on one line. */
   @media (min-width: 701px) and (max-width: 900px) {
+    .split {
+      grid-template-columns: minmax(0, 1fr) min(640px, 50vw);
+    }
+
     .explore-bar {
       padding-inline: var(--space-4);
     }

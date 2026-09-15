@@ -1,0 +1,5724 @@
+{
+  "schemaVersion": 1,
+  "catalogueVersion": "2026-09-14",
+  "source": {
+    "file": "unmatched-character-catalogue-74.xlsx",
+    "sha256": "d39ad3a342ef5ecc399e776562e933d8de62577532a506a1c7c60cabd3c569d6"
+  },
+  "releases": [
+    {
+      "id": "battle-of-legends-volume-one",
+      "name": "Battle of Legends, Volume One",
+      "year": 2019,
+      "productType": "core-box"
+    },
+    {
+      "id": "bruce-lee",
+      "name": "Bruce Lee",
+      "year": 2019,
+      "productType": "promo"
+    },
+    {
+      "id": "robin-hood-vs-bigfoot",
+      "name": "Robin Hood vs. Bigfoot",
+      "year": 2019,
+      "productType": "battle-box"
+    },
+    {
+      "id": "buffy-the-vampire-slayer",
+      "name": "Buffy the Vampire Slayer",
+      "year": 2020,
+      "productType": "core-box"
+    },
+    {
+      "id": "cobble-and-fog",
+      "name": "Cobble & Fog",
+      "year": 2020,
+      "productType": "core-box"
+    },
+    {
+      "id": "jurassic-park-ingen-vs-raptors",
+      "name": "Jurassic Park – InGen vs. Raptors",
+      "year": 2020,
+      "productType": "battle-box"
+    },
+    {
+      "id": "little-red-riding-hood-vs-beowulf",
+      "name": "Little Red Riding Hood vs. Beowulf",
+      "year": 2020,
+      "productType": "battle-box"
+    },
+    {
+      "id": "battle-of-legends-volume-two",
+      "name": "Battle of Legends, Volume Two",
+      "year": 2021,
+      "productType": "core-box"
+    },
+    {
+      "id": "deadpool",
+      "name": "Deadpool",
+      "year": 2021,
+      "productType": "promo"
+    },
+    {
+      "id": "hells-kitchen",
+      "name": "Hell's Kitchen",
+      "year": 2022,
+      "productType": "battle-box"
+    },
+    {
+      "id": "houdini-vs-the-genie",
+      "name": "Houdini vs. The Genie",
+      "year": 2022,
+      "productType": "battle-box"
+    },
+    {
+      "id": "jurassic-park-sattler-vs-t-rex",
+      "name": "Jurassic Park – Sattler vs. T. Rex",
+      "year": 2022,
+      "productType": "battle-box"
+    },
+    {
+      "id": "redemption-row",
+      "name": "Redemption Row",
+      "year": 2022,
+      "productType": "battle-box"
+    },
+    {
+      "id": "adventures-tales-to-amaze",
+      "name": "Adventures: Tales to Amaze",
+      "year": 2023,
+      "productType": "adventure-box"
+    },
+    {
+      "id": "brains-and-brawn",
+      "name": "Brains and Brawn",
+      "year": 2023,
+      "productType": "battle-box"
+    },
+    {
+      "id": "for-king-and-country",
+      "name": "For King and Country",
+      "year": 2023,
+      "productType": "battle-box"
+    },
+    {
+      "id": "teen-spirit",
+      "name": "Teen Spirit",
+      "year": 2023,
+      "productType": "battle-box"
+    },
+    {
+      "id": "slings-and-arrows",
+      "name": "Slings and Arrows",
+      "year": 2024,
+      "productType": "core-box"
+    },
+    {
+      "id": "suns-origin",
+      "name": "Sun's Origin",
+      "year": 2024,
+      "productType": "battle-box"
+    },
+    {
+      "id": "adventures-teenage-mutant-ninja-turtles",
+      "name": "Adventures: Teenage Mutant Ninja Turtles",
+      "year": 2025,
+      "productType": "adventure-box"
+    },
+    {
+      "id": "battle-of-legends-volume-three",
+      "name": "Battle of Legends, Volume Three",
+      "year": 2025,
+      "productType": "core-box"
+    },
+    {
+      "id": "muhammad-ali-vs-bruce-lee",
+      "name": "Muhammad Ali vs. Bruce Lee",
+      "year": 2025,
+      "productType": "battle-box"
+    },
+    {
+      "id": "the-witcher-realms-fall",
+      "name": "The Witcher – Realms Fall",
+      "year": 2025,
+      "productType": "battle-box"
+    },
+    {
+      "id": "the-witcher-steel-and-silver",
+      "name": "The Witcher – Steel & Silver",
+      "year": 2025,
+      "productType": "battle-box"
+    },
+    {
+      "id": "tmnt-shredder-vs-krang",
+      "name": "TMNT: Shredder vs. Krang",
+      "year": 2025,
+      "productType": "battle-box"
+    },
+    {
+      "id": "stars-and-stripes",
+      "name": "Stars and Stripes",
+      "year": 2026,
+      "productType": "battle-box"
+    }
+  ],
+  "characters": [
+    {
+      "id": "achilles",
+      "name": "Achilles",
+      "licence": null,
+      "releaseId": "battle-of-legends-volume-two",
+      "move": 2,
+      "rosterType": "hero-with-sidekick",
+      "complexity": null,
+      "dataStatus": "complete",
+      "dataNote": null,
+      "fighters": [
+        {
+          "id": "achilles",
+          "name": "Achilles",
+          "role": "hero",
+          "quantity": 1,
+          "attackType": "melee",
+          "startingHealth": 18,
+          "isUnique": true
+        },
+        {
+          "id": "patroclus",
+          "name": "Patroclus",
+          "role": "sidekick",
+          "quantity": 1,
+          "attackType": "melee",
+          "startingHealth": 6,
+          "isUnique": true
+        }
+      ],
+      "deck": {
+        "model": "fixed",
+        "coverage": "complete",
+        "sourceCopyCount": 30,
+        "selectedCopyCount": 30,
+        "shuffledCopyCount": 30,
+        "outsideDeckCopyCount": 0,
+        "uniqueCardCount": 12,
+        "cardTypes": {
+          "attack": {
+            "uniqueCount": 4,
+            "copyCount": 10,
+            "printedValueKnownCopies": 10,
+            "printedValueSum": 27,
+            "boostKnownCopies": 10,
+            "boostSum": 23
+          },
+          "defense": {
+            "uniqueCount": 2,
+            "copyCount": 6,
+            "printedValueKnownCopies": 6,
+            "printedValueSum": 18,
+            "boostKnownCopies": 6,
+            "boostSum": 18
+          },
+          "versatile": {
+            "uniqueCount": 5,
+            "copyCount": 12,
+            "printedValueKnownCopies": 12,
+            "printedValueSum": 34,
+            "boostKnownCopies": 12,
+            "boostSum": 14
+          },
+          "scheme": {
+            "uniqueCount": 1,
+            "copyCount": 2,
+            "printedValueKnownCopies": 0,
+            "printedValueSum": 0,
+            "boostKnownCopies": 2,
+            "boostSum": 2
+          }
+        },
+        "boostKnownCopies": 30,
+        "boostSum": 57,
+        "sharedCopies": 18,
+        "restrictedCopies": 12
+      }
+    },
+    {
+      "id": "alice",
+      "name": "Alice",
+      "licence": null,
+      "releaseId": "battle-of-legends-volume-one",
+      "move": 2,
+      "rosterType": "hero-with-sidekick",
+      "complexity": null,
+      "dataStatus": "complete",
+      "dataNote": null,
+      "fighters": [
+        {
+          "id": "alice",
+          "name": "Alice",
+          "role": "hero",
+          "quantity": 1,
+          "attackType": "melee",
+          "startingHealth": 13,
+          "isUnique": true
+        },
+        {
+          "id": "the-jabberwock",
+          "name": "The Jabberwock",
+          "role": "sidekick",
+          "quantity": 1,
+          "attackType": "melee",
+          "startingHealth": 8,
+          "isUnique": true
+        }
+      ],
+      "deck": {
+        "model": "fixed",
+        "coverage": "complete",
+        "sourceCopyCount": 30,
+        "selectedCopyCount": 30,
+        "shuffledCopyCount": 30,
+        "outsideDeckCopyCount": 0,
+        "uniqueCardCount": 15,
+        "cardTypes": {
+          "attack": {
+            "uniqueCount": 5,
+            "copyCount": 7,
+            "printedValueKnownCopies": 7,
+            "printedValueSum": 24,
+            "boostKnownCopies": 7,
+            "boostSum": 20
+          },
+          "defense": {
+            "uniqueCount": 1,
+            "copyCount": 2,
+            "printedValueKnownCopies": 2,
+            "printedValueSum": 4,
+            "boostKnownCopies": 2,
+            "boostSum": 8
+          },
+          "versatile": {
+            "uniqueCount": 7,
+            "copyCount": 17,
+            "printedValueKnownCopies": 17,
+            "printedValueSum": 41,
+            "boostKnownCopies": 17,
+            "boostSum": 31
+          },
+          "scheme": {
+            "uniqueCount": 2,
+            "copyCount": 4,
+            "printedValueKnownCopies": 0,
+            "printedValueSum": 0,
+            "boostKnownCopies": 4,
+            "boostSum": 10
+          }
+        },
+        "boostKnownCopies": 30,
+        "boostSum": 69,
+        "sharedCopies": 14,
+        "restrictedCopies": 16
+      }
+    },
+    {
+      "id": "ancient-leshen",
+      "name": "Ancient Leshen",
+      "licence": "The Witcher",
+      "releaseId": "the-witcher-steel-and-silver",
+      "move": 1,
+      "rosterType": "hero-with-multiple-sidekicks",
+      "complexity": null,
+      "dataStatus": "needs-review",
+      "dataNote": "Wolf health is per summoned token; the available token count was not captured.",
+      "fighters": [
+        {
+          "id": "ancient-leshen",
+          "name": "Ancient Leshen",
+          "role": "hero",
+          "quantity": 1,
+          "attackType": "ranged",
+          "startingHealth": 13,
+          "isUnique": true
+        },
+        {
+          "id": "wolf",
+          "name": "Wolf",
+          "role": "sidekick",
+          "quantity": null,
+          "attackType": "melee",
+          "startingHealth": 1,
+          "isUnique": false
+        }
+      ],
+      "deck": {
+        "model": "fixed",
+        "coverage": "complete",
+        "sourceCopyCount": 30,
+        "selectedCopyCount": 30,
+        "shuffledCopyCount": 30,
+        "outsideDeckCopyCount": 0,
+        "uniqueCardCount": 11,
+        "cardTypes": {
+          "attack": {
+            "uniqueCount": 5,
+            "copyCount": 13,
+            "printedValueKnownCopies": 13,
+            "printedValueSum": 39,
+            "boostKnownCopies": 13,
+            "boostSum": 24
+          },
+          "defense": {
+            "uniqueCount": 1,
+            "copyCount": 3,
+            "printedValueKnownCopies": 3,
+            "printedValueSum": 15,
+            "boostKnownCopies": 3,
+            "boostSum": 6
+          },
+          "versatile": {
+            "uniqueCount": 3,
+            "copyCount": 9,
+            "printedValueKnownCopies": 9,
+            "printedValueSum": 27,
+            "boostKnownCopies": 9,
+            "boostSum": 18
+          },
+          "scheme": {
+            "uniqueCount": 2,
+            "copyCount": 5,
+            "printedValueKnownCopies": 0,
+            "printedValueSum": 0,
+            "boostKnownCopies": 5,
+            "boostSum": 9
+          }
+        },
+        "boostKnownCopies": 30,
+        "boostSum": 57,
+        "sharedCopies": 11,
+        "restrictedCopies": 19
+      }
+    },
+    {
+      "id": "angel",
+      "name": "Angel",
+      "licence": "Buffy the Vampire Slayer",
+      "releaseId": "buffy-the-vampire-slayer",
+      "move": 2,
+      "rosterType": "hero-with-sidekick",
+      "complexity": null,
+      "dataStatus": "needs-review",
+      "dataNote": "Angelus, Scourge of Europe has no visible effect text in the source.",
+      "fighters": [
+        {
+          "id": "angel",
+          "name": "Angel",
+          "role": "hero",
+          "quantity": 1,
+          "attackType": "melee",
+          "startingHealth": 16,
+          "isUnique": true
+        },
+        {
+          "id": "faith",
+          "name": "Faith",
+          "role": "sidekick",
+          "quantity": 1,
+          "attackType": "melee",
+          "startingHealth": 8,
+          "isUnique": true
+        }
+      ],
+      "deck": {
+        "model": "fixed",
+        "coverage": "complete",
+        "sourceCopyCount": 30,
+        "selectedCopyCount": 30,
+        "shuffledCopyCount": 30,
+        "outsideDeckCopyCount": 0,
+        "uniqueCardCount": 12,
+        "cardTypes": {
+          "attack": {
+            "uniqueCount": 5,
+            "copyCount": 12,
+            "printedValueKnownCopies": 12,
+            "printedValueSum": 51,
+            "boostKnownCopies": 12,
+            "boostSum": 31
+          },
+          "defense": {
+            "uniqueCount": 1,
+            "copyCount": 2,
+            "printedValueKnownCopies": 2,
+            "printedValueSum": 4,
+            "boostKnownCopies": 2,
+            "boostSum": 4
+          },
+          "versatile": {
+            "uniqueCount": 5,
+            "copyCount": 13,
+            "printedValueKnownCopies": 13,
+            "printedValueSum": 30,
+            "boostKnownCopies": 13,
+            "boostSum": 22
+          },
+          "scheme": {
+            "uniqueCount": 1,
+            "copyCount": 3,
+            "printedValueKnownCopies": 0,
+            "printedValueSum": 0,
+            "boostKnownCopies": 3,
+            "boostSum": 9
+          }
+        },
+        "boostKnownCopies": 30,
+        "boostSum": 66,
+        "sharedCopies": 12,
+        "restrictedCopies": 18
+      }
+    },
+    {
+      "id": "annie-christmas",
+      "name": "Annie Christmas",
+      "licence": null,
+      "releaseId": "adventures-tales-to-amaze",
+      "move": 2,
+      "rosterType": "hero-with-sidekick",
+      "complexity": null,
+      "dataStatus": "complete",
+      "dataNote": null,
+      "fighters": [
+        {
+          "id": "annie-christmas",
+          "name": "Annie Christmas",
+          "role": "hero",
+          "quantity": 1,
+          "attackType": "melee",
+          "startingHealth": 14,
+          "isUnique": true
+        },
+        {
+          "id": "charlie",
+          "name": "Charlie",
+          "role": "sidekick",
+          "quantity": 1,
+          "attackType": "ranged",
+          "startingHealth": 8,
+          "isUnique": true
+        }
+      ],
+      "deck": {
+        "model": "fixed",
+        "coverage": "complete",
+        "sourceCopyCount": 30,
+        "selectedCopyCount": 30,
+        "shuffledCopyCount": 30,
+        "outsideDeckCopyCount": 0,
+        "uniqueCardCount": 12,
+        "cardTypes": {
+          "attack": {
+            "uniqueCount": 2,
+            "copyCount": 5,
+            "printedValueKnownCopies": 5,
+            "printedValueSum": 21,
+            "boostKnownCopies": 5,
+            "boostSum": 10
+          },
+          "defense": {
+            "uniqueCount": 2,
+            "copyCount": 5,
+            "printedValueKnownCopies": 5,
+            "printedValueSum": 12,
+            "boostKnownCopies": 5,
+            "boostSum": 15
+          },
+          "versatile": {
+            "uniqueCount": 6,
+            "copyCount": 15,
+            "printedValueKnownCopies": 15,
+            "printedValueSum": 43,
+            "boostKnownCopies": 15,
+            "boostSum": 28
+          },
+          "scheme": {
+            "uniqueCount": 2,
+            "copyCount": 5,
+            "printedValueKnownCopies": 0,
+            "printedValueSum": 0,
+            "boostKnownCopies": 5,
+            "boostSum": 10
+          }
+        },
+        "boostKnownCopies": 30,
+        "boostSum": 63,
+        "sharedCopies": 10,
+        "restrictedCopies": 20
+      }
+    },
+    {
+      "id": "beowulf",
+      "name": "Beowulf",
+      "licence": null,
+      "releaseId": "little-red-riding-hood-vs-beowulf",
+      "move": 2,
+      "rosterType": "hero-with-sidekick",
+      "complexity": null,
+      "dataStatus": "complete",
+      "dataNote": null,
+      "fighters": [
+        {
+          "id": "beowulf",
+          "name": "Beowulf",
+          "role": "hero",
+          "quantity": 1,
+          "attackType": "melee",
+          "startingHealth": 17,
+          "isUnique": true
+        },
+        {
+          "id": "wiglaf",
+          "name": "Wiglaf",
+          "role": "sidekick",
+          "quantity": 1,
+          "attackType": "melee",
+          "startingHealth": 9,
+          "isUnique": true
+        }
+      ],
+      "deck": {
+        "model": "fixed",
+        "coverage": "complete",
+        "sourceCopyCount": 30,
+        "selectedCopyCount": 30,
+        "shuffledCopyCount": 30,
+        "outsideDeckCopyCount": 0,
+        "uniqueCardCount": 12,
+        "cardTypes": {
+          "attack": {
+            "uniqueCount": 5,
+            "copyCount": 11,
+            "printedValueKnownCopies": 11,
+            "printedValueSum": 32,
+            "boostKnownCopies": 11,
+            "boostSum": 24
+          },
+          "defense": {
+            "uniqueCount": 1,
+            "copyCount": 3,
+            "printedValueKnownCopies": 3,
+            "printedValueSum": 9,
+            "boostKnownCopies": 3,
+            "boostSum": 3
+          },
+          "versatile": {
+            "uniqueCount": 3,
+            "copyCount": 9,
+            "printedValueKnownCopies": 9,
+            "printedValueSum": 24,
+            "boostKnownCopies": 9,
+            "boostSum": 15
+          },
+          "scheme": {
+            "uniqueCount": 3,
+            "copyCount": 7,
+            "printedValueKnownCopies": 0,
+            "printedValueSum": 0,
+            "boostKnownCopies": 7,
+            "boostSum": 16
+          }
+        },
+        "boostKnownCopies": 30,
+        "boostSum": 58,
+        "sharedCopies": 9,
+        "restrictedCopies": 21
+      }
+    },
+    {
+      "id": "bigfoot",
+      "name": "Bigfoot",
+      "licence": null,
+      "releaseId": "robin-hood-vs-bigfoot",
+      "move": 3,
+      "rosterType": "hero-with-sidekick",
+      "complexity": null,
+      "dataStatus": "complete",
+      "dataNote": null,
+      "fighters": [
+        {
+          "id": "bigfoot",
+          "name": "Bigfoot",
+          "role": "hero",
+          "quantity": 1,
+          "attackType": "melee",
+          "startingHealth": 16,
+          "isUnique": true
+        },
+        {
+          "id": "the-jackalope",
+          "name": "The Jackalope",
+          "role": "sidekick",
+          "quantity": 1,
+          "attackType": "melee",
+          "startingHealth": 6,
+          "isUnique": true
+        }
+      ],
+      "deck": {
+        "model": "fixed",
+        "coverage": "complete",
+        "sourceCopyCount": 30,
+        "selectedCopyCount": 30,
+        "shuffledCopyCount": 30,
+        "outsideDeckCopyCount": 0,
+        "uniqueCardCount": 11,
+        "cardTypes": {
+          "attack": {
+            "uniqueCount": 2,
+            "copyCount": 6,
+            "printedValueKnownCopies": 6,
+            "printedValueSum": 30,
+            "boostKnownCopies": 6,
+            "boostSum": 18
+          },
+          "defense": {
+            "uniqueCount": 1,
+            "copyCount": 2,
+            "printedValueKnownCopies": 2,
+            "printedValueSum": 6,
+            "boostKnownCopies": 2,
+            "boostSum": 6
+          },
+          "versatile": {
+            "uniqueCount": 6,
+            "copyCount": 17,
+            "printedValueKnownCopies": 17,
+            "printedValueSum": 50,
+            "boostKnownCopies": 17,
+            "boostSum": 25
+          },
+          "scheme": {
+            "uniqueCount": 2,
+            "copyCount": 5,
+            "printedValueKnownCopies": 0,
+            "printedValueSum": 0,
+            "boostKnownCopies": 5,
+            "boostSum": 12
+          }
+        },
+        "boostKnownCopies": 30,
+        "boostSum": 61,
+        "sharedCopies": 19,
+        "restrictedCopies": 11
+      }
+    },
+    {
+      "id": "black-panther",
+      "name": "Black Panther",
+      "licence": "Marvel",
+      "releaseId": "for-king-and-country",
+      "move": 2,
+      "rosterType": "hero-with-sidekick",
+      "complexity": null,
+      "dataStatus": "complete",
+      "dataNote": null,
+      "fighters": [
+        {
+          "id": "black-panther",
+          "name": "Black Panther",
+          "role": "hero",
+          "quantity": 1,
+          "attackType": "melee",
+          "startingHealth": 14,
+          "isUnique": true
+        },
+        {
+          "id": "shuri",
+          "name": "Shuri",
+          "role": "sidekick",
+          "quantity": 1,
+          "attackType": "ranged",
+          "startingHealth": 6,
+          "isUnique": true
+        }
+      ],
+      "deck": {
+        "model": "fixed",
+        "coverage": "complete",
+        "sourceCopyCount": 30,
+        "selectedCopyCount": 30,
+        "shuffledCopyCount": 30,
+        "outsideDeckCopyCount": 0,
+        "uniqueCardCount": 13,
+        "cardTypes": {
+          "attack": {
+            "uniqueCount": 2,
+            "copyCount": 5,
+            "printedValueKnownCopies": 5,
+            "printedValueSum": 13,
+            "boostKnownCopies": 5,
+            "boostSum": 13
+          },
+          "defense": {
+            "uniqueCount": 2,
+            "copyCount": 4,
+            "printedValueKnownCopies": 4,
+            "printedValueSum": 10,
+            "boostKnownCopies": 4,
+            "boostSum": 8
+          },
+          "versatile": {
+            "uniqueCount": 7,
+            "copyCount": 16,
+            "printedValueKnownCopies": 16,
+            "printedValueSum": 39,
+            "boostKnownCopies": 16,
+            "boostSum": 30
+          },
+          "scheme": {
+            "uniqueCount": 2,
+            "copyCount": 5,
+            "printedValueKnownCopies": 0,
+            "printedValueSum": 0,
+            "boostKnownCopies": 5,
+            "boostSum": 12
+          }
+        },
+        "boostKnownCopies": 30,
+        "boostSum": 63,
+        "sharedCopies": 14,
+        "restrictedCopies": 16
+      }
+    },
+    {
+      "id": "black-widow",
+      "name": "Black Widow",
+      "licence": "Marvel",
+      "releaseId": "for-king-and-country",
+      "move": 2,
+      "rosterType": "hero-with-sidekick",
+      "complexity": null,
+      "dataStatus": "complete",
+      "dataNote": "The 31 physical copies comprise a 30-card shuffled deck plus The Moscow Protocol, which starts in hand.",
+      "fighters": [
+        {
+          "id": "black-widow",
+          "name": "Black Widow",
+          "role": "hero",
+          "quantity": 1,
+          "attackType": "ranged",
+          "startingHealth": 13,
+          "isUnique": true
+        },
+        {
+          "id": "maria-hill",
+          "name": "Maria Hill",
+          "role": "sidekick",
+          "quantity": 1,
+          "attackType": "ranged",
+          "startingHealth": 6,
+          "isUnique": true
+        }
+      ],
+      "deck": {
+        "model": "fixed-with-starting-card",
+        "coverage": "complete",
+        "sourceCopyCount": 31,
+        "selectedCopyCount": 31,
+        "shuffledCopyCount": 30,
+        "outsideDeckCopyCount": 1,
+        "uniqueCardCount": 15,
+        "cardTypes": {
+          "attack": {
+            "uniqueCount": 3,
+            "copyCount": 7,
+            "printedValueKnownCopies": 7,
+            "printedValueSum": 24,
+            "boostKnownCopies": 7,
+            "boostSum": 9
+          },
+          "defense": {
+            "uniqueCount": 1,
+            "copyCount": 2,
+            "printedValueKnownCopies": 2,
+            "printedValueSum": 0,
+            "boostKnownCopies": 2,
+            "boostSum": 4
+          },
+          "versatile": {
+            "uniqueCount": 6,
+            "copyCount": 17,
+            "printedValueKnownCopies": 17,
+            "printedValueSum": 50,
+            "boostKnownCopies": 17,
+            "boostSum": 34
+          },
+          "scheme": {
+            "uniqueCount": 5,
+            "copyCount": 5,
+            "printedValueKnownCopies": 0,
+            "printedValueSum": 0,
+            "boostKnownCopies": 5,
+            "boostSum": 20
+          }
+        },
+        "boostKnownCopies": 31,
+        "boostSum": 67,
+        "sharedCopies": 8,
+        "restrictedCopies": 23
+      }
+    },
+    {
+      "id": "blackbeard",
+      "name": "Blackbeard",
+      "licence": null,
+      "releaseId": "battle-of-legends-volume-three",
+      "move": 2,
+      "rosterType": "hero-with-multiple-sidekicks",
+      "complexity": null,
+      "dataStatus": "needs-review",
+      "dataNote": "Sea Dog health is per summoned token; the available token count was not captured.",
+      "fighters": [
+        {
+          "id": "blackbeard",
+          "name": "Blackbeard",
+          "role": "hero",
+          "quantity": 1,
+          "attackType": "ranged",
+          "startingHealth": 13,
+          "isUnique": true
+        },
+        {
+          "id": "sea-dog",
+          "name": "Sea Dog",
+          "role": "sidekick",
+          "quantity": null,
+          "attackType": "melee",
+          "startingHealth": 1,
+          "isUnique": false
+        }
+      ],
+      "deck": {
+        "model": "fixed",
+        "coverage": "complete",
+        "sourceCopyCount": 30,
+        "selectedCopyCount": 30,
+        "shuffledCopyCount": 30,
+        "outsideDeckCopyCount": 0,
+        "uniqueCardCount": 12,
+        "cardTypes": {
+          "attack": {
+            "uniqueCount": 4,
+            "copyCount": 10,
+            "printedValueKnownCopies": 10,
+            "printedValueSum": 29,
+            "boostKnownCopies": 10,
+            "boostSum": 22
+          },
+          "defense": {
+            "uniqueCount": 1,
+            "copyCount": 2,
+            "printedValueKnownCopies": 2,
+            "printedValueSum": 8,
+            "boostKnownCopies": 2,
+            "boostSum": 2
+          },
+          "versatile": {
+            "uniqueCount": 5,
+            "copyCount": 13,
+            "printedValueKnownCopies": 13,
+            "printedValueSum": 36,
+            "boostKnownCopies": 13,
+            "boostSum": 31
+          },
+          "scheme": {
+            "uniqueCount": 2,
+            "copyCount": 5,
+            "printedValueKnownCopies": 0,
+            "printedValueSum": 0,
+            "boostKnownCopies": 5,
+            "boostSum": 10
+          }
+        },
+        "boostKnownCopies": 30,
+        "boostSum": 65,
+        "sharedCopies": 11,
+        "restrictedCopies": 19
+      }
+    },
+    {
+      "id": "bloody-mary",
+      "name": "Bloody Mary",
+      "licence": null,
+      "releaseId": "battle-of-legends-volume-two",
+      "move": 3,
+      "rosterType": "solo",
+      "complexity": null,
+      "dataStatus": "complete",
+      "dataNote": null,
+      "fighters": [
+        {
+          "id": "bloody-mary",
+          "name": "Bloody Mary",
+          "role": "hero",
+          "quantity": 1,
+          "attackType": "melee",
+          "startingHealth": 16,
+          "isUnique": true
+        }
+      ],
+      "deck": {
+        "model": "fixed",
+        "coverage": "complete",
+        "sourceCopyCount": 30,
+        "selectedCopyCount": 30,
+        "shuffledCopyCount": 30,
+        "outsideDeckCopyCount": 0,
+        "uniqueCardCount": 13,
+        "cardTypes": {
+          "attack": {
+            "uniqueCount": 4,
+            "copyCount": 9,
+            "printedValueKnownCopies": 9,
+            "printedValueSum": 19,
+            "boostKnownCopies": 9,
+            "boostSum": 24
+          },
+          "defense": {
+            "uniqueCount": 2,
+            "copyCount": 5,
+            "printedValueKnownCopies": 5,
+            "printedValueSum": 9,
+            "boostKnownCopies": 5,
+            "boostSum": 7
+          },
+          "versatile": {
+            "uniqueCount": 5,
+            "copyCount": 12,
+            "printedValueKnownCopies": 12,
+            "printedValueSum": 33,
+            "boostKnownCopies": 12,
+            "boostSum": 27
+          },
+          "scheme": {
+            "uniqueCount": 2,
+            "copyCount": 4,
+            "printedValueKnownCopies": 0,
+            "printedValueSum": 0,
+            "boostKnownCopies": 4,
+            "boostSum": 10
+          }
+        },
+        "boostKnownCopies": 30,
+        "boostSum": 68,
+        "sharedCopies": 2,
+        "restrictedCopies": 28
+      }
+    },
+    {
+      "id": "bruce-lee",
+      "name": "Bruce Lee",
+      "licence": "Bruce Lee",
+      "releaseId": "bruce-lee",
+      "move": 3,
+      "rosterType": "solo",
+      "complexity": null,
+      "dataStatus": "complete",
+      "dataNote": null,
+      "fighters": [
+        {
+          "id": "bruce-lee",
+          "name": "Bruce Lee",
+          "role": "hero",
+          "quantity": 1,
+          "attackType": "melee",
+          "startingHealth": 14,
+          "isUnique": true
+        }
+      ],
+      "deck": {
+        "model": "fixed",
+        "coverage": "complete",
+        "sourceCopyCount": 30,
+        "selectedCopyCount": 30,
+        "shuffledCopyCount": 30,
+        "outsideDeckCopyCount": 0,
+        "uniqueCardCount": 17,
+        "cardTypes": {
+          "attack": {
+            "uniqueCount": 6,
+            "copyCount": 6,
+            "printedValueKnownCopies": 6,
+            "printedValueSum": 18,
+            "boostKnownCopies": 6,
+            "boostSum": 14
+          },
+          "defense": {
+            "uniqueCount": 2,
+            "copyCount": 5,
+            "printedValueKnownCopies": 5,
+            "printedValueSum": 15,
+            "boostKnownCopies": 5,
+            "boostSum": 19
+          },
+          "versatile": {
+            "uniqueCount": 5,
+            "copyCount": 14,
+            "printedValueKnownCopies": 14,
+            "printedValueSum": 34,
+            "boostKnownCopies": 14,
+            "boostSum": 21
+          },
+          "scheme": {
+            "uniqueCount": 4,
+            "copyCount": 5,
+            "printedValueKnownCopies": 0,
+            "printedValueSum": 0,
+            "boostKnownCopies": 5,
+            "boostSum": 13
+          }
+        },
+        "boostKnownCopies": 30,
+        "boostSum": 67,
+        "sharedCopies": 12,
+        "restrictedCopies": 18
+      }
+    },
+    {
+      "id": "buffy",
+      "name": "Buffy",
+      "licence": "Buffy the Vampire Slayer",
+      "releaseId": "buffy-the-vampire-slayer",
+      "move": 3,
+      "rosterType": "hero-with-sidekick",
+      "complexity": null,
+      "dataStatus": "complete",
+      "dataNote": "Choose either Giles or Xander before play. The source lists a 35-card pool: 25 shared cards plus one 5-card sidekick package, producing a 30-card deck.",
+      "fighters": [
+        {
+          "id": "buffy",
+          "name": "Buffy",
+          "role": "hero",
+          "quantity": 1,
+          "attackType": "melee",
+          "startingHealth": 14,
+          "isUnique": true
+        },
+        {
+          "id": "giles",
+          "name": "Giles",
+          "role": "sidekick",
+          "quantity": 1,
+          "attackType": "melee",
+          "startingHealth": 6,
+          "isUnique": true
+        },
+        {
+          "id": "xander",
+          "name": "Xander",
+          "role": "sidekick",
+          "quantity": 1,
+          "attackType": "melee",
+          "startingHealth": 6,
+          "isUnique": true
+        }
+      ],
+      "deck": {
+        "model": "choice-pool",
+        "coverage": "complete",
+        "sourceCopyCount": 35,
+        "selectedCopyCount": 30,
+        "shuffledCopyCount": 30,
+        "outsideDeckCopyCount": 0,
+        "uniqueCardCount": 13,
+        "cardTypes": {
+          "attack": {
+            "uniqueCount": 4,
+            "copyCount": 11,
+            "printedValueKnownCopies": 11,
+            "printedValueSum": 43,
+            "boostKnownCopies": 11,
+            "boostSum": 32
+          },
+          "defense": {
+            "uniqueCount": 1,
+            "copyCount": 2,
+            "printedValueKnownCopies": 2,
+            "printedValueSum": 4,
+            "boostKnownCopies": 2,
+            "boostSum": 4
+          },
+          "versatile": {
+            "uniqueCount": 6,
+            "copyCount": 17,
+            "printedValueKnownCopies": 17,
+            "printedValueSum": 46,
+            "boostKnownCopies": 17,
+            "boostSum": 51
+          },
+          "scheme": {
+            "uniqueCount": 2,
+            "copyCount": 5,
+            "printedValueKnownCopies": 0,
+            "printedValueSum": 0,
+            "boostKnownCopies": 5,
+            "boostSum": 13
+          }
+        },
+        "boostKnownCopies": 35,
+        "boostSum": 100,
+        "sharedCopies": 15,
+        "restrictedCopies": 20
+      }
+    },
+    {
+      "id": "bullseye",
+      "name": "Bullseye",
+      "licence": "Marvel",
+      "releaseId": "hells-kitchen",
+      "move": 2,
+      "rosterType": "solo",
+      "complexity": null,
+      "dataStatus": "complete",
+      "dataNote": null,
+      "fighters": [
+        {
+          "id": "bullseye",
+          "name": "Bullseye",
+          "role": "hero",
+          "quantity": 1,
+          "attackType": "ranged",
+          "startingHealth": 14,
+          "isUnique": true
+        }
+      ],
+      "deck": {
+        "model": "fixed",
+        "coverage": "complete",
+        "sourceCopyCount": 30,
+        "selectedCopyCount": 30,
+        "shuffledCopyCount": 30,
+        "outsideDeckCopyCount": 0,
+        "uniqueCardCount": 12,
+        "cardTypes": {
+          "attack": {
+            "uniqueCount": 4,
+            "copyCount": 11,
+            "printedValueKnownCopies": 11,
+            "printedValueSum": 30,
+            "boostKnownCopies": 11,
+            "boostSum": 26
+          },
+          "defense": {
+            "uniqueCount": 1,
+            "copyCount": 3,
+            "printedValueKnownCopies": 3,
+            "printedValueSum": 9,
+            "boostKnownCopies": 3,
+            "boostSum": 6
+          },
+          "versatile": {
+            "uniqueCount": 6,
+            "copyCount": 14,
+            "printedValueKnownCopies": 14,
+            "printedValueSum": 35,
+            "boostKnownCopies": 14,
+            "boostSum": 32
+          },
+          "scheme": {
+            "uniqueCount": 1,
+            "copyCount": 2,
+            "printedValueKnownCopies": 0,
+            "printedValueSum": 0,
+            "boostKnownCopies": 2,
+            "boostSum": 6
+          }
+        },
+        "boostKnownCopies": 30,
+        "boostSum": 70,
+        "sharedCopies": 0,
+        "restrictedCopies": 30
+      }
+    },
+    {
+      "id": "chupacabra",
+      "name": "Chupacabra",
+      "licence": null,
+      "releaseId": "battle-of-legends-volume-three",
+      "move": 3,
+      "rosterType": "solo",
+      "complexity": null,
+      "dataStatus": "complete",
+      "dataNote": null,
+      "fighters": [
+        {
+          "id": "chupacabra",
+          "name": "Chupacabra",
+          "role": "hero",
+          "quantity": 1,
+          "attackType": "melee",
+          "startingHealth": 14,
+          "isUnique": true
+        }
+      ],
+      "deck": {
+        "model": "fixed",
+        "coverage": "complete",
+        "sourceCopyCount": 30,
+        "selectedCopyCount": 30,
+        "shuffledCopyCount": 30,
+        "outsideDeckCopyCount": 0,
+        "uniqueCardCount": 11,
+        "cardTypes": {
+          "attack": {
+            "uniqueCount": 4,
+            "copyCount": 11,
+            "printedValueKnownCopies": 11,
+            "printedValueSum": 28,
+            "boostKnownCopies": 11,
+            "boostSum": 33
+          },
+          "defense": {
+            "uniqueCount": 1,
+            "copyCount": 2,
+            "printedValueKnownCopies": 2,
+            "printedValueSum": 6,
+            "boostKnownCopies": 2,
+            "boostSum": 6
+          },
+          "versatile": {
+            "uniqueCount": 4,
+            "copyCount": 12,
+            "printedValueKnownCopies": 12,
+            "printedValueSum": 30,
+            "boostKnownCopies": 12,
+            "boostSum": 21
+          },
+          "scheme": {
+            "uniqueCount": 2,
+            "copyCount": 5,
+            "printedValueKnownCopies": 0,
+            "printedValueSum": 0,
+            "boostKnownCopies": 5,
+            "boostSum": 13
+          }
+        },
+        "boostKnownCopies": 30,
+        "boostSum": 73,
+        "sharedCopies": 0,
+        "restrictedCopies": 30
+      }
+    },
+    {
+      "id": "ciri",
+      "name": "Ciri",
+      "licence": "The Witcher",
+      "releaseId": "the-witcher-steel-and-silver",
+      "move": 2,
+      "rosterType": "hero-with-sidekick",
+      "complexity": null,
+      "dataStatus": "complete",
+      "dataNote": null,
+      "fighters": [
+        {
+          "id": "ciri",
+          "name": "Ciri",
+          "role": "hero",
+          "quantity": 1,
+          "attackType": "melee",
+          "startingHealth": 15,
+          "isUnique": true
+        },
+        {
+          "id": "ihuarraquax",
+          "name": "Ihuarraquax",
+          "role": "sidekick",
+          "quantity": 1,
+          "attackType": "melee",
+          "startingHealth": 7,
+          "isUnique": true
+        }
+      ],
+      "deck": {
+        "model": "fixed",
+        "coverage": "complete",
+        "sourceCopyCount": 30,
+        "selectedCopyCount": 30,
+        "shuffledCopyCount": 30,
+        "outsideDeckCopyCount": 0,
+        "uniqueCardCount": 11,
+        "cardTypes": {
+          "attack": {
+            "uniqueCount": 3,
+            "copyCount": 9,
+            "printedValueKnownCopies": 9,
+            "printedValueSum": 24,
+            "boostKnownCopies": 9,
+            "boostSum": 27
+          },
+          "defense": {
+            "uniqueCount": 1,
+            "copyCount": 3,
+            "printedValueKnownCopies": 3,
+            "printedValueSum": 9,
+            "boostKnownCopies": 3,
+            "boostSum": 3
+          },
+          "versatile": {
+            "uniqueCount": 5,
+            "copyCount": 14,
+            "printedValueKnownCopies": 14,
+            "printedValueSum": 40,
+            "boostKnownCopies": 14,
+            "boostSum": 28
+          },
+          "scheme": {
+            "uniqueCount": 2,
+            "copyCount": 4,
+            "printedValueKnownCopies": 0,
+            "printedValueSum": 0,
+            "boostKnownCopies": 4,
+            "boostSum": 8
+          }
+        },
+        "boostKnownCopies": 30,
+        "boostSum": 66,
+        "sharedCopies": 5,
+        "restrictedCopies": 25
+      }
+    },
+    {
+      "id": "cloak-and-dagger",
+      "name": "Cloak & Dagger",
+      "licence": "Marvel",
+      "releaseId": "teen-spirit",
+      "move": 2,
+      "rosterType": "team",
+      "complexity": null,
+      "dataStatus": "partial",
+      "dataNote": "Dagger's attack type and health were not captured in the source workbook.",
+      "fighters": [
+        {
+          "id": "cloak",
+          "name": "Cloak",
+          "role": "hero",
+          "quantity": 1,
+          "attackType": "melee",
+          "startingHealth": 8,
+          "isUnique": true
+        },
+        {
+          "id": "dagger",
+          "name": "Dagger",
+          "role": "hero",
+          "quantity": 1,
+          "attackType": null,
+          "startingHealth": null,
+          "isUnique": true
+        }
+      ],
+      "deck": {
+        "model": "fixed",
+        "coverage": "complete",
+        "sourceCopyCount": 30,
+        "selectedCopyCount": 30,
+        "shuffledCopyCount": 30,
+        "outsideDeckCopyCount": 0,
+        "uniqueCardCount": 12,
+        "cardTypes": {
+          "attack": {
+            "uniqueCount": 5,
+            "copyCount": 13,
+            "printedValueKnownCopies": 13,
+            "printedValueSum": 49,
+            "boostKnownCopies": 13,
+            "boostSum": 27
+          },
+          "defense": {
+            "uniqueCount": 1,
+            "copyCount": 3,
+            "printedValueKnownCopies": 3,
+            "printedValueSum": 6,
+            "boostKnownCopies": 3,
+            "boostSum": 6
+          },
+          "versatile": {
+            "uniqueCount": 5,
+            "copyCount": 12,
+            "printedValueKnownCopies": 12,
+            "printedValueSum": 33,
+            "boostKnownCopies": 12,
+            "boostSum": 19
+          },
+          "scheme": {
+            "uniqueCount": 1,
+            "copyCount": 2,
+            "printedValueKnownCopies": 0,
+            "printedValueSum": 0,
+            "boostKnownCopies": 2,
+            "boostSum": 2
+          }
+        },
+        "boostKnownCopies": 30,
+        "boostSum": 54,
+        "sharedCopies": 26,
+        "restrictedCopies": 4
+      }
+    },
+    {
+      "id": "daredevil",
+      "name": "Daredevil",
+      "licence": "Marvel",
+      "releaseId": "hells-kitchen",
+      "move": 3,
+      "rosterType": "solo",
+      "complexity": null,
+      "dataStatus": "partial",
+      "dataNote": "Only 22 of the standard 30 physical deck cards were present in the source workbook.",
+      "fighters": [
+        {
+          "id": "daredevil",
+          "name": "Daredevil",
+          "role": "hero",
+          "quantity": 1,
+          "attackType": "melee",
+          "startingHealth": 17,
+          "isUnique": true
+        }
+      ],
+      "deck": {
+        "model": "fixed",
+        "coverage": "partial",
+        "sourceCopyCount": 22,
+        "selectedCopyCount": null,
+        "shuffledCopyCount": null,
+        "outsideDeckCopyCount": 0,
+        "uniqueCardCount": 8,
+        "cardTypes": {
+          "attack": {
+            "uniqueCount": 2,
+            "copyCount": 4,
+            "printedValueKnownCopies": 4,
+            "printedValueSum": 12,
+            "boostKnownCopies": 4,
+            "boostSum": 12
+          },
+          "defense": {
+            "uniqueCount": 1,
+            "copyCount": 3,
+            "printedValueKnownCopies": 3,
+            "printedValueSum": 9,
+            "boostKnownCopies": 3,
+            "boostSum": 6
+          },
+          "versatile": {
+            "uniqueCount": 3,
+            "copyCount": 9,
+            "printedValueKnownCopies": 9,
+            "printedValueSum": 24,
+            "boostKnownCopies": 9,
+            "boostSum": 15
+          },
+          "scheme": {
+            "uniqueCount": 2,
+            "copyCount": 6,
+            "printedValueKnownCopies": 0,
+            "printedValueSum": 0,
+            "boostKnownCopies": 6,
+            "boostSum": 12
+          }
+        },
+        "boostKnownCopies": 22,
+        "boostSum": 45,
+        "sharedCopies": 0,
+        "restrictedCopies": 22
+      }
+    },
+    {
+      "id": "deadpool",
+      "name": "Deadpool",
+      "licence": "Marvel",
+      "releaseId": "deadpool",
+      "move": 2,
+      "rosterType": "solo",
+      "complexity": null,
+      "dataStatus": "complete",
+      "dataNote": "Every card is unique; several cards intentionally use real-world or fourth-wall conditions.",
+      "fighters": [
+        {
+          "id": "deadpool",
+          "name": "Deadpool",
+          "role": "hero",
+          "quantity": 1,
+          "attackType": "melee",
+          "startingHealth": 10,
+          "isUnique": true
+        }
+      ],
+      "deck": {
+        "model": "fixed",
+        "coverage": "complete",
+        "sourceCopyCount": 30,
+        "selectedCopyCount": 30,
+        "shuffledCopyCount": 30,
+        "outsideDeckCopyCount": 0,
+        "uniqueCardCount": 30,
+        "cardTypes": {
+          "attack": {
+            "uniqueCount": 11,
+            "copyCount": 11,
+            "printedValueKnownCopies": 11,
+            "printedValueSum": 34,
+            "boostKnownCopies": 11,
+            "boostSum": 25
+          },
+          "defense": {
+            "uniqueCount": 4,
+            "copyCount": 4,
+            "printedValueKnownCopies": 4,
+            "printedValueSum": 12,
+            "boostKnownCopies": 4,
+            "boostSum": 6
+          },
+          "versatile": {
+            "uniqueCount": 11,
+            "copyCount": 11,
+            "printedValueKnownCopies": 11,
+            "printedValueSum": 26,
+            "boostKnownCopies": 11,
+            "boostSum": 24
+          },
+          "scheme": {
+            "uniqueCount": 4,
+            "copyCount": 4,
+            "printedValueKnownCopies": 0,
+            "printedValueSum": 0,
+            "boostKnownCopies": 4,
+            "boostSum": 7
+          }
+        },
+        "boostKnownCopies": 30,
+        "boostSum": 62,
+        "sharedCopies": 0,
+        "restrictedCopies": 30
+      }
+    },
+    {
+      "id": "doctor-strange",
+      "name": "Doctor Strange",
+      "licence": "Marvel",
+      "releaseId": "brains-and-brawn",
+      "move": 2,
+      "rosterType": "hero-with-sidekick",
+      "complexity": null,
+      "dataStatus": "complete",
+      "dataNote": null,
+      "fighters": [
+        {
+          "id": "doctor-strange",
+          "name": "Doctor Strange",
+          "role": "hero",
+          "quantity": 1,
+          "attackType": "ranged",
+          "startingHealth": 14,
+          "isUnique": true
+        },
+        {
+          "id": "wong",
+          "name": "Wong",
+          "role": "sidekick",
+          "quantity": 1,
+          "attackType": "ranged",
+          "startingHealth": 6,
+          "isUnique": true
+        }
+      ],
+      "deck": {
+        "model": "fixed",
+        "coverage": "complete",
+        "sourceCopyCount": 30,
+        "selectedCopyCount": 30,
+        "shuffledCopyCount": 30,
+        "outsideDeckCopyCount": 0,
+        "uniqueCardCount": 11,
+        "cardTypes": {
+          "attack": {
+            "uniqueCount": 3,
+            "copyCount": 10,
+            "printedValueKnownCopies": 10,
+            "printedValueSum": 32,
+            "boostKnownCopies": 10,
+            "boostSum": 18
+          },
+          "defense": {
+            "uniqueCount": 1,
+            "copyCount": 3,
+            "printedValueKnownCopies": 3,
+            "printedValueSum": 6,
+            "boostKnownCopies": 3,
+            "boostSum": 6
+          },
+          "versatile": {
+            "uniqueCount": 5,
+            "copyCount": 13,
+            "printedValueKnownCopies": 13,
+            "printedValueSum": 29,
+            "boostKnownCopies": 13,
+            "boostSum": 22
+          },
+          "scheme": {
+            "uniqueCount": 2,
+            "copyCount": 4,
+            "printedValueKnownCopies": 0,
+            "printedValueSum": 0,
+            "boostKnownCopies": 4,
+            "boostSum": 10
+          }
+        },
+        "boostKnownCopies": 30,
+        "boostSum": 56,
+        "sharedCopies": 12,
+        "restrictedCopies": 18
+      }
+    },
+    {
+      "id": "donatello",
+      "name": "Donatello",
+      "licence": "Teenage Mutant Ninja Turtles",
+      "releaseId": "adventures-teenage-mutant-ninja-turtles",
+      "move": 2,
+      "rosterType": "hero-with-sidekick",
+      "complexity": null,
+      "dataStatus": "needs-review",
+      "dataNote": "Heroes in a Half Shell has no legible effect text in the source.",
+      "fighters": [
+        {
+          "id": "donatello",
+          "name": "Donatello",
+          "role": "hero",
+          "quantity": 1,
+          "attackType": "melee",
+          "startingHealth": 14,
+          "isUnique": true
+        },
+        {
+          "id": "metalhead",
+          "name": "Metalhead",
+          "role": "sidekick",
+          "quantity": 1,
+          "attackType": "melee",
+          "startingHealth": 7,
+          "isUnique": true
+        }
+      ],
+      "deck": {
+        "model": "fixed",
+        "coverage": "complete",
+        "sourceCopyCount": 30,
+        "selectedCopyCount": 30,
+        "shuffledCopyCount": 30,
+        "outsideDeckCopyCount": 0,
+        "uniqueCardCount": 14,
+        "cardTypes": {
+          "attack": {
+            "uniqueCount": 3,
+            "copyCount": 6,
+            "printedValueKnownCopies": 6,
+            "printedValueSum": 17,
+            "boostKnownCopies": 6,
+            "boostSum": 15
+          },
+          "defense": {
+            "uniqueCount": 3,
+            "copyCount": 5,
+            "printedValueKnownCopies": 5,
+            "printedValueSum": 18,
+            "boostKnownCopies": 5,
+            "boostSum": 9
+          },
+          "versatile": {
+            "uniqueCount": 4,
+            "copyCount": 12,
+            "printedValueKnownCopies": 12,
+            "printedValueSum": 33,
+            "boostKnownCopies": 12,
+            "boostSum": 21
+          },
+          "scheme": {
+            "uniqueCount": 4,
+            "copyCount": 7,
+            "printedValueKnownCopies": 0,
+            "printedValueSum": 0,
+            "boostKnownCopies": 7,
+            "boostSum": 15
+          }
+        },
+        "boostKnownCopies": 30,
+        "boostSum": 60,
+        "sharedCopies": 11,
+        "restrictedCopies": 19
+      }
+    },
+    {
+      "id": "dr-jekyll-and-mr-hyde",
+      "name": "Dr. Jekyll & Mr. Hyde",
+      "licence": null,
+      "releaseId": "cobble-and-fog",
+      "move": 2,
+      "rosterType": "transforming",
+      "complexity": null,
+      "dataStatus": "complete",
+      "dataNote": null,
+      "fighters": [
+        {
+          "id": "dr-jekyll-mr-hyde",
+          "name": "Dr. Jekyll / Mr. Hyde",
+          "role": "hero",
+          "quantity": 1,
+          "attackType": "melee",
+          "startingHealth": 16,
+          "isUnique": true
+        }
+      ],
+      "deck": {
+        "model": "fixed",
+        "coverage": "complete",
+        "sourceCopyCount": 30,
+        "selectedCopyCount": 30,
+        "shuffledCopyCount": 30,
+        "outsideDeckCopyCount": 0,
+        "uniqueCardCount": 13,
+        "cardTypes": {
+          "attack": {
+            "uniqueCount": 2,
+            "copyCount": 4,
+            "printedValueKnownCopies": 4,
+            "printedValueSum": 20,
+            "boostKnownCopies": 4,
+            "boostSum": 8
+          },
+          "defense": {
+            "uniqueCount": 2,
+            "copyCount": 4,
+            "printedValueKnownCopies": 4,
+            "printedValueSum": 12,
+            "boostKnownCopies": 4,
+            "boostSum": 10
+          },
+          "versatile": {
+            "uniqueCount": 6,
+            "copyCount": 15,
+            "printedValueKnownCopies": 15,
+            "printedValueSum": 44,
+            "boostKnownCopies": 15,
+            "boostSum": 27
+          },
+          "scheme": {
+            "uniqueCount": 3,
+            "copyCount": 7,
+            "printedValueKnownCopies": 0,
+            "printedValueSum": 0,
+            "boostKnownCopies": 7,
+            "boostSum": 19
+          }
+        },
+        "boostKnownCopies": 30,
+        "boostSum": 64,
+        "sharedCopies": 8,
+        "restrictedCopies": 22
+      }
+    },
+    {
+      "id": "dr-jill-trent",
+      "name": "Dr. Jill Trent",
+      "licence": null,
+      "releaseId": "adventures-tales-to-amaze",
+      "move": 2,
+      "rosterType": "hero-with-sidekick",
+      "complexity": null,
+      "dataStatus": "complete",
+      "dataNote": null,
+      "fighters": [
+        {
+          "id": "dr-jill-trent",
+          "name": "Dr. Jill Trent",
+          "role": "hero",
+          "quantity": 1,
+          "attackType": "melee",
+          "startingHealth": 13,
+          "isUnique": true
+        },
+        {
+          "id": "daisy",
+          "name": "Daisy",
+          "role": "sidekick",
+          "quantity": 1,
+          "attackType": "melee",
+          "startingHealth": 6,
+          "isUnique": true
+        }
+      ],
+      "deck": {
+        "model": "fixed",
+        "coverage": "complete",
+        "sourceCopyCount": 30,
+        "selectedCopyCount": 30,
+        "shuffledCopyCount": 30,
+        "outsideDeckCopyCount": 0,
+        "uniqueCardCount": 13,
+        "cardTypes": {
+          "attack": {
+            "uniqueCount": 2,
+            "copyCount": 5,
+            "printedValueKnownCopies": 5,
+            "printedValueSum": 16,
+            "boostKnownCopies": 5,
+            "boostSum": 14
+          },
+          "defense": {
+            "uniqueCount": 2,
+            "copyCount": 4,
+            "printedValueKnownCopies": 4,
+            "printedValueSum": 16,
+            "boostKnownCopies": 4,
+            "boostSum": 6
+          },
+          "versatile": {
+            "uniqueCount": 8,
+            "copyCount": 19,
+            "printedValueKnownCopies": 19,
+            "printedValueSum": 57,
+            "boostKnownCopies": 19,
+            "boostSum": 39
+          },
+          "scheme": {
+            "uniqueCount": 1,
+            "copyCount": 2,
+            "printedValueKnownCopies": 0,
+            "printedValueSum": 0,
+            "boostKnownCopies": 2,
+            "boostSum": 6
+          }
+        },
+        "boostKnownCopies": 30,
+        "boostSum": 65,
+        "sharedCopies": 16,
+        "restrictedCopies": 14
+      }
+    },
+    {
+      "id": "dr-sattler",
+      "name": "Dr. Sattler",
+      "licence": "Jurassic Park",
+      "releaseId": "jurassic-park-sattler-vs-t-rex",
+      "move": 2,
+      "rosterType": "hero-with-sidekick",
+      "complexity": null,
+      "dataStatus": "complete",
+      "dataNote": null,
+      "fighters": [
+        {
+          "id": "dr-sattler",
+          "name": "Dr. Sattler",
+          "role": "hero",
+          "quantity": 1,
+          "attackType": "melee",
+          "startingHealth": 13,
+          "isUnique": true
+        },
+        {
+          "id": "dr-malcolm",
+          "name": "Dr. Malcolm",
+          "role": "sidekick",
+          "quantity": 1,
+          "attackType": "melee",
+          "startingHealth": 7,
+          "isUnique": true
+        }
+      ],
+      "deck": {
+        "model": "fixed",
+        "coverage": "complete",
+        "sourceCopyCount": 30,
+        "selectedCopyCount": 30,
+        "shuffledCopyCount": 30,
+        "outsideDeckCopyCount": 0,
+        "uniqueCardCount": 14,
+        "cardTypes": {
+          "attack": {
+            "uniqueCount": 1,
+            "copyCount": 3,
+            "printedValueKnownCopies": 3,
+            "printedValueSum": 6,
+            "boostKnownCopies": 3,
+            "boostSum": 6
+          },
+          "defense": {
+            "uniqueCount": 2,
+            "copyCount": 5,
+            "printedValueKnownCopies": 5,
+            "printedValueSum": 10,
+            "boostKnownCopies": 5,
+            "boostSum": 10
+          },
+          "versatile": {
+            "uniqueCount": 10,
+            "copyCount": 21,
+            "printedValueKnownCopies": 21,
+            "printedValueSum": 36,
+            "boostKnownCopies": 21,
+            "boostSum": 50
+          },
+          "scheme": {
+            "uniqueCount": 1,
+            "copyCount": 1,
+            "printedValueKnownCopies": 0,
+            "printedValueSum": 0,
+            "boostKnownCopies": 1,
+            "boostSum": 1
+          }
+        },
+        "boostKnownCopies": 30,
+        "boostSum": 67,
+        "sharedCopies": 12,
+        "restrictedCopies": 18
+      }
+    },
+    {
+      "id": "dracula",
+      "name": "Dracula",
+      "licence": null,
+      "releaseId": "cobble-and-fog",
+      "move": 2,
+      "rosterType": "hero-with-multiple-sidekicks",
+      "complexity": null,
+      "dataStatus": "complete",
+      "dataNote": null,
+      "fighters": [
+        {
+          "id": "dracula",
+          "name": "Dracula",
+          "role": "hero",
+          "quantity": 1,
+          "attackType": "melee",
+          "startingHealth": 13,
+          "isUnique": true
+        },
+        {
+          "id": "sister",
+          "name": "Sister",
+          "role": "sidekick",
+          "quantity": 3,
+          "attackType": "melee",
+          "startingHealth": 1,
+          "isUnique": false
+        }
+      ],
+      "deck": {
+        "model": "fixed",
+        "coverage": "complete",
+        "sourceCopyCount": 30,
+        "selectedCopyCount": 30,
+        "shuffledCopyCount": 30,
+        "outsideDeckCopyCount": 0,
+        "uniqueCardCount": 13,
+        "cardTypes": {
+          "attack": {
+            "uniqueCount": 4,
+            "copyCount": 9,
+            "printedValueKnownCopies": 9,
+            "printedValueSum": 29,
+            "boostKnownCopies": 9,
+            "boostSum": 29
+          },
+          "defense": {
+            "uniqueCount": 2,
+            "copyCount": 4,
+            "printedValueKnownCopies": 4,
+            "printedValueSum": 8,
+            "boostKnownCopies": 4,
+            "boostSum": 8
+          },
+          "versatile": {
+            "uniqueCount": 3,
+            "copyCount": 8,
+            "printedValueKnownCopies": 8,
+            "printedValueSum": 23,
+            "boostKnownCopies": 8,
+            "boostSum": 11
+          },
+          "scheme": {
+            "uniqueCount": 4,
+            "copyCount": 9,
+            "printedValueKnownCopies": 0,
+            "printedValueSum": 0,
+            "boostKnownCopies": 9,
+            "boostSum": 22
+          }
+        },
+        "boostKnownCopies": 30,
+        "boostSum": 70,
+        "sharedCopies": 10,
+        "restrictedCopies": 20
+      }
+    },
+    {
+      "id": "elektra",
+      "name": "Elektra",
+      "licence": "Marvel",
+      "releaseId": "hells-kitchen",
+      "move": 2,
+      "rosterType": "hero-with-multiple-sidekicks",
+      "complexity": null,
+      "dataStatus": "complete",
+      "dataNote": "Starting health records the first-life value; the ability instructs the player to flip the health dial on resurrection.",
+      "fighters": [
+        {
+          "id": "elektra",
+          "name": "Elektra",
+          "role": "hero",
+          "quantity": 1,
+          "attackType": "melee",
+          "startingHealth": 7,
+          "isUnique": true
+        },
+        {
+          "id": "the-hand",
+          "name": "The Hand",
+          "role": "sidekick",
+          "quantity": 4,
+          "attackType": "melee",
+          "startingHealth": 1,
+          "isUnique": false
+        }
+      ],
+      "deck": {
+        "model": "fixed",
+        "coverage": "complete",
+        "sourceCopyCount": 20,
+        "selectedCopyCount": 20,
+        "shuffledCopyCount": 20,
+        "outsideDeckCopyCount": 0,
+        "uniqueCardCount": 10,
+        "cardTypes": {
+          "attack": {
+            "uniqueCount": 3,
+            "copyCount": 6,
+            "printedValueKnownCopies": 6,
+            "printedValueSum": 26,
+            "boostKnownCopies": 6,
+            "boostSum": 12
+          },
+          "defense": {
+            "uniqueCount": 2,
+            "copyCount": 4,
+            "printedValueKnownCopies": 4,
+            "printedValueSum": 8,
+            "boostKnownCopies": 4,
+            "boostSum": 12
+          },
+          "versatile": {
+            "uniqueCount": 4,
+            "copyCount": 8,
+            "printedValueKnownCopies": 8,
+            "printedValueSum": 22,
+            "boostKnownCopies": 8,
+            "boostSum": 14
+          },
+          "scheme": {
+            "uniqueCount": 1,
+            "copyCount": 2,
+            "printedValueKnownCopies": 0,
+            "printedValueSum": 0,
+            "boostKnownCopies": 2,
+            "boostSum": 4
+          }
+        },
+        "boostKnownCopies": 20,
+        "boostSum": 42,
+        "sharedCopies": 2,
+        "restrictedCopies": 18
+      }
+    },
+    {
+      "id": "eredin",
+      "name": "Eredin",
+      "licence": "The Witcher",
+      "releaseId": "the-witcher-realms-fall",
+      "move": 2,
+      "rosterType": "hero-with-multiple-sidekicks",
+      "complexity": null,
+      "dataStatus": "complete",
+      "dataNote": null,
+      "fighters": [
+        {
+          "id": "eredin",
+          "name": "Eredin",
+          "role": "hero",
+          "quantity": 1,
+          "attackType": "melee",
+          "startingHealth": 14,
+          "isUnique": true
+        },
+        {
+          "id": "red-rider",
+          "name": "Red Rider",
+          "role": "sidekick",
+          "quantity": 4,
+          "attackType": "melee",
+          "startingHealth": 1,
+          "isUnique": false
+        }
+      ],
+      "deck": {
+        "model": "fixed",
+        "coverage": "complete",
+        "sourceCopyCount": 30,
+        "selectedCopyCount": 30,
+        "shuffledCopyCount": 30,
+        "outsideDeckCopyCount": 0,
+        "uniqueCardCount": 11,
+        "cardTypes": {
+          "attack": {
+            "uniqueCount": 4,
+            "copyCount": 11,
+            "printedValueKnownCopies": 11,
+            "printedValueSum": 27,
+            "boostKnownCopies": 11,
+            "boostSum": 28
+          },
+          "defense": {
+            "uniqueCount": 2,
+            "copyCount": 5,
+            "printedValueKnownCopies": 5,
+            "printedValueSum": 9,
+            "boostKnownCopies": 5,
+            "boostSum": 11
+          },
+          "versatile": {
+            "uniqueCount": 3,
+            "copyCount": 9,
+            "printedValueKnownCopies": 9,
+            "printedValueSum": 27,
+            "boostKnownCopies": 9,
+            "boostSum": 12
+          },
+          "scheme": {
+            "uniqueCount": 2,
+            "copyCount": 5,
+            "printedValueKnownCopies": 0,
+            "printedValueSum": 0,
+            "boostKnownCopies": 5,
+            "boostSum": 16
+          }
+        },
+        "boostKnownCopies": 30,
+        "boostSum": 67,
+        "sharedCopies": 14,
+        "restrictedCopies": 16
+      }
+    },
+    {
+      "id": "george-washington",
+      "name": "George Washington",
+      "licence": null,
+      "releaseId": "stars-and-stripes",
+      "move": 2,
+      "rosterType": "hero-with-multiple-sidekicks",
+      "complexity": null,
+      "dataStatus": "complete",
+      "dataNote": null,
+      "fighters": [
+        {
+          "id": "george-washington",
+          "name": "George Washington",
+          "role": "hero",
+          "quantity": 1,
+          "attackType": "melee",
+          "startingHealth": 14,
+          "isUnique": true
+        },
+        {
+          "id": "culper-spy",
+          "name": "Culper Spy",
+          "role": "sidekick",
+          "quantity": 3,
+          "attackType": "melee",
+          "startingHealth": 1,
+          "isUnique": false
+        }
+      ],
+      "deck": {
+        "model": "fixed",
+        "coverage": "complete",
+        "sourceCopyCount": 30,
+        "selectedCopyCount": 30,
+        "shuffledCopyCount": 30,
+        "outsideDeckCopyCount": 0,
+        "uniqueCardCount": 13,
+        "cardTypes": {
+          "attack": {
+            "uniqueCount": 5,
+            "copyCount": 11,
+            "printedValueKnownCopies": 11,
+            "printedValueSum": 33,
+            "boostKnownCopies": 11,
+            "boostSum": 29
+          },
+          "defense": {
+            "uniqueCount": 1,
+            "copyCount": 2,
+            "printedValueKnownCopies": 2,
+            "printedValueSum": 2,
+            "boostKnownCopies": 2,
+            "boostSum": 4
+          },
+          "versatile": {
+            "uniqueCount": 5,
+            "copyCount": 13,
+            "printedValueKnownCopies": 13,
+            "printedValueSum": 35,
+            "boostKnownCopies": 13,
+            "boostSum": 24
+          },
+          "scheme": {
+            "uniqueCount": 2,
+            "copyCount": 4,
+            "printedValueKnownCopies": 0,
+            "printedValueSum": 0,
+            "boostKnownCopies": 4,
+            "boostSum": 10
+          }
+        },
+        "boostKnownCopies": 30,
+        "boostSum": 67,
+        "sharedCopies": 15,
+        "restrictedCopies": 15
+      }
+    },
+    {
+      "id": "geralt-of-rivia",
+      "name": "Geralt of Rivia",
+      "licence": "The Witcher",
+      "releaseId": "the-witcher-steel-and-silver",
+      "move": 2,
+      "rosterType": "hero-with-sidekick",
+      "complexity": null,
+      "dataStatus": "complete",
+      "dataNote": "The source lists a 36-card pool. Choosing one card from each of three two-copy GEAR pairs produces a 30-card deck.",
+      "fighters": [
+        {
+          "id": "geralt-of-rivia",
+          "name": "Geralt of Rivia",
+          "role": "hero",
+          "quantity": 1,
+          "attackType": "melee",
+          "startingHealth": 14,
+          "isUnique": true
+        },
+        {
+          "id": "dandelion",
+          "name": "Dandelion",
+          "role": "sidekick",
+          "quantity": 1,
+          "attackType": "melee",
+          "startingHealth": 5,
+          "isUnique": true
+        }
+      ],
+      "deck": {
+        "model": "choice-pool",
+        "coverage": "complete",
+        "sourceCopyCount": 36,
+        "selectedCopyCount": 30,
+        "shuffledCopyCount": 30,
+        "outsideDeckCopyCount": 0,
+        "uniqueCardCount": 15,
+        "cardTypes": {
+          "attack": {
+            "uniqueCount": 3,
+            "copyCount": 6,
+            "printedValueKnownCopies": 6,
+            "printedValueSum": 16,
+            "boostKnownCopies": 6,
+            "boostSum": 18
+          },
+          "defense": {
+            "uniqueCount": 2,
+            "copyCount": 4,
+            "printedValueKnownCopies": 4,
+            "printedValueSum": 10,
+            "boostKnownCopies": 4,
+            "boostSum": 12
+          },
+          "versatile": {
+            "uniqueCount": 7,
+            "copyCount": 20,
+            "printedValueKnownCopies": 20,
+            "printedValueSum": 61,
+            "boostKnownCopies": 20,
+            "boostSum": 49
+          },
+          "scheme": {
+            "uniqueCount": 3,
+            "copyCount": 6,
+            "printedValueKnownCopies": 0,
+            "printedValueSum": 0,
+            "boostKnownCopies": 6,
+            "boostSum": 18
+          }
+        },
+        "boostKnownCopies": 36,
+        "boostSum": 97,
+        "sharedCopies": 0,
+        "restrictedCopies": 36
+      }
+    },
+    {
+      "id": "ghost-rider",
+      "name": "Ghost Rider",
+      "licence": "Marvel",
+      "releaseId": "redemption-row",
+      "move": 2,
+      "rosterType": "solo",
+      "complexity": null,
+      "dataStatus": "complete",
+      "dataNote": null,
+      "fighters": [
+        {
+          "id": "ghost-rider",
+          "name": "Ghost Rider",
+          "role": "hero",
+          "quantity": 1,
+          "attackType": "melee",
+          "startingHealth": 17,
+          "isUnique": true
+        }
+      ],
+      "deck": {
+        "model": "fixed",
+        "coverage": "complete",
+        "sourceCopyCount": 30,
+        "selectedCopyCount": 30,
+        "shuffledCopyCount": 30,
+        "outsideDeckCopyCount": 0,
+        "uniqueCardCount": 12,
+        "cardTypes": {
+          "attack": {
+            "uniqueCount": 3,
+            "copyCount": 8,
+            "printedValueKnownCopies": 8,
+            "printedValueSum": 28,
+            "boostKnownCopies": 8,
+            "boostSum": 18
+          },
+          "defense": {
+            "uniqueCount": 2,
+            "copyCount": 5,
+            "printedValueKnownCopies": 5,
+            "printedValueSum": 10,
+            "boostKnownCopies": 5,
+            "boostSum": 8
+          },
+          "versatile": {
+            "uniqueCount": 5,
+            "copyCount": 13,
+            "printedValueKnownCopies": 13,
+            "printedValueSum": 28,
+            "boostKnownCopies": 13,
+            "boostSum": 18
+          },
+          "scheme": {
+            "uniqueCount": 2,
+            "copyCount": 4,
+            "printedValueKnownCopies": 0,
+            "printedValueSum": 0,
+            "boostKnownCopies": 4,
+            "boostSum": 10
+          }
+        },
+        "boostKnownCopies": 30,
+        "boostSum": 54,
+        "sharedCopies": 0,
+        "restrictedCopies": 30
+      }
+    },
+    {
+      "id": "golden-bat",
+      "name": "Golden Bat",
+      "licence": null,
+      "releaseId": "adventures-tales-to-amaze",
+      "move": 3,
+      "rosterType": "solo",
+      "complexity": null,
+      "dataStatus": "needs-review",
+      "dataNote": "Two card effects were not visible in the captured source.",
+      "fighters": [
+        {
+          "id": "golden-bat",
+          "name": "Golden Bat",
+          "role": "hero",
+          "quantity": 1,
+          "attackType": "melee",
+          "startingHealth": 18,
+          "isUnique": true
+        }
+      ],
+      "deck": {
+        "model": "fixed",
+        "coverage": "complete",
+        "sourceCopyCount": 30,
+        "selectedCopyCount": 30,
+        "shuffledCopyCount": 30,
+        "outsideDeckCopyCount": 0,
+        "uniqueCardCount": 12,
+        "cardTypes": {
+          "attack": {
+            "uniqueCount": 3,
+            "copyCount": 8,
+            "printedValueKnownCopies": 8,
+            "printedValueSum": 19,
+            "boostKnownCopies": 8,
+            "boostSum": 11
+          },
+          "defense": {
+            "uniqueCount": 2,
+            "copyCount": 4,
+            "printedValueKnownCopies": 4,
+            "printedValueSum": 16,
+            "boostKnownCopies": 4,
+            "boostSum": 10
+          },
+          "versatile": {
+            "uniqueCount": 5,
+            "copyCount": 13,
+            "printedValueKnownCopies": 13,
+            "printedValueSum": 35,
+            "boostKnownCopies": 13,
+            "boostSum": 18
+          },
+          "scheme": {
+            "uniqueCount": 2,
+            "copyCount": 5,
+            "printedValueKnownCopies": 0,
+            "printedValueSum": 0,
+            "boostKnownCopies": 5,
+            "boostSum": 13
+          }
+        },
+        "boostKnownCopies": 30,
+        "boostSum": 52,
+        "sharedCopies": 0,
+        "restrictedCopies": 30
+      }
+    },
+    {
+      "id": "hamlet",
+      "name": "Hamlet",
+      "licence": null,
+      "releaseId": "slings-and-arrows",
+      "move": 2,
+      "rosterType": "hero-with-sidekick",
+      "complexity": null,
+      "dataStatus": "needs-review",
+      "dataNote": null,
+      "fighters": [
+        {
+          "id": "hamlet",
+          "name": "Hamlet",
+          "role": "hero",
+          "quantity": 1,
+          "attackType": "melee",
+          "startingHealth": 15,
+          "isUnique": true
+        },
+        {
+          "id": "rosencrantz-and-guildenstern",
+          "name": "Rosencrantz and Guildenstern",
+          "role": "sidekick",
+          "quantity": 1,
+          "attackType": "melee",
+          "startingHealth": 6,
+          "isUnique": true
+        }
+      ],
+      "deck": {
+        "model": "fixed",
+        "coverage": "complete",
+        "sourceCopyCount": 30,
+        "selectedCopyCount": 30,
+        "shuffledCopyCount": 30,
+        "outsideDeckCopyCount": 0,
+        "uniqueCardCount": 12,
+        "cardTypes": {
+          "attack": {
+            "uniqueCount": 4,
+            "copyCount": 11,
+            "printedValueKnownCopies": 11,
+            "printedValueSum": 22,
+            "boostKnownCopies": 11,
+            "boostSum": 26
+          },
+          "defense": {
+            "uniqueCount": 3,
+            "copyCount": 7,
+            "printedValueKnownCopies": 7,
+            "printedValueSum": 10,
+            "boostKnownCopies": 7,
+            "boostSum": 11
+          },
+          "versatile": {
+            "uniqueCount": 3,
+            "copyCount": 7,
+            "printedValueKnownCopies": 7,
+            "printedValueSum": 15,
+            "boostKnownCopies": 7,
+            "boostSum": 14
+          },
+          "scheme": {
+            "uniqueCount": 2,
+            "copyCount": 5,
+            "printedValueKnownCopies": 0,
+            "printedValueSum": 0,
+            "boostKnownCopies": 5,
+            "boostSum": 11
+          }
+        },
+        "boostKnownCopies": 30,
+        "boostSum": 62,
+        "sharedCopies": 13,
+        "restrictedCopies": 17
+      }
+    },
+    {
+      "id": "harry-houdini",
+      "name": "Harry Houdini",
+      "licence": null,
+      "releaseId": "houdini-vs-the-genie",
+      "move": 2,
+      "rosterType": "hero-with-sidekick",
+      "complexity": null,
+      "dataStatus": "complete",
+      "dataNote": null,
+      "fighters": [
+        {
+          "id": "harry-houdini",
+          "name": "Harry Houdini",
+          "role": "hero",
+          "quantity": 1,
+          "attackType": "melee",
+          "startingHealth": 14,
+          "isUnique": true
+        },
+        {
+          "id": "bess",
+          "name": "Bess",
+          "role": "sidekick",
+          "quantity": 1,
+          "attackType": "melee",
+          "startingHealth": 5,
+          "isUnique": true
+        }
+      ],
+      "deck": {
+        "model": "fixed",
+        "coverage": "complete",
+        "sourceCopyCount": 30,
+        "selectedCopyCount": 30,
+        "shuffledCopyCount": 30,
+        "outsideDeckCopyCount": 0,
+        "uniqueCardCount": 13,
+        "cardTypes": {
+          "attack": {
+            "uniqueCount": 5,
+            "copyCount": 12,
+            "printedValueKnownCopies": 12,
+            "printedValueSum": 30,
+            "boostKnownCopies": 12,
+            "boostSum": 26
+          },
+          "defense": {
+            "uniqueCount": 2,
+            "copyCount": 5,
+            "printedValueKnownCopies": 5,
+            "printedValueSum": 10,
+            "boostKnownCopies": 5,
+            "boostSum": 13
+          },
+          "versatile": {
+            "uniqueCount": 4,
+            "copyCount": 10,
+            "printedValueKnownCopies": 10,
+            "printedValueSum": 24,
+            "boostKnownCopies": 10,
+            "boostSum": 13
+          },
+          "scheme": {
+            "uniqueCount": 2,
+            "copyCount": 3,
+            "printedValueKnownCopies": 0,
+            "printedValueSum": 0,
+            "boostKnownCopies": 3,
+            "boostSum": 8
+          }
+        },
+        "boostKnownCopies": 30,
+        "boostSum": 60,
+        "sharedCopies": 15,
+        "restrictedCopies": 15
+      }
+    },
+    {
+      "id": "invisible-man",
+      "name": "Invisible Man",
+      "licence": null,
+      "releaseId": "cobble-and-fog",
+      "move": 2,
+      "rosterType": "solo",
+      "complexity": null,
+      "dataStatus": "complete",
+      "dataNote": null,
+      "fighters": [
+        {
+          "id": "invisible-man",
+          "name": "Invisible Man",
+          "role": "hero",
+          "quantity": 1,
+          "attackType": "melee",
+          "startingHealth": 15,
+          "isUnique": true
+        }
+      ],
+      "deck": {
+        "model": "fixed",
+        "coverage": "complete",
+        "sourceCopyCount": 30,
+        "selectedCopyCount": 30,
+        "shuffledCopyCount": 30,
+        "outsideDeckCopyCount": 0,
+        "uniqueCardCount": 14,
+        "cardTypes": {
+          "attack": {
+            "uniqueCount": 3,
+            "copyCount": 7,
+            "printedValueKnownCopies": 7,
+            "printedValueSum": 25,
+            "boostKnownCopies": 7,
+            "boostSum": 12
+          },
+          "defense": {
+            "uniqueCount": 3,
+            "copyCount": 6,
+            "printedValueKnownCopies": 6,
+            "printedValueSum": 18,
+            "boostKnownCopies": 6,
+            "boostSum": 10
+          },
+          "versatile": {
+            "uniqueCount": 4,
+            "copyCount": 9,
+            "printedValueKnownCopies": 9,
+            "printedValueSum": 22,
+            "boostKnownCopies": 9,
+            "boostSum": 13
+          },
+          "scheme": {
+            "uniqueCount": 4,
+            "copyCount": 8,
+            "printedValueKnownCopies": 0,
+            "printedValueSum": 0,
+            "boostKnownCopies": 8,
+            "boostSum": 12
+          }
+        },
+        "boostKnownCopies": 30,
+        "boostSum": 47,
+        "sharedCopies": 0,
+        "restrictedCopies": 30
+      }
+    },
+    {
+      "id": "john-henry",
+      "name": "John Henry",
+      "licence": null,
+      "releaseId": "stars-and-stripes",
+      "move": 2,
+      "rosterType": "solo",
+      "complexity": null,
+      "dataStatus": "complete",
+      "dataNote": null,
+      "fighters": [
+        {
+          "id": "john-henry",
+          "name": "John Henry",
+          "role": "hero",
+          "quantity": 1,
+          "attackType": "melee",
+          "startingHealth": 17,
+          "isUnique": true
+        }
+      ],
+      "deck": {
+        "model": "fixed",
+        "coverage": "complete",
+        "sourceCopyCount": 30,
+        "selectedCopyCount": 30,
+        "shuffledCopyCount": 30,
+        "outsideDeckCopyCount": 0,
+        "uniqueCardCount": 12,
+        "cardTypes": {
+          "attack": {
+            "uniqueCount": 5,
+            "copyCount": 11,
+            "printedValueKnownCopies": 11,
+            "printedValueSum": 45,
+            "boostKnownCopies": 11,
+            "boostSum": 28
+          },
+          "defense": {
+            "uniqueCount": 2,
+            "copyCount": 5,
+            "printedValueKnownCopies": 5,
+            "printedValueSum": 4,
+            "boostKnownCopies": 5,
+            "boostSum": 10
+          },
+          "versatile": {
+            "uniqueCount": 4,
+            "copyCount": 11,
+            "printedValueKnownCopies": 11,
+            "printedValueSum": 36,
+            "boostKnownCopies": 11,
+            "boostSum": 17
+          },
+          "scheme": {
+            "uniqueCount": 1,
+            "copyCount": 3,
+            "printedValueKnownCopies": 0,
+            "printedValueSum": 0,
+            "boostKnownCopies": 3,
+            "boostSum": 6
+          }
+        },
+        "boostKnownCopies": 30,
+        "boostSum": 61,
+        "sharedCopies": 0,
+        "restrictedCopies": 30
+      }
+    },
+    {
+      "id": "king-arthur",
+      "name": "King Arthur",
+      "licence": null,
+      "releaseId": "battle-of-legends-volume-one",
+      "move": 2,
+      "rosterType": "hero-with-sidekick",
+      "complexity": null,
+      "dataStatus": "complete",
+      "dataNote": null,
+      "fighters": [
+        {
+          "id": "king-arthur",
+          "name": "King Arthur",
+          "role": "hero",
+          "quantity": 1,
+          "attackType": "melee",
+          "startingHealth": 18,
+          "isUnique": true
+        },
+        {
+          "id": "merlin",
+          "name": "Merlin",
+          "role": "sidekick",
+          "quantity": 1,
+          "attackType": "ranged",
+          "startingHealth": 7,
+          "isUnique": true
+        }
+      ],
+      "deck": {
+        "model": "fixed",
+        "coverage": "complete",
+        "sourceCopyCount": 30,
+        "selectedCopyCount": 30,
+        "shuffledCopyCount": 30,
+        "outsideDeckCopyCount": 0,
+        "uniqueCardCount": 16,
+        "cardTypes": {
+          "attack": {
+            "uniqueCount": 5,
+            "copyCount": 8,
+            "printedValueKnownCopies": 8,
+            "printedValueSum": 26,
+            "boostKnownCopies": 8,
+            "boostSum": 20
+          },
+          "defense": {
+            "uniqueCount": 2,
+            "copyCount": 3,
+            "printedValueKnownCopies": 3,
+            "printedValueSum": 1,
+            "boostKnownCopies": 3,
+            "boostSum": 6
+          },
+          "versatile": {
+            "uniqueCount": 5,
+            "copyCount": 14,
+            "printedValueKnownCopies": 14,
+            "printedValueSum": 36,
+            "boostKnownCopies": 14,
+            "boostSum": 16
+          },
+          "scheme": {
+            "uniqueCount": 4,
+            "copyCount": 5,
+            "printedValueKnownCopies": 0,
+            "printedValueSum": 0,
+            "boostKnownCopies": 5,
+            "boostSum": 10
+          }
+        },
+        "boostKnownCopies": 30,
+        "boostSum": 52,
+        "sharedCopies": 14,
+        "restrictedCopies": 16
+      }
+    },
+    {
+      "id": "krang",
+      "name": "Krang",
+      "licence": "Teenage Mutant Ninja Turtles",
+      "releaseId": "tmnt-shredder-vs-krang",
+      "move": 1,
+      "rosterType": "solo",
+      "complexity": null,
+      "dataStatus": "complete",
+      "dataNote": "Uses three doomsday machines and the Dice of Ultimate Destruction; source placeholders for die results are retained.",
+      "fighters": [
+        {
+          "id": "krang",
+          "name": "Krang",
+          "role": "hero",
+          "quantity": 1,
+          "attackType": "melee",
+          "startingHealth": 16,
+          "isUnique": true
+        }
+      ],
+      "deck": {
+        "model": "fixed",
+        "coverage": "complete",
+        "sourceCopyCount": 30,
+        "selectedCopyCount": 30,
+        "shuffledCopyCount": 30,
+        "outsideDeckCopyCount": 0,
+        "uniqueCardCount": 10,
+        "cardTypes": {
+          "attack": {
+            "uniqueCount": 3,
+            "copyCount": 9,
+            "printedValueKnownCopies": 9,
+            "printedValueSum": 18,
+            "boostKnownCopies": 9,
+            "boostSum": 18
+          },
+          "defense": {
+            "uniqueCount": 1,
+            "copyCount": 3,
+            "printedValueKnownCopies": 3,
+            "printedValueSum": 0,
+            "boostKnownCopies": 3,
+            "boostSum": 3
+          },
+          "versatile": {
+            "uniqueCount": 4,
+            "copyCount": 12,
+            "printedValueKnownCopies": 12,
+            "printedValueSum": 29,
+            "boostKnownCopies": 10,
+            "boostSum": 23
+          },
+          "scheme": {
+            "uniqueCount": 2,
+            "copyCount": 6,
+            "printedValueKnownCopies": 0,
+            "printedValueSum": 0,
+            "boostKnownCopies": 3,
+            "boostSum": 9
+          }
+        },
+        "boostKnownCopies": 25,
+        "boostSum": 53,
+        "sharedCopies": 0,
+        "restrictedCopies": 30
+      }
+    },
+    {
+      "id": "leonardo",
+      "name": "Leonardo",
+      "licence": "Teenage Mutant Ninja Turtles",
+      "releaseId": "adventures-teenage-mutant-ninja-turtles",
+      "move": 2,
+      "rosterType": "hero-with-sidekick",
+      "complexity": null,
+      "dataStatus": "complete",
+      "dataNote": null,
+      "fighters": [
+        {
+          "id": "leonardo",
+          "name": "Leonardo",
+          "role": "hero",
+          "quantity": 1,
+          "attackType": "melee",
+          "startingHealth": 16,
+          "isUnique": true
+        },
+        {
+          "id": "splinter",
+          "name": "Splinter",
+          "role": "sidekick",
+          "quantity": 1,
+          "attackType": "melee",
+          "startingHealth": 9,
+          "isUnique": true
+        }
+      ],
+      "deck": {
+        "model": "fixed",
+        "coverage": "complete",
+        "sourceCopyCount": 30,
+        "selectedCopyCount": 30,
+        "shuffledCopyCount": 30,
+        "outsideDeckCopyCount": 0,
+        "uniqueCardCount": 12,
+        "cardTypes": {
+          "attack": {
+            "uniqueCount": 4,
+            "copyCount": 9,
+            "printedValueKnownCopies": 9,
+            "printedValueSum": 35,
+            "boostKnownCopies": 9,
+            "boostSum": 16
+          },
+          "defense": {
+            "uniqueCount": 1,
+            "copyCount": 2,
+            "printedValueKnownCopies": 2,
+            "printedValueSum": 10,
+            "boostKnownCopies": 2,
+            "boostSum": 6
+          },
+          "versatile": {
+            "uniqueCount": 5,
+            "copyCount": 15,
+            "printedValueKnownCopies": 15,
+            "printedValueSum": 39,
+            "boostKnownCopies": 15,
+            "boostSum": 30
+          },
+          "scheme": {
+            "uniqueCount": 2,
+            "copyCount": 4,
+            "printedValueKnownCopies": 0,
+            "printedValueSum": 0,
+            "boostKnownCopies": 4,
+            "boostSum": 12
+          }
+        },
+        "boostKnownCopies": 30,
+        "boostSum": 64,
+        "sharedCopies": 14,
+        "restrictedCopies": 16
+      }
+    },
+    {
+      "id": "little-red",
+      "name": "Little Red",
+      "licence": null,
+      "releaseId": "little-red-riding-hood-vs-beowulf",
+      "move": 2,
+      "rosterType": "hero-with-sidekick",
+      "complexity": null,
+      "dataStatus": "needs-review",
+      "dataNote": "The full effect text of What's That In My Basket? remains unconfirmed.",
+      "fighters": [
+        {
+          "id": "little-red",
+          "name": "Little Red",
+          "role": "hero",
+          "quantity": 1,
+          "attackType": "melee",
+          "startingHealth": 14,
+          "isUnique": true
+        },
+        {
+          "id": "huntsman",
+          "name": "Huntsman",
+          "role": "sidekick",
+          "quantity": 1,
+          "attackType": "ranged",
+          "startingHealth": 9,
+          "isUnique": true
+        }
+      ],
+      "deck": {
+        "model": "fixed",
+        "coverage": "complete",
+        "sourceCopyCount": 30,
+        "selectedCopyCount": 30,
+        "shuffledCopyCount": 30,
+        "outsideDeckCopyCount": 0,
+        "uniqueCardCount": 12,
+        "cardTypes": {
+          "attack": {
+            "uniqueCount": 3,
+            "copyCount": 7,
+            "printedValueKnownCopies": 7,
+            "printedValueSum": 24,
+            "boostKnownCopies": 7,
+            "boostSum": 16
+          },
+          "defense": {
+            "uniqueCount": 1,
+            "copyCount": 2,
+            "printedValueKnownCopies": 2,
+            "printedValueSum": 4,
+            "boostKnownCopies": 2,
+            "boostSum": 4
+          },
+          "versatile": {
+            "uniqueCount": 5,
+            "copyCount": 14,
+            "printedValueKnownCopies": 14,
+            "printedValueSum": 38,
+            "boostKnownCopies": 14,
+            "boostSum": 19
+          },
+          "scheme": {
+            "uniqueCount": 3,
+            "copyCount": 7,
+            "printedValueKnownCopies": 0,
+            "printedValueSum": 0,
+            "boostKnownCopies": 7,
+            "boostSum": 14
+          }
+        },
+        "boostKnownCopies": 30,
+        "boostSum": 53,
+        "sharedCopies": 8,
+        "restrictedCopies": 22
+      }
+    },
+    {
+      "id": "loki",
+      "name": "Loki",
+      "licence": null,
+      "releaseId": "battle-of-legends-volume-three",
+      "move": 2,
+      "rosterType": "solo",
+      "complexity": null,
+      "dataStatus": "complete",
+      "dataNote": "Four TRICK cards can move into an opponent's hand; movement can increase above the printed value.",
+      "fighters": [
+        {
+          "id": "loki",
+          "name": "Loki",
+          "role": "hero",
+          "quantity": 1,
+          "attackType": "melee",
+          "startingHealth": 16,
+          "isUnique": true
+        }
+      ],
+      "deck": {
+        "model": "fixed",
+        "coverage": "complete",
+        "sourceCopyCount": 30,
+        "selectedCopyCount": 30,
+        "shuffledCopyCount": 30,
+        "outsideDeckCopyCount": 0,
+        "uniqueCardCount": 11,
+        "cardTypes": {
+          "attack": {
+            "uniqueCount": 4,
+            "copyCount": 12,
+            "printedValueKnownCopies": 12,
+            "printedValueSum": 24,
+            "boostKnownCopies": 12,
+            "boostSum": 32
+          },
+          "defense": {
+            "uniqueCount": 1,
+            "copyCount": 2,
+            "printedValueKnownCopies": 2,
+            "printedValueSum": 6,
+            "boostKnownCopies": 2,
+            "boostSum": 4
+          },
+          "versatile": {
+            "uniqueCount": 5,
+            "copyCount": 14,
+            "printedValueKnownCopies": 14,
+            "printedValueSum": 34,
+            "boostKnownCopies": 14,
+            "boostSum": 37
+          },
+          "scheme": {
+            "uniqueCount": 1,
+            "copyCount": 2,
+            "printedValueKnownCopies": 0,
+            "printedValueSum": 0,
+            "boostKnownCopies": 2,
+            "boostSum": 4
+          }
+        },
+        "boostKnownCopies": 30,
+        "boostSum": 77,
+        "sharedCopies": 7,
+        "restrictedCopies": 23
+      }
+    },
+    {
+      "id": "luke-cage",
+      "name": "Luke Cage",
+      "licence": "Marvel",
+      "releaseId": "redemption-row",
+      "move": 2,
+      "rosterType": "hero-with-sidekick",
+      "complexity": null,
+      "dataStatus": "complete",
+      "dataNote": null,
+      "fighters": [
+        {
+          "id": "luke-cage",
+          "name": "Luke Cage",
+          "role": "hero",
+          "quantity": 1,
+          "attackType": "melee",
+          "startingHealth": 13,
+          "isUnique": true
+        },
+        {
+          "id": "misty-knight",
+          "name": "Misty Knight",
+          "role": "sidekick",
+          "quantity": 1,
+          "attackType": "ranged",
+          "startingHealth": 6,
+          "isUnique": true
+        }
+      ],
+      "deck": {
+        "model": "fixed",
+        "coverage": "complete",
+        "sourceCopyCount": 30,
+        "selectedCopyCount": 30,
+        "shuffledCopyCount": 30,
+        "outsideDeckCopyCount": 0,
+        "uniqueCardCount": 13,
+        "cardTypes": {
+          "attack": {
+            "uniqueCount": 5,
+            "copyCount": 12,
+            "printedValueKnownCopies": 12,
+            "printedValueSum": 52,
+            "boostKnownCopies": 12,
+            "boostSum": 16
+          },
+          "defense": {
+            "uniqueCount": 4,
+            "copyCount": 9,
+            "printedValueKnownCopies": 9,
+            "printedValueSum": 12,
+            "boostKnownCopies": 9,
+            "boostSum": 11
+          },
+          "versatile": {
+            "uniqueCount": 3,
+            "copyCount": 7,
+            "printedValueKnownCopies": 7,
+            "printedValueSum": 11,
+            "boostKnownCopies": 7,
+            "boostSum": 19
+          },
+          "scheme": {
+            "uniqueCount": 1,
+            "copyCount": 2,
+            "printedValueKnownCopies": 0,
+            "printedValueSum": 0,
+            "boostKnownCopies": 2,
+            "boostSum": 2
+          }
+        },
+        "boostKnownCopies": 30,
+        "boostSum": 48,
+        "sharedCopies": 11,
+        "restrictedCopies": 19
+      }
+    },
+    {
+      "id": "medusa",
+      "name": "Medusa",
+      "licence": null,
+      "releaseId": "battle-of-legends-volume-one",
+      "move": 3,
+      "rosterType": "hero-with-multiple-sidekicks",
+      "complexity": null,
+      "dataStatus": "complete",
+      "dataNote": null,
+      "fighters": [
+        {
+          "id": "medusa",
+          "name": "Medusa",
+          "role": "hero",
+          "quantity": 1,
+          "attackType": "ranged",
+          "startingHealth": 16,
+          "isUnique": true
+        },
+        {
+          "id": "harpy",
+          "name": "Harpy",
+          "role": "sidekick",
+          "quantity": 3,
+          "attackType": "melee",
+          "startingHealth": 1,
+          "isUnique": false
+        }
+      ],
+      "deck": {
+        "model": "fixed",
+        "coverage": "complete",
+        "sourceCopyCount": 30,
+        "selectedCopyCount": 30,
+        "shuffledCopyCount": 30,
+        "outsideDeckCopyCount": 0,
+        "uniqueCardCount": 11,
+        "cardTypes": {
+          "attack": {
+            "uniqueCount": 2,
+            "copyCount": 6,
+            "printedValueKnownCopies": 6,
+            "printedValueSum": 15,
+            "boostKnownCopies": 6,
+            "boostSum": 21
+          },
+          "defense": {
+            "uniqueCount": 1,
+            "copyCount": 3,
+            "printedValueKnownCopies": 3,
+            "printedValueSum": 12,
+            "boostKnownCopies": 3,
+            "boostSum": 9
+          },
+          "versatile": {
+            "uniqueCount": 6,
+            "copyCount": 17,
+            "printedValueKnownCopies": 17,
+            "printedValueSum": 44,
+            "boostKnownCopies": 17,
+            "boostSum": 30
+          },
+          "scheme": {
+            "uniqueCount": 2,
+            "copyCount": 4,
+            "printedValueKnownCopies": 0,
+            "printedValueSum": 0,
+            "boostKnownCopies": 4,
+            "boostSum": 12
+          }
+        },
+        "boostKnownCopies": 30,
+        "boostSum": 72,
+        "sharedCopies": 14,
+        "restrictedCopies": 16
+      }
+    },
+    {
+      "id": "michelangelo",
+      "name": "Michelangelo",
+      "licence": "Teenage Mutant Ninja Turtles",
+      "releaseId": "adventures-teenage-mutant-ninja-turtles",
+      "move": 3,
+      "rosterType": "hero-with-sidekick",
+      "complexity": null,
+      "dataStatus": "complete",
+      "dataNote": null,
+      "fighters": [
+        {
+          "id": "michelangelo",
+          "name": "Michelangelo",
+          "role": "hero",
+          "quantity": 1,
+          "attackType": "melee",
+          "startingHealth": 14,
+          "isUnique": true
+        },
+        {
+          "id": "april-oneil",
+          "name": "April O'Neil",
+          "role": "sidekick",
+          "quantity": 1,
+          "attackType": "ranged",
+          "startingHealth": 6,
+          "isUnique": true
+        }
+      ],
+      "deck": {
+        "model": "fixed",
+        "coverage": "complete",
+        "sourceCopyCount": 30,
+        "selectedCopyCount": 30,
+        "shuffledCopyCount": 30,
+        "outsideDeckCopyCount": 0,
+        "uniqueCardCount": 12,
+        "cardTypes": {
+          "attack": {
+            "uniqueCount": 4,
+            "copyCount": 11,
+            "printedValueKnownCopies": 11,
+            "printedValueSum": 24,
+            "boostKnownCopies": 11,
+            "boostSum": 27
+          },
+          "defense": {
+            "uniqueCount": 2,
+            "copyCount": 4,
+            "printedValueKnownCopies": 4,
+            "printedValueSum": 14,
+            "boostKnownCopies": 4,
+            "boostSum": 6
+          },
+          "versatile": {
+            "uniqueCount": 3,
+            "copyCount": 9,
+            "printedValueKnownCopies": 9,
+            "printedValueSum": 27,
+            "boostKnownCopies": 9,
+            "boostSum": 15
+          },
+          "scheme": {
+            "uniqueCount": 3,
+            "copyCount": 6,
+            "printedValueKnownCopies": 0,
+            "printedValueSum": 0,
+            "boostKnownCopies": 6,
+            "boostSum": 14
+          }
+        },
+        "boostKnownCopies": 30,
+        "boostSum": 62,
+        "sharedCopies": 8,
+        "restrictedCopies": 22
+      }
+    },
+    {
+      "id": "moon-knight",
+      "name": "Moon Knight",
+      "licence": "Marvel",
+      "releaseId": "redemption-row",
+      "move": 3,
+      "rosterType": "transforming",
+      "complexity": null,
+      "dataStatus": "needs-review",
+      "dataNote": "The source contains conflicting identity-cycle descriptions: the main ability uses Khonshu, while another component names Jake Lockley.",
+      "fighters": [
+        {
+          "id": "moon-knight",
+          "name": "Moon Knight",
+          "role": "hero",
+          "quantity": 1,
+          "attackType": "melee",
+          "startingHealth": 16,
+          "isUnique": true
+        }
+      ],
+      "deck": {
+        "model": "fixed",
+        "coverage": "complete",
+        "sourceCopyCount": 30,
+        "selectedCopyCount": 30,
+        "shuffledCopyCount": 30,
+        "outsideDeckCopyCount": 0,
+        "uniqueCardCount": 12,
+        "cardTypes": {
+          "attack": {
+            "uniqueCount": 2,
+            "copyCount": 6,
+            "printedValueKnownCopies": 6,
+            "printedValueSum": 21,
+            "boostKnownCopies": 6,
+            "boostSum": 12
+          },
+          "defense": {
+            "uniqueCount": 1,
+            "copyCount": 3,
+            "printedValueKnownCopies": 3,
+            "printedValueSum": 9,
+            "boostKnownCopies": 3,
+            "boostSum": 6
+          },
+          "versatile": {
+            "uniqueCount": 7,
+            "copyCount": 17,
+            "printedValueKnownCopies": 17,
+            "printedValueSum": 40,
+            "boostKnownCopies": 17,
+            "boostSum": 26
+          },
+          "scheme": {
+            "uniqueCount": 2,
+            "copyCount": 4,
+            "printedValueKnownCopies": 0,
+            "printedValueSum": 0,
+            "boostKnownCopies": 4,
+            "boostSum": 12
+          }
+        },
+        "boostKnownCopies": 30,
+        "boostSum": 56,
+        "sharedCopies": 30,
+        "restrictedCopies": 0
+      }
+    },
+    {
+      "id": "ms-marvel",
+      "name": "Ms. Marvel",
+      "licence": "Marvel",
+      "releaseId": "teen-spirit",
+      "move": 2,
+      "rosterType": "solo",
+      "complexity": null,
+      "dataStatus": "complete",
+      "dataNote": null,
+      "fighters": [
+        {
+          "id": "ms-marvel",
+          "name": "Ms. Marvel",
+          "role": "hero",
+          "quantity": 1,
+          "attackType": "melee",
+          "startingHealth": 14,
+          "isUnique": true
+        }
+      ],
+      "deck": {
+        "model": "fixed",
+        "coverage": "complete",
+        "sourceCopyCount": 30,
+        "selectedCopyCount": 30,
+        "shuffledCopyCount": 30,
+        "outsideDeckCopyCount": 0,
+        "uniqueCardCount": 11,
+        "cardTypes": {
+          "attack": {
+            "uniqueCount": 3,
+            "copyCount": 9,
+            "printedValueKnownCopies": 9,
+            "printedValueSum": 24,
+            "boostKnownCopies": 9,
+            "boostSum": 15
+          },
+          "defense": {
+            "uniqueCount": 1,
+            "copyCount": 3,
+            "printedValueKnownCopies": 3,
+            "printedValueSum": 9,
+            "boostKnownCopies": 3,
+            "boostSum": 6
+          },
+          "versatile": {
+            "uniqueCount": 5,
+            "copyCount": 15,
+            "printedValueKnownCopies": 15,
+            "printedValueSum": 36,
+            "boostKnownCopies": 15,
+            "boostSum": 30
+          },
+          "scheme": {
+            "uniqueCount": 2,
+            "copyCount": 3,
+            "printedValueKnownCopies": 0,
+            "printedValueSum": 0,
+            "boostKnownCopies": 3,
+            "boostSum": 8
+          }
+        },
+        "boostKnownCopies": 30,
+        "boostSum": 59,
+        "sharedCopies": 0,
+        "restrictedCopies": 30
+      }
+    },
+    {
+      "id": "muhammad-ali",
+      "name": "Muhammad Ali",
+      "licence": "Muhammad Ali",
+      "releaseId": "muhammad-ali-vs-bruce-lee",
+      "move": 3,
+      "rosterType": "transforming",
+      "complexity": null,
+      "dataStatus": "complete",
+      "dataNote": null,
+      "fighters": [
+        {
+          "id": "muhammad-ali",
+          "name": "Muhammad Ali",
+          "role": "hero",
+          "quantity": 1,
+          "attackType": "melee",
+          "startingHealth": 16,
+          "isUnique": true
+        }
+      ],
+      "deck": {
+        "model": "fixed",
+        "coverage": "complete",
+        "sourceCopyCount": 30,
+        "selectedCopyCount": 30,
+        "shuffledCopyCount": 30,
+        "outsideDeckCopyCount": 0,
+        "uniqueCardCount": 13,
+        "cardTypes": {
+          "attack": {
+            "uniqueCount": 4,
+            "copyCount": 9,
+            "printedValueKnownCopies": 9,
+            "printedValueSum": 22,
+            "boostKnownCopies": 9,
+            "boostSum": 20
+          },
+          "defense": {
+            "uniqueCount": 1,
+            "copyCount": 2,
+            "printedValueKnownCopies": 2,
+            "printedValueSum": 4,
+            "boostKnownCopies": 2,
+            "boostSum": 6
+          },
+          "versatile": {
+            "uniqueCount": 6,
+            "copyCount": 15,
+            "printedValueKnownCopies": 15,
+            "printedValueSum": 37,
+            "boostKnownCopies": 15,
+            "boostSum": 26
+          },
+          "scheme": {
+            "uniqueCount": 2,
+            "copyCount": 4,
+            "printedValueKnownCopies": 0,
+            "printedValueSum": 0,
+            "boostKnownCopies": 4,
+            "boostSum": 8
+          }
+        },
+        "boostKnownCopies": 30,
+        "boostSum": 60,
+        "sharedCopies": 4,
+        "restrictedCopies": 26
+      }
+    },
+    {
+      "id": "nikola-tesla",
+      "name": "Nikola Tesla",
+      "licence": null,
+      "releaseId": "adventures-tales-to-amaze",
+      "move": 2,
+      "rosterType": "solo",
+      "complexity": null,
+      "dataStatus": "complete",
+      "dataNote": null,
+      "fighters": [
+        {
+          "id": "nikola-tesla",
+          "name": "Nikola Tesla",
+          "role": "hero",
+          "quantity": 1,
+          "attackType": "ranged",
+          "startingHealth": 14,
+          "isUnique": true
+        }
+      ],
+      "deck": {
+        "model": "fixed",
+        "coverage": "complete",
+        "sourceCopyCount": 30,
+        "selectedCopyCount": 30,
+        "shuffledCopyCount": 30,
+        "outsideDeckCopyCount": 0,
+        "uniqueCardCount": 11,
+        "cardTypes": {
+          "attack": {
+            "uniqueCount": 3,
+            "copyCount": 8,
+            "printedValueKnownCopies": 8,
+            "printedValueSum": 31,
+            "boostKnownCopies": 8,
+            "boostSum": 27
+          },
+          "defense": {
+            "uniqueCount": 1,
+            "copyCount": 3,
+            "printedValueKnownCopies": 3,
+            "printedValueSum": 9,
+            "boostKnownCopies": 3,
+            "boostSum": 6
+          },
+          "versatile": {
+            "uniqueCount": 5,
+            "copyCount": 15,
+            "printedValueKnownCopies": 15,
+            "printedValueSum": 42,
+            "boostKnownCopies": 15,
+            "boostSum": 18
+          },
+          "scheme": {
+            "uniqueCount": 2,
+            "copyCount": 4,
+            "printedValueKnownCopies": 0,
+            "printedValueSum": 0,
+            "boostKnownCopies": 4,
+            "boostSum": 8
+          }
+        },
+        "boostKnownCopies": 30,
+        "boostSum": 59,
+        "sharedCopies": 0,
+        "restrictedCopies": 30
+      }
+    },
+    {
+      "id": "oda-nobunaga",
+      "name": "Oda Nobunaga",
+      "licence": null,
+      "releaseId": "suns-origin",
+      "move": 2,
+      "rosterType": "hero-with-sidekick",
+      "complexity": null,
+      "dataStatus": "complete",
+      "dataNote": "The source's verified card-type corrections are reflected in the card rows.",
+      "fighters": [
+        {
+          "id": "oda-nobunaga",
+          "name": "Oda Nobunaga",
+          "role": "hero",
+          "quantity": 1,
+          "attackType": "melee",
+          "startingHealth": 13,
+          "isUnique": true
+        },
+        {
+          "id": "honor-guard",
+          "name": "Honor Guard",
+          "role": "sidekick",
+          "quantity": 1,
+          "attackType": "melee",
+          "startingHealth": 6,
+          "isUnique": true
+        }
+      ],
+      "deck": {
+        "model": "fixed",
+        "coverage": "complete",
+        "sourceCopyCount": 30,
+        "selectedCopyCount": 30,
+        "shuffledCopyCount": 30,
+        "outsideDeckCopyCount": 0,
+        "uniqueCardCount": 11,
+        "cardTypes": {
+          "attack": {
+            "uniqueCount": 4,
+            "copyCount": 10,
+            "printedValueKnownCopies": 10,
+            "printedValueSum": 35,
+            "boostKnownCopies": 10,
+            "boostSum": 18
+          },
+          "defense": {
+            "uniqueCount": 2,
+            "copyCount": 6,
+            "printedValueKnownCopies": 6,
+            "printedValueSum": 15,
+            "boostKnownCopies": 6,
+            "boostSum": 9
+          },
+          "versatile": {
+            "uniqueCount": 3,
+            "copyCount": 9,
+            "printedValueKnownCopies": 9,
+            "printedValueSum": 17,
+            "boostKnownCopies": 9,
+            "boostSum": 15
+          },
+          "scheme": {
+            "uniqueCount": 2,
+            "copyCount": 5,
+            "printedValueKnownCopies": 0,
+            "printedValueSum": 0,
+            "boostKnownCopies": 5,
+            "boostSum": 12
+          }
+        },
+        "boostKnownCopies": 30,
+        "boostSum": 54,
+        "sharedCopies": 18,
+        "restrictedCopies": 12
+      }
+    },
+    {
+      "id": "pandora",
+      "name": "Pandora",
+      "licence": null,
+      "releaseId": "battle-of-legends-volume-three",
+      "move": 2,
+      "rosterType": "hero-with-multiple-sidekicks",
+      "complexity": null,
+      "dataStatus": "needs-review",
+      "dataNote": "The separate seven-card MISERY deck is described by the ability but is not included in the source card table.",
+      "fighters": [
+        {
+          "id": "pandora",
+          "name": "Pandora",
+          "role": "hero",
+          "quantity": 1,
+          "attackType": "melee",
+          "startingHealth": 14,
+          "isUnique": true
+        },
+        {
+          "id": "kakodaemon",
+          "name": "Kakodaemon",
+          "role": "sidekick",
+          "quantity": 2,
+          "attackType": "melee",
+          "startingHealth": 1,
+          "isUnique": false
+        }
+      ],
+      "deck": {
+        "model": "fixed",
+        "coverage": "complete",
+        "sourceCopyCount": 30,
+        "selectedCopyCount": 30,
+        "shuffledCopyCount": 30,
+        "outsideDeckCopyCount": 0,
+        "uniqueCardCount": 12,
+        "cardTypes": {
+          "attack": {
+            "uniqueCount": 4,
+            "copyCount": 11,
+            "printedValueKnownCopies": 11,
+            "printedValueSum": 24,
+            "boostKnownCopies": 11,
+            "boostSum": 31
+          },
+          "defense": {
+            "uniqueCount": 2,
+            "copyCount": 4,
+            "printedValueKnownCopies": 4,
+            "printedValueSum": 4,
+            "boostKnownCopies": 4,
+            "boostSum": 8
+          },
+          "versatile": {
+            "uniqueCount": 4,
+            "copyCount": 10,
+            "printedValueKnownCopies": 10,
+            "printedValueSum": 22,
+            "boostKnownCopies": 10,
+            "boostSum": 21
+          },
+          "scheme": {
+            "uniqueCount": 2,
+            "copyCount": 5,
+            "printedValueKnownCopies": 0,
+            "printedValueSum": 0,
+            "boostKnownCopies": 5,
+            "boostSum": 5
+          }
+        },
+        "boostKnownCopies": 30,
+        "boostSum": 65,
+        "sharedCopies": 12,
+        "restrictedCopies": 18
+      }
+    },
+    {
+      "id": "philippa",
+      "name": "Philippa",
+      "licence": "The Witcher",
+      "releaseId": "the-witcher-realms-fall",
+      "move": 2,
+      "rosterType": "hero-with-sidekick",
+      "complexity": null,
+      "dataStatus": "complete",
+      "dataNote": null,
+      "fighters": [
+        {
+          "id": "philippa",
+          "name": "Philippa",
+          "role": "hero",
+          "quantity": 1,
+          "attackType": "ranged",
+          "startingHealth": 12,
+          "isUnique": true
+        },
+        {
+          "id": "dijkstra",
+          "name": "Dijkstra",
+          "role": "sidekick",
+          "quantity": 1,
+          "attackType": "melee",
+          "startingHealth": 6,
+          "isUnique": true
+        }
+      ],
+      "deck": {
+        "model": "fixed",
+        "coverage": "complete",
+        "sourceCopyCount": 30,
+        "selectedCopyCount": 30,
+        "shuffledCopyCount": 30,
+        "outsideDeckCopyCount": 0,
+        "uniqueCardCount": 13,
+        "cardTypes": {
+          "attack": {
+            "uniqueCount": 4,
+            "copyCount": 10,
+            "printedValueKnownCopies": 10,
+            "printedValueSum": 30,
+            "boostKnownCopies": 10,
+            "boostSum": 22
+          },
+          "defense": {
+            "uniqueCount": 3,
+            "copyCount": 6,
+            "printedValueKnownCopies": 6,
+            "printedValueSum": 14,
+            "boostKnownCopies": 6,
+            "boostSum": 16
+          },
+          "versatile": {
+            "uniqueCount": 3,
+            "copyCount": 8,
+            "printedValueKnownCopies": 8,
+            "printedValueSum": 20,
+            "boostKnownCopies": 8,
+            "boostSum": 11
+          },
+          "scheme": {
+            "uniqueCount": 3,
+            "copyCount": 6,
+            "printedValueKnownCopies": 0,
+            "printedValueSum": 0,
+            "boostKnownCopies": 6,
+            "boostSum": 14
+          }
+        },
+        "boostKnownCopies": 30,
+        "boostSum": 63,
+        "sharedCopies": 9,
+        "restrictedCopies": 21
+      }
+    },
+    {
+      "id": "raphael",
+      "name": "Raphael",
+      "licence": "Teenage Mutant Ninja Turtles",
+      "releaseId": "adventures-teenage-mutant-ninja-turtles",
+      "move": 2,
+      "rosterType": "hero-with-sidekick",
+      "complexity": null,
+      "dataStatus": "needs-review",
+      "dataNote": "Sai and Heroes in a Half Shell show no printed effect text in the source; they are retained as pure-value cards with review notes.",
+      "fighters": [
+        {
+          "id": "raphael",
+          "name": "Raphael",
+          "role": "hero",
+          "quantity": 1,
+          "attackType": "melee",
+          "startingHealth": 17,
+          "isUnique": true
+        },
+        {
+          "id": "casey-jones",
+          "name": "Casey Jones",
+          "role": "sidekick",
+          "quantity": 1,
+          "attackType": "ranged",
+          "startingHealth": 8,
+          "isUnique": true
+        }
+      ],
+      "deck": {
+        "model": "fixed",
+        "coverage": "complete",
+        "sourceCopyCount": 30,
+        "selectedCopyCount": 30,
+        "shuffledCopyCount": 30,
+        "outsideDeckCopyCount": 0,
+        "uniqueCardCount": 12,
+        "cardTypes": {
+          "attack": {
+            "uniqueCount": 5,
+            "copyCount": 13,
+            "printedValueKnownCopies": 13,
+            "printedValueSum": 30,
+            "boostKnownCopies": 13,
+            "boostSum": 32
+          },
+          "defense": {
+            "uniqueCount": 1,
+            "copyCount": 2,
+            "printedValueKnownCopies": 2,
+            "printedValueSum": 10,
+            "boostKnownCopies": 2,
+            "boostSum": 4
+          },
+          "versatile": {
+            "uniqueCount": 5,
+            "copyCount": 13,
+            "printedValueKnownCopies": 13,
+            "printedValueSum": 32,
+            "boostKnownCopies": 13,
+            "boostSum": 18
+          },
+          "scheme": {
+            "uniqueCount": 1,
+            "copyCount": 2,
+            "printedValueKnownCopies": 0,
+            "printedValueSum": 0,
+            "boostKnownCopies": 2,
+            "boostSum": 4
+          }
+        },
+        "boostKnownCopies": 30,
+        "boostSum": 58,
+        "sharedCopies": 8,
+        "restrictedCopies": 22
+      }
+    },
+    {
+      "id": "raptors",
+      "name": "Raptors",
+      "licence": "Jurassic Park",
+      "releaseId": "jurassic-park-ingen-vs-raptors",
+      "move": 3,
+      "rosterType": "team",
+      "complexity": null,
+      "dataStatus": "needs-review",
+      "dataNote": "The Eviscerate card had no visible effect text in the captured source.",
+      "fighters": [
+        {
+          "id": "raptor",
+          "name": "Raptor",
+          "role": "hero",
+          "quantity": 3,
+          "attackType": "melee",
+          "startingHealth": 7,
+          "isUnique": false
+        }
+      ],
+      "deck": {
+        "model": "fixed",
+        "coverage": "complete",
+        "sourceCopyCount": 30,
+        "selectedCopyCount": 30,
+        "shuffledCopyCount": 30,
+        "outsideDeckCopyCount": 0,
+        "uniqueCardCount": 11,
+        "cardTypes": {
+          "attack": {
+            "uniqueCount": 6,
+            "copyCount": 16,
+            "printedValueKnownCopies": 16,
+            "printedValueSum": 49,
+            "boostKnownCopies": 16,
+            "boostSum": 40
+          },
+          "defense": {
+            "uniqueCount": 1,
+            "copyCount": 4,
+            "printedValueKnownCopies": 4,
+            "printedValueSum": 12,
+            "boostKnownCopies": 4,
+            "boostSum": 4
+          },
+          "versatile": {
+            "uniqueCount": 2,
+            "copyCount": 6,
+            "printedValueKnownCopies": 6,
+            "printedValueSum": 18,
+            "boostKnownCopies": 6,
+            "boostSum": 9
+          },
+          "scheme": {
+            "uniqueCount": 2,
+            "copyCount": 4,
+            "printedValueKnownCopies": 0,
+            "printedValueSum": 0,
+            "boostKnownCopies": 4,
+            "boostSum": 8
+          }
+        },
+        "boostKnownCopies": 30,
+        "boostSum": 61,
+        "sharedCopies": 30,
+        "restrictedCopies": 0
+      }
+    },
+    {
+      "id": "robert-muldoon",
+      "name": "Robert Muldoon",
+      "licence": "Jurassic Park",
+      "releaseId": "jurassic-park-ingen-vs-raptors",
+      "move": 3,
+      "rosterType": "hero-with-multiple-sidekicks",
+      "complexity": null,
+      "dataStatus": "complete",
+      "dataNote": null,
+      "fighters": [
+        {
+          "id": "robert-muldoon",
+          "name": "Robert Muldoon",
+          "role": "hero",
+          "quantity": 1,
+          "attackType": "ranged",
+          "startingHealth": 14,
+          "isUnique": true
+        },
+        {
+          "id": "ingen-worker",
+          "name": "Ingen Worker",
+          "role": "sidekick",
+          "quantity": 3,
+          "attackType": "ranged",
+          "startingHealth": 1,
+          "isUnique": false
+        }
+      ],
+      "deck": {
+        "model": "fixed",
+        "coverage": "complete",
+        "sourceCopyCount": 30,
+        "selectedCopyCount": 30,
+        "shuffledCopyCount": 30,
+        "outsideDeckCopyCount": 0,
+        "uniqueCardCount": 11,
+        "cardTypes": {
+          "attack": {
+            "uniqueCount": 4,
+            "copyCount": 11,
+            "printedValueKnownCopies": 11,
+            "printedValueSum": 34,
+            "boostKnownCopies": 11,
+            "boostSum": 21
+          },
+          "defense": {
+            "uniqueCount": 1,
+            "copyCount": 2,
+            "printedValueKnownCopies": 2,
+            "printedValueSum": 8,
+            "boostKnownCopies": 2,
+            "boostSum": 2
+          },
+          "versatile": {
+            "uniqueCount": 4,
+            "copyCount": 12,
+            "printedValueKnownCopies": 12,
+            "printedValueSum": 30,
+            "boostKnownCopies": 12,
+            "boostSum": 21
+          },
+          "scheme": {
+            "uniqueCount": 2,
+            "copyCount": 5,
+            "printedValueKnownCopies": 0,
+            "printedValueSum": 0,
+            "boostKnownCopies": 5,
+            "boostSum": 12
+          }
+        },
+        "boostKnownCopies": 30,
+        "boostSum": 56,
+        "sharedCopies": 18,
+        "restrictedCopies": 12
+      }
+    },
+    {
+      "id": "robin-hood",
+      "name": "Robin Hood",
+      "licence": null,
+      "releaseId": "robin-hood-vs-bigfoot",
+      "move": 2,
+      "rosterType": "hero-with-multiple-sidekicks",
+      "complexity": null,
+      "dataStatus": "complete",
+      "dataNote": "The source's verified banner and BOOST corrections are reflected in the card rows.",
+      "fighters": [
+        {
+          "id": "robin-hood",
+          "name": "Robin Hood",
+          "role": "hero",
+          "quantity": 1,
+          "attackType": "ranged",
+          "startingHealth": 13,
+          "isUnique": true
+        },
+        {
+          "id": "outlaw",
+          "name": "Outlaw",
+          "role": "sidekick",
+          "quantity": 4,
+          "attackType": "melee",
+          "startingHealth": 1,
+          "isUnique": false
+        }
+      ],
+      "deck": {
+        "model": "fixed",
+        "coverage": "complete",
+        "sourceCopyCount": 30,
+        "selectedCopyCount": 30,
+        "shuffledCopyCount": 30,
+        "outsideDeckCopyCount": 0,
+        "uniqueCardCount": 11,
+        "cardTypes": {
+          "attack": {
+            "uniqueCount": 5,
+            "copyCount": 13,
+            "printedValueKnownCopies": 13,
+            "printedValueSum": 39,
+            "boostKnownCopies": 13,
+            "boostSum": 38
+          },
+          "defense": {
+            "uniqueCount": 1,
+            "copyCount": 2,
+            "printedValueKnownCopies": 2,
+            "printedValueSum": 6,
+            "boostKnownCopies": 2,
+            "boostSum": 4
+          },
+          "versatile": {
+            "uniqueCount": 4,
+            "copyCount": 12,
+            "printedValueKnownCopies": 12,
+            "printedValueSum": 27,
+            "boostKnownCopies": 12,
+            "boostSum": 18
+          },
+          "scheme": {
+            "uniqueCount": 1,
+            "copyCount": 3,
+            "printedValueKnownCopies": 0,
+            "printedValueSum": 0,
+            "boostKnownCopies": 3,
+            "boostSum": 9
+          }
+        },
+        "boostKnownCopies": 30,
+        "boostSum": 69,
+        "sharedCopies": 16,
+        "restrictedCopies": 14
+      }
+    },
+    {
+      "id": "rosie-the-riveter",
+      "name": "Rosie the Riveter",
+      "licence": null,
+      "releaseId": "stars-and-stripes",
+      "move": 2,
+      "rosterType": "hero-with-sidekick",
+      "complexity": null,
+      "dataStatus": "partial",
+      "dataNote": "The source reports Wendy's attack type as 'common', which is not a valid value; it remains blank pending confirmation.",
+      "fighters": [
+        {
+          "id": "rosie-the-riveter",
+          "name": "Rosie the Riveter",
+          "role": "hero",
+          "quantity": 1,
+          "attackType": "melee",
+          "startingHealth": 15,
+          "isUnique": true
+        },
+        {
+          "id": "wendy-the-welder",
+          "name": "Wendy the Welder",
+          "role": "sidekick",
+          "quantity": 1,
+          "attackType": null,
+          "startingHealth": 7,
+          "isUnique": true
+        }
+      ],
+      "deck": {
+        "model": "fixed",
+        "coverage": "complete",
+        "sourceCopyCount": 30,
+        "selectedCopyCount": 30,
+        "shuffledCopyCount": 30,
+        "outsideDeckCopyCount": 0,
+        "uniqueCardCount": 11,
+        "cardTypes": {
+          "attack": {
+            "uniqueCount": 3,
+            "copyCount": 8,
+            "printedValueKnownCopies": 8,
+            "printedValueSum": 26,
+            "boostKnownCopies": 8,
+            "boostSum": 10
+          },
+          "defense": {
+            "uniqueCount": 1,
+            "copyCount": 3,
+            "printedValueKnownCopies": 3,
+            "printedValueSum": 3,
+            "boostKnownCopies": 3,
+            "boostSum": 6
+          },
+          "versatile": {
+            "uniqueCount": 5,
+            "copyCount": 15,
+            "printedValueKnownCopies": 15,
+            "printedValueSum": 36,
+            "boostKnownCopies": 15,
+            "boostSum": 33
+          },
+          "scheme": {
+            "uniqueCount": 2,
+            "copyCount": 4,
+            "printedValueKnownCopies": 0,
+            "printedValueSum": 0,
+            "boostKnownCopies": 4,
+            "boostSum": 12
+          }
+        },
+        "boostKnownCopies": 30,
+        "boostSum": 61,
+        "sharedCopies": 9,
+        "restrictedCopies": 21
+      }
+    },
+    {
+      "id": "shakespeare",
+      "name": "Shakespeare",
+      "licence": null,
+      "releaseId": "slings-and-arrows",
+      "move": 2,
+      "rosterType": "hero-with-multiple-sidekicks",
+      "complexity": null,
+      "dataStatus": "needs-review",
+      "dataNote": null,
+      "fighters": [
+        {
+          "id": "shakespeare",
+          "name": "Shakespeare",
+          "role": "hero",
+          "quantity": 1,
+          "attackType": "melee",
+          "startingHealth": 13,
+          "isUnique": true
+        },
+        {
+          "id": "actor",
+          "name": "Actor",
+          "role": "sidekick",
+          "quantity": 3,
+          "attackType": "melee",
+          "startingHealth": 1,
+          "isUnique": false
+        }
+      ],
+      "deck": {
+        "model": "fixed",
+        "coverage": "complete",
+        "sourceCopyCount": 30,
+        "selectedCopyCount": 30,
+        "shuffledCopyCount": 30,
+        "outsideDeckCopyCount": 0,
+        "uniqueCardCount": 12,
+        "cardTypes": {
+          "attack": {
+            "uniqueCount": 4,
+            "copyCount": 12,
+            "printedValueKnownCopies": 12,
+            "printedValueSum": 49,
+            "boostKnownCopies": 12,
+            "boostSum": 30
+          },
+          "defense": {
+            "uniqueCount": 0,
+            "copyCount": 0,
+            "printedValueKnownCopies": 0,
+            "printedValueSum": 0,
+            "boostKnownCopies": 0,
+            "boostSum": 0
+          },
+          "versatile": {
+            "uniqueCount": 8,
+            "copyCount": 18,
+            "printedValueKnownCopies": 18,
+            "printedValueSum": 45,
+            "boostKnownCopies": 18,
+            "boostSum": 35
+          },
+          "scheme": {
+            "uniqueCount": 0,
+            "copyCount": 0,
+            "printedValueKnownCopies": 0,
+            "printedValueSum": 0,
+            "boostKnownCopies": 0,
+            "boostSum": 0
+          }
+        },
+        "boostKnownCopies": 30,
+        "boostSum": 65,
+        "sharedCopies": 11,
+        "restrictedCopies": 19
+      }
+    },
+    {
+      "id": "she-hulk",
+      "name": "She-Hulk",
+      "licence": "Marvel",
+      "releaseId": "brains-and-brawn",
+      "move": 2,
+      "rosterType": "solo",
+      "complexity": null,
+      "dataStatus": "complete",
+      "dataNote": null,
+      "fighters": [
+        {
+          "id": "she-hulk",
+          "name": "She-Hulk",
+          "role": "hero",
+          "quantity": 1,
+          "attackType": "melee",
+          "startingHealth": 20,
+          "isUnique": true
+        }
+      ],
+      "deck": {
+        "model": "fixed",
+        "coverage": "complete",
+        "sourceCopyCount": 30,
+        "selectedCopyCount": 30,
+        "shuffledCopyCount": 30,
+        "outsideDeckCopyCount": 0,
+        "uniqueCardCount": 12,
+        "cardTypes": {
+          "attack": {
+            "uniqueCount": 3,
+            "copyCount": 7,
+            "printedValueKnownCopies": 7,
+            "printedValueSum": 28,
+            "boostKnownCopies": 7,
+            "boostSum": 16
+          },
+          "defense": {
+            "uniqueCount": 2,
+            "copyCount": 5,
+            "printedValueKnownCopies": 5,
+            "printedValueSum": 4,
+            "boostKnownCopies": 5,
+            "boostSum": 10
+          },
+          "versatile": {
+            "uniqueCount": 4,
+            "copyCount": 12,
+            "printedValueKnownCopies": 12,
+            "printedValueSum": 30,
+            "boostKnownCopies": 12,
+            "boostSum": 15
+          },
+          "scheme": {
+            "uniqueCount": 3,
+            "copyCount": 6,
+            "printedValueKnownCopies": 0,
+            "printedValueSum": 0,
+            "boostKnownCopies": 6,
+            "boostSum": 8
+          }
+        },
+        "boostKnownCopies": 30,
+        "boostSum": 49,
+        "sharedCopies": 0,
+        "restrictedCopies": 30
+      }
+    },
+    {
+      "id": "sherlock-holmes",
+      "name": "Sherlock Holmes",
+      "licence": null,
+      "releaseId": "cobble-and-fog",
+      "move": 2,
+      "rosterType": "hero-with-sidekick",
+      "complexity": null,
+      "dataStatus": "complete",
+      "dataNote": null,
+      "fighters": [
+        {
+          "id": "sherlock-holmes",
+          "name": "Sherlock Holmes",
+          "role": "hero",
+          "quantity": 1,
+          "attackType": "melee",
+          "startingHealth": 16,
+          "isUnique": true
+        },
+        {
+          "id": "dr-watson",
+          "name": "Dr. Watson",
+          "role": "sidekick",
+          "quantity": 1,
+          "attackType": "ranged",
+          "startingHealth": 8,
+          "isUnique": true
+        }
+      ],
+      "deck": {
+        "model": "fixed",
+        "coverage": "complete",
+        "sourceCopyCount": 30,
+        "selectedCopyCount": 30,
+        "shuffledCopyCount": 30,
+        "outsideDeckCopyCount": 0,
+        "uniqueCardCount": 13,
+        "cardTypes": {
+          "attack": {
+            "uniqueCount": 2,
+            "copyCount": 4,
+            "printedValueKnownCopies": 4,
+            "printedValueSum": 20,
+            "boostKnownCopies": 4,
+            "boostSum": 10
+          },
+          "defense": {
+            "uniqueCount": 1,
+            "copyCount": 2,
+            "printedValueKnownCopies": 2,
+            "printedValueSum": 6,
+            "boostKnownCopies": 2,
+            "boostSum": 6
+          },
+          "versatile": {
+            "uniqueCount": 6,
+            "copyCount": 15,
+            "printedValueKnownCopies": 15,
+            "printedValueSum": 42,
+            "boostKnownCopies": 15,
+            "boostSum": 17
+          },
+          "scheme": {
+            "uniqueCount": 4,
+            "copyCount": 9,
+            "printedValueKnownCopies": 0,
+            "printedValueSum": 0,
+            "boostKnownCopies": 9,
+            "boostSum": 15
+          }
+        },
+        "boostKnownCopies": 30,
+        "boostSum": 48,
+        "sharedCopies": 7,
+        "restrictedCopies": 23
+      }
+    },
+    {
+      "id": "shredder",
+      "name": "Shredder",
+      "licence": "Teenage Mutant Ninja Turtles",
+      "releaseId": "tmnt-shredder-vs-krang",
+      "move": 3,
+      "rosterType": "hero-with-multiple-sidekicks",
+      "complexity": null,
+      "dataStatus": "complete",
+      "dataNote": "Bebop and Rocksteady share one source stat block. Foot soldiers are path components rather than fighter stat lines.",
+      "fighters": [
+        {
+          "id": "shredder",
+          "name": "Shredder",
+          "role": "hero",
+          "quantity": 1,
+          "attackType": "melee",
+          "startingHealth": 15,
+          "isUnique": true
+        },
+        {
+          "id": "bebop-and-rocksteady",
+          "name": "Bebop & Rocksteady",
+          "role": "sidekick",
+          "quantity": 2,
+          "attackType": "melee",
+          "startingHealth": 7,
+          "isUnique": true
+        }
+      ],
+      "deck": {
+        "model": "fixed",
+        "coverage": "complete",
+        "sourceCopyCount": 30,
+        "selectedCopyCount": 30,
+        "shuffledCopyCount": 30,
+        "outsideDeckCopyCount": 0,
+        "uniqueCardCount": 13,
+        "cardTypes": {
+          "attack": {
+            "uniqueCount": 4,
+            "copyCount": 10,
+            "printedValueKnownCopies": 10,
+            "printedValueSum": 41,
+            "boostKnownCopies": 10,
+            "boostSum": 23
+          },
+          "defense": {
+            "uniqueCount": 2,
+            "copyCount": 4,
+            "printedValueKnownCopies": 4,
+            "printedValueSum": 10,
+            "boostKnownCopies": 4,
+            "boostSum": 10
+          },
+          "versatile": {
+            "uniqueCount": 5,
+            "copyCount": 12,
+            "printedValueKnownCopies": 12,
+            "printedValueSum": 31,
+            "boostKnownCopies": 12,
+            "boostSum": 22
+          },
+          "scheme": {
+            "uniqueCount": 2,
+            "copyCount": 4,
+            "printedValueKnownCopies": 0,
+            "printedValueSum": 0,
+            "boostKnownCopies": 4,
+            "boostSum": 10
+          }
+        },
+        "boostKnownCopies": 30,
+        "boostSum": 65,
+        "sharedCopies": 6,
+        "restrictedCopies": 24
+      }
+    },
+    {
+      "id": "sinbad",
+      "name": "Sinbad",
+      "licence": null,
+      "releaseId": "battle-of-legends-volume-one",
+      "move": 2,
+      "rosterType": "hero-with-sidekick",
+      "complexity": null,
+      "dataStatus": "complete",
+      "dataNote": null,
+      "fighters": [
+        {
+          "id": "sinbad",
+          "name": "Sinbad",
+          "role": "hero",
+          "quantity": 1,
+          "attackType": "melee",
+          "startingHealth": 15,
+          "isUnique": true
+        },
+        {
+          "id": "the-porter",
+          "name": "The Porter",
+          "role": "sidekick",
+          "quantity": 1,
+          "attackType": "melee",
+          "startingHealth": 6,
+          "isUnique": true
+        }
+      ],
+      "deck": {
+        "model": "fixed",
+        "coverage": "complete",
+        "sourceCopyCount": 30,
+        "selectedCopyCount": 30,
+        "shuffledCopyCount": 30,
+        "outsideDeckCopyCount": 0,
+        "uniqueCardCount": 16,
+        "cardTypes": {
+          "attack": {
+            "uniqueCount": 9,
+            "copyCount": 11,
+            "printedValueKnownCopies": 11,
+            "printedValueSum": 28,
+            "boostKnownCopies": 5,
+            "boostSum": 6
+          },
+          "defense": {
+            "uniqueCount": 0,
+            "copyCount": 0,
+            "printedValueKnownCopies": 0,
+            "printedValueSum": 0,
+            "boostKnownCopies": 0,
+            "boostSum": 0
+          },
+          "versatile": {
+            "uniqueCount": 6,
+            "copyCount": 17,
+            "printedValueKnownCopies": 17,
+            "printedValueSum": 46,
+            "boostKnownCopies": 17,
+            "boostSum": 17
+          },
+          "scheme": {
+            "uniqueCount": 1,
+            "copyCount": 2,
+            "printedValueKnownCopies": 0,
+            "printedValueSum": 0,
+            "boostKnownCopies": 2,
+            "boostSum": 2
+          }
+        },
+        "boostKnownCopies": 24,
+        "boostSum": 25,
+        "sharedCopies": 14,
+        "restrictedCopies": 16
+      }
+    },
+    {
+      "id": "spider-man",
+      "name": "Spider-Man",
+      "licence": "Marvel",
+      "releaseId": "brains-and-brawn",
+      "move": 3,
+      "rosterType": "solo",
+      "complexity": null,
+      "dataStatus": "complete",
+      "dataNote": null,
+      "fighters": [
+        {
+          "id": "spider-man",
+          "name": "Spider-Man",
+          "role": "hero",
+          "quantity": 1,
+          "attackType": "melee",
+          "startingHealth": 15,
+          "isUnique": true
+        }
+      ],
+      "deck": {
+        "model": "fixed",
+        "coverage": "complete",
+        "sourceCopyCount": 30,
+        "selectedCopyCount": 30,
+        "shuffledCopyCount": 30,
+        "outsideDeckCopyCount": 0,
+        "uniqueCardCount": 12,
+        "cardTypes": {
+          "attack": {
+            "uniqueCount": 3,
+            "copyCount": 8,
+            "printedValueKnownCopies": 8,
+            "printedValueSum": 38,
+            "boostKnownCopies": 8,
+            "boostSum": 15
+          },
+          "defense": {
+            "uniqueCount": 2,
+            "copyCount": 6,
+            "printedValueKnownCopies": 6,
+            "printedValueSum": 18,
+            "boostKnownCopies": 6,
+            "boostSum": 9
+          },
+          "versatile": {
+            "uniqueCount": 5,
+            "copyCount": 12,
+            "printedValueKnownCopies": 12,
+            "printedValueSum": 35,
+            "boostKnownCopies": 12,
+            "boostSum": 17
+          },
+          "scheme": {
+            "uniqueCount": 2,
+            "copyCount": 4,
+            "printedValueKnownCopies": 0,
+            "printedValueSum": 0,
+            "boostKnownCopies": 4,
+            "boostSum": 12
+          }
+        },
+        "boostKnownCopies": 30,
+        "boostSum": 53,
+        "sharedCopies": 0,
+        "restrictedCopies": 30
+      }
+    },
+    {
+      "id": "spike",
+      "name": "Spike",
+      "licence": "Buffy the Vampire Slayer",
+      "releaseId": "buffy-the-vampire-slayer",
+      "move": 2,
+      "rosterType": "hero-with-sidekick",
+      "complexity": null,
+      "dataStatus": "complete",
+      "dataNote": "The source also records three Shadow tokens used by the ability; they are components, not fighter stat lines.",
+      "fighters": [
+        {
+          "id": "spike",
+          "name": "Spike",
+          "role": "hero",
+          "quantity": 1,
+          "attackType": "melee",
+          "startingHealth": 15,
+          "isUnique": true
+        },
+        {
+          "id": "drusilla",
+          "name": "Drusilla",
+          "role": "sidekick",
+          "quantity": 1,
+          "attackType": "melee",
+          "startingHealth": 7,
+          "isUnique": true
+        }
+      ],
+      "deck": {
+        "model": "fixed",
+        "coverage": "complete",
+        "sourceCopyCount": 30,
+        "selectedCopyCount": 30,
+        "shuffledCopyCount": 30,
+        "outsideDeckCopyCount": 0,
+        "uniqueCardCount": 12,
+        "cardTypes": {
+          "attack": {
+            "uniqueCount": 2,
+            "copyCount": 3,
+            "printedValueKnownCopies": 3,
+            "printedValueSum": 10,
+            "boostKnownCopies": 3,
+            "boostSum": 8
+          },
+          "defense": {
+            "uniqueCount": 0,
+            "copyCount": 0,
+            "printedValueKnownCopies": 0,
+            "printedValueSum": 0,
+            "boostKnownCopies": 0,
+            "boostSum": 0
+          },
+          "versatile": {
+            "uniqueCount": 8,
+            "copyCount": 21,
+            "printedValueKnownCopies": 21,
+            "printedValueSum": 55,
+            "boostKnownCopies": 21,
+            "boostSum": 40
+          },
+          "scheme": {
+            "uniqueCount": 2,
+            "copyCount": 6,
+            "printedValueKnownCopies": 0,
+            "printedValueSum": 0,
+            "boostKnownCopies": 6,
+            "boostSum": 12
+          }
+        },
+        "boostKnownCopies": 30,
+        "boostSum": 60,
+        "sharedCopies": 10,
+        "restrictedCopies": 20
+      }
+    },
+    {
+      "id": "squirrel-girl",
+      "name": "Squirrel Girl",
+      "licence": "Marvel",
+      "releaseId": "teen-spirit",
+      "move": 2,
+      "rosterType": "hero-with-multiple-sidekicks",
+      "complexity": null,
+      "dataStatus": "needs-review",
+      "dataNote": null,
+      "fighters": [
+        {
+          "id": "squirrel-girl",
+          "name": "Squirrel Girl",
+          "role": "hero",
+          "quantity": 1,
+          "attackType": "melee",
+          "startingHealth": 13,
+          "isUnique": true
+        },
+        {
+          "id": "squirrel",
+          "name": "Squirrel",
+          "role": "sidekick",
+          "quantity": 7,
+          "attackType": "melee",
+          "startingHealth": 1,
+          "isUnique": false
+        }
+      ],
+      "deck": {
+        "model": "fixed",
+        "coverage": "complete",
+        "sourceCopyCount": 30,
+        "selectedCopyCount": 30,
+        "shuffledCopyCount": 30,
+        "outsideDeckCopyCount": 0,
+        "uniqueCardCount": 13,
+        "cardTypes": {
+          "attack": {
+            "uniqueCount": 3,
+            "copyCount": 8,
+            "printedValueKnownCopies": 8,
+            "printedValueSum": 15,
+            "boostKnownCopies": 8,
+            "boostSum": 11
+          },
+          "defense": {
+            "uniqueCount": 1,
+            "copyCount": 3,
+            "printedValueKnownCopies": 3,
+            "printedValueSum": 9,
+            "boostKnownCopies": 3,
+            "boostSum": 6
+          },
+          "versatile": {
+            "uniqueCount": 6,
+            "copyCount": 14,
+            "printedValueKnownCopies": 14,
+            "printedValueSum": 41,
+            "boostKnownCopies": 14,
+            "boostSum": 19
+          },
+          "scheme": {
+            "uniqueCount": 3,
+            "copyCount": 5,
+            "printedValueKnownCopies": 0,
+            "printedValueSum": 0,
+            "boostKnownCopies": 5,
+            "boostSum": 10
+          }
+        },
+        "boostKnownCopies": 30,
+        "boostSum": 46,
+        "sharedCopies": 3,
+        "restrictedCopies": 27
+      }
+    },
+    {
+      "id": "sun-wukong",
+      "name": "Sun Wukong",
+      "licence": null,
+      "releaseId": "battle-of-legends-volume-two",
+      "move": 2,
+      "rosterType": "hero-with-multiple-sidekicks",
+      "complexity": null,
+      "dataStatus": "needs-review",
+      "dataNote": "Clone health is per summoned token; the available token count was not captured. The confirmed Tricked You bonus attack remains part of Ruyi Jingo Bang rather than a separate card.",
+      "fighters": [
+        {
+          "id": "sun-wukong",
+          "name": "Sun Wukong",
+          "role": "hero",
+          "quantity": 1,
+          "attackType": "melee",
+          "startingHealth": 17,
+          "isUnique": true
+        },
+        {
+          "id": "clone",
+          "name": "Clone",
+          "role": "sidekick",
+          "quantity": null,
+          "attackType": "melee",
+          "startingHealth": 1,
+          "isUnique": false
+        }
+      ],
+      "deck": {
+        "model": "fixed",
+        "coverage": "complete",
+        "sourceCopyCount": 30,
+        "selectedCopyCount": 30,
+        "shuffledCopyCount": 30,
+        "outsideDeckCopyCount": 0,
+        "uniqueCardCount": 12,
+        "cardTypes": {
+          "attack": {
+            "uniqueCount": 4,
+            "copyCount": 11,
+            "printedValueKnownCopies": 11,
+            "printedValueSum": 29,
+            "boostKnownCopies": 11,
+            "boostSum": 25
+          },
+          "defense": {
+            "uniqueCount": 3,
+            "copyCount": 6,
+            "printedValueKnownCopies": 6,
+            "printedValueSum": 18,
+            "boostKnownCopies": 6,
+            "boostSum": 12
+          },
+          "versatile": {
+            "uniqueCount": 3,
+            "copyCount": 10,
+            "printedValueKnownCopies": 10,
+            "printedValueSum": 23,
+            "boostKnownCopies": 10,
+            "boostSum": 21
+          },
+          "scheme": {
+            "uniqueCount": 2,
+            "copyCount": 3,
+            "printedValueKnownCopies": 0,
+            "printedValueSum": 0,
+            "boostKnownCopies": 3,
+            "boostSum": 3
+          }
+        },
+        "boostKnownCopies": 30,
+        "boostSum": 61,
+        "sharedCopies": 30,
+        "restrictedCopies": 0
+      }
+    },
+    {
+      "id": "t-rex",
+      "name": "T. Rex",
+      "licence": "Jurassic Park",
+      "releaseId": "jurassic-park-sattler-vs-t-rex",
+      "move": 1,
+      "rosterType": "solo",
+      "complexity": null,
+      "dataStatus": "complete",
+      "dataNote": null,
+      "fighters": [
+        {
+          "id": "t-rex",
+          "name": "T. Rex",
+          "role": "hero",
+          "quantity": 1,
+          "attackType": "melee",
+          "startingHealth": 27,
+          "isUnique": true
+        }
+      ],
+      "deck": {
+        "model": "fixed",
+        "coverage": "complete",
+        "sourceCopyCount": 30,
+        "selectedCopyCount": 30,
+        "shuffledCopyCount": 30,
+        "outsideDeckCopyCount": 0,
+        "uniqueCardCount": 11,
+        "cardTypes": {
+          "attack": {
+            "uniqueCount": 4,
+            "copyCount": 12,
+            "printedValueKnownCopies": 12,
+            "printedValueSum": 38,
+            "boostKnownCopies": 12,
+            "boostSum": 36
+          },
+          "defense": {
+            "uniqueCount": 1,
+            "copyCount": 2,
+            "printedValueKnownCopies": 2,
+            "printedValueSum": 2,
+            "boostKnownCopies": 2,
+            "boostSum": 2
+          },
+          "versatile": {
+            "uniqueCount": 3,
+            "copyCount": 8,
+            "printedValueKnownCopies": 8,
+            "printedValueSum": 21,
+            "boostKnownCopies": 8,
+            "boostSum": 18
+          },
+          "scheme": {
+            "uniqueCount": 3,
+            "copyCount": 8,
+            "printedValueKnownCopies": 0,
+            "printedValueSum": 0,
+            "boostKnownCopies": 8,
+            "boostSum": 18
+          }
+        },
+        "boostKnownCopies": 30,
+        "boostSum": 74,
+        "sharedCopies": 0,
+        "restrictedCopies": 30
+      }
+    },
+    {
+      "id": "the-genie",
+      "name": "The Genie",
+      "licence": null,
+      "releaseId": "houdini-vs-the-genie",
+      "move": 3,
+      "rosterType": "solo",
+      "complexity": null,
+      "dataStatus": "complete",
+      "dataNote": null,
+      "fighters": [
+        {
+          "id": "the-genie",
+          "name": "The Genie",
+          "role": "hero",
+          "quantity": 1,
+          "attackType": "ranged",
+          "startingHealth": 16,
+          "isUnique": true
+        }
+      ],
+      "deck": {
+        "model": "fixed",
+        "coverage": "complete",
+        "sourceCopyCount": 30,
+        "selectedCopyCount": 30,
+        "shuffledCopyCount": 30,
+        "outsideDeckCopyCount": 0,
+        "uniqueCardCount": 12,
+        "cardTypes": {
+          "attack": {
+            "uniqueCount": 3,
+            "copyCount": 7,
+            "printedValueKnownCopies": 7,
+            "printedValueSum": 24,
+            "boostKnownCopies": 7,
+            "boostSum": 12
+          },
+          "defense": {
+            "uniqueCount": 2,
+            "copyCount": 5,
+            "printedValueKnownCopies": 5,
+            "printedValueSum": 2,
+            "boostKnownCopies": 5,
+            "boostSum": 7
+          },
+          "versatile": {
+            "uniqueCount": 6,
+            "copyCount": 15,
+            "printedValueKnownCopies": 15,
+            "printedValueSum": 33,
+            "boostKnownCopies": 15,
+            "boostSum": 20
+          },
+          "scheme": {
+            "uniqueCount": 1,
+            "copyCount": 3,
+            "printedValueKnownCopies": 0,
+            "printedValueSum": 0,
+            "boostKnownCopies": 3,
+            "boostSum": 9
+          }
+        },
+        "boostKnownCopies": 30,
+        "boostSum": 48,
+        "sharedCopies": 0,
+        "restrictedCopies": 30
+      }
+    },
+    {
+      "id": "the-wayward-sisters",
+      "name": "The Wayward Sisters",
+      "licence": null,
+      "releaseId": "slings-and-arrows",
+      "move": 2,
+      "rosterType": "team",
+      "complexity": null,
+      "dataStatus": "needs-review",
+      "dataNote": null,
+      "fighters": [
+        {
+          "id": "wayward-sister",
+          "name": "Wayward Sister",
+          "role": "hero",
+          "quantity": 3,
+          "attackType": "melee",
+          "startingHealth": 6,
+          "isUnique": false
+        }
+      ],
+      "deck": {
+        "model": "fixed",
+        "coverage": "complete",
+        "sourceCopyCount": 30,
+        "selectedCopyCount": 30,
+        "shuffledCopyCount": 30,
+        "outsideDeckCopyCount": 0,
+        "uniqueCardCount": 12,
+        "cardTypes": {
+          "attack": {
+            "uniqueCount": 3,
+            "copyCount": 8,
+            "printedValueKnownCopies": 8,
+            "printedValueSum": 26,
+            "boostKnownCopies": 8,
+            "boostSum": 13
+          },
+          "defense": {
+            "uniqueCount": 4,
+            "copyCount": 10,
+            "printedValueKnownCopies": 10,
+            "printedValueSum": 12,
+            "boostKnownCopies": 10,
+            "boostSum": 18
+          },
+          "versatile": {
+            "uniqueCount": 3,
+            "copyCount": 8,
+            "printedValueKnownCopies": 8,
+            "printedValueSum": 22,
+            "boostKnownCopies": 8,
+            "boostSum": 18
+          },
+          "scheme": {
+            "uniqueCount": 2,
+            "copyCount": 4,
+            "printedValueKnownCopies": 0,
+            "printedValueSum": 0,
+            "boostKnownCopies": 4,
+            "boostSum": 10
+          }
+        },
+        "boostKnownCopies": 30,
+        "boostSum": 59,
+        "sharedCopies": 30,
+        "restrictedCopies": 0
+      }
+    },
+    {
+      "id": "titania",
+      "name": "Titania",
+      "licence": null,
+      "releaseId": "slings-and-arrows",
+      "move": 2,
+      "rosterType": "hero-with-sidekick",
+      "complexity": null,
+      "dataStatus": "needs-review",
+      "dataNote": "The separate glamour deck was not present in the captured source and is not included.",
+      "fighters": [
+        {
+          "id": "titania",
+          "name": "Titania",
+          "role": "hero",
+          "quantity": 1,
+          "attackType": "ranged",
+          "startingHealth": 12,
+          "isUnique": true
+        },
+        {
+          "id": "oberon",
+          "name": "Oberon",
+          "role": "sidekick",
+          "quantity": 1,
+          "attackType": "melee",
+          "startingHealth": 6,
+          "isUnique": true
+        }
+      ],
+      "deck": {
+        "model": "fixed",
+        "coverage": "complete",
+        "sourceCopyCount": 30,
+        "selectedCopyCount": 30,
+        "shuffledCopyCount": 30,
+        "outsideDeckCopyCount": 0,
+        "uniqueCardCount": 12,
+        "cardTypes": {
+          "attack": {
+            "uniqueCount": 2,
+            "copyCount": 5,
+            "printedValueKnownCopies": 5,
+            "printedValueSum": 19,
+            "boostKnownCopies": 5,
+            "boostSum": 12
+          },
+          "defense": {
+            "uniqueCount": 2,
+            "copyCount": 5,
+            "printedValueKnownCopies": 5,
+            "printedValueSum": 6,
+            "boostKnownCopies": 5,
+            "boostSum": 7
+          },
+          "versatile": {
+            "uniqueCount": 5,
+            "copyCount": 13,
+            "printedValueKnownCopies": 13,
+            "printedValueSum": 37,
+            "boostKnownCopies": 13,
+            "boostSum": 21
+          },
+          "scheme": {
+            "uniqueCount": 3,
+            "copyCount": 7,
+            "printedValueKnownCopies": 0,
+            "printedValueSum": 0,
+            "boostKnownCopies": 7,
+            "boostSum": 18
+          }
+        },
+        "boostKnownCopies": 30,
+        "boostSum": 58,
+        "sharedCopies": 14,
+        "restrictedCopies": 16
+      }
+    },
+    {
+      "id": "tomoe-gozen",
+      "name": "Tomoe Gozen",
+      "licence": null,
+      "releaseId": "suns-origin",
+      "move": 2,
+      "rosterType": "solo",
+      "complexity": null,
+      "dataStatus": "complete",
+      "dataNote": null,
+      "fighters": [
+        {
+          "id": "tomoe-gozen",
+          "name": "Tomoe Gozen",
+          "role": "hero",
+          "quantity": 1,
+          "attackType": "ranged",
+          "startingHealth": 14,
+          "isUnique": true
+        }
+      ],
+      "deck": {
+        "model": "fixed",
+        "coverage": "complete",
+        "sourceCopyCount": 30,
+        "selectedCopyCount": 30,
+        "shuffledCopyCount": 30,
+        "outsideDeckCopyCount": 0,
+        "uniqueCardCount": 12,
+        "cardTypes": {
+          "attack": {
+            "uniqueCount": 5,
+            "copyCount": 11,
+            "printedValueKnownCopies": 11,
+            "printedValueSum": 38,
+            "boostKnownCopies": 11,
+            "boostSum": 17
+          },
+          "defense": {
+            "uniqueCount": 2,
+            "copyCount": 5,
+            "printedValueKnownCopies": 5,
+            "printedValueSum": 12,
+            "boostKnownCopies": 5,
+            "boostSum": 10
+          },
+          "versatile": {
+            "uniqueCount": 4,
+            "copyCount": 11,
+            "printedValueKnownCopies": 11,
+            "printedValueSum": 33,
+            "boostKnownCopies": 11,
+            "boostSum": 21
+          },
+          "scheme": {
+            "uniqueCount": 1,
+            "copyCount": 3,
+            "printedValueKnownCopies": 0,
+            "printedValueSum": 0,
+            "boostKnownCopies": 3,
+            "boostSum": 6
+          }
+        },
+        "boostKnownCopies": 30,
+        "boostSum": 54,
+        "sharedCopies": 0,
+        "restrictedCopies": 30
+      }
+    },
+    {
+      "id": "willow",
+      "name": "Willow",
+      "licence": "Buffy the Vampire Slayer",
+      "releaseId": "buffy-the-vampire-slayer",
+      "move": 2,
+      "rosterType": "hero-with-sidekick",
+      "complexity": null,
+      "dataStatus": "needs-review",
+      "dataNote": "Four source rows contain icon-dependent wording. Three are recorded as BLIND BOOST or transformation effects according to the source notes; Love and Loss retains an unresolved [icon] placeholder.",
+      "fighters": [
+        {
+          "id": "willow",
+          "name": "Willow",
+          "role": "hero",
+          "quantity": 1,
+          "attackType": "ranged",
+          "startingHealth": 14,
+          "isUnique": true
+        },
+        {
+          "id": "tara",
+          "name": "Tara",
+          "role": "sidekick",
+          "quantity": 1,
+          "attackType": "ranged",
+          "startingHealth": 6,
+          "isUnique": true
+        }
+      ],
+      "deck": {
+        "model": "fixed",
+        "coverage": "complete",
+        "sourceCopyCount": 30,
+        "selectedCopyCount": 30,
+        "shuffledCopyCount": 30,
+        "outsideDeckCopyCount": 0,
+        "uniqueCardCount": 13,
+        "cardTypes": {
+          "attack": {
+            "uniqueCount": 4,
+            "copyCount": 9,
+            "printedValueKnownCopies": 9,
+            "printedValueSum": 32,
+            "boostKnownCopies": 9,
+            "boostSum": 21
+          },
+          "defense": {
+            "uniqueCount": 1,
+            "copyCount": 2,
+            "printedValueKnownCopies": 2,
+            "printedValueSum": 10,
+            "boostKnownCopies": 2,
+            "boostSum": 4
+          },
+          "versatile": {
+            "uniqueCount": 6,
+            "copyCount": 15,
+            "printedValueKnownCopies": 15,
+            "printedValueSum": 36,
+            "boostKnownCopies": 15,
+            "boostSum": 30
+          },
+          "scheme": {
+            "uniqueCount": 2,
+            "copyCount": 4,
+            "printedValueKnownCopies": 0,
+            "printedValueSum": 0,
+            "boostKnownCopies": 4,
+            "boostSum": 10
+          }
+        },
+        "boostKnownCopies": 30,
+        "boostSum": 65,
+        "sharedCopies": 12,
+        "restrictedCopies": 18
+      }
+    },
+    {
+      "id": "winter-soldier",
+      "name": "Winter Soldier",
+      "licence": "Marvel",
+      "releaseId": "for-king-and-country",
+      "move": 2,
+      "rosterType": "solo",
+      "complexity": null,
+      "dataStatus": "complete",
+      "dataNote": null,
+      "fighters": [
+        {
+          "id": "winter-soldier",
+          "name": "Winter Soldier",
+          "role": "hero",
+          "quantity": 1,
+          "attackType": "ranged",
+          "startingHealth": 15,
+          "isUnique": true
+        }
+      ],
+      "deck": {
+        "model": "fixed",
+        "coverage": "complete",
+        "sourceCopyCount": 30,
+        "selectedCopyCount": 30,
+        "shuffledCopyCount": 30,
+        "outsideDeckCopyCount": 0,
+        "uniqueCardCount": 12,
+        "cardTypes": {
+          "attack": {
+            "uniqueCount": 4,
+            "copyCount": 11,
+            "printedValueKnownCopies": 11,
+            "printedValueSum": 35,
+            "boostKnownCopies": 11,
+            "boostSum": 16
+          },
+          "defense": {
+            "uniqueCount": 1,
+            "copyCount": 3,
+            "printedValueKnownCopies": 3,
+            "printedValueSum": 9,
+            "boostKnownCopies": 3,
+            "boostSum": 6
+          },
+          "versatile": {
+            "uniqueCount": 5,
+            "copyCount": 12,
+            "printedValueKnownCopies": 12,
+            "printedValueSum": 34,
+            "boostKnownCopies": 12,
+            "boostSum": 22
+          },
+          "scheme": {
+            "uniqueCount": 2,
+            "copyCount": 4,
+            "printedValueKnownCopies": 0,
+            "printedValueSum": 0,
+            "boostKnownCopies": 4,
+            "boostSum": 12
+          }
+        },
+        "boostKnownCopies": 30,
+        "boostSum": 56,
+        "sharedCopies": 0,
+        "restrictedCopies": 30
+      }
+    },
+    {
+      "id": "wyatt-earp",
+      "name": "Wyatt Earp",
+      "licence": null,
+      "releaseId": "stars-and-stripes",
+      "move": 2,
+      "rosterType": "hero-with-sidekick",
+      "complexity": null,
+      "dataStatus": "complete",
+      "dataNote": null,
+      "fighters": [
+        {
+          "id": "wyatt-earp",
+          "name": "Wyatt Earp",
+          "role": "hero",
+          "quantity": 1,
+          "attackType": "ranged",
+          "startingHealth": 15,
+          "isUnique": true
+        },
+        {
+          "id": "doc-holliday",
+          "name": "Doc Holliday",
+          "role": "sidekick",
+          "quantity": 1,
+          "attackType": "ranged",
+          "startingHealth": 8,
+          "isUnique": true
+        }
+      ],
+      "deck": {
+        "model": "fixed",
+        "coverage": "complete",
+        "sourceCopyCount": 30,
+        "selectedCopyCount": 30,
+        "shuffledCopyCount": 30,
+        "outsideDeckCopyCount": 0,
+        "uniqueCardCount": 12,
+        "cardTypes": {
+          "attack": {
+            "uniqueCount": 4,
+            "copyCount": 10,
+            "printedValueKnownCopies": 10,
+            "printedValueSum": 33,
+            "boostKnownCopies": 10,
+            "boostSum": 14
+          },
+          "defense": {
+            "uniqueCount": 1,
+            "copyCount": 3,
+            "printedValueKnownCopies": 3,
+            "printedValueSum": 0,
+            "boostKnownCopies": 3,
+            "boostSum": 6
+          },
+          "versatile": {
+            "uniqueCount": 5,
+            "copyCount": 13,
+            "printedValueKnownCopies": 13,
+            "printedValueSum": 36,
+            "boostKnownCopies": 13,
+            "boostSum": 30
+          },
+          "scheme": {
+            "uniqueCount": 2,
+            "copyCount": 4,
+            "printedValueKnownCopies": 0,
+            "printedValueSum": 0,
+            "boostKnownCopies": 4,
+            "boostSum": 12
+          }
+        },
+        "boostKnownCopies": 30,
+        "boostSum": 62,
+        "sharedCopies": 5,
+        "restrictedCopies": 25
+      }
+    },
+    {
+      "id": "yennefer-and-triss",
+      "name": "Yennefer & Triss",
+      "licence": "The Witcher",
+      "releaseId": "the-witcher-realms-fall",
+      "move": 2,
+      "rosterType": "hero-with-sidekick",
+      "complexity": null,
+      "dataStatus": "complete",
+      "dataNote": "The fighter rows show Yennefer as hero and Triss as sidekick for one legal setup. If Triss is chosen as hero, their roles and starting health values swap.",
+      "fighters": [
+        {
+          "id": "yennefer",
+          "name": "Yennefer",
+          "role": "hero",
+          "quantity": 1,
+          "attackType": "ranged",
+          "startingHealth": 14,
+          "isUnique": true
+        },
+        {
+          "id": "triss",
+          "name": "Triss",
+          "role": "sidekick",
+          "quantity": 1,
+          "attackType": "ranged",
+          "startingHealth": 6,
+          "isUnique": true
+        }
+      ],
+      "deck": {
+        "model": "fixed",
+        "coverage": "complete",
+        "sourceCopyCount": 30,
+        "selectedCopyCount": 30,
+        "shuffledCopyCount": 30,
+        "outsideDeckCopyCount": 0,
+        "uniqueCardCount": 11,
+        "cardTypes": {
+          "attack": {
+            "uniqueCount": 4,
+            "copyCount": 11,
+            "printedValueKnownCopies": 11,
+            "printedValueSum": 41,
+            "boostKnownCopies": 11,
+            "boostSum": 21
+          },
+          "defense": {
+            "uniqueCount": 2,
+            "copyCount": 6,
+            "printedValueKnownCopies": 6,
+            "printedValueSum": 18,
+            "boostKnownCopies": 6,
+            "boostSum": 15
+          },
+          "versatile": {
+            "uniqueCount": 3,
+            "copyCount": 8,
+            "printedValueKnownCopies": 8,
+            "printedValueSum": 22,
+            "boostKnownCopies": 8,
+            "boostSum": 10
+          },
+          "scheme": {
+            "uniqueCount": 2,
+            "copyCount": 5,
+            "printedValueKnownCopies": 0,
+            "printedValueSum": 0,
+            "boostKnownCopies": 5,
+            "boostSum": 10
+          }
+        },
+        "boostKnownCopies": 30,
+        "boostSum": 56,
+        "sharedCopies": 25,
+        "restrictedCopies": 5
+      }
+    },
+    {
+      "id": "yennenga",
+      "name": "Yennenga",
+      "licence": null,
+      "releaseId": "battle-of-legends-volume-two",
+      "move": 2,
+      "rosterType": "hero-with-multiple-sidekicks",
+      "complexity": null,
+      "dataStatus": "complete",
+      "dataNote": null,
+      "fighters": [
+        {
+          "id": "yennenga",
+          "name": "Yennenga",
+          "role": "hero",
+          "quantity": 1,
+          "attackType": "ranged",
+          "startingHealth": 15,
+          "isUnique": true
+        },
+        {
+          "id": "yennenga-archer",
+          "name": "Archer",
+          "role": "sidekick",
+          "quantity": 2,
+          "attackType": "ranged",
+          "startingHealth": 2,
+          "isUnique": false
+        }
+      ],
+      "deck": {
+        "model": "fixed",
+        "coverage": "complete",
+        "sourceCopyCount": 30,
+        "selectedCopyCount": 30,
+        "shuffledCopyCount": 30,
+        "outsideDeckCopyCount": 0,
+        "uniqueCardCount": 12,
+        "cardTypes": {
+          "attack": {
+            "uniqueCount": 2,
+            "copyCount": 6,
+            "printedValueKnownCopies": 6,
+            "printedValueSum": 18,
+            "boostKnownCopies": 6,
+            "boostSum": 18
+          },
+          "defense": {
+            "uniqueCount": 1,
+            "copyCount": 2,
+            "printedValueKnownCopies": 2,
+            "printedValueSum": 6,
+            "boostKnownCopies": 2,
+            "boostSum": 2
+          },
+          "versatile": {
+            "uniqueCount": 7,
+            "copyCount": 18,
+            "printedValueKnownCopies": 18,
+            "printedValueSum": 47,
+            "boostKnownCopies": 18,
+            "boostSum": 34
+          },
+          "scheme": {
+            "uniqueCount": 2,
+            "copyCount": 4,
+            "printedValueKnownCopies": 0,
+            "printedValueSum": 0,
+            "boostKnownCopies": 4,
+            "boostSum": 10
+          }
+        },
+        "boostKnownCopies": 30,
+        "boostSum": 64,
+        "sharedCopies": 8,
+        "restrictedCopies": 22
+      }
+    }
+  ]
+}

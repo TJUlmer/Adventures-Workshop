@@ -15,6 +15,7 @@ export const SET_PAGES = [
   'figures',
   'symbols',
   'assets',
+  'analysis',
   'settings',
   'print',
   'contributions'
@@ -42,6 +43,11 @@ export const SET_PAGE_META: Readonly<Record<SetPage, SetPageMeta>> = {
     icon: 'sparkle'
   },
   assets: { label: 'Overview', hint: 'Every component in one place', icon: 'layers' },
+  analysis: {
+    label: 'Analysis',
+    hint: 'Deck statistics and descriptive official context',
+    icon: 'chart'
+  },
   settings: { label: 'Settings', hint: 'Identity, theme defaults and notes', icon: 'settings' },
   /*
    * Reached from Export rather than from the set nav and rendered outside the

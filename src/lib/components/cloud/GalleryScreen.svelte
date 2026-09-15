@@ -519,8 +519,8 @@
       <span class="eyebrow">Community</span>
       <h1 class="title">Gallery</h1>
       <p class="lede">
-        Adventure sets people have published. Open one to read it through, or export it to play
-        with.
+        Characters, sets, and collections people have published. Open one to read it through, or
+        export it to play with.
       </p>
     </div>
   </header>

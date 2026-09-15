@@ -23,7 +23,7 @@
     /** Action-card copy supports bold and italic selected text. */
     formatted?: boolean;
     onchange: (value: string) => void;
-    /** Author-uploaded glyphs, offered alongside the four built-in symbols. */
+    /** Author-uploaded glyphs, offered alongside the built-in symbols. */
     customSymbols?: CustomSymbol[];
   }
 

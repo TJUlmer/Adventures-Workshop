@@ -225,21 +225,37 @@ export const CARD_SYMBOLS = {
   attack: `${SYMBOLS}/attack.png`,
   defense: `${SYMBOLS}/defense.png`,
   versatile: `${SYMBOLS}/versatile.png`,
-  scheme: `${SYMBOLS}/scheme.png`
+  scheme: `${SYMBOLS}/scheme.png`,
+  'hybrid-attack': `${SYMBOLS}/schattack.png`,
+  'hybrid-defense': `${SYMBOLS}/schefense.png`,
+  'hybrid-versatile': `${SYMBOLS}/schersatile.png`
 } as const;
 
 /**
  * Everything that may be inserted into a run of card copy.
  *
- * `CARD_SYMBOLS` deliberately remains the four combat types: it also drives
+ * `CARD_SYMBOLS` deliberately remains the combat types: it also drives
  * value controls, hero ribbons and fixed size/colour tables. A bonus attack is
- * a text token, not a fifth way to play an action card, so widening that table
+ * a text token, not another way to play an action card, so widening that table
  * would leak it into controls where it has no meaning.
  */
 export const TEXT_SYMBOLS = {
   ...CARD_SYMBOLS,
   bonus_attack: `${SYMBOLS}/bonus_attack.png`
 } as const;
+
+/**
+ * Symbols offered beside authored text. Hybrid glyphs remain valid tokens for
+ * compatibility, but they identify uncommon card types rather than rules-copy
+ * vocabulary and would crowd every ability toolbar.
+ */
+export const INSERTABLE_TEXT_SYMBOL_NAMES = [
+  'attack',
+  'defense',
+  'versatile',
+  'scheme',
+  'bonus_attack'
+] as const;
 
 /**
  * A figure's attack type, for the character card's attack rows.
@@ -289,6 +305,7 @@ export const ATTACK_TYPE_SIZES: Readonly<
 
 export type CardSymbolName = keyof typeof CARD_SYMBOLS;
 export type TextSymbolName = keyof typeof TEXT_SYMBOLS;
+export type InsertableTextSymbolName = (typeof INSERTABLE_TEXT_SYMBOL_NAMES)[number];
 
 /**
  * Natural pixel size of each symbol file. They are already drawn at printed
@@ -301,14 +318,20 @@ export const CARD_SYMBOL_SIZES: Readonly<Record<CardSymbolName, { width: number;
     attack: { width: 167, height: 164 },
     defense: { width: 125, height: 145 },
     versatile: { width: 141, height: 143 },
-    scheme: { width: 103, height: 242 }
+    scheme: { width: 103, height: 242 },
+    'hybrid-attack': { width: 149, height: 244 },
+    'hybrid-defense': { width: 125, height: 145 },
+    'hybrid-versatile': { width: 157, height: 152 }
   } as const;
 
 export const CARD_SYMBOL_LABELS: Readonly<Record<CardSymbolName, string>> = {
   attack: 'Attack',
   defense: 'Defense',
   versatile: 'Versatile',
-  scheme: 'Scheme'
+  scheme: 'Scheme',
+  'hybrid-attack': 'Hybrid Attack',
+  'hybrid-defense': 'Hybrid Defense',
+  'hybrid-versatile': 'Hybrid Versatile'
 } as const;
 
 export const TEXT_SYMBOL_LABELS: Readonly<Record<TextSymbolName, string>> = {
@@ -331,7 +354,10 @@ export const CARD_SYMBOL_COLORS: Readonly<Record<CardSymbolName, string>> = {
   attack: '#cf2931',
   defense: '#2c76ac',
   versatile: '#6c4e8d',
-  scheme: '#fcbd71'
+  scheme: '#fcbd71',
+  'hybrid-attack': '#fc6f38',
+  'hybrid-defense': '#44ac2c',
+  'hybrid-versatile': '#fe6ee4'
 } as const;
 
 export function symbolUrl(name: TextSymbolName): string {
