@@ -63,6 +63,7 @@
     HERO_SPLIT_ART_WINDOW_HEIGHT,
     HERO_SPLIT_BODY_PANEL_HEIGHT,
     HERO_POINT_BELOW,
+    HERO_HYBRID_ATTACK_SYMBOL_WIDTH,
     HERO_RIBBON,
     HERO_RIBBON_OWNER,
     HERO_RIBBON_OWNER_LEFT,
@@ -1045,10 +1046,14 @@
     villain/minion colours this same file draws elsewhere, and
     `brightness(0) invert(1)` turns any opaque pixel white while leaving
     transparency alone — the identical trick printer-friendly mode already uses
-    on these same four files, for the same reason.
+    on these same symbol files, for the same reason.
   -->
   {@const size = CARD_SYMBOL_SIZES[heroSymbol]}
-  {@const symbolWidth = card.split ? HERO_SPLIT_RIBBON_SYMBOL.width : size.width}
+  {@const symbolWidth = card.split
+    ? HERO_SPLIT_RIBBON_SYMBOL.width
+    : heroSymbol === 'hybrid-attack'
+      ? HERO_HYBRID_ATTACK_SYMBOL_WIDTH
+      : size.width}
   {@const symbolTop = card.split ? HERO_SPLIT_RIBBON_SYMBOL.top : HERO_RIBBON_SYMBOL.top}
   {@const symbolCenterX =
     HERO_RIBBON_SYMBOL.centerX + (card.split ? HERO_SPLIT_RIBBON_SYMBOL.offsetX : 0)}

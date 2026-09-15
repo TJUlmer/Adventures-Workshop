@@ -479,7 +479,7 @@ level is small. Health, move, attack type and ability text already existed on
 block) and simply had nowhere to print before now.
 
 **A hero's action card is one field, not a new card type.** `ActionCard.type`
-stays `'action'`; `symbol` (one of the four combat symbols), `symbolValue` and
+stays `'action'`; `symbol` (one of the combat symbols), `symbolValue` and
 `owner` (`hero` / `sidekick` / `any` — who may play it) are new fields, read
 only when the owning character's role is `hero`. A hero may also enable the
 existing `split` layout from **Special card effects**: it reuses `attack`,
@@ -866,7 +866,7 @@ size is a themed key (`CardTheme.ribbonSymbolSize`) rather than card data.
 **The symbol itself is not recolourable, and that was tried and reverted.**
 Every other themed shape in this file — the frame, the ribbon, the boost ring
 — is single-colour art on transparency, which is what makes masking it to an
-author's chosen colour work at all. The four combat symbols, and any custom
+author's chosen colour work at all. The bundled combat symbols, and any custom
 upload, are not: they are small multi-colour illustrations with an opaque
 background, so masking one to a flat fill just painted a rectangle and hid
 the art underneath it. What *is* an author's choice is `ribbonFoot` — the
@@ -2708,7 +2708,7 @@ a data URL is an address like any other to the sheet renderer.
 
 ### Schema
 
-`SET_SCHEMA_VERSION` (currently 59) is checked on import; newer files are
+`SET_SCHEMA_VERSION` (currently 62) is checked on import; newer files are
 refused. There is no migration ladder — `sets/normalize.ts` repairs on load,
 filling absent fields from the factories. **Any new persisted field needs a
 branch there**, or existing documents load without it. Absent is meaningfully

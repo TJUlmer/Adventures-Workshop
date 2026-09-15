@@ -939,6 +939,13 @@ export const HERO_POINT_BELOW = BLEED.height - 935;
 export const HERO_RIBBON_SYMBOL = { top: 187, centerX: HERO_RIBBON.centerX } as const;
 
 /**
+ * The combined Scheme/Attack asset is almost as tall as the valueless Scheme
+ * glyph at its native width. A valued ribbon needs the lower half for its
+ * number, so this width reduces it to the normal Attack symbol's height.
+ */
+export const HERO_HYBRID_ATTACK_SYMBOL_WIDTH = 100;
+
+/**
  * Split combat prints no value beneath its fixed Versatile symbol, so the
  * ordinary symbol geometry would leave that glyph small and stranded at the
  * head's top. These three values are deliberately independent dials: `width`

@@ -1,6 +1,6 @@
 <script lang="ts">
   /**
-   * The insert-at-caret symbol row: the four combat symbols, the figure's
+   * The insert-at-caret symbol row: the combat symbols, the figure's
    * name, then whatever the set has uploaded.
    *
    * Extracted from `AbilityField` when the card title wanted the same row.
@@ -19,8 +19,11 @@
    * store a name the renderer does not resolve, and it would print as
    * literal braces.
    */
-  import { TEXT_SYMBOL_LABELS, TEXT_SYMBOLS } from '$lib/renderer/assets';
-  import type { TextSymbolName } from '$lib/renderer/assets';
+  import {
+    INSERTABLE_TEXT_SYMBOL_NAMES,
+    TEXT_SYMBOL_LABELS,
+    TEXT_SYMBOLS
+  } from '$lib/renderer/assets';
   import type { CustomSymbol } from '$lib/symbols/types';
   import { customSymbolLabel } from '$lib/symbols/types';
   import { displaySymbolToken, SUBJECT_TOKEN, symbolToken } from '$lib/text/tokens';
@@ -32,13 +35,13 @@
     oninsert: (token: string) => void;
     /** When present, puts compact formatting controls in this same row. */
     onformat?: (format: InlineFormat) => void;
-    /** Author-uploaded glyphs, offered alongside the four built-in symbols. */
+    /** Author-uploaded glyphs, offered alongside the built-in symbols. */
     customSymbols?: CustomSymbol[];
   }
 
   let { oninsert, onformat, customSymbols = [] }: Props = $props();
 
-  const SYMBOL_NAMES = Object.keys(TEXT_SYMBOLS) as TextSymbolName[];
+  const SYMBOL_NAMES = INSERTABLE_TEXT_SYMBOL_NAMES;
 </script>
 
 <div

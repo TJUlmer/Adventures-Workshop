@@ -169,7 +169,7 @@
     margin-inline: 0.06em;
   }
 
-  /* The supplied bonus-attack badge is much wider than the four combat glyphs. */
+  /* The supplied bonus-attack badge is much wider than the combat glyphs. */
   .line :global(.symbol[alt='bonus_attack']) {
     /* The wide badge needs a shorter box and a neutral baseline. */
     height: 0.68em;

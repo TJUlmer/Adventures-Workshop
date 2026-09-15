@@ -149,16 +149,63 @@ export interface CardCommon {
   updatedAt: IsoDateTime;
 }
 
+/** The original four action-card types, kept as the first picker row. */
+export const TRADITIONAL_COMBAT_SYMBOLS = [
+  'attack',
+  'defense',
+  'versatile',
+  'scheme'
+] as const;
+
+/** Scheme/combat combinations, printed as the second picker row. */
+export const HYBRID_COMBAT_SYMBOLS = [
+  'hybrid-attack',
+  'hybrid-defense',
+  'hybrid-versatile'
+] as const;
+export type HybridCombatSymbol = (typeof HYBRID_COMBAT_SYMBOLS)[number];
+
 /**
- * The four combat symbols a hero's action card can print — exactly one per
+ * The seven combat symbols a hero's action card can print — exactly one per
  * card, in the ribbon, rather than the attack-and-defense pair a villain or
  * minion card carries in its body. Named to match `CardSymbolName` in
  * `renderer/assets.ts`, which this module cannot import — cards depend on
  * nothing, everything depends on cards — so the two are kept structurally
  * identical instead of sharing a type.
  */
-export const COMBAT_SYMBOLS = ['attack', 'defense', 'versatile', 'scheme'] as const;
+export const COMBAT_SYMBOLS = [
+  ...TRADITIONAL_COMBAT_SYMBOLS,
+  ...HYBRID_COMBAT_SYMBOLS
+] as const;
 export type CombatSymbol = (typeof COMBAT_SYMBOLS)[number];
+
+export function isHybridCombatSymbol(
+  symbol: CombatSymbol | null
+): symbol is HybridCombatSymbol {
+  return (
+    symbol === 'hybrid-attack' ||
+    symbol === 'hybrid-defense' ||
+    symbol === 'hybrid-versatile'
+  );
+}
+
+export function isAttackCapableSymbol(symbol: CombatSymbol | null): boolean {
+  return (
+    symbol === 'attack' ||
+    symbol === 'versatile' ||
+    symbol === 'hybrid-attack' ||
+    symbol === 'hybrid-versatile'
+  );
+}
+
+export function isDefenseCapableSymbol(symbol: CombatSymbol | null): boolean {
+  return (
+    symbol === 'defense' ||
+    symbol === 'versatile' ||
+    symbol === 'hybrid-defense' ||
+    symbol === 'hybrid-versatile'
+  );
+}
 
 /**
  * Who may play a hero's action card. Printed in the ribbon's tail and again

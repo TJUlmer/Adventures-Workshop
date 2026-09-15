@@ -1,6 +1,6 @@
 <script lang="ts">
   import { cardLabel } from '$lib/cards/factory';
-  import type { Card } from '$lib/cards/types';
+  import type { Card, CombatSymbol } from '$lib/cards/types';
   import { CARD_TYPE_META, initiativeHeading } from '$lib/cards/types';
   import { characterLabel } from '$lib/characters/factory';
   import { cardDrag, sideOf } from '$lib/state/card-drag.svelte';
@@ -77,10 +77,13 @@
    * pair of fields is the real one, with no need to know the character's role
    * here.
    */
-  const SYMBOL_LETTERS: Readonly<Record<'attack' | 'defense' | 'versatile', string>> = {
+  const SYMBOL_LETTERS: Readonly<Record<Exclude<CombatSymbol, 'scheme'>, string>> = {
     attack: 'A',
     defense: 'D',
-    versatile: 'V'
+    versatile: 'V',
+    'hybrid-attack': 'HA',
+    'hybrid-defense': 'HD',
+    'hybrid-versatile': 'HV'
   };
 
   /** A compact read of what the card carries, right-aligned in the row. */

@@ -1,5 +1,9 @@
 import type { ActionCard, CardOwner, CombatSymbol } from '$lib/cards/types';
-import { COMBAT_SYMBOLS } from '$lib/cards/types';
+import {
+  COMBAT_SYMBOLS,
+  isAttackCapableSymbol,
+  isDefenseCapableSymbol
+} from '$lib/cards/types';
 import type { Character, CharacterId, HeroCharacterCard } from '$lib/characters/types';
 import { hasArtwork } from '$lib/core/artwork';
 import type { AdventureSet } from '$lib/sets/types';
@@ -290,11 +294,11 @@ export function analyseCharacter(
     symbols,
     unclassifiedCombat: countCards(unclassifiedCards),
     attackCapable: summarizeValueMetric(
-      classifiedCards.filter((card) => card.symbol === 'attack' || card.symbol === 'versatile'),
+      classifiedCards.filter((card) => isAttackCapableSymbol(card.symbol)),
       (card) => card.symbolValue
     ),
     defenseCapable: summarizeValueMetric(
-      classifiedCards.filter((card) => card.symbol === 'defense' || card.symbol === 'versatile'),
+      classifiedCards.filter((card) => isDefenseCapableSymbol(card.symbol)),
       (card) => card.symbolValue
     ),
     boost: boostSummary(interpretedCards),

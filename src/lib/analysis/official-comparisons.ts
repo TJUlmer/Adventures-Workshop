@@ -433,7 +433,7 @@ export function compareCharacterWithOfficial(
     comparisons.push(
       comparisonFor(
       'attack-capable-total',
-      'Total printed Attack value · includes Versatile',
+      'Total printed attack-capable value',
         analysis.attackCapable.complete ? analysis.attackCapable.values.total : null,
         deckRows,
         (row) => row.attackCapableTotal,
@@ -442,7 +442,7 @@ export function compareCharacterWithOfficial(
       ),
       comparisonFor(
       'defense-capable-total',
-      'Total printed Defense value · includes Versatile',
+      'Total printed defense-capable value',
         analysis.defenseCapable.complete ? analysis.defenseCapable.values.total : null,
         deckRows,
         (row) => row.defenseCapableTotal,

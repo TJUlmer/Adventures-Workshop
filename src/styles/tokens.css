@@ -179,6 +179,9 @@
   --kind-scheme: #45b880;
   --kind-initiative: #d4a355;
   --analysis-scheme: var(--kind-initiative);
+  --kind-hybrid-attack: #fc6f38;
+  --kind-hybrid-defense: #44ac2c;
+  --kind-hybrid-versatile: #fe6ee4;
 
   --font-sans:
     'Inter var', 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI Variable Text',

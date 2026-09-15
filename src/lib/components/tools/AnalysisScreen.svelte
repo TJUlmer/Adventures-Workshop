@@ -38,7 +38,22 @@
     attack: { label: 'Attack', shortLabel: 'A', colorVar: '--kind-attack' },
     defense: { label: 'Defense', shortLabel: 'D', colorVar: '--kind-defense' },
     versatile: { label: 'Versatile', shortLabel: 'V', colorVar: '--kind-versatile' },
-    scheme: { label: 'Scheme', shortLabel: 'S', colorVar: '--analysis-scheme' }
+    scheme: { label: 'Scheme', shortLabel: 'S', colorVar: '--analysis-scheme' },
+    'hybrid-attack': {
+      label: 'Hybrid Attack',
+      shortLabel: 'HA',
+      colorVar: '--kind-hybrid-attack'
+    },
+    'hybrid-defense': {
+      label: 'Hybrid Defense',
+      shortLabel: 'HD',
+      colorVar: '--kind-hybrid-defense'
+    },
+    'hybrid-versatile': {
+      label: 'Hybrid Versatile',
+      shortLabel: 'HV',
+      colorVar: '--kind-hybrid-versatile'
+    }
   };
 
   const ROSTER_LABELS: Readonly<Record<OfficialRosterType, string>> = {
@@ -407,7 +422,7 @@
                       {@const capable = symbol === 'attack' ? analysis.attackCapable : analysis.defenseCapable}
                       <dl class="combat-values">
                         <div><dt>{meta.label} only</dt><dd class="numeric">{formatNumber(summary.printedValue.complete ? summary.printedValue.values.total : null, 0)}</dd></div>
-                        <div><dt>With Versatile</dt><dd class="numeric">{formatNumber(capable.complete ? capable.values.total : null, 0)}</dd></div>
+                        <div><dt>All {meta.label.toLowerCase()}-capable</dt><dd class="numeric">{formatNumber(capable.complete ? capable.values.total : null, 0)}</dd></div>
                       </dl>
                       {#if !summary.printedValue.complete || !capable.complete}
                         <small class="combat-coverage">{coverageLabel(capable.coverage)}</small>

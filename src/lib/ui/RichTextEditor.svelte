@@ -6,8 +6,12 @@
    * typed, pasted or dropped — goes through the allowlist sanitiser before it
    * reaches the document.
    */
-  import { TEXT_SYMBOL_LABELS, TEXT_SYMBOLS } from '$lib/renderer/assets';
-  import type { TextSymbolName } from '$lib/renderer/assets';
+	import {
+		INSERTABLE_TEXT_SYMBOL_NAMES,
+		TEXT_SYMBOL_LABELS,
+		TEXT_SYMBOLS
+	} from '$lib/renderer/assets';
+	import type { InsertableTextSymbolName } from '$lib/renderer/assets';
   import type { CustomSymbol } from '$lib/symbols/types';
   import { customSymbolLabel } from '$lib/symbols/types';
   import {
@@ -29,7 +33,7 @@
     placeholder?: string;
     minHeight?: number;
     onchange: (html: string) => void;
-    /** Author-uploaded glyphs, offered alongside the four built-in symbols. */
+    /** Author-uploaded glyphs, offered alongside the built-in symbols. */
     customSymbols?: CustomSymbol[];
   }
 
@@ -167,7 +171,7 @@
     { tag: 'p', label: 'Body' }
   ] as const;
 
-  const SYMBOL_NAMES = Object.keys(TEXT_SYMBOLS) as TextSymbolName[];
+  const SYMBOL_NAMES = INSERTABLE_TEXT_SYMBOL_NAMES;
 
   function setBlock(tag: string): void {
     editor?.focus();
@@ -394,7 +398,7 @@
     commit();
   }
 
-  function insertSymbol(name: TextSymbolName): void {
+	function insertSymbol(name: InsertableTextSymbolName): void {
     editor?.focus();
     document.execCommand(
       'insertHTML',
