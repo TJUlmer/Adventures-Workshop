@@ -28,11 +28,6 @@ export interface CloudDraftRolloutConfig {
   readonly cohortPercent: number;
 }
 
-export interface CollectionsRolloutConfig {
-  /** Permanent Supabase accounts allowed to create a collection. */
-  readonly internalUserIds: readonly string[];
-}
-
 /**
  * Bucket published artwork is lifted into.
  *
@@ -98,10 +93,6 @@ const DRAFT_ROLLOUT: CloudDraftRolloutConfig = (() => {
   };
 })();
 
-const COLLECTIONS_ROLLOUT: CollectionsRolloutConfig = {
-  internalUserIds: userIdList(import.meta.env['VITE_COLLECTIONS_INTERNAL_USER_IDS'])
-};
-
 /** The configured project, or `null` when sharing is not set up. */
 export function cloudConfig(): CloudConfig | null {
   return CONFIG;
@@ -115,23 +106,4 @@ export function cloudEnabled(): boolean {
 /** Private-draft rollout policy, deliberately separate from public sharing. */
 export function cloudDraftRolloutConfig(): CloudDraftRolloutConfig {
   return DRAFT_ROLLOUT;
-}
-
-/** Collection creation rollout, independent of public reading and membership. */
-export function collectionsRolloutConfig(): CollectionsRolloutConfig {
-  return COLLECTIONS_ROLLOUT;
-}
-
-/**
- * Whether this account should be offered collection creation.
- *
- * This is a discoverability gate compiled into the client, not an access
- * policy. Supabase RLS remains the boundary for every collection write.
- */
-export function collectionCreationEnabled(userId: string | null | undefined): boolean {
-  return (
-    cloudEnabled() &&
-    typeof userId === 'string' &&
-    COLLECTIONS_ROLLOUT.internalUserIds.includes(userId)
-  );
 }

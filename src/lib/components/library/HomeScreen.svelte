@@ -19,7 +19,7 @@
   import { auth } from '$lib/cloud/auth.svelte';
   import { renderCharacterCards } from '$lib/cloud/character-cards';
   import { openContributionCounts } from '$lib/cloud/contributions';
-  import { collectionCreationEnabled, cloudEnabled } from '$lib/cloud/config';
+  import { cloudEnabled } from '$lib/cloud/config';
   import {
     fetchProfile,
     fetchSetSummaryBySlug,
@@ -86,9 +86,7 @@
   let makingCollection = $state(false);
   let choosingCollection = $state(false);
   const canCreateCollection = $derived(
-    auth.signedIn &&
-      !auth.isAnonymous &&
-      collectionCreationEnabled(auth.user?.id)
+    cloudEnabled() && auth.signedIn && !auth.isAnonymous && !!auth.user?.id
   );
 
   /**
@@ -1389,9 +1387,8 @@
         they are app-wide chrome, and Home stopped being their only home when
         the banner arrived. What stays here is what acts on *this* screen.
 
-        The build-time account allowlist controls collection creation only.
-        Public readers, existing memberships and invitations remain available
-        outside the rollout; Supabase RLS is still the write boundary.
+        Creation needs a permanent account and a configured cloud project.
+        Supabase RLS is the write boundary; the Home button is discoverability.
       -->
       {#if canCreateCollection}
         <Button variant="ghost" onclick={() => (choosingCollection = true)}>

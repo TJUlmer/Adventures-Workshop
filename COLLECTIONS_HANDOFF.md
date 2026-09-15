@@ -6,9 +6,9 @@ its **Where this stands** section first. This file is the part that document
 should not carry: where the work physically lives, what is safe to assume, and
 what will bite.
 
-Updated 2026-09-14. The management-workspace pass is committed, its migrations
-are applied, and collection development now ships through `main`. The account
-allowlist—not a long-lived feature branch—is the release boundary.
+Updated 2026-09-15. The management-workspace pass is committed, its migrations
+are applied, and collection development ships through `main`. Collection creation
+is open to every signed-in permanent account after the public release.
 
 ---
 
@@ -24,8 +24,9 @@ allowlist—not a long-lived feature branch—is the release boundary.
 remote and should not be used as evidence that production lacks a change. This
 worktree may retain its `collections` branch name because `main` is checked out
 in the saved production worktree, but push new work explicitly to `origin/main`;
-do not advance `origin/collections`. The Home entry remains rollout-allowlisted,
-so shipping collection code on `main` does not expose it to other accounts.
+do not advance `origin/collections`. Home offers creation to every signed-in
+permanent account; public reads and membership access retain separate visibility
+and consent rules.
 
 Share URLs are built from `location.origin` at runtime, so neither the old
 preview hostname nor the production hostname is stored in collection rows.
