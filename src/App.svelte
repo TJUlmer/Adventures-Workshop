@@ -32,6 +32,7 @@
   import SetSidebar from '$lib/components/sidebar/SetSidebar.svelte';
   import FiguresPanel from '$lib/components/tools/FiguresPanel.svelte';
   import MapEditor from '$lib/components/tools/MapEditor.svelte';
+  import AnalysisScreen from '$lib/components/tools/AnalysisScreen.svelte';
   import OverviewScreen from '$lib/components/tools/OverviewScreen.svelte';
   import type { AdventureSet } from '$lib/sets/types';
   import SetSettings from '$lib/components/tools/SetSettings.svelte';
@@ -267,6 +268,8 @@
               <SymbolsPanel />
             {:else if currentPage === 'assets'}
               <OverviewScreen onprint={openPrint} />
+            {:else if currentPage === 'analysis'}
+              <AnalysisScreen />
             {:else if currentPage === 'contributions'}
               <ContributionsScreen />
             {:else if currentPage === 'settings'}

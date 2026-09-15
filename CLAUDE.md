@@ -123,6 +123,39 @@ will not compile.
 `README.md` covers the document model, the style cascade and the shell layout in
 depth. What follows is what it does not, or where it has drifted.
 
+### Analysis and the official catalogue
+
+`src/lib/analysis/` is deliberately outside the editable set model. The author’s
+document remains the only mutable input; analysis is derived on demand and adds
+no persisted fields or schema migration. `character.ts` counts both distinct
+designs and physical copies, but totals and averages weight by copy quantity.
+Opaque full-face replacements stay in deck totals while their printed values are
+reported as unavailable, since the app cannot safely infer what is in an image.
+Hero Attack/Defense/Versatile/Scheme fields are never projected onto villain or
+minion cards, whose two-value template means something different.
+
+The comparison source is the compact, versioned, read-only snapshot at
+`analysis/official/catalogue.json`, not records mixed into an `AdventureSet`.
+`tools/generate-official-catalogue.py` rebuilds it from the maintained workbook
+using only Python’s standard library, validates controlled values and expected
+row counts, and records the source file hash. Exceptional official deck shapes
+(choice pools, a starting card outside the shuffled deck, and partial captures)
+are explicit data rather than guessed from a count.
+
+`official-comparisons.ts` compares one current hero with every official character
+in the displayed cohort, counting each matching character once. It starts with
+range/roster peers, broadens the cohort when needed, and names the cohort and
+sample size in every result. Incomplete records and choice pools are excluded
+where they would make a deck total misleading, and deck-value comparisons wait
+until the current hero has 30 interpretable physical cards. Per-stat comparisons
+may name the nearest official value; the fighter profile may list structural
+neighbours using roster, range, health, card-type quantities, printed totals and
+numeric boost. Neither form interprets ability text or claims similar playstyle or
+balance. These bands are descriptive design context only: they must never become
+Set Health severities, because raw stats cannot judge the ability, matchups or the
+way a deck works together. The retained catalogue explorer is feature-gated; when
+enabled, its session-only filters must not silently change those comparison cohorts.
+
 ### The renderer is the export
 
 `src/lib/renderer/` draws cards as DOM, and `src/lib/export/card-image.ts`

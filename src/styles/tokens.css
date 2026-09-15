@@ -178,6 +178,7 @@
   --kind-versatile: #a479e8;
   --kind-scheme: #45b880;
   --kind-initiative: #d4a355;
+  --analysis-scheme: var(--kind-initiative);
 
   --font-sans:
     'Inter var', 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI Variable Text',

@@ -65,6 +65,9 @@ TypeScript is pinned to `~6` because `svelte-check` does not run on 7 yet.
   plus set-level singletons (style, threat track, map); every grouping the UI shows is
   derived. `sets/queries.ts` holds the derivations. IDs are branded types, preserved
   across a fork except the set's own.
+- **Analysis is derived and read-only.** `src/lib/analysis/official/` is a versioned
+  reference snapshot, never data inside a user's editable set. Statistical bands are
+  descriptive context and must not become Set Health severities.
 - **Style cascade:** `stock template → set.style → character.style → card.style`,
   flattened by `resolveStyleForCard()`. Overrides are sparse — "inherit" is an
   absent key. Card colours are concrete values, never `var(--…)`. The hero character

@@ -19,6 +19,7 @@ src/
 │  ├─ characters/   Character model: roles (hero/villain/minion/sidekick), stats,
 │  │                abilities, hero character-card design
 │  ├─ decks/        Deck model: action, initiative, rules, event/special
+│  ├─ analysis/     Derived deck metrics and versioned read-only official data
 │  ├─ sets/         The document, pure queries, normalize/repair, health,
 │  │                fork + fingerprint, contribution model
 │  ├─ core/         Branded IDs, timestamps, artwork placement/grading,
@@ -62,6 +63,10 @@ in the four arrays is nested. Re-parenting anything is a one-field edit, every
 grouping the UI shows stays **derived** rather than duplicated, and the whole
 document is plain JSON — no Maps, Sets or Dates to reconstruct on load.
 `src/lib/sets/queries.ts` holds every derivation.
+
+The official comparison catalogue lives separately under `src/lib/analysis/official/`.
+It is a versioned, read-only reference and is never copied into an editable set or
+used to turn descriptive statistical outliers into Set Health issues.
 
 - **Cards.** `Card` is a discriminated union over the printed templates —
   `ActionCard | InitiativeCard | RulesCard | EventCard`. Nullable combat values
