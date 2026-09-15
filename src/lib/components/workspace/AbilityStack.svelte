@@ -8,13 +8,13 @@
    * unaffected either way.
    */
   import { CARD_SYMBOLS, CARD_SYMBOL_LABELS } from '$lib/renderer/assets';
-  import type { CardSymbolName } from '$lib/renderer/assets';
   import type { CardTheme } from '$lib/cards/style';
   import {
     ABILITY_TIMING_LABELS,
     ABILITY_TIMINGS,
     createBonusAbility,
-    MAX_BONUS_ABILITIES
+    MAX_BONUS_ABILITIES,
+    TRADITIONAL_COMBAT_SYMBOLS
   } from '$lib/cards/types';
   import type { AbilityBlocks, BonusAbility } from '$lib/cards/types';
   import type { CustomSymbol } from '$lib/symbols/types';
@@ -49,7 +49,7 @@
     customSymbols = []
   }: Props = $props();
 
-  const SYMBOL_NAMES = Object.keys(CARD_SYMBOLS) as CardSymbolName[];
+  const SYMBOL_NAMES = TRADITIONAL_COMBAT_SYMBOLS;
 
   function updateBonus(index: number, patch: Partial<BonusAbility>): void {
     onchange({

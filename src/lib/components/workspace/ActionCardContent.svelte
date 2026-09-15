@@ -12,7 +12,6 @@
   import { STYLE_ORIGIN_LABELS } from '$lib/cards/theme';
   import {
     abilityIsEmpty,
-    COMBAT_SYMBOLS,
     HYBRID_COMBAT_SYMBOLS,
     isHybridCombatSymbol,
     TRADITIONAL_COMBAT_SYMBOLS
@@ -518,7 +517,7 @@
         >
           None
         </button>
-        {#each COMBAT_SYMBOLS as name (name)}
+        {#each TRADITIONAL_COMBAT_SYMBOLS as name (name)}
           <button
             type="button"
             class="icon-choice"
