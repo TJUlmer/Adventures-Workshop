@@ -6,7 +6,7 @@
    * clicking a space selects it, and its effect text edits below, so the thing
    * being changed and the thing being looked at are never separated.
    */
-  import { mount, tick, unmount } from 'svelte';
+  import { mount, onDestroy, tick, unmount } from 'svelte';
   import type { Fill } from '$lib/cards/style';
   import { solid } from '$lib/cards/style';
   import { characterLabel } from '$lib/characters/factory';
@@ -58,6 +58,28 @@
   const selected = $derived(track.steps.find((step) => step.id === selectedId) ?? null);
   const canAdd = $derived(canAddThreatStep(track));
   const canAddSlot = $derived(canAddThreatSlot(track));
+  let armedSlotId = $state<ThreatSlotId | null>(null);
+  let slotDisarmTimer: ReturnType<typeof setTimeout> | null = null;
+
+  function disarmSlotDelete(): void {
+    if (slotDisarmTimer) clearTimeout(slotDisarmTimer);
+    slotDisarmTimer = null;
+    armedSlotId = null;
+  }
+
+  onDestroy(disarmSlotDelete);
+
+  /** A slot has no undo, so match the sidebar card rows' two-click delete. */
+  function requestSlotDelete(id: ThreatSlotId): void {
+    if (armedSlotId === id) {
+      disarmSlotDelete();
+      workshop.removeThreatSlot(id);
+      return;
+    }
+    disarmSlotDelete();
+    armedSlotId = id;
+    slotDisarmTimer = setTimeout(disarmSlotDelete, 3000);
+  }
 
   const villainOptions = $derived([
     { value: '', label: 'Not assigned' },
@@ -690,11 +712,16 @@
               />
               <Button
                 size="sm"
-                variant="danger"
+                variant={armedSlotId === slot.id ? 'danger' : 'ghost'}
                 iconOnly
-                title="Delete slot {index + 1}"
-                aria-label="Delete slot {index + 1}"
-                onclick={() => workshop.removeThreatSlot(slot.id)}
+                title={armedSlotId === slot.id ? 'Click again to delete' : `Delete slot ${index + 1}`}
+                aria-label={armedSlotId === slot.id
+                  ? `Delete slot ${index + 1} — click again to confirm`
+                  : `Delete slot ${index + 1}`}
+                onclick={() => requestSlotDelete(slot.id)}
+                onblur={() => {
+                  if (armedSlotId === slot.id) disarmSlotDelete();
+                }}
               >
                 <Icon name="trash" size={13} />
               </Button>
