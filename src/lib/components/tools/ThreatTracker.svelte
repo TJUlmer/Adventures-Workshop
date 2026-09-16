@@ -16,9 +16,11 @@
   import { ThreatBoard } from '$lib/renderer';
   import { THREAT_MAX_SPACES, THREAT_TRACK } from '$lib/renderer/geometry';
   import {
+    canAddThreatSlot,
     canAddThreatStep,
     clampNotePosition,
     THREAT_ACCENT,
+    THREAT_MAX_SLOTS,
     THREAT_NOTE_COLOR,
     THREAT_NUMBER_COLOR,
     THREAT_SPACE_STROKE,
@@ -55,6 +57,7 @@
   let selectedId = $state<ThreatStepId | null>(null);
   const selected = $derived(track.steps.find((step) => step.id === selectedId) ?? null);
   const canAdd = $derived(canAddThreatStep(track));
+  const canAddSlot = $derived(canAddThreatSlot(track));
 
   const villainOptions = $derived([
     { value: '', label: 'Not assigned' },
@@ -341,8 +344,10 @@
       <Button
         size="sm"
         variant="ghost"
-        disabled={!track.enabled}
-        title="Add a tile or marker slot"
+        disabled={!track.enabled || !canAddSlot}
+        title={canAddSlot
+          ? 'Add a tile or marker slot'
+          : `The board holds up to ${THREAT_MAX_SLOTS} tile or marker slots.`}
         onclick={() => workshop.addThreatSlot()}
       >
         <Icon name="plus" size={13} />
@@ -352,6 +357,10 @@
       <span>
         <b class="numeric">{track.steps.length}</b> of
         <b class="numeric">{THREAT_MAX_SPACES}</b> spaces
+      </span>
+      <span>
+        <b class="numeric">{track.slots.length}</b> of
+        <b class="numeric">{THREAT_MAX_SLOTS}</b> slots
       </span>
       <span><b class="numeric">{threatTotal(track)}</b> total threat</span>
       <!--
@@ -679,6 +688,16 @@
                 oninput={(event) =>
                   workshop.editThreat(() => (slot.note = event.currentTarget.value))}
               />
+              <Button
+                size="sm"
+                variant="danger"
+                iconOnly
+                title="Delete slot {index + 1}"
+                aria-label="Delete slot {index + 1}"
+                onclick={() => workshop.removeThreatSlot(slot.id)}
+              >
+                <Icon name="trash" size={13} />
+              </Button>
             </div>
           {/each}
         {/if}
@@ -785,6 +804,7 @@
 
   .board-foot {
     display: flex;
+    flex-wrap: wrap;
     gap: var(--space-5);
     font-size: var(--text-xs);
     color: var(--text-muted);
@@ -862,10 +882,11 @@
     color: var(--text-tertiary);
   }
 
-  /* Name and note side by side: the note is the longer of the two. */
+  /* The note gets the extra room; the delete action stays at the right edge. */
   .slot-row {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
+    grid-template-columns: minmax(0, 1fr) minmax(0, 2fr) auto;
+    align-items: center;
     gap: var(--space-3);
   }
 

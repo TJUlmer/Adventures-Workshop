@@ -92,6 +92,7 @@ import type {
   ThreatTrack
 } from '$lib/threat/types';
 import {
+  canAddThreatSlot,
   canAddThreatStep,
   clampNotePosition,
   createThreatNote,
@@ -960,9 +961,11 @@ export class WorkshopStore {
     this.touch();
   }
 
-  addThreatSlot(): void {
+  addThreatSlot(): boolean {
+    if (!canAddThreatSlot(this.adventure.threat)) return false;
     this.adventure.threat.slots.push(createThreatSlot());
     this.touch();
+    return true;
   }
 
   removeThreatSlot(id: ThreatSlotId): void {

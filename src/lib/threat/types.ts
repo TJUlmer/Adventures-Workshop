@@ -194,6 +194,13 @@ export function canAddThreatStep(track: ThreatTrack): boolean {
   return track.steps.length < THREAT_MAX_SPACES;
 }
 
+/** Limit new slots without discarding extra slots in older authored sets. */
+export const THREAT_MAX_SLOTS = 8;
+
+export function canAddThreatSlot(track: ThreatTrack): boolean {
+  return track.slots.length < THREAT_MAX_SLOTS;
+}
+
 export function createThreatSlot(label = '', note = ''): ThreatSlot {
   return { id: createId<ThreatSlotId>('slot'), label, note };
 }
