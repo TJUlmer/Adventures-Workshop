@@ -27,6 +27,7 @@ import {
 import { buildTokenMesh, tokenObj } from '$lib/models/token';
 import { readLuaConfig, writeLuaConfig } from '$lib/models/tts';
 import type { AdventureSet } from '$lib/sets/types';
+import type { Rulebook } from '$lib/sets/rulebooks';
 import { photographMapBoard, photographThreatBoard, withCardStage } from './card-stage';
 import { findExportsFolder, pruneExportsBundle, writeToExportsFolder } from './exports-folder';
 import { MAP_WIDTH_MM, mapHeightMm } from '$lib/map/types';
@@ -38,6 +39,7 @@ import {
   modelObject,
   placeSavedObjects,
   planTabletopDecks,
+  rulebookObject,
   THREAT_CARD_MM
 } from './tabletop-simulator';
 import type {
@@ -238,6 +240,21 @@ async function writeAsset(
 ): Promise<string> {
   const contentType = blob.type || (extension === 'png' ? 'image/png' : 'application/octet-stream');
   return writeBytes(files, taken, base, extension, contentType, await bytesOf(blob));
+}
+
+async function rulebookFor(
+  book: Rulebook,
+  base: string,
+  index: number,
+  urlFor: (path: string) => string,
+  files: TtsHostedAsset[],
+  taken: Set<string>
+): Promise<object> {
+  const response = await fetch(book.source);
+  if (!response.ok) throw new Error(`Could not read ${book.name}.`);
+  const pdf = new Blob([await response.blob()], { type: 'application/pdf' });
+  const path = await writeAsset(files, taken, base, 'pdf', pdf);
+  return rulebookObject(book.name, urlFor(path), index);
 }
 
 /** Read the ObjectStates out of a saved-object file, or `null` if it has none. */
@@ -624,7 +641,9 @@ ${set.threat.enabled ? '  The threat track, as a single wide card.\n' : ''}${
     set.figures.length > 0
       ? `  ${set.figures.length} ${set.figures.length === 1 ? 'component' : 'components'}, behind the piles.\n`
       : ''
-  }
+  }${set.rulebooks.length > 0
+    ? `  ${set.rulebooks.length} ${set.rulebooks.length === 1 ? 'rulebook PDF' : 'rulebook PDFs'}, as Custom PDF objects.\n`
+    : ''}
 One pile per figure, rather than one pile of everything: an Adventures figure's
 cards are authored in separate decks but played as one. Initiative and event
 cards are their own piles because they are a different size — Tabletop
@@ -818,6 +837,16 @@ export async function exportTabletopSimulator(
         online
       ))
     );
+  }
+  for (const book of set.rulebooks) {
+    components.push(await rulebookFor(
+      book,
+      `rulebooks/${slugify(book.name, 'rulebook')}`,
+      components.length,
+      urlFor,
+      files,
+      taken
+    ));
   }
 
   const saveName = `${slugify(set.name, 'adventure-set')}.json`;
@@ -1062,6 +1091,16 @@ export async function exportCollectionBundle(
             online
           ))
         );
+      }
+      for (const book of member.set.rulebooks) {
+        components.push(await rulebookFor(
+          book,
+          `rulebooks/${slugify(member.set.name, 'set')}/${slugify(book.name, 'rulebook')}`,
+          components.length,
+          urlFor,
+          files,
+          taken
+        ));
       }
 
       built.push({ author: member.author, set: member.set, decks, components });

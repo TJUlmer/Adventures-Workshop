@@ -8,6 +8,7 @@ import type { Figure } from '$lib/figures/types';
 import type { AdventureMap } from '$lib/map/types';
 import type { CustomSymbol } from '$lib/symbols/types';
 import type { ThreatTrack } from '$lib/threat/types';
+import type { Rulebook } from './rulebooks';
 
 export type SetId = Id<'Set'>;
 
@@ -449,10 +450,13 @@ export type SetId = Id<'Set'>;
  *      the expanded enum; the bump prevents an older build from repairing a
  *      newer hybrid choice to `null` and silently discarding it.
  *
+ * v63 — a set gained finished PDF rulebooks. Older sets open with none; older
+ *      builds cannot silently discard an attached book on save.
+ *
  * Older documents are *repaired*, not rejected — see `sets/normalize.ts`. Only
  * a version newer than this build understands is refused.
  */
-export const SET_SCHEMA_VERSION = 62;
+export const SET_SCHEMA_VERSION = 63;
 
 /**
  * What a set is for.
@@ -581,6 +585,8 @@ export interface AdventureSet {
   map: AdventureMap;
   /** Miniatures, tokens and other physical components. */
   figures: Figure[];
+  /** Finished PDF rulebooks included with this set. */
+  rulebooks: Rulebook[];
   /** Author-uploaded glyphs, insertable inline in ability text and rich text. */
   customSymbols: CustomSymbol[];
   /** Box art, shown on the set's home page. */

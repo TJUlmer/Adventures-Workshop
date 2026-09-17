@@ -96,6 +96,7 @@ import {
   createThreatTrack
 } from '$lib/threat/types';
 import { SET_KINDS } from './types';
+import { isRulebookSource } from './rulebooks';
 import type { AdventureSet, SetKind, SetOrigin } from './types';
 
 /** Anything loaded from JSON is untrusted shape-wise. */
@@ -1053,6 +1054,15 @@ export function normalizeSet(value: AdventureSet): AdventureSet {
     threat: threatTrack(raw['threat']),
     map: adventureMap(raw['map'], num(raw['schemaVersion'], 0) < 46),
     figures: (Array.isArray(raw['figures']) ? raw['figures'] : []).map(figure),
+    rulebooks: (Array.isArray(raw['rulebooks']) ? raw['rulebooks'] : [])
+      .map(asRecord)
+      .filter((book) => typeof book['id'] === 'string' && isRulebookSource(book['source']))
+      .map((book) => ({
+        id: book['id'] as never,
+        name: str(book['name'], 'Rulebook'),
+        source: book['source'] as string,
+        size: Math.max(0, num(book['size'], 0))
+      })),
     customSymbols: (Array.isArray(raw['customSymbols']) ? raw['customSymbols'] : []).map(
       customSymbol
     ),
@@ -1060,5 +1070,5 @@ export function normalizeSet(value: AdventureSet): AdventureSet {
     initiativeBack: artwork(raw['initiativeBack']),
     useInitiativeBack: bool(raw['useInitiativeBack'], false),
     origin: origin(raw['origin'])
-  } as AdventureSet;
+  } as unknown as AdventureSet;
 }

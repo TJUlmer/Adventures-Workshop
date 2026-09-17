@@ -36,11 +36,12 @@ import { deckLabel } from '$lib/decks/factory';
 import type { Deck } from '$lib/decks/types';
 import { figureLabel } from '$lib/figures/types';
 import type { Figure } from '$lib/figures/types';
+import type { Rulebook } from './rulebooks';
 import { hashEntity, SET_KEYS } from './fingerprint';
 import type { AdventureSet } from './types';
 
 /** Which collection an entry belongs to, so applying it knows where to look. */
-export type EntityKind = 'card' | 'deck' | 'character' | 'figure' | 'set';
+export type EntityKind = 'card' | 'deck' | 'character' | 'figure' | 'rulebook' | 'set';
 
 export type ChangeKind = 'added' | 'changed' | 'removed';
 
@@ -90,7 +91,8 @@ const PREFIXES: readonly [string, EntityKind][] = [
   ['card_', 'card'],
   ['deck_', 'deck'],
   ['char_', 'character'],
-  ['fig_', 'figure']
+  ['fig_', 'figure'],
+  ['book_', 'rulebook']
 ];
 
 export function kindOf(key: string): EntityKind | null {
@@ -122,7 +124,8 @@ export function readEntity(set: AdventureSet, key: string): unknown {
     set.cards.find((card) => card.id === key) ??
     set.decks.find((deck) => deck.id === key) ??
     set.characters.find((character) => character.id === key) ??
-    set.figures.find((figure) => figure.id === key)
+    set.figures.find((figure) => figure.id === key) ??
+    set.rulebooks.find((book) => book.id === key)
   );
 }
 
@@ -152,6 +155,8 @@ function displayName(set: AdventureSet, key: string, value: unknown): string | n
       const owner = set.characters.find((entry) => entry.id === figure.characterId);
       return figureLabel(figure, owner ? characterLabel(owner) : null);
     }
+    case 'rulebook':
+      return (value as Rulebook).name;
     default:
       return null;
   }
@@ -228,7 +233,8 @@ export function buildChangeSet(set: AdventureSet): ChangeEntry[] {
     ...set.characters.map((entry): [string, unknown] => [entry.id, entry]),
     ...set.decks.map((entry): [string, unknown] => [entry.id, entry]),
     ...set.cards.map((entry): [string, unknown] => [entry.id, entry]),
-    ...set.figures.map((entry): [string, unknown] => [entry.id, entry])
+    ...set.figures.map((entry): [string, unknown] => [entry.id, entry]),
+    ...set.rulebooks.map((entry): [string, unknown] => [entry.id, entry])
   ];
 
   for (const [key, value] of additions) {
@@ -238,7 +244,7 @@ export function buildChangeSet(set: AdventureSet): ChangeEntry[] {
     entries.push({ key, kind, change: 'added', label: labelFor(set, key, value), value, baseHash: null });
   }
 
-  const order: EntityKind[] = ['set', 'character', 'deck', 'card', 'figure'];
+  const order: EntityKind[] = ['set', 'character', 'deck', 'card', 'figure', 'rulebook'];
   return entries.sort((a, b) => order.indexOf(a.kind) - order.indexOf(b.kind));
 }
 
@@ -329,6 +335,9 @@ export function applyEntries(set: AdventureSet, entries: readonly ChangeEntry[])
         case 'figure':
           next = { ...next, figures: next.figures.filter((figure) => figure.id !== entry.key) };
           break;
+        case 'rulebook':
+          next = { ...next, rulebooks: next.rulebooks.filter((book) => book.id !== entry.key) };
+          break;
         case 'set':
           // There is no such thing as removing the threat track or the box art;
           // an offer to clear one arrives as a change to an empty value.
@@ -352,6 +361,9 @@ export function applyEntries(set: AdventureSet, entries: readonly ChangeEntry[])
         break;
       case 'figure':
         next = { ...next, figures: replaceById(next.figures, value as Figure) };
+        break;
+      case 'rulebook':
+        next = { ...next, rulebooks: replaceById(next.rulebooks, value as Rulebook) };
         break;
       case 'set':
         next = applySetPart(next, entry.key, value as Record<string, unknown>);

@@ -104,6 +104,7 @@
   const hasCustomizableContent = $derived(
     scopedSet.decks.length > 0 ||
       scopedSet.figures.length > 0 ||
+      scopedSet.rulebooks.length > 0 ||
       scopedSet.threat.enabled ||
       scopedSet.map.enabled
   );

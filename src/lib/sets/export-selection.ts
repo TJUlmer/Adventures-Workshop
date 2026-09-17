@@ -23,12 +23,14 @@
 import type { CharacterId } from '$lib/characters/types';
 import type { DeckId } from '$lib/decks/types';
 import type { FigureId } from '$lib/figures/types';
+import type { RulebookId } from './rulebooks';
 import { normalizeSet } from './normalize';
 import type { AdventureSet } from './types';
 
 export interface ExportSelection {
   excludedDeckIds: ReadonlySet<DeckId>;
   excludedFigureIds: ReadonlySet<FigureId>;
+  excludedRulebookIds: ReadonlySet<RulebookId>;
   /** Ignored when the set's own `threat.enabled` is already `false`. */
   includeThreat: boolean;
   /** Ignored when the set's own `map.enabled` is already `false`. */
@@ -39,6 +41,7 @@ export function defaultExportSelection(): ExportSelection {
   return {
     excludedDeckIds: new Set(),
     excludedFigureIds: new Set(),
+    excludedRulebookIds: new Set(),
     includeThreat: true,
     includeMap: true
   };
@@ -49,6 +52,7 @@ export function isExportSelectionActive(selection: ExportSelection): boolean {
   return (
     selection.excludedDeckIds.size > 0 ||
     selection.excludedFigureIds.size > 0 ||
+    selection.excludedRulebookIds.size > 0 ||
     !selection.includeThreat ||
     !selection.includeMap
   );
@@ -81,12 +85,14 @@ export function applyExportSelection(set: AdventureSet, selection: ExportSelecti
   const keptDeckIds = new Set(decks.map((deck) => deck.id));
   const cards = set.cards.filter((card) => keptDeckIds.has(card.deckId));
   const figures = set.figures.filter((figure) => !selection.excludedFigureIds.has(figure.id));
+  const rulebooks = set.rulebooks.filter((book) => !selection.excludedRulebookIds.has(book.id));
 
   return normalizeSet({
     ...set,
     decks,
     cards,
     figures,
+    rulebooks,
     threat: selection.includeThreat ? set.threat : { ...set.threat, enabled: false },
     map: selection.includeMap ? set.map : { ...set.map, enabled: false }
   });

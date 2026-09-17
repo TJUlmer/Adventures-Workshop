@@ -261,7 +261,7 @@
           {/each}
 
           <button type="button" class="tile" onclick={() => navigation.go('figures')}>
-            <span class="tile-count numeric">{set.figures.length}</span>
+            <span class="tile-count numeric">{set.figures.length + set.rulebooks.length}</span>
             <span class="tile-label">Components</span>
           </button>
 

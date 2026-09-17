@@ -124,6 +124,7 @@ function heroSlice(set: AdventureSet, characterId: CharacterId): AdventureSet {
     decks: decksForCharacter(set, characterId),
     cards: cardsForCharacter(set, characterId),
     figures: figuresForCharacter(set, characterId),
+    rulebooks: [],
     threat: createThreatTrack(),
     map: createAdventureMap(),
     boxArt: createArtwork(),
@@ -167,6 +168,7 @@ function villainSlice(set: AdventureSet): AdventureSet {
     decks,
     cards,
     figures,
+    rulebooks: [],
     /*
      * Box art is dropped from every scoped document, in both directions —
      * not just a content call. `cloud/thumbnail.ts`'s `coverArtwork()` tries

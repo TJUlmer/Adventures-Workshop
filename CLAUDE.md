@@ -2718,7 +2718,7 @@ a data URL is an address like any other to the sheet renderer.
 
 ### Schema
 
-`SET_SCHEMA_VERSION` (currently 62) is checked on import; newer files are
+`SET_SCHEMA_VERSION` (currently 63) is checked on import; newer files are
 refused. There is no migration ladder — `sets/normalize.ts` repairs on load,
 filling absent fields from the factories. **Any new persisted field needs a
 branch there**, or existing documents load without it. Absent is meaningfully

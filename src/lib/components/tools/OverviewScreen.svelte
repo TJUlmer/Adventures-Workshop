@@ -54,7 +54,7 @@
       <div class="heading">
         <span class="eyebrow">Set tool</span>
         <h1>Overview</h1>
-        <p>Every card, board, and physical component in the set.</p>
+        <p>Every card, board, component, and rulebook in the set.</p>
       </div>
 
       <div class="summary" aria-label="Visible set totals">
@@ -62,6 +62,7 @@
         <span><b class="numeric">{stats.cardCount}</b> designs</span>
         <span><b class="numeric">{stats.printCount}</b> to print</span>
         <span><b class="numeric">{shown.figures.length}</b> components</span>
+        <span><b class="numeric">{shown.rulebooks.length}</b> rulebooks</span>
       </div>
 
       <div class="review-controls">

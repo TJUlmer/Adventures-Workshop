@@ -69,13 +69,41 @@
     TextInput
   } from '$lib/ui';
   import ModelViewer from './ModelViewer.svelte';
+  import RulebookLinks from './RulebookLinks.svelte';
 
   const set = $derived(workshop.adventure);
   const figures = $derived(set.figures);
+  const rulebooks = $derived(set.rulebooks);
 
   let refInputs: Record<string, HTMLInputElement | null> = $state({});
   let modelInputs: Record<string, HTMLInputElement | null> = $state({});
   let error = $state<string | null>(null);
+  let addingRulebook = $state(false);
+
+  async function addRulebooks(event: Event): Promise<void> {
+    const input = event.currentTarget as HTMLInputElement;
+    const files = [...(input.files ?? [])];
+    input.value = '';
+    error = null;
+    addingRulebook = true;
+    try {
+      for (const file of files) {
+        const signature = new TextDecoder().decode((await file.slice(0, 5).arrayBuffer()));
+        if (signature !== '%PDF-') throw new Error(`${file.name} is not a PDF file.`);
+        const source = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(String(reader.result));
+          reader.onerror = () => reject(new Error(`Could not read ${file.name}.`));
+          reader.readAsDataURL(new Blob([file], { type: 'application/pdf' }));
+        });
+        workshop.addRulebook(file.name.replace(/\.pdf$/i, ''), source, file.size);
+      }
+    } catch (cause) {
+      error = cause instanceof Error ? cause.message : 'Could not attach the PDF.';
+    } finally {
+      addingRulebook = false;
+    }
+  }
 
   const characterOptions = $derived([
     { value: '', label: 'Not tied to a character' },
@@ -661,7 +689,7 @@
     <div>
       <span class="eyebrow">Set tool</span>
       <h1 class="title">Components</h1>
-      <p class="lede">Miniatures, tokens and anything else that goes in the box.</p>
+      <p class="lede">Miniatures, tokens, rulebooks and anything else that goes in the box.</p>
     </div>
 
     <div class="head-actions">
@@ -704,10 +732,43 @@
 
   {#if error}<p class="error">{error}</p>{/if}
 
+  <section class="rulebooks">
+    <div class="rulebook-heading">
+      <div>
+        <h2>Rulebook PDFs</h2>
+        <p class="hint">Attach finished rulebooks for readers and Tabletop Simulator.</p>
+      </div>
+      <label class="rulebook-upload">
+        <Icon name="plus" size={13} />
+        {addingRulebook ? 'Adding…' : 'Add PDF'}
+        <input type="file" accept=".pdf,application/pdf" multiple disabled={addingRulebook} onchange={addRulebooks} />
+      </label>
+    </div>
+    {#if rulebooks.length > 0}
+      <ul class="rulebook-list">
+        {#each rulebooks as book (book.id)}
+          <li class="rulebook-row">
+            <label class="field">
+              <span class="field-label">Name</span>
+              <TextInput value={book.name} oninput={(event) => workshop.editRulebook(book.id, (entry) => (entry.name = event.currentTarget.value))} />
+            </label>
+            <span class="rulebook-size">{(book.size / 1024 / 1024).toFixed(1)} MB</span>
+            <span class="rulebook-links"><RulebookLinks {book} /></span>
+            <button type="button" class="ghost remove" aria-label="Remove {book.name}" onclick={() => workshop.removeRulebook(book.id)}>
+              <Icon name="trash" size={13} />
+            </button>
+          </li>
+        {/each}
+      </ul>
+    {:else}
+      <p class="hint">No rulebook PDF attached yet.</p>
+    {/if}
+  </section>
+
   {#if figures.length === 0}
     <EmptyState
       icon="users"
-      title="No components listed"
+      title="No figures or tokens listed"
       description="Track the miniatures and tokens your adventure needs, with reference art and model files."
     >
       {#snippet actions()}
@@ -1484,6 +1545,43 @@
 </div>
 
 <style>
+  .rulebooks {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+    max-width: 880px;
+    padding: var(--space-5);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-lg);
+    background: var(--surface-base);
+  }
+
+  .rulebook-heading,
+  .rulebook-row,
+  .rulebook-links {
+    display: flex;
+    align-items: center;
+    gap: var(--space-4);
+  }
+
+  .rulebook-heading { justify-content: space-between; }
+  .rulebook-heading h2 { margin: 0; font-size: var(--text-lg); }
+  .rulebook-heading p { margin: var(--space-1) 0 0; }
+  .rulebook-upload {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    cursor: pointer;
+    white-space: nowrap;
+    color: var(--text-accent, var(--text-secondary));
+  }
+  .rulebook-upload:focus-within { border-radius: var(--radius-sm); box-shadow: var(--focus-ring); }
+  .rulebook-upload input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+  .rulebook-list { display: flex; flex-direction: column; gap: var(--space-3); margin: 0; padding: 0; list-style: none; }
+  .rulebook-row { flex-wrap: wrap; padding-top: var(--space-3); border-top: 1px solid var(--border-subtle); }
+  .rulebook-row .field { flex: 1 1 220px; }
+  .rulebook-size { font-size: var(--text-xs); color: var(--text-muted); }
+  .rulebook-links { font-size: var(--text-sm); }
   .page {
     flex: 1 1 auto;
     min-height: 0;

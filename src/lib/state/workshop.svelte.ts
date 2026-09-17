@@ -72,6 +72,7 @@ import type {
 import { createActionDeck, createDeck } from '$lib/decks/factory';
 import type { Figure, FigureId, FigureKind } from '$lib/figures/types';
 import { createFigure } from '$lib/figures/types';
+import type { Rulebook, RulebookId } from '$lib/sets/rulebooks';
 import type { CustomSymbol, CustomSymbolId } from '$lib/symbols/types';
 import { createCustomSymbol } from '$lib/symbols/types';
 import { getLastWriteError, readStorageEstimate } from '$lib/storage/indexeddb';
@@ -1018,6 +1019,25 @@ export class WorkshopStore {
     if (!figure) return;
     mutate(figure);
     figure.updatedAt = now();
+    this.touch();
+  }
+
+  // -- Rulebook PDFs ----------------------------------------------------
+
+  addRulebook(name: string, source: string, size: number): void {
+    this.adventure.rulebooks.push({ id: createId<RulebookId>('book'), name, source, size });
+    this.touch();
+  }
+
+  editRulebook(id: RulebookId, mutate: (book: Rulebook) => void): void {
+    const book = this.adventure.rulebooks.find((entry) => entry.id === id);
+    if (!book) return;
+    mutate(book);
+    this.touch();
+  }
+
+  removeRulebook(id: RulebookId): void {
+    this.adventure.rulebooks = this.adventure.rulebooks.filter((book) => book.id !== id);
     this.touch();
   }
 

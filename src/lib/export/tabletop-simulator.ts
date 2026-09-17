@@ -697,6 +697,30 @@ export function modelObject(component: TtsModelComponent, index: number): object
   };
 }
 
+/** A finished rulebook on the table, using TTS's Custom PDF object. */
+export function rulebookObject(name: string, pdfUrl: string, index: number): object {
+  return {
+    Name: 'Custom_PDF',
+    Transform: {
+      posX: index * 2,
+      posY: 1,
+      posZ: COMPONENT_ROW_Z,
+      rotX: 0,
+      rotY: 0,
+      rotZ: 0,
+      scaleX: 1,
+      scaleY: 1,
+      scaleZ: 1
+    },
+    Nickname: name,
+    Description: '',
+    ...OBJECT_DEFAULTS,
+    Hands: false,
+    HideWhenFaceDown: false,
+    CustomPDF: { PDFUrl: pdfUrl, PDFPassword: '', PDFPage: 0, PDFPageOffset: 0 }
+  };
+}
+
 /**
  * Objects lifted out of a saved object the author attached, moved into the row.
  *

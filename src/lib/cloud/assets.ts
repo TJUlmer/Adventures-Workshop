@@ -58,7 +58,8 @@ const EXTENSIONS: Readonly<Record<string, string>> = {
   'image/avif': 'avif',
   'model/obj': 'obj',
   'text/plain': 'txt',
-  'application/json': 'json'
+  'application/json': 'json',
+  'application/pdf': 'pdf'
 };
 
 export function extensionFor(contentType: string): string {

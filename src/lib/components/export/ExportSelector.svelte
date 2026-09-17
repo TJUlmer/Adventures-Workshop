@@ -20,6 +20,7 @@
   import type { AdventureSet, DeckEntry } from '$lib/sets/types';
   import { figureLabel } from '$lib/figures/types';
   import type { FigureId } from '$lib/figures/types';
+  import type { RulebookId } from '$lib/sets/rulebooks';
   import { Button, Switch } from '$lib/ui';
 
   interface Props {
@@ -61,6 +62,13 @@
     if (checked) next.delete(id);
     else next.add(id);
     onchange({ ...selection, excludedFigureIds: next });
+  }
+
+  function toggleRulebook(id: RulebookId, checked: boolean): void {
+    const next = new Set(selection.excludedRulebookIds);
+    if (checked) next.delete(id);
+    else next.add(id);
+    onchange({ ...selection, excludedRulebookIds: next });
   }
 </script>
 
@@ -153,7 +161,7 @@
         </section>
       {/if}
 
-      {#if set.figures.length > 0}
+      {#if set.figures.length > 0 || set.rulebooks.length > 0}
         <section class="group">
           <h3 class="group-title">Components</h3>
           {#each set.figures as figure (figure.id)}
@@ -162,6 +170,14 @@
               label={figureLabel(figure, owner ? characterLabel(owner) : null)}
               checked={!selection.excludedFigureIds.has(figure.id)}
               onchange={(checked) => toggleFigure(figure.id, checked)}
+            />
+          {/each}
+          {#each set.rulebooks as book (book.id)}
+            <Switch
+              label={book.name}
+              hint="Rulebook PDF"
+              checked={!selection.excludedRulebookIds.has(book.id)}
+              onchange={(checked) => toggleRulebook(book.id, checked)}
             />
           {/each}
         </section>

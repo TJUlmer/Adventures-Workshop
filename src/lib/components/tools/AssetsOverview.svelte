@@ -41,6 +41,7 @@
   import { EmptyState, Icon } from '$lib/ui';
   import { GALLERY_CARD_SIZE } from './gallery-inspection';
   import type { GalleryCardItem, GalleryCardSide } from './gallery-inspection';
+  import RulebookLinks from './RulebookLinks.svelte';
 
   interface Props {
     /** The set to lay out. The open one unless another is handed in. */
@@ -421,10 +422,11 @@
 
   const hasContent = $derived(
     figuresOnly
-      ? set.figures.length > 0
+      ? set.figures.length > 0 || set.rulebooks.length > 0
       : set.characters.length > 0 ||
           set.cards.length > 0 ||
           set.figures.length > 0 ||
+          set.rulebooks.length > 0 ||
           set.threat.enabled ||
           set.map.enabled
   );
@@ -789,7 +791,7 @@
           <h1 class="title">{figuresOnly ? 'Components' : 'Overview'}</h1>
           <p class="lede">
             {figuresOnly
-              ? 'Every published miniature, token, and dial in the set.'
+              ? 'Every published miniature, token, dial, and rulebook in the set.'
               : 'Every card, board, and physical component in the set.'}
           </p>
         </div>
@@ -947,6 +949,27 @@
     </section>
   {/if}
 
+  {#if set.rulebooks.length > 0}
+    <section class="showcase" id={anchorId('rulebooks')}>
+      <header class="section-heading">
+        <div>
+          <span class="section-kicker">Read and play</span>
+          <h2>Rulebook PDFs</h2>
+        </div>
+        <span class="section-count numeric">{set.rulebooks.length}</span>
+      </header>
+      <ul class="rulebook-list">
+        {#each set.rulebooks as book (book.id)}
+          <li class="rulebook">
+            <Icon name="book" size={20} />
+            <span class="rulebook-name">{book.name}</span>
+            <span class="rulebook-links"><RulebookLinks {book} /></span>
+          </li>
+        {/each}
+      </ul>
+    </section>
+  {/if}
+
   {#if !figuresOnly && set.characters.length > 0}
     <section class="collections">
       <header class="section-heading collection-heading">
@@ -1043,6 +1066,10 @@
 {/if}
 
 <style>
+  .rulebook-list { display: flex; flex-direction: column; gap: var(--space-3); margin: 0; padding: 0; list-style: none; }
+  .rulebook { display: flex; align-items: center; gap: var(--space-3); flex-wrap: wrap; padding: var(--space-3); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); }
+  .rulebook-name { flex: 1 1 180px; font-weight: var(--weight-semibold); overflow-wrap: anywhere; }
+  .rulebook-links { display: flex; gap: var(--space-4); font-size: var(--text-sm); }
   .page {
     flex: 1 1 auto;
     min-height: 0;
