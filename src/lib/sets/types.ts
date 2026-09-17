@@ -9,6 +9,7 @@ import type { AdventureMap } from '$lib/map/types';
 import type { CustomSymbol } from '$lib/symbols/types';
 import type { ThreatTrack } from '$lib/threat/types';
 import type { Rulebook } from './rulebooks';
+import type { PresentationBox } from './box';
 
 export type SetId = Id<'Set'>;
 
@@ -453,10 +454,14 @@ export type SetId = Id<'Set'>;
  * v63 — a set gained finished PDF rulebooks. Older sets open with none; older
  *      builds cannot silently discard an attached book on save.
  *
+ * v64 — a set gained an optional presentation box for Tabletop Simulator.
+ * v65 — the presentation box gained an optional six-face texture image.
+ *      Older sets keep their existing flat export until an author adds one.
+ *
  * Older documents are *repaired*, not rejected — see `sets/normalize.ts`. Only
  * a version newer than this build understands is refused.
  */
-export const SET_SCHEMA_VERSION = 63;
+export const SET_SCHEMA_VERSION = 65;
 
 /**
  * What a set is for.
@@ -587,6 +592,8 @@ export interface AdventureSet {
   figures: Figure[];
   /** Finished PDF rulebooks included with this set. */
   rulebooks: Rulebook[];
+  /** Optional presentation bag in Tabletop Simulator, not a game piece. */
+  box: PresentationBox;
   /** Author-uploaded glyphs, insertable inline in ability text and rich text. */
   customSymbols: CustomSymbol[];
   /** Box art, shown on the set's home page. */

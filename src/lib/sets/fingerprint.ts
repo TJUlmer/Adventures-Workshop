@@ -169,6 +169,7 @@ export const SET_KEYS = {
   threat: 'set:threat',
   map: 'set:map',
   boxArt: 'set:boxArt',
+  box: 'set:box',
   initiativeBack: 'set:initiativeBack'
 } as const;
 
@@ -192,6 +193,7 @@ export function fingerprintSet(set: AdventureSet): Record<string, string> {
     [SET_KEYS.threat]: hashEntity(set.threat),
     [SET_KEYS.map]: hashEntity(set.map),
     [SET_KEYS.boxArt]: hashEntity(set.boxArt),
+    [SET_KEYS.box]: hashEntity(set.box),
     [SET_KEYS.initiativeBack]: hashEntity({
       artwork: set.initiativeBack,
       used: set.useInitiativeBack

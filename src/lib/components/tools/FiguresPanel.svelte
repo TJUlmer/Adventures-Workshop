@@ -12,6 +12,7 @@
   import { hasArtwork } from '$lib/core/artwork';
   import { readArtworkFile } from '$lib/core/image-import';
   import { saveExport, slugify } from '$lib/export';
+  import { BOX_SKIN_HEIGHT, BOX_SKIN_WIDTH } from '$lib/export/tts-box';
   import {
     buildTokenPreviewMesh,
     exportTokenModel,
@@ -56,6 +57,7 @@
     tokenFaceAspect
   } from '$lib/models/token';
   import { workshop } from '$lib/state/workshop.svelte';
+  import { usesAutomaticBoxArt } from '$lib/sets/box-art';
   import {
     Button,
     ColorInput,
@@ -78,7 +80,43 @@
   let refInputs: Record<string, HTMLInputElement | null> = $state({});
   let modelInputs: Record<string, HTMLInputElement | null> = $state({});
   let error = $state<string | null>(null);
+  let boxSkinInput: HTMLInputElement | null = $state(null);
   let addingRulebook = $state(false);
+  let openedRulebookSetId = $state<string | null>(null);
+  const showRulebooks = $derived(openedRulebookSetId === set.id);
+
+  async function pickBoxSkin(event: Event): Promise<void> {
+    const input = event.currentTarget as HTMLInputElement;
+    const file = input.files?.[0];
+    input.value = '';
+    if (!file) return;
+    error = null;
+    if (!['image/png', 'image/jpeg'].includes(file.type)) {
+      error = 'Export the PSD as a PNG or JPEG before attaching it.';
+      return;
+    }
+    if (file.size > 20 * 1024 * 1024) {
+      error = 'Keep the flattened box skin under 20 MB.';
+      return;
+    }
+    const url = URL.createObjectURL(file);
+    try {
+      const dimensions = await new Promise<{ width: number; height: number }>((resolve, reject) => {
+        const image = new Image();
+        image.onload = () => resolve({ width: image.naturalWidth, height: image.naturalHeight });
+        image.onerror = () => reject(new Error('Could not read the box skin image.'));
+        image.src = url;
+      });
+      if (dimensions.width !== BOX_SKIN_WIDTH || dimensions.height !== BOX_SKIN_HEIGHT) {
+        throw new Error(`The box skin must be ${BOX_SKIN_WIDTH} × ${BOX_SKIN_HEIGHT} pixels. Export the PSD at its original size.`);
+      }
+      workshop.setBoxSkin({ source: await readAsDataUrl(file), label: file.name });
+    } catch (cause) {
+      error = cause instanceof Error ? cause.message : 'Could not attach the box skin.';
+    } finally {
+      URL.revokeObjectURL(url);
+    }
+  }
 
   async function addRulebooks(event: Event): Promise<void> {
     const input = event.currentTarget as HTMLInputElement;
@@ -726,44 +764,87 @@
             {kind.label}
           </Button>
         {/each}
+        <Button size="sm" disabled={set.box.enabled} onclick={() => workshop.setBoxEnabled(true)}>
+          <Icon name="plus" size={13} />
+          Box
+        </Button>
+        <Button size="sm" disabled={showRulebooks || rulebooks.length > 0} onclick={() => (openedRulebookSetId = set.id)}>
+          <Icon name="plus" size={13} />
+          PDF
+        </Button>
       </div>
     </div>
   </header>
 
   {#if error}<p class="error">{error}</p>{/if}
 
-  <section class="rulebooks">
-    <div class="rulebook-heading">
+  {#if set.box.enabled}
+    <section class="presentation-box">
+      <Icon name="box" size={28} />
       <div>
-        <h2>Rulebook PDFs</h2>
-        <p class="hint">Attach finished rulebooks for readers and Tabletop Simulator.</p>
+        <h2>Presentation box</h2>
+        <p>This rectangular box houses all the set’s cards, boards, pieces and rulebook PDFs in Tabletop Simulator. It is purely for presentation and does not affect gameplay.</p>
+        <p class="hint">When exported, open the box in TTS to take out its contents.</p>
+        <div class="box-skin">
+          <p class="box-skin-title">Box skin</p>
+          <p class="hint">The PSD marks the front, four sides and back. Hide its Guides layer, then export a {BOX_SKIN_WIDTH} × {BOX_SKIN_HEIGHT} PNG or JPEG to attach here.</p>
+          <div class="box-skin-actions">
+            <a class="skin-link" href="https://drive.google.com/file/d/1OjlXKhatBE12FXfv8B3GctTHFQxGl-p9/view?usp=sharing" target="_blank" rel="noreferrer noopener">
+              <Icon name="download" size={12} />
+              Open PSD template
+            </a>
+            <a class="skin-link" href="/assets/templates/box_skin_guide.png" target="_blank" rel="noreferrer noopener">Preview layout</a>
+            <input bind:this={boxSkinInput} class="sr-only" type="file" accept="image/png,image/jpeg,.png,.jpg,.jpeg" onchange={pickBoxSkin} />
+            <Button size="sm" onclick={() => boxSkinInput?.click()}>{set.box.skin ? 'Replace skin' : 'Attach skin'}</Button>
+            {#if set.box.skin}
+              <Button size="sm" onclick={() => workshop.setBoxSkin(null)}>Remove skin</Button>
+            {/if}
+          </div>
+          {#if set.box.skin}
+            <p class="hint">Using {set.box.skin.label} on all six faces.</p>
+          {:else}
+            <p class="hint">{set.boxArt.source || usesAutomaticBoxArt(set) ? 'With no skin attached, the TTS export uses the set’s box art from Settings on the front and leaves the four sides and back plain.' : 'With no skin or box art in Settings, the TTS export leaves the entire box plain.'}</p>
+          {/if}
+        </div>
       </div>
-      <label class="rulebook-upload">
-        <Icon name="plus" size={13} />
-        {addingRulebook ? 'Adding…' : 'Add PDF'}
-        <input type="file" accept=".pdf,application/pdf" multiple disabled={addingRulebook} onchange={addRulebooks} />
-      </label>
-    </div>
-    {#if rulebooks.length > 0}
-      <ul class="rulebook-list">
-        {#each rulebooks as book (book.id)}
-          <li class="rulebook-row">
-            <label class="field">
-              <span class="field-label">Name</span>
-              <TextInput value={book.name} oninput={(event) => workshop.editRulebook(book.id, (entry) => (entry.name = event.currentTarget.value))} />
-            </label>
-            <span class="rulebook-size">{(book.size / 1024 / 1024).toFixed(1)} MB</span>
-            <span class="rulebook-links"><RulebookLinks {book} /></span>
-            <button type="button" class="ghost remove" aria-label="Remove {book.name}" onclick={() => workshop.removeRulebook(book.id)}>
-              <Icon name="trash" size={13} />
-            </button>
-          </li>
-        {/each}
-      </ul>
-    {:else}
-      <p class="hint">No rulebook PDF attached yet.</p>
-    {/if}
-  </section>
+      <Button size="sm" onclick={() => workshop.setBoxEnabled(false)}>Remove box</Button>
+    </section>
+  {/if}
+
+  {#if showRulebooks || rulebooks.length > 0}
+    <section class="rulebooks">
+      <div class="rulebook-heading">
+        <div>
+          <h2>Rulebook PDFs</h2>
+          <p class="hint">Attach finished rulebooks for readers and Tabletop Simulator.</p>
+        </div>
+        <label class="rulebook-upload">
+          <Icon name="plus" size={13} />
+          {addingRulebook ? 'Adding…' : 'Add PDF'}
+          <input type="file" accept=".pdf,application/pdf" multiple disabled={addingRulebook} onchange={addRulebooks} />
+        </label>
+      </div>
+      {#if rulebooks.length > 0}
+        <ul class="rulebook-list">
+          {#each rulebooks as book (book.id)}
+            <li class="rulebook-row">
+              <label class="field">
+                <span class="field-label">Name</span>
+                <TextInput value={book.name} oninput={(event) => workshop.editRulebook(book.id, (entry) => (entry.name = event.currentTarget.value))} />
+              </label>
+              <span class="rulebook-size">{(book.size / 1024 / 1024).toFixed(1)} MB</span>
+              <span class="rulebook-links"><RulebookLinks {book} /></span>
+              <button type="button" class="ghost remove" aria-label="Remove {book.name}" onclick={() => workshop.removeRulebook(book.id)}>
+                <Icon name="trash" size={13} />
+              </button>
+            </li>
+          {/each}
+        </ul>
+      {:else}
+        <p class="hint">No rulebook PDF attached yet.</p>
+      {/if}
+    </section>
+  {/if}
 
   {#if figures.length === 0}
     <EmptyState
@@ -1545,6 +1626,26 @@
 </div>
 
 <style>
+  .presentation-box {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-4);
+    max-width: 880px;
+    padding: var(--space-5);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-lg);
+    background: var(--surface-base);
+  }
+
+  .presentation-box > div { flex: 1 1 auto; min-width: 0; }
+  .presentation-box h2 { margin: 0 0 var(--space-2); font-size: var(--text-lg); }
+  .presentation-box p { margin: 0 0 var(--space-2); font-size: var(--text-sm); color: var(--text-secondary); }
+  .presentation-box .hint { font-size: var(--text-xs); color: var(--text-muted); }
+  .box-skin { margin-top: var(--space-4); }
+  .box-skin .box-skin-title { margin-bottom: var(--space-1); font-weight: var(--weight-semibold); color: var(--text-primary); }
+  .box-skin-actions { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-3); margin-block: var(--space-2); }
+  .box-skin-actions .skin-link { margin-top: 0; }
+  @media (max-width: 640px) { .presentation-box { flex-wrap: wrap; } }
   .rulebooks {
     display: flex;
     flex-direction: column;

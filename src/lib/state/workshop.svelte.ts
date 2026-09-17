@@ -1041,6 +1041,17 @@ export class WorkshopStore {
     this.touch();
   }
 
+  setBoxEnabled(enabled: boolean): void {
+    if (this.adventure.box.enabled === enabled) return;
+    this.adventure.box.enabled = enabled;
+    this.touch();
+  }
+
+  setBoxSkin(skin: AdventureSet['box']['skin']): void {
+    this.adventure.box.skin = skin;
+    this.touch();
+  }
+
   // -- Custom symbols -----------------------------------------------------
 
   addCustomSymbol(): CustomSymbol {

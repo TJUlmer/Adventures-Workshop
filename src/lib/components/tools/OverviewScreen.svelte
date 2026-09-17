@@ -61,7 +61,7 @@
         <span><b class="numeric">{stats.characterCount}</b> characters</span>
         <span><b class="numeric">{stats.cardCount}</b> designs</span>
         <span><b class="numeric">{stats.printCount}</b> to print</span>
-        <span><b class="numeric">{shown.figures.length}</b> components</span>
+        <span><b class="numeric">{shown.figures.length + Number(shown.box.enabled)}</b> components</span>
         <span><b class="numeric">{shown.rulebooks.length}</b> rulebooks</span>
       </div>
 

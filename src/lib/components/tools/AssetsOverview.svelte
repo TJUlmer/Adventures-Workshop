@@ -422,11 +422,12 @@
 
   const hasContent = $derived(
     figuresOnly
-      ? set.figures.length > 0 || set.rulebooks.length > 0
+      ? set.figures.length > 0 || set.rulebooks.length > 0 || set.box.enabled
       : set.characters.length > 0 ||
           set.cards.length > 0 ||
           set.figures.length > 0 ||
           set.rulebooks.length > 0 ||
+          set.box.enabled ||
           set.threat.enabled ||
           set.map.enabled
   );
@@ -949,6 +950,24 @@
     </section>
   {/if}
 
+  {#if set.box.enabled}
+    <section class="showcase" id={anchorId('box')}>
+      <header class="section-heading">
+        <div>
+          <span class="section-kicker">Presentation</span>
+          <h2>Box</h2>
+        </div>
+      </header>
+      <div class="box-summary">
+        <Icon name="box" size={28} />
+        <div>
+          <strong>Presentation box</strong>
+          <p>Houses the set’s TTS components for presentation. It has no effect on gameplay.</p>
+        </div>
+      </div>
+    </section>
+  {/if}
+
   {#if set.rulebooks.length > 0}
     <section class="showcase" id={anchorId('rulebooks')}>
       <header class="section-heading">
@@ -1066,6 +1085,9 @@
 {/if}
 
 <style>
+  .box-summary { display: flex; align-items: center; gap: var(--space-4); padding: var(--space-3); }
+  .box-summary strong { color: var(--text-primary); }
+  .box-summary p { margin: var(--space-1) 0 0; color: var(--text-muted); font-size: var(--text-sm); }
   .rulebook-list { display: flex; flex-direction: column; gap: var(--space-3); margin: 0; padding: 0; list-style: none; }
   .rulebook { display: flex; align-items: center; gap: var(--space-3); flex-wrap: wrap; padding: var(--space-3); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); }
   .rulebook-name { flex: 1 1 180px; font-weight: var(--weight-semibold); overflow-wrap: anywhere; }

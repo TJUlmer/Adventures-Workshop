@@ -114,6 +114,8 @@ export function readEntity(set: AdventureSet, key: string): unknown {
       return set.map;
     case SET_KEYS.boxArt:
       return set.boxArt;
+    case SET_KEYS.box:
+      return set.box;
     case SET_KEYS.initiativeBack:
       return { artwork: set.initiativeBack, used: set.useInitiativeBack };
     default:
@@ -175,6 +177,8 @@ function labelFor(set: AdventureSet, key: string, value: unknown): string {
       return 'Adventure map';
     case SET_KEYS.boxArt:
       return 'Box art';
+    case SET_KEYS.box:
+      return 'Presentation box';
     case SET_KEYS.initiativeBack:
       return 'Initiative deck back';
     default:
@@ -396,6 +400,11 @@ function applySetPart(
       return { ...set, map: value as unknown as AdventureSet['map'] };
     case SET_KEYS.boxArt:
       return { ...set, boxArt: value as unknown as AdventureSet['boxArt'] };
+    case SET_KEYS.box:
+      return { ...set, box: {
+        enabled: value['enabled'] === true,
+        skin: value['skin'] as AdventureSet['box']['skin'] ?? null
+      } };
     case SET_KEYS.initiativeBack:
       return {
         ...set,

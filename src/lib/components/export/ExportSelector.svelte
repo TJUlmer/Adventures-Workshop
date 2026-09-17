@@ -161,7 +161,7 @@
         </section>
       {/if}
 
-      {#if set.figures.length > 0 || set.rulebooks.length > 0}
+      {#if set.figures.length > 0 || set.rulebooks.length > 0 || set.box.enabled}
         <section class="group">
           <h3 class="group-title">Components</h3>
           {#each set.figures as figure (figure.id)}
@@ -180,6 +180,14 @@
               onchange={(checked) => toggleRulebook(book.id, checked)}
             />
           {/each}
+          {#if set.box.enabled}
+            <Switch
+              label="Presentation box"
+              hint="Wraps the TTS objects; has no gameplay effect."
+              checked={selection.includeBox}
+              onchange={(checked) => onchange({ ...selection, includeBox: checked })}
+            />
+          {/if}
         </section>
       {/if}
     </div>

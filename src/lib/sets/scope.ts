@@ -128,6 +128,7 @@ function heroSlice(set: AdventureSet, characterId: CharacterId): AdventureSet {
     threat: createThreatTrack(),
     map: createAdventureMap(),
     boxArt: createArtwork(),
+    box: { enabled: false, skin: null },
     initiativeBack: createArtwork(),
     useInitiativeBack: false
   };
@@ -178,6 +179,7 @@ function villainSlice(set: AdventureSet): AdventureSet {
      * for free, with no scope-awareness needed in `thumbnail.ts` at all — see
      * the cross-reference left there.
      */
-    boxArt: createArtwork()
+    boxArt: createArtwork(),
+    box: { enabled: false, skin: null }
   };
 }

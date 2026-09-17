@@ -29,6 +29,7 @@ import { readLuaConfig, writeLuaConfig } from '$lib/models/tts';
 import type { AdventureSet } from '$lib/sets/types';
 import type { Rulebook } from '$lib/sets/rulebooks';
 import { photographMapBoard, photographThreatBoard, withCardStage } from './card-stage';
+import { BOX_OBJ, defaultBoxTexture } from './tts-box';
 import { findExportsFolder, pruneExportsBundle, writeToExportsFolder } from './exports-folder';
 import { MAP_WIDTH_MM, mapHeightMm } from '$lib/map/types';
 import { shortHash } from '$lib/core/hash';
@@ -44,6 +45,7 @@ import {
 } from './tabletop-simulator';
 import type {
   TtsCollectionMember,
+  TtsBoxAssets,
   TtsDeckImages,
   TtsMapImage,
   TtsSheet,
@@ -255,6 +257,24 @@ async function rulebookFor(
   const pdf = new Blob([await response.blob()], { type: 'application/pdf' });
   const path = await writeAsset(files, taken, base, 'pdf', pdf);
   return rulebookObject(book.name, urlFor(path), index);
+}
+
+async function writePresentationBox(
+  set: AdventureSet,
+  urlFor: (path: string) => string,
+  files: TtsHostedAsset[],
+  taken: Set<string>
+): Promise<TtsBoxAssets> {
+  const meshPath = await writeBytes(
+    files, taken, 'box/presentation-box', 'obj', 'model/obj', encoder.encode(BOX_OBJ)
+  );
+  const skin = set.box.skin;
+  const texture = skin
+    ? await (await fetch(skin.source)).blob()
+    : await defaultBoxTexture(set);
+  const extension = skin?.source.startsWith('data:image/jpeg;') ? 'jpg' : 'png';
+  const texturePath = await writeAsset(files, taken, 'box/box-skin', extension, texture);
+  return { meshUrl: urlFor(meshPath), textureUrl: urlFor(texturePath) };
 }
 
 /** Read the ObjectStates out of a saved-object file, or `null` if it has none. */
@@ -546,7 +566,8 @@ async function componentFor(
  */
 function placementAdvice(
   root: string,
-  info: { directory: string | null; savedObjectsPath: string }
+  info: { directory: string | null; savedObjectsPath: string },
+  boxed = false
 ): { placement: string; installing: string } {
   /*
    * One rule regardless of which local state applies, and it is
@@ -561,6 +582,9 @@ function placementAdvice(
    */
   let placement: string;
   let installing: string;
+  const arrival = boxed
+    ? 'The presentation box appears. Open it to take out the set contents.'
+    : 'Everything appears at once, laid out in a row.';
 
   if (info.directory) {
     placement = `The files are already on disk, here:
@@ -575,7 +599,7 @@ into your Saved Objects folder. Nothing to unzip; it is already unpacked.
   1. Move (or copy) that whole folder into:
      Documents/My Games/Tabletop Simulator/Saves/Saved Objects/
   2. In TTS: Objects → Saved Objects → spawn it once.
-     Everything appears at once, laid out in a row.`;
+     ${arrival}`;
   } else {
     /*
      * Trimmed once, here, and read from nowhere else — every mention of this
@@ -598,7 +622,7 @@ this JSON needs editing. It only has to end up where the URLs already expect
 it, which is what "Installing it" below does.`;
     installing = `In short: unzip this archive, then copy the entire unzipped folder into
 your Saved Objects folder. Not the .zip itself, and not just the .json —
-the whole folder, models/sheets/map and all.
+the whole folder, including its asset folders.
 
   1. Extract this archive. Unzipping tools that create a folder named after
      the zip do the right thing here for free — this one is named
@@ -608,7 +632,7 @@ the whole folder, models/sheets/map and all.
      directly inside:
      ${savedObjectsPath}
   3. In TTS: Objects → Saved Objects → spawn it once.
-     Everything appears at once, laid out in a row.`;
+     ${arrival}`;
   }
 
   return { placement, installing };
@@ -619,7 +643,7 @@ function howToImport(
   root: string,
   info: { directory: string | null; savedObjectsPath: string }
 ): string {
-  const { placement, installing } = placementAdvice(root, info);
+  const { placement, installing } = placementAdvice(root, info, set.box.enabled);
 
   const decks = planTabletopDecks(set);
   const piles = decks
@@ -634,7 +658,9 @@ ${'='.repeat(30 + set.name.length)}
 
 What is in the save
 -------------------
-One Saved Object holding everything, as a flat list of ObjectStates:
+${set.box.enabled
+    ? 'One Saved Object: a rectangular presentation box containing the set contents:'
+    : 'One Saved Object holding everything as objects laid out on the table:'}
 
 ${piles || '  (no cards yet)'}
 ${set.threat.enabled ? '  The threat track, as a single wide card.\n' : ''}${
@@ -849,8 +875,10 @@ export async function exportTabletopSimulator(
     ));
   }
 
+  const box = set.box.enabled ? await writePresentationBox(set, urlFor, files, taken) : null;
+
   const saveName = `${slugify(set.name, 'adventure-set')}.json`;
-  const saveText = buildTabletopSimulatorSave({ set, decks, threat, map, components });
+  const saveText = buildTabletopSimulatorSave({ set, decks, threat, map, components, box });
 
   if (options.hosting.kind === 'online') {
     const uploaded = await options.hosting.host.upload(files, (progress) => {
@@ -1103,7 +1131,10 @@ export async function exportCollectionBundle(
         ));
       }
 
-      built.push({ author: member.author, set: member.set, decks, components });
+      const box = member.set.box.enabled
+        ? await writePresentationBox(member.set, urlFor, files, taken)
+        : null;
+      built.push({ author: member.author, set: member.set, decks, components, box });
     }
   });
 
@@ -1198,14 +1229,15 @@ function howToImportBox(
     .join('\n');
 
   const creators = new Set(members.map((member) => member.author)).size;
+  const boxed = members.some((member) => member.box !== null);
 
   return `Tabletop Simulator import — ${name}
 ${'='.repeat(30 + name.length)}
 
 What is in the save
 -------------------
-One Saved Object holding every deck in the collection, as a flat list of
-ObjectStates — a row per creator, receding away from you:
+One Saved Object holding every deck in the collection, in a row per creator
+receding away from you. ${boxed ? 'Sets with a presentation box arrive inside that box; other sets arrive as loose objects.' : 'Each set arrives as loose objects.'}
 
 ${rows || '  (no decks yet)'}
 

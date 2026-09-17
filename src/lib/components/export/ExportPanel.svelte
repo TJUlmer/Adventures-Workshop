@@ -105,6 +105,7 @@
     scopedSet.decks.length > 0 ||
       scopedSet.figures.length > 0 ||
       scopedSet.rulebooks.length > 0 ||
+      scopedSet.box.enabled ||
       scopedSet.threat.enabled ||
       scopedSet.map.enabled
   );
@@ -183,6 +184,9 @@
    * whether to host them or put them beside the JSON locally.
    */
   const ttsPiles = $derived(tabletopDeckSummary(finalSet));
+  const ttsContents = $derived(
+    `${ttsPiles.length} ${ttsPiles.length === 1 ? 'pile' : 'piles'}, ${finalSet.box.enabled ? 'packed in a presentation box' : 'face sheets and components'}`
+  );
   const ttsOnlineAvailable = cloudEnabled();
 
   let ttsProgress = $state<string | null>(null);
@@ -397,8 +401,8 @@
               <span class="export-hint">
                 {ttsProgress ??
                   (hostTtsAssets
-                    ? `${ttsPiles.length} ${ttsPiles.length === 1 ? 'pile' : 'piles'}, face sheets and components — hosted for multiplayer.`
-                    : `${ttsPiles.length} ${ttsPiles.length === 1 ? 'pile' : 'piles'}, face sheets and components — stored locally.`)}
+                    ? `${ttsContents} — hosted for multiplayer.`
+                    : `${ttsContents} — stored locally.`)}
               </span>
             </span>
           </button>

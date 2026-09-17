@@ -97,6 +97,7 @@ import {
 } from '$lib/threat/types';
 import { SET_KINDS } from './types';
 import { isRulebookSource } from './rulebooks';
+import { createPresentationBox } from './box';
 import type { AdventureSet, SetKind, SetOrigin } from './types';
 
 /** Anything loaded from JSON is untrusted shape-wise. */
@@ -1063,6 +1064,18 @@ export function normalizeSet(value: AdventureSet): AdventureSet {
         source: book['source'] as string,
         size: Math.max(0, num(book['size'], 0))
       })),
+    box: (() => {
+      const saved = asRecord(raw['box']);
+      const skin = asRecord(saved['skin']);
+      const source = skin['source'];
+      return {
+        ...createPresentationBox(),
+        enabled: bool(saved['enabled'], false),
+        skin: typeof source === 'string' && /^data:image\/(png|jpeg);base64,/i.test(source)
+          ? { source, label: str(skin['label'], 'Box skin') }
+          : null
+      };
+    })(),
     customSymbols: (Array.isArray(raw['customSymbols']) ? raw['customSymbols'] : []).map(
       customSymbol
     ),

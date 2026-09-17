@@ -1,5 +1,6 @@
 import { createArtwork } from '$lib/core/artwork';
 import { createId, now } from '$lib/core/id';
+import { createPresentationBox } from './box';
 import { createAdventureMap } from '$lib/map/types';
 import { createThreatTrack } from '$lib/threat/types';
 import type { AdventureSet, SetId } from './types';
@@ -46,6 +47,7 @@ export function createEmptySet(draft: SetDraft = {}): AdventureSet {
     map: createAdventureMap(),
     figures: [],
     rulebooks: [],
+    box: createPresentationBox(),
     customSymbols: [],
     boxArt: createArtwork(),
     initiativeBack: createArtwork(),

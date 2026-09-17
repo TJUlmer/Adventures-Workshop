@@ -35,6 +35,8 @@ export interface ExportSelection {
   includeThreat: boolean;
   /** Ignored when the set's own `map.enabled` is already `false`. */
   includeMap: boolean;
+  /** Whether to wrap the TTS contents in the set's presentation box. */
+  includeBox: boolean;
 }
 
 export function defaultExportSelection(): ExportSelection {
@@ -43,7 +45,8 @@ export function defaultExportSelection(): ExportSelection {
     excludedFigureIds: new Set(),
     excludedRulebookIds: new Set(),
     includeThreat: true,
-    includeMap: true
+    includeMap: true,
+    includeBox: true
   };
 }
 
@@ -54,7 +57,8 @@ export function isExportSelectionActive(selection: ExportSelection): boolean {
     selection.excludedFigureIds.size > 0 ||
     selection.excludedRulebookIds.size > 0 ||
     !selection.includeThreat ||
-    !selection.includeMap
+    !selection.includeMap ||
+    !selection.includeBox
   );
 }
 
@@ -94,7 +98,8 @@ export function applyExportSelection(set: AdventureSet, selection: ExportSelecti
     figures,
     rulebooks,
     threat: selection.includeThreat ? set.threat : { ...set.threat, enabled: false },
-    map: selection.includeMap ? set.map : { ...set.map, enabled: false }
+    map: selection.includeMap ? set.map : { ...set.map, enabled: false },
+    box: selection.includeBox ? set.box : { enabled: false, skin: null }
   });
 }
 

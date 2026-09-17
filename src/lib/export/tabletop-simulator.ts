@@ -324,6 +324,13 @@ export interface TtsSaveInput {
   readonly map: TtsMapImage | null;
   /** Figures: models written beside the save, and whole saved objects spliced in. */
   readonly components: readonly object[];
+  /** Assets for the optional presentation box that contains the exported objects. */
+  readonly box: TtsBoxAssets | null;
+}
+
+export interface TtsBoxAssets {
+  meshUrl: string;
+  textureUrl: string;
 }
 
 // -- The object graph ---------------------------------------------------
@@ -697,6 +704,94 @@ export function modelObject(component: TtsModelComponent, index: number): object
   };
 }
 
+function presentationBoxObject(
+  name: string,
+  assets: TtsBoxAssets,
+  contained: object[],
+  posZ = 0
+): object {
+  return {
+    // TTS serializes a bag as a distinct internal object type. Loading a
+    // Custom_Model with TypeIndex 6 creates a bag, but drops ContainedObjects.
+    Name: 'Custom_Model_Bag',
+    Transform: {
+      posX: 0, posY: 1, posZ,
+      rotX: 0, rotY: 0, rotZ: 0,
+      scaleX: 1, scaleY: 1, scaleZ: 1
+    },
+    Nickname: name,
+    Description: 'Presentation box containing this set. No gameplay rules are attached.',
+    ...OBJECT_DEFAULTS,
+    Hands: false,
+    HideWhenFaceDown: false,
+    MaterialIndex: -1,
+    MeshIndex: -1,
+    Bag: { Order: 0 },
+    CustomMesh: {
+      MeshURL: assets.meshUrl,
+      DiffuseURL: assets.textureUrl,
+      NormalURL: '',
+      ColliderURL: '',
+      Convex: true,
+      MaterialIndex: 3,
+      TypeIndex: 6,
+      CastShadows: true
+    },
+    ContainedObjects: contained
+  };
+}
+
+/**
+ * TTS indexes a bag's contents by GUID. Objects that load loose can acquire
+ * one when spawned, but objects already inside a bag never enter that path.
+ * Keep GUIDs from author-supplied saved objects because their scripts may
+ * refer to them, and fill in only those missing from our generated objects.
+ */
+function assignMissingGuids(states: readonly object[]): object[] {
+  const used = new Set<string>();
+  const collectGuids = (state: object): void => {
+    const source = state as Record<string, unknown>;
+    const guid = source['GUID'];
+    if (typeof guid === 'string' && /^[0-9a-f]{6}$/i.test(guid)) {
+      used.add(guid.toLowerCase());
+    }
+    const contained = source['ContainedObjects'];
+    if (Array.isArray(contained)) {
+      contained.forEach((child) => {
+        if (typeof child === 'object' && child !== null) collectGuids(child);
+      });
+    }
+  };
+  states.forEach(collectGuids);
+
+  let next = Math.floor(Math.random() * 0x1000000);
+  const guid = (): string => {
+    let value: string;
+    do {
+      value = (next++ & 0xffffff).toString(16).padStart(6, '0');
+    } while (used.has(value));
+    used.add(value);
+    return value;
+  };
+  const fill = (state: object): object => {
+    const source = state as Record<string, unknown>;
+    const contained = source['ContainedObjects'];
+    const existing = source['GUID'];
+    return {
+      ...source,
+      GUID: typeof existing === 'string' && /^[0-9a-f]{6}$/i.test(existing)
+        ? existing
+        : guid(),
+      ...(Array.isArray(contained) ? {
+        ContainedObjects: contained.map((child) =>
+          typeof child === 'object' && child !== null ? fill(child) : child
+        )
+      } : {})
+    };
+  };
+  return states.map(fill);
+}
+
 /** A finished rulebook on the table, using TTS's Custom PDF object. */
 export function rulebookObject(name: string, pdfUrl: string, index: number): object {
   return {
@@ -766,12 +861,12 @@ function layOut(images: readonly TtsDeckImages[]): TtsTransform[] {
 /**
  * The whole set, as one saved object.
  *
- * `ObjectStates` is a flat list, which is what makes "everything in one file"
- * possible at all: piles, the threat board and every component are peers, and
- * spawning the file puts the lot on the table at once.
+ * The same object list can arrive laid out on the table or as the contents of
+ * one presentation bag. The latter changes only the outer `ObjectStates`:
+ * decks, boards and components keep their own data and relationships.
  */
 export function buildTabletopSimulatorSave(input: TtsSaveInput): string {
-  const { set, decks, threat, map, components } = input;
+  const { set, decks, threat, map, components, box } = input;
   const positions = layOut(decks);
 
   const objects: object[] = decks.map((deck, index) =>
@@ -808,7 +903,9 @@ export function buildTabletopSimulatorSave(input: TtsSaveInput): string {
     LuaScript: '',
     LuaScriptState: '',
     XmlUI: '',
-    ObjectStates: objects
+    ObjectStates: box
+      ? assignMissingGuids([presentationBoxObject(set.name, box, objects)])
+      : objects
   };
 
   return JSON.stringify(save, null, 2);
@@ -827,6 +924,7 @@ export interface TtsCollectionMember {
   set: AdventureSet;
   decks: TtsDeckImages[];
   components: object[];
+  box: TtsBoxAssets | null;
 }
 
 export interface TtsCollectionInput {
@@ -883,10 +981,11 @@ export function buildCollectionSave(input: TtsCollectionInput): string {
   input.members.forEach((member, row) => {
     const z = -row * MEMBER_ROW_DEPTH;
     const positions = layOut(member.decks);
+    const memberObjects: object[] = [];
 
     member.decks.forEach((deck, index) => {
       const at = positions[index] ?? transform(index * 3, 0, scaleOf(deck.plan.format.mm));
-      objects.push(
+      memberObjects.push(
         deckObject(
           { ...deck, plan: { ...deck.plan, nickname: `${deck.plan.nickname} — ${member.author}` } },
           { ...at, posZ: at.posZ + z },
@@ -907,10 +1006,20 @@ export function buildCollectionSave(input: TtsCollectionInput): string {
       const at = (typeof state['Transform'] === 'object' && state['Transform'] !== null
         ? state['Transform']
         : {}) as Record<string, unknown>;
-      objects.push({
+      memberObjects.push({
         ...state,
         Transform: { ...at, posZ: Number(at['posZ'] ?? COMPONENT_ROW_Z) + z }
       });
+    }
+    if (member.box) {
+      objects.push(presentationBoxObject(
+        `${member.set.name} — ${member.author}`,
+        member.box,
+        memberObjects,
+        z
+      ));
+    } else {
+      objects.push(...memberObjects);
     }
   });
 
@@ -938,7 +1047,9 @@ export function buildCollectionSave(input: TtsCollectionInput): string {
     LuaScript: '',
     LuaScriptState: '',
     XmlUI: '',
-    ObjectStates: objects
+    ObjectStates: input.members.some((member) => member.box !== null)
+      ? assignMissingGuids(objects)
+      : objects
   };
 
   return JSON.stringify(save, null, 2);
