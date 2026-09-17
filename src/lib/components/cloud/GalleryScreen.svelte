@@ -102,7 +102,7 @@
    * roster answers that directly where a shelf of boxes asks you to open one
    * and look — most published rows are single figures anyway.
    */
-  let mode = $state<Mode>('characters');
+  let mode = $state<Mode>(navigation.galleryMode);
   let sets = $state<GallerySet[]>([]);
   let collections = $state<PublicCollection[]>([]);
   let characters = $state<GalleryCharacter[]>([]);
@@ -529,7 +529,12 @@
     <p class="message">Sharing is not set up in this build.</p>
   {:else}
     <div class="controls">
-      <SegmentedControl bind:value={mode} segments={MODES} label="Browse" />
+      <SegmentedControl
+        bind:value={mode}
+        segments={MODES}
+        label="Browse"
+        onchange={(selected) => (navigation.galleryMode = selected)}
+      />
 
       <!--
         Search, filter, sort and favourites are hidden for collections rather

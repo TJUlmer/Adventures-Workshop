@@ -42,6 +42,14 @@ body {
   isolation: isolate;
 }
 
+@media screen {
+  @supports (height: 100dvh) {
+    #app {
+      height: 100dvh;
+    }
+  }
+}
+
 h1,
 h2,
 h3,

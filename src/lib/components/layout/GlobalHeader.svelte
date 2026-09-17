@@ -48,8 +48,9 @@
   const latestSet = $derived(workshop.library[0] ?? null);
   const galleryActive = $derived(
     navigation.view.kind === 'gallery' ||
-      navigation.view.kind === 'shared' ||
-      navigation.view.kind === 'author'
+    navigation.view.kind === 'shared' ||
+    navigation.view.kind === 'author' ||
+    navigation.view.kind === 'collection'
   );
 
   /* The index deliberately carries no artwork. Resolve only the newest set,
@@ -186,6 +187,7 @@
     >
       <Icon name="layers" size={14} />
       <span class="nav-label">Browse Gallery</span>
+      <span class="mobile-nav-label">Gallery</span>
     </button>
     <ThemeToggle />
     <AccountMenu openOnStart={openAccountOnStart} />
@@ -395,6 +397,10 @@
     }
   }
 
+  .mobile-nav-label {
+    display: none;
+  }
+
   @media (max-width: 470px) {
     .bar {
       grid-template-columns: auto minmax(44px, 1fr) auto;
@@ -425,6 +431,17 @@
       padding-inline: 0;
     }
 
+    /* The gallery is the main useful destination on a phone, so name it where
+       there is no hover tooltip to explain the layers icon. */
+    .navigation > .nav-link:nth-child(2) {
+      width: auto;
+      padding-inline: var(--space-2);
+    }
+
+    .navigation > .nav-link:nth-child(2) .mobile-nav-label {
+      display: inline;
+    }
+
     /* The brand is already Home; dropping the duplicate leaves every remaining
        phone control room for a real touch target. */
     .navigation > .nav-link:first-child {
@@ -438,6 +455,12 @@
 
     .navigation :global(button) {
       min-width: 44px;
+    }
+  }
+
+  @media (max-width: 350px) {
+    .welcome-link {
+      display: none;
     }
   }
 </style>

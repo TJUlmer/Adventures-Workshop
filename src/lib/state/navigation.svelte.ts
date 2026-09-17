@@ -198,6 +198,9 @@ function sharedSearch(characterHint?: string): string {
 class Navigation {
   view = $state<View>({ kind: 'home' });
 
+  /** Keep the browse section when a set or collection is opened and closed. */
+  galleryMode = $state<'sets' | 'characters' | 'collections'>('characters');
+
   readonly inSet = $derived(this.view.kind === 'set');
   readonly page = $derived(this.view.kind === 'set' ? this.view.page : null);
 

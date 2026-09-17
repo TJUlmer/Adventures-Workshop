@@ -2935,6 +2935,7 @@
 
   .collections {
     margin-bottom: var(--space-6);
+    padding-inline: var(--space-9);
   }
 
   .section-title {
@@ -4175,6 +4176,32 @@
   }
 
   @media (max-width: 760px) {
+    .top-row {
+      grid-template-columns: minmax(0, 1fr);
+      padding-inline: var(--space-5);
+    }
+
+    .attention {
+      padding-inline: var(--space-5);
+    }
+
+    .collections {
+      padding-inline: var(--space-5);
+    }
+
+    .controls {
+      padding-inline: var(--space-5);
+    }
+
+    .message {
+      padding-inline: var(--space-5);
+    }
+
+    .library-notice,
+    .migration {
+      margin-inline: var(--space-5);
+    }
+
     .head,
     .capabilities-head,
     .principles-head,
@@ -4241,6 +4268,32 @@
   }
 
   @media (max-width: 560px) {
+    .head {
+      gap: var(--space-3);
+    }
+
+    .actions {
+      width: 100%;
+    }
+
+    .migration {
+      grid-template-columns: minmax(0, 1fr);
+    }
+
+    .migration-list {
+      grid-template-columns: minmax(0, 1fr);
+    }
+
+    .collection-grid,
+    .grid,
+    .grid.characters {
+      grid-template-columns: minmax(0, 1fr);
+    }
+
+    .gallery-slots {
+      grid-template-columns: repeat(2, minmax(0, 110px));
+    }
+
     .capabilities,
     .principles,
     .community,

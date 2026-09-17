@@ -1606,7 +1606,8 @@
 
   @media (max-width: 430px) {
     .character-grid {
-      gap: var(--space-2);
+      grid-template-columns: minmax(0, 1fr);
+      gap: var(--space-3);
     }
 
     .character-copy {
