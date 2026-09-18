@@ -3,14 +3,15 @@
 
   interface Props extends Omit<HTMLInputAttributes, 'value' | 'type'> {
     value: string;
+    type?: HTMLInputAttributes['type'];
     /** Renders larger, for the primary name field of an entity. */
     prominent?: boolean;
   }
 
-  let { value = $bindable(''), prominent = false, ...rest }: Props = $props();
+  let { value = $bindable(''), type = 'text', prominent = false, ...rest }: Props = $props();
 </script>
 
-<input class="input" class:prominent type="text" spellcheck="false" {...rest} bind:value />
+<input class="input" class:prominent {type} spellcheck="false" {...rest} bind:value />
 
 <style>
   .input {

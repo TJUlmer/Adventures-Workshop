@@ -24,6 +24,8 @@
   let email = $state('');
   let code = $state('');
   let error = $state<string | null>(null);
+  // Supabase lets a project choose an email OTP length from six to ten digits.
+  const validCode = $derived(/^\d{6,10}$/.test(code.trim()));
 
   const stage = $derived(
     auth.signedIn ? 'in' : auth.pendingEmail !== null ? 'code' : 'choose'
@@ -80,30 +82,9 @@
         stays in your library either way.
       </p>
 
-      {#if auth.providers.length > 0}
-        <div class="or"><span>or</span></div>
-      {/if}
-
-      <!--
-        The account that can publish to the gallery. A throwaway one cannot —
-        the database refuses it — so this is the only route to a listed set, and
-        it is also the only one that produces a name to put under it.
-      -->
-      {#each auth.providers as provider (provider.id)}
-        <Button block onclick={() => auth.signInWithProvider(provider.id)}>
-          Continue with {provider.label}
-        </Button>
-      {/each}
-      {#if auth.providers.length > 0}
-        <p class="fineprint">
-          Signs you in permanently and publishes under the name that account already has.
-          {draftRolloutMessage()}
-          Leaves this page and comes straight back.
-        </p>
-      {/if}
-
       <div class="or"><span>or</span></div>
 
+      <h3 class="method-title">Sign in with email</h3>
       <form
         class="row"
         onsubmit={(event) => {
@@ -111,7 +92,7 @@
           void run(() => auth.requestCode(email));
         }}
       >
-        <TextInput bind:value={email} placeholder="you@example.com" inputmode="email" autocomplete="email" />
+        <TextInput bind:value={email} type="email" required aria-label="Email address" placeholder="you@example.com" autocomplete="email" />
         <Button type="submit" disabled={auth.sending || email.trim().length === 0}>
           {auth.sending ? 'Sending…' : 'Email me a code'}
         </Button>
@@ -120,9 +101,25 @@
         Creates a permanent account for publishing.
         {draftRolloutMessage()}
       </p>
+
+      {#if auth.providers.length > 0}
+        <div class="or"><span>or</span></div>
+      {/if}
+
+      {#each auth.providers as provider (provider.id)}
+        <Button block onclick={() => auth.signInWithProvider(provider.id)}>
+          Continue with {provider.label}
+        </Button>
+      {/each}
+      {#if auth.providers.length > 0}
+        <p class="fineprint">
+          Signs you in permanently and publishes under the name that account already has.
+          Leaves this page and comes straight back.
+        </p>
+      {/if}
     {:else if stage === 'code'}
       <p class="sent">
-        A six-digit code is on its way to <strong>{auth.pendingEmail}</strong>.
+        A sign-in code is on its way to <strong>{auth.pendingEmail}</strong>.
       </p>
 
       <form
@@ -134,21 +131,25 @@
       >
         <!--
           `inputmode` and `autocomplete` are what let a phone offer the code
-          from the notification instead of making someone memorise six digits
+          from the notification instead of making someone memorise the code
           and switch apps.
         -->
         <TextInput
           bind:value={code}
-          placeholder="123456"
+          aria-label="Email sign-in code"
+          placeholder="Enter code"
           inputmode="numeric"
           autocomplete="one-time-code"
-          maxlength={6}
+          maxlength={10}
         />
-        <Button type="submit" variant="primary" disabled={auth.verifying || code.trim().length < 6}>
+        <Button type="submit" variant="primary" disabled={auth.verifying || !validCode}>
           {auth.verifying ? 'Checking…' : 'Sign in'}
         </Button>
       </form>
 
+      <button class="link" type="button" disabled={auth.sending} onclick={() => void run(() => auth.requestCode(auth.pendingEmail ?? email))}>
+        {auth.sending ? 'Sending another code…' : 'Send another code'}
+      </button>
       <button class="link" type="button" onclick={() => (auth.pendingEmail = null)}>
         Use a different address
       </button>
@@ -188,14 +189,17 @@
 
   .row {
     display: flex;
+    flex-wrap: wrap;
     gap: var(--space-2);
     align-items: center;
   }
 
   .row :global(input) {
-    flex: 1;
-    min-width: 0;
+    flex: 1 1 150px;
+    min-width: 150px;
   }
+
+  .method-title { margin: 0; font-size: var(--text-sm); font-weight: var(--weight-semibold); }
 
   .reason,
   .sent {

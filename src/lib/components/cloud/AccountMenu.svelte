@@ -491,7 +491,10 @@
     display: flex;
     flex-direction: column;
     gap: var(--space-2);
-    width: 300px;
+    width: min(300px, calc(100vw - 2rem));
+    max-height: calc(100dvh - 5rem);
+    overflow-y: auto;
+    overscroll-behavior: contain;
     padding: var(--space-3);
     border-radius: var(--radius-md);
     background: var(--surface-overlay);

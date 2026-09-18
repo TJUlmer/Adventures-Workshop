@@ -5,7 +5,7 @@
  * A magic link opens a *new* tab, and this app's entire state — the document
  * being edited — lives in the `localStorage` of the tab the author is already
  * in. Landing them in a second tab with a session, beside the tab that has
- * their work, is a worse place than where they started. A six-digit code is
+ * their work, is a worse place than where they started. An emailed code is
  * typed into the tab they are in, and nothing moves.
  *
  * There is no session on the server to speak of: GoTrue hands back a JWT and a
