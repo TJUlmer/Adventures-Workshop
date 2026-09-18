@@ -646,13 +646,14 @@
     />
 
     {#if card.showTuckEffect}
-      <Field label="Effect text">
-        <TextInput
-          value={card.tuckEffect}
-          placeholder="When you play a scheme, gain 1 action."
-          oninput={(event) => edit((target) => (target.tuckEffect = event.currentTarget.value))}
-        />
-      </Field>
+      <FormattedTextField
+        label="Effect text"
+        value={card.tuckEffect}
+        placeholder="When you play a scheme, gain 1 action."
+        multiline={false}
+        onchange={(value) => edit((target) => (target.tuckEffect = value))}
+        customSymbols={workshop.adventure.customSymbols}
+      />
 
       <Field label="Orientation">
         <SegmentedControl

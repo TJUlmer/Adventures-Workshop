@@ -1302,6 +1302,19 @@ export const CHARACTER_HEALTH = {
   size: inFace(106)
 } as const;
 
+/**
+ * The fixed blue sidekick shield still present in the single-sidekick ink.
+ * Its measured painted bounds are x1280–1404, y1934–2067; this slightly
+ * larger cut also removes the antialiasing before the recolourable shield
+ * is laid under the remaining caption and decorative arc.
+ */
+export const CHARACTER_SIDEKICK_INK_BADGE = {
+  left: 1278,
+  top: 1932,
+  right: 1407,
+  bottom: 2070
+} as const;
+
 /** The special ability: a name, a rule under it, and the copy. */
 export const CHARACTER_ABILITY = {
   nameX: 272,

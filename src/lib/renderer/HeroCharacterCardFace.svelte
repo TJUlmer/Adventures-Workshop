@@ -62,6 +62,7 @@
     CHARACTER_HEADING,
     CHARACTER_HEALTH,
     CHARACTER_HEALTH_SHIFTED,
+    CHARACTER_SIDEKICK_INK_BADGE,
     CHARACTER_MOVE,
     CHARACTER_QUOTE,
     CHARACTER_TOKENS,
@@ -146,6 +147,27 @@
   const badge = $derived(TEMPLATE_ASSETS.heroCharacterBadge[layout]);
   const badgeAccent = $derived(TEMPLATE_ASSETS.heroCharacterBadgeAccent[layout]);
   const ink = $derived(TEMPLATE_ASSETS.heroCharacterInk[layout]);
+  const singleSidekickInkRegions = [
+    { x: 0, y: 0, width: BLEED.width, height: CHARACTER_SIDEKICK_INK_BADGE.top },
+    {
+      x: 0,
+      y: CHARACTER_SIDEKICK_INK_BADGE.top,
+      width: CHARACTER_SIDEKICK_INK_BADGE.left,
+      height: CHARACTER_SIDEKICK_INK_BADGE.bottom - CHARACTER_SIDEKICK_INK_BADGE.top
+    },
+    {
+      x: CHARACTER_SIDEKICK_INK_BADGE.right,
+      y: CHARACTER_SIDEKICK_INK_BADGE.top,
+      width: BLEED.width - CHARACTER_SIDEKICK_INK_BADGE.right,
+      height: CHARACTER_SIDEKICK_INK_BADGE.bottom - CHARACTER_SIDEKICK_INK_BADGE.top
+    },
+    {
+      x: 0,
+      y: CHARACTER_SIDEKICK_INK_BADGE.bottom,
+      width: BLEED.width,
+      height: BLEED.height - CHARACTER_SIDEKICK_INK_BADGE.bottom
+    }
+  ];
   /**
    * Each band's label mask. The hero's and the ability panel's do not vary by
    * layout; the sidekick's does, and is `null` on the quote layout, which
@@ -882,7 +904,30 @@
       : undefined}
     style:background={fillCss(design[band].labelInk)}
   ></div>{/if}{/each}
-<img class="template" src={ink} alt="" />
+{#if layout === 'sidekick'}
+  <!-- The supplied ink includes a fixed blue badge. The SVG export does not
+       honour clip-path on an img, so crop four views with overflow instead. -->
+  {#each singleSidekickInkRegions as region}
+    <div
+      class="ink-region"
+      style:left={px(region.x)}
+      style:top={py(region.y)}
+      style:width={px(region.width)}
+      style:height={py(region.height)}
+    >
+      <img
+        src={ink}
+        alt=""
+        style:left={`${(-region.x / region.width) * 100}%`}
+        style:top={`${(-region.y / region.height) * 100}%`}
+        style:width={`${(BLEED.width / region.width) * 100}%`}
+        style:height={`${(BLEED.height / region.height) * 100}%`}
+      />
+    </div>
+  {/each}
+{:else}
+  <img class="template" src={ink} alt="" />
+{/if}
 
 {@render attackRow(CHARACTER_BANDS.heroAttack, identity.attackType)}
 {@render healthValue(CHARACTER_HEALTH.heroCenterY, identity.health ?? 0)}
@@ -1012,8 +1057,8 @@
     <!--
       A single tracked sidekick's own badge was never a mask on this layout
       — `hero_character_badge_sidekick.png` carries only the hero's own,
-      and the sidekick's was fixed ink instead (now erased from
-      `hero_character_ink_sidekick.png`). A reused, unscaled copy of the
+      and the sidekick's was fixed ink instead (cut out of the ink at render
+      time). A reused, unscaled copy of the
       hero's own badge, same as the shifted state uses, so it takes
       `design.healthBadge` like every other badge on this card.
     -->
@@ -1162,6 +1207,17 @@
     inset: 0;
     width: 100%;
     height: 100%;
+  }
+
+  .ink-region {
+    position: absolute;
+    overflow: hidden;
+    pointer-events: none;
+  }
+
+  .ink-region img {
+    position: absolute;
+    max-width: none;
   }
 
   .mask {

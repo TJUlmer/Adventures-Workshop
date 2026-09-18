@@ -953,7 +953,7 @@
           style:font-size={pu(TUCK_EFFECT.text.size)}
           style:line-height={TUCK_EFFECT.text.lineHeight}
           style:transform="translateY({pu(TUCK_EFFECT.text.offsetY)})"
-        >{card.tuckEffect}</span>
+        >{@html renderActionText(card.tuckEffect, ribbonName, customSymbols, 'tuck-effect-symbol')}</span>
       </div>
     {/if}
   </div>
@@ -974,7 +974,7 @@
         style:font-size={pu(TUCK_EFFECT.text.right.size)}
         style:line-height={TUCK_EFFECT.text.right.lineHeight}
         style:translate="{pu(TUCK_EFFECT.text.right.offsetX)} {pu(TUCK_EFFECT.text.right.offsetY)}"
-      >{card.tuckEffect}</span>
+      >{@html renderActionText(card.tuckEffect, ribbonName, customSymbols, 'tuck-effect-symbol')}</span>
     </div>
   {/if}
 </div>
@@ -1648,6 +1648,13 @@
     text-align: center;
     text-overflow: ellipsis;
     white-space: nowrap;
+  }
+
+  .tuck-effect-text :global(.tuck-effect-symbol) {
+    display: inline;
+    width: auto;
+    height: 0.85em;
+    vertical-align: -0.1em;
   }
 
   .tuck-effect-right .tuck-effect-text {
