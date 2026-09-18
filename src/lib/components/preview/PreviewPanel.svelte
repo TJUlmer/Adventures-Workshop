@@ -6,7 +6,7 @@
   import { createCard } from '$lib/cards/factory';
   import { resolveCardTheme } from '$lib/cards/theme';
   import { CARD_TYPE_META } from '$lib/cards/types';
-  import { characterLabel, primaryCardName } from '$lib/characters/factory';
+  import { characterLabel, createCharacter, primaryCardName } from '$lib/characters/factory';
   import type { HeroCharacterCard } from '$lib/characters/types';
   import { asId } from '$lib/core/id';
   import { deckLabel } from '$lib/decks/factory';
@@ -99,7 +99,9 @@
 
   /** The figure's layer of the cascade, which is what its controls edit. */
   const sampleTheme = $derived(
-    cardback ? resolveCardTheme(workshop.adventure.style, cardback.style, null) : undefined
+    cardback
+      ? resolveCardTheme(workshop.adventure.style, cardback.style, null, 'action', cardback.role)
+      : undefined
   );
 
   /**
@@ -116,7 +118,16 @@
     sample.ability.plain = 'Ability text appears here.';
     return sample;
   });
-  const setSampleTheme = $derived(resolveCardTheme(workshop.adventure.style, null, null));
+  const setSampleHero = createCharacter('hero');
+  const setSampleTheme = $derived(
+    resolveCardTheme(
+      workshop.adventure.style,
+      null,
+      null,
+      'action',
+      workshop.adventure.kind === 'heroes' ? 'hero' : undefined
+    )
+  );
 
   /**
    * The template on screen. A selected character previews its deck back —
@@ -332,10 +343,11 @@
       <!-- Same idea one level up: the set's own defaults, previewed on a
            card that belongs to no deck and is never saved. -->
       <div class="sample">
-        <span class="sample-label">Set style defaults</span>
+        <span class="sample-label">{workshop.adventure.kind === 'heroes' ? 'Hero action card' : 'Set style'} defaults</span>
         <div class="card-slot" style:width="{zoom * 100}%">
           <CardRenderer
             card={setSample}
+            character={workshop.adventure.kind === 'heroes' ? setSampleHero : null}
             theme={setSampleTheme}
             options={{ showBleed: bleeding, showGuides: showGuides && bleeding }}
             customSymbols={workshop.adventure.customSymbols}
@@ -398,7 +410,9 @@
       -->
       <div class="facts">
         <span class="fact type" style:--type-color="var(--accent-press)">Set style</span>
-        <span class="fact">Defaults for every card in the set</span>
+        <span class="fact">{workshop.adventure.kind === 'heroes'
+            ? 'Previewed on a hero action card'
+            : 'Defaults for every card in the set'}</span>
       </div>
     {:else}
       <EmptyState

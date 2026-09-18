@@ -1,6 +1,6 @@
 <script lang="ts">
   import type { CardTheme } from '$lib/cards/style';
-  import { resolveCardTheme } from '$lib/cards/theme';
+  import { ACTION_SURFACES, resolveCardTheme } from '$lib/cards/theme';
   import { setLabel } from '$lib/sets/factory';
   import { workshop } from '$lib/state/workshop.svelte';
   import { navigation } from '$lib/state/navigation.svelte';
@@ -13,8 +13,10 @@
 
   const stats = $derived(workshop.stats);
 
-  /** What every card in the set looks like before any local override. */
-  const resolvedTheme: CardTheme = $derived(resolveCardTheme(set.style, null, null));
+  /** A Heroes set starts from the hero action template; an Adventures set keeps its shared base. */
+  const resolvedTheme: CardTheme = $derived(
+    resolveCardTheme(set.style, null, null, 'action', set.kind === 'heroes' ? 'hero' : undefined)
+  );
 
   function originFor(): string {
     return 'template';
@@ -23,7 +25,7 @@
 </script>
 
 <WorkspaceHeader
-  eyebrow="Adventure set"
+  eyebrow={set.kind === 'heroes' ? 'Heroes set' : 'Adventure set'}
   title={setLabel(set)}
   subtitle={set.subtitle || 'The base look every card in this set inherits.'}
   colorVar="--accent-press"
@@ -87,9 +89,16 @@
   -->
   <Section
     title="Set style"
-    description="Defaults for every card in the set. Characters and individual cards can override any of it."
+    description={set.kind === 'heroes'
+      ? 'Shared defaults shown on a hero action card. Characters and individual cards can override them.'
+      : 'Defaults for every card in the set. Characters and individual cards can override any of it.'}
   >
-    <StylePanel target={{ entity: 'set' }} resolved={resolvedTheme} {originFor} />
+    <StylePanel
+      target={{ entity: 'set' }}
+      resolved={resolvedTheme}
+      {originFor}
+      surfaces={set.kind === 'heroes' ? ACTION_SURFACES : undefined}
+    />
   </Section>
 
   <Section title="Contents" description="What this set currently holds.">
