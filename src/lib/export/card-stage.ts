@@ -181,6 +181,8 @@ export async function photographMapBoard(
     customSymbols?: CustomSymbol[];
     setName?: string;
     authorName?: string;
+    mimeType?: string;
+    quality?: number;
   } = {}
 ): Promise<Blob | null> {
   if (!map.enabled) return null;
@@ -302,7 +304,7 @@ export async function photographMapBoard(
  */
 export async function photographThreatBoard(
   set: AdventureSet,
-  options: { width?: number } = {}
+  options: { width?: number; mimeType?: string; quality?: number } = {}
 ): Promise<Blob | null> {
   const villain = set.characters.find((character) => character.id === set.threat.villainId);
 

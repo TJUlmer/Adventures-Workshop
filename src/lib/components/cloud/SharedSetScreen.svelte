@@ -1249,6 +1249,7 @@
               onprint={openPrint}
               bind:scope={viewScope}
               projectFileMode="copy"
+              publishedSource={row ? { id: row.id, revision: row.revision } : null}
             />
           {:else}
             <p class="panel-hint" aria-live="polite">

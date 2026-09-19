@@ -13,9 +13,16 @@ turning ordinary edits, soft deletion, publication, or conflict recovery into da
   or a `set_contributions` row. The scan considers every string in those rows so covers the
   published document, thumbnails, social images, character cards, covers, and contribution
   payloads.
+- `tts-assets`: generated files that are absent from the one retained manifest for the latest
+  published revision. Unpublished exports, collection exports, superseded revisions, and legacy
+  objects without a manifest enter the same 30-day candidate grace period. Re-exporting the
+  exact current published snapshot replaces its retained manifest; shared paths stay live while
+  any retained manifest names them.
 
-`tts-assets` is excluded. A Tabletop Simulator save can refer to those public URLs without
-leaving a database record, so the server cannot prove that an object is unused.
+Migration `0032_tts_export_retention.sql` adds the manifest that makes TTS cleanup provable.
+Exports made before that migration have no manifest and therefore receive a fresh 30-day grace
+period from the first cleanup scan after rollout. Authors can preserve the current published
+revision by exporting it again from its published page during that period.
 
 ## Gallery card image conversion
 
@@ -70,6 +77,27 @@ There are two independent brakes:
 2. A destructive request is rejected unless the Edge Function environment contains
    `STORAGE_CLEANUP_EXECUTE=enabled`.
 
+The one-time PNG-to-WebP migration has its own narrower switch,
+`STORAGE_CLEANUP_LEGACY_PREVIEWS_EXECUTE=enabled`. That switch authorizes only the
+`legacy-card-previews` mode backed by migration `0031`; it does not enable general cleanup.
+The mode selects only unreferenced generated `card-preview-*.png` objects and rechecks the
+object timestamp and references immediately before each Storage API deletion.
+
+An owner-requested immediate cleanup has a third independent switch,
+`STORAGE_CLEANUP_OWNER_EXECUTE=enabled`. The `owner-superseded` mode added by migration
+`0033` accepts one exact owner UUID and considers only that owner's `set-assets` and
+`draft-assets` objects. It preserves every path referenced by any current published set,
+contribution, or current cloud-draft document, and repeats the owner, timestamp, and reference
+checks immediately before deletion. It excludes TTS assets so old saves can only be removed by
+a separate deliberate decision. Always call this mode with `dryRun: true` first and compare its
+counts and bytes with the owner-specific measurement query.
+
+Legacy TTS exports can be reclaimed one set folder at a time with the same switch and the
+`owner-tts-unretained` mode added by migration `0034`. The request requires both the exact owner
+UUID and exact TTS source key. Current retained manifest paths are excluded and rechecked before
+each deletion. This mode exists for pre-manifest exports that cannot wait for the ordinary grace
+period; run its dry report first because deleting a legacy path can break an older saved TTS file.
+
 The migration does not schedule the function and does not enable deletion.
 
 ## Rollout checklist
@@ -105,5 +133,5 @@ npm run build
 ```
 
 The helper verification covers safe defaults, bounded inputs, path encoding, candidate
-validation, report redaction, and the permanent exclusion of `tts-assets`. Database and
-Storage behaviour still require the recovery-project checks above before deployment.
+validation, report redaction, and all three supported buckets. Database and Storage behaviour
+still require the recovery-project checks above before deployment.

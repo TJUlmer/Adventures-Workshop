@@ -52,7 +52,13 @@ import type {
   TtsThreatImage
 } from './tabletop-simulator';
 import { buildTokenArt, resolvedTokenSpec } from './token-model';
-import { imageCount, MAX_SHEET_PIXELS, renderDeckSheets, renderSharedBack } from './tts-sheets';
+import {
+  imageCount,
+  MAX_SHEET_PIXELS,
+  renderDeckSheets,
+  renderSharedBack,
+  TTS_JPEG_QUALITY
+} from './tts-sheets';
 import type { ExportResult } from './types';
 import { createZip } from './zip';
 
@@ -63,14 +69,17 @@ export interface TtsHostedAsset {
   bytes: Uint8Array<ArrayBuffer>;
 }
 
-export interface TtsUploadProgress extends TtsUploadResult {
+export interface TtsUploadProgress {
   done: number;
   total: number;
+  uploaded: number;
+  reused: number;
 }
 
 export interface TtsUploadResult {
   uploaded: number;
   reused: number;
+  retention: 'published-current' | 'temporary';
 }
 
 /** Supplied by the cloud layer so this exporter stays storage-provider agnostic. */
@@ -175,6 +184,7 @@ export interface TtsBundleResult {
   /** Online files newly written versus already present under the same hash. */
   uploadedCount: number;
   reusedCount: number;
+  retention: TtsUploadResult['retention'] | null;
 }
 
 const encoder = new TextEncoder();
@@ -242,6 +252,10 @@ async function writeAsset(
 ): Promise<string> {
   const contentType = blob.type || (extension === 'png' ? 'image/png' : 'application/octet-stream');
   return writeBytes(files, taken, base, extension, contentType, await bytesOf(blob));
+}
+
+function imageExtension(blob: Blob): 'jpg' | 'png' {
+  return blob.type === 'image/jpeg' ? 'jpg' : 'png';
 }
 
 async function rulebookFor(
@@ -387,7 +401,7 @@ async function dialObjects(
        round its edge, and a picture handed over raw would be stretched into the
        one and would leave the other unpainted. */
     const texturePath = await writeAsset(
-      files, taken, `models/${slugify(name, 'dial')}`, 'png', await buildTokenArt(figure)
+      files, taken, `models/${slugify(name, 'dial')}`, 'png', await buildTokenArt(figure, 512)
     );
     diffuseUrl = urlFor(texturePath);
   } else {
@@ -499,7 +513,7 @@ async function componentFor(
       encoder.encode(tokenObj(mesh, slug))
     );
     const texturePath = await writeAsset(
-      files, taken, `models/${slug}`, 'png', await buildTokenArt(figure)
+      files, taken, `models/${slug}`, 'png', await buildTokenArt(figure, 512)
     );
 
     return [
@@ -771,7 +785,9 @@ export async function exportTabletopSimulator(
 
       let sharedUrl = '';
       if (shared) {
-        const path = await writeAsset(files, taken, `sheets/${plan.id}-back`, 'png', shared);
+        const path = await writeAsset(
+          files, taken, `sheets/${plan.id}-back`, imageExtension(shared), shared
+        );
         sharedUrl = urlFor(path);
       }
 
@@ -781,11 +797,13 @@ export async function exportTabletopSimulator(
            file named after the pile and nothing else. */
         const stem = rendered.length > 1 ? `sheets/${plan.id}-${page + 1}` : `sheets/${plan.id}`;
 
-        const facePath = await writeAsset(files, taken, stem, 'png', sheet.face);
+        const facePath = await writeAsset(files, taken, stem, 'jpg', sheet.face);
 
         let backUrl = sharedUrl;
         if (sheet.back) {
-          const backPath = await writeAsset(files, taken, `${stem}-back`, 'png', sheet.back);
+          const backPath = await writeAsset(
+            files, taken, `${stem}-back`, imageExtension(sheet.back), sheet.back
+          );
           backUrl = urlFor(backPath);
         }
 
@@ -805,15 +823,19 @@ export async function exportTabletopSimulator(
 
   let threat: TtsThreatImage | null = null;
   if (set.threat.enabled) {
-    /* The printed strip is 5846px across and TTS refuses a texture over 4096,
-       so the board is photographed narrower rather than at print size. */
-    const board = await photographThreatBoard(set, { width: MAX_SHEET_PIXELS });
+    /* The printed strip is 5846px across. TTS accepts up to 4096, but a 3072px
+       hosted derivative keeps table detail while avoiding unused resolution. */
+    const board = await photographThreatBoard(set, {
+      width: MAX_SHEET_PIXELS,
+      mimeType: 'image/jpeg',
+      quality: TTS_JPEG_QUALITY
+    });
     done += 1;
     options.onProgress?.(done, total, 'Threat track');
 
     if (board) {
       const path = await writeAsset(
-        files, taken, `threat/${slugify(set.name, 'adventure-set')}-threat-track`, 'png', board
+        files, taken, `threat/${slugify(set.name, 'adventure-set')}-threat-track`, 'jpg', board
       );
       threat = { url: urlFor(path), mm: THREAT_CARD_MM };
     }
@@ -821,20 +843,21 @@ export async function exportTabletopSimulator(
 
   let map: TtsMapImage | null = null;
   if (set.map.enabled) {
-    /* Same ceiling as the threat strip: the printed board is 5846px across and
-       TTS refuses a texture over 4096, so it is photographed narrower. */
+    /* Same deliberate 3072px hosted ceiling as the threat strip. */
     const board = await photographMapBoard(set.map, {
       width: MAX_SHEET_PIXELS,
       customSymbols: set.customSymbols,
       setName: set.name,
-      authorName: set.meta.author
+      authorName: set.meta.author,
+      mimeType: 'image/jpeg',
+      quality: TTS_JPEG_QUALITY
     });
     done += 1;
     options.onProgress?.(done, total, 'Map');
 
     if (board) {
       const path = await writeAsset(
-        files, taken, `map/${slugify(set.name, 'adventure-set')}-map`, 'png', board
+        files, taken, `map/${slugify(set.name, 'adventure-set')}-map`, 'jpg', board
       );
       map = {
         url: urlFor(path),
@@ -897,7 +920,8 @@ export async function exportTabletopSimulator(
       fileCount: files.length + 1,
       warnings,
       uploadedCount: uploaded.uploaded,
-      reusedCount: uploaded.reused
+      reusedCount: uploaded.reused,
+      retention: uploaded.retention
     };
   }
 
@@ -931,7 +955,8 @@ export async function exportTabletopSimulator(
       removedCount: removed,
       warnings,
       uploadedCount: 0,
-      reusedCount: 0
+      reusedCount: 0,
+      retention: null
     };
   }
 
@@ -961,7 +986,8 @@ export async function exportTabletopSimulator(
     fileCount: files.length,
     warnings,
     uploadedCount: 0,
-    reusedCount: 0
+    reusedCount: 0,
+    retention: null
   };
 }
 
@@ -1068,7 +1094,9 @@ export async function exportCollectionBundle(
 
         let sharedUrl = '';
         if (shared) {
-          const path = await writeAsset(files, taken, `sheets/${plan.id}-back`, 'png', shared);
+          const path = await writeAsset(
+            files, taken, `sheets/${plan.id}-back`, imageExtension(shared), shared
+          );
           sharedUrl = urlFor(path);
         }
 
@@ -1080,11 +1108,13 @@ export async function exportCollectionBundle(
              prefix was tried and bought nothing a reader of the folder does
              not already get. */
           const stem = `sheets/${plan.id}${rendered.length > 1 ? `-${page + 1}` : ''}`;
-          const facePath = await writeAsset(files, taken, stem, 'png', sheet.face);
+          const facePath = await writeAsset(files, taken, stem, 'jpg', sheet.face);
 
           let backUrl = sharedUrl;
           if (sheet.back) {
-            const backPath = await writeAsset(files, taken, `${stem}-back`, 'png', sheet.back);
+            const backPath = await writeAsset(
+              files, taken, `${stem}-back`, imageExtension(sheet.back), sheet.back
+            );
             backUrl = urlFor(backPath);
           }
 
@@ -1162,7 +1192,8 @@ export async function exportCollectionBundle(
       fileCount: files.length + 1,
       warnings,
       uploadedCount: uploaded.uploaded,
-      reusedCount: uploaded.reused
+      reusedCount: uploaded.reused,
+      retention: uploaded.retention
     };
   }
 
@@ -1186,7 +1217,8 @@ export async function exportCollectionBundle(
       removedCount: removed,
       warnings,
       uploadedCount: 0,
-      reusedCount: 0
+      reusedCount: 0,
+      retention: null
     };
   }
 
@@ -1202,7 +1234,8 @@ export async function exportCollectionBundle(
     fileCount: files.length,
     warnings,
     uploadedCount: 0,
-    reusedCount: 0
+    reusedCount: 0,
+    retention: null
   };
 }
 

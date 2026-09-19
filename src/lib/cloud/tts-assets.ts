@@ -18,6 +18,15 @@ import { CloudError, CloudNotConfiguredError, request } from './http';
 /** Enough parallelism to avoid serial round trips without flooding Storage. */
 const UPLOAD_CONCURRENCY = 4;
 
+export interface TtsPublishedSource {
+  id: string;
+  revision: number;
+}
+
+interface TtsRetentionRow {
+  retention: 'published-current' | 'temporary';
+}
+
 function encodedPath(path: string): string {
   return path.split('/').map(encodeURIComponent).join('/');
 }
@@ -71,7 +80,10 @@ async function uploadAsset(path: string, asset: TtsHostedAsset): Promise<void> {
  * signed in. The export panel explains that this identity belongs to the
  * current browser and offers the ordinary account controls elsewhere.
  */
-export async function createTtsAssetHost(setId: string): Promise<TtsOnlineAssetHost> {
+export async function createTtsAssetHost(
+  setId: string,
+  publishedSource: TtsPublishedSource | null = null
+): Promise<TtsOnlineAssetHost> {
   if (!auth.signedIn) await auth.signInAnonymously();
   await auth.ensureFresh();
 
@@ -127,7 +139,24 @@ export async function createTtsAssetHost(setId: string): Promise<TtsOnlineAssetH
       );
       const failure = failures[0];
       if (failure) throw failure.cause;
-      return { uploaded, reused };
+
+      /* Uploading first keeps a registered manifest from ever naming a missing
+         object. A failure here leaves harmless, unregistered objects that the
+         ordinary 30-day candidate scan can reclaim. */
+      const rows = await request<TtsRetentionRow[]>('/rest/v1/rpc/register_tts_export', {
+        method: 'POST',
+        body: {
+          p_source_key: setId,
+          p_asset_paths: assets.map((asset) => `${ownerRoot}/${asset.path}`),
+          p_published_set_id: publishedSource?.id ?? null,
+          p_published_revision: publishedSource?.revision ?? null
+        }
+      });
+      const retention = rows[0]?.retention;
+      if (retention !== 'published-current' && retention !== 'temporary') {
+        throw new CloudError('The hosted export did not receive a retention policy.', 0);
+      }
+      return { uploaded, reused, retention };
     }
   };
 }

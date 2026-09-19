@@ -23,6 +23,7 @@
   import { auth } from '$lib/cloud/auth.svelte';
   import { cloudEnabled } from '$lib/cloud/config';
   import { createTtsAssetHost } from '$lib/cloud/tts-assets';
+  import type { TtsPublishedSource } from '$lib/cloud/tts-assets';
   import {
     applyExportSelection,
     defaultExportSelection,
@@ -59,13 +60,16 @@
      * publisher's working document if both happen to be in one browser.
      */
     projectFileMode?: 'backup' | 'copy';
+    /** Exact server snapshot being viewed; only its unmodified full export may be retained. */
+    publishedSource?: TtsPublishedSource | null;
   }
 
   let {
     set,
     onprint,
     scope = $bindable({ kind: 'full' }),
-    projectFileMode = 'backup'
+    projectFileMode = 'backup',
+    publishedSource = null
   }: Props = $props();
 
   /**
@@ -198,6 +202,7 @@
     removedCount: number;
     uploadedCount: number;
     reusedCount: number;
+    retention: 'published-current' | 'temporary' | null;
     warnings: string[];
   } | null>(null);
 
@@ -242,8 +247,13 @@
     ttsProgress = 'Rendering…';
     ttsResult = null;
     try {
+      const retainedPublishedSource =
+        scope.kind === 'full' && !selectionActive ? publishedSource : null;
       const hosting = hostTtsAssets
-        ? { kind: 'online' as const, host: await createTtsAssetHost(finalSet.id) }
+        ? {
+            kind: 'online' as const,
+            host: await createTtsAssetHost(finalSet.id, retainedPublishedSource)
+          }
         : { kind: 'local' as const, savedObjectsPath };
       const result = await exportTabletopSimulator(finalSet, {
         hosting,
@@ -257,6 +267,7 @@
         removedCount: result.removedCount,
         uploadedCount: result.uploadedCount,
         reusedCount: result.reusedCount,
+        retention: result.retention,
         warnings: result.warnings
       };
       flash(
@@ -462,6 +473,9 @@
                 Hosted {ttsResult.uploadedCount} new
                 {ttsResult.uploadedCount === 1 ? 'asset' : 'assets'}; reused {ttsResult.reusedCount}
                 unchanged {ttsResult.reusedCount === 1 ? 'asset' : 'assets'}.
+                {ttsResult.retention === 'published-current'
+                  ? ' This export is retained while it remains the latest published revision.'
+                  : ' This export is temporary and becomes eligible for cleanup after 30 days.'}
               </p>
             {:else if ttsResult.directory}
               <p class="landed">{ttsResult.directory}</p>

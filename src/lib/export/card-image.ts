@@ -296,6 +296,8 @@ export interface CardImageOptions {
   bleed: boolean;
   /** Output width in pixels. Defaults to the template's own resolution. */
   width?: number;
+  /** Downscale wider output without enlarging a naturally smaller format. */
+  maxWidth?: number;
   /** Gallery previews can use a smaller encoded format without changing print exports. */
   mimeType?: string;
   quality?: number;
@@ -340,7 +342,10 @@ export async function renderPlateImage(
   const region = options.bleed
     ? { x: 0, y: 0, width: format.bleed.width, height: format.bleed.height }
     : trimBox(format);
-  const outWidth = options.width ?? region.width;
+  const requestedWidth = options.width ?? region.width;
+  const outWidth = options.maxWidth === undefined
+    ? requestedWidth
+    : Math.min(requestedWidth, options.maxWidth);
 
   /*
    * Photograph at whatever the caller asked for rather than always at the
@@ -377,11 +382,17 @@ export async function renderPlateImage(
  */
 export async function renderThreatTrackImage(
   board: HTMLElement,
-  options: { width?: number } = {}
+  options: { width?: number; mimeType?: string; quality?: number } = {}
 ): Promise<Blob> {
   const { width, height } = THREAT_TRACK.bleed;
   const image = await rasterise(board, width, height);
-  return encode(image, { x: 0, y: 0, width, height }, options.width ?? width);
+  return encode(
+    image,
+    { x: 0, y: 0, width, height },
+    options.width ?? width,
+    options.mimeType,
+    options.quality
+  );
 }
 
 /**
@@ -401,11 +412,17 @@ export async function renderMapImage(
   board: HTMLElement,
   aspect: number,
   width: number,
-  options: { width?: number } = {}
+  options: { width?: number; mimeType?: string; quality?: number } = {}
 ): Promise<Blob> {
   const height = Math.round(width / (aspect || 1));
   const image = await rasterise(board, width, height);
-  return encode(image, { x: 0, y: 0, width, height }, options.width ?? width);
+  return encode(
+    image,
+    { x: 0, y: 0, width, height },
+    options.width ?? width,
+    options.mimeType,
+    options.quality
+  );
 }
 
 /** The same render, named and wrapped for a single card the author asked for. */

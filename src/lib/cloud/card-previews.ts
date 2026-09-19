@@ -12,9 +12,22 @@ import { hashEntity } from '$lib/sets/fingerprint';
 import type { AdventureSet } from '$lib/sets/types';
 
 /** Bump whenever the renderer or stored image format changes. */
-export const CARD_PREVIEW_RENDERER_VERSION = 5;
+export const CARD_PREVIEW_RENDERER_VERSION = 6;
 
-/** The previous renderer's PNGs remain usable while the admin refresh converts them. */
+/**
+ * Width of a stored gallery card face, in pixels.
+ *
+ * Gallery cards are viewed on screen, even when the lightbox is open. Storing
+ * the renderer's roughly print-sized cut area made each published face carry
+ * substantially more pixels than that surface can use. This matches the
+ * character-card preview width, where the small rules text remains readable.
+ */
+export const CARD_PREVIEW_WIDTH = 700;
+
+/** WebP quality shared with the character-card gallery previews. */
+const CARD_PREVIEW_QUALITY = 0.82;
+
+/** Older snapshots remain usable while the admin refresh replaces them. */
 export function usableCardPreviewVersion(version: number): boolean {
   return version >= 4 && version <= CARD_PREVIEW_RENDERER_VERSION;
 }
@@ -161,8 +174,9 @@ export async function renderCardPreviews(
         const renderJob = cardPngRenderJob(set, job);
         const image = await photograph(renderJob.stage, renderJob.format, {
           bleed: false,
+          maxWidth: CARD_PREVIEW_WIDTH,
           mimeType: 'image/webp',
-          quality: 0.85
+          quality: CARD_PREVIEW_QUALITY
         });
         if (!image) throw new Error(`Could not render ${job.name} for the published gallery.`);
         rendered.set(key, image);

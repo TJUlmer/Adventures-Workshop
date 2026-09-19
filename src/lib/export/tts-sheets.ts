@@ -7,10 +7,10 @@
  * in a lattice.
  *
  * Two limits shape everything here. TTS refuses a texture over 4096px on either
- * side, and its grid is at most 10 × 7. Between them, a full 70-card sheet
- * gives each card about 410px, which is why cell size is *derived* from the
- * count rather than picked: a four-card rules pile has no reason to be as soft
- * as a full deck of them.
+ * side, while this exporter deliberately stops at 3072px to avoid permanently
+ * hosting pixels that are lost to table-scale mip-mapping. Its grid is at most
+ * 10 × 7, so cell size is still *derived* from the count: a four-card rules pile
+ * has no reason to be as soft as a full deck of them.
  */
 import type { AdventureSet } from '$lib/sets/types';
 import { initiativeSubjectForCard, resolveStyleForCard } from '$lib/sets/queries';
@@ -23,18 +23,21 @@ import {
 } from './tabletop-simulator';
 import type { TtsCardPlan, TtsDeckPlan } from './tabletop-simulator';
 
-/** TTS will not take a texture larger than this on either side. */
-export const MAX_SHEET_PIXELS = 4096;
+/** Deliberately below TTS's 4096px ceiling to bound hosted derivatives. */
+export const MAX_SHEET_PIXELS = 3072;
+
+/** Opaque TTS textures are much smaller as JPEGs without visible table-scale loss. */
+export const TTS_JPEG_QUALITY = 0.92;
 
 /**
  * Cell width beyond which nothing is gained.
  *
  * A card is a couple of inches on a table and TTS mip-maps it anyway, so a
- * two-card pile rendered at 2800px would cost a slow export and a large file to
- * show the same card. 800px is a comfortable margin over the 410 a full sheet
- * gets.
+ * two-card pile rendered near print resolution would cost a slow export and a
+ * large file to show the same card. 600px preserves Alt-zoom detail without
+ * letting small piles dominate storage.
  */
-const MAX_CELL_WIDTH = 800;
+const MAX_CELL_WIDTH = 600;
 
 export interface SheetGrid {
   readonly columns: number;
@@ -78,8 +81,10 @@ export function paginate(cards: readonly TtsCardPlan[]): TtsCardPlan[][] {
   return pages;
 }
 
-async function toPng(canvas: HTMLCanvasElement): Promise<Blob> {
-  const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/png'));
+async function toTtsImage(canvas: HTMLCanvasElement): Promise<Blob> {
+  const blob = await new Promise<Blob | null>((resolve) =>
+    canvas.toBlob(resolve, 'image/jpeg', TTS_JPEG_QUALITY)
+  );
   if (!blob) throw new Error('Could not encode a face sheet.');
   return blob;
 }
@@ -99,6 +104,12 @@ async function composite(images: readonly Blob[], grid: SheetGrid): Promise<Blob
   const context = canvas.getContext('2d');
   if (!context) throw new Error('Could not get a drawing context.');
 
+  /* JPEG has no alpha channel. Empty cells are outside `NumWidth`/`NumHeight`
+     in TTS, but filling them prevents a browser-specific transparent-to-black
+     conversion from creating an accidental visual edge around the sheet. */
+  context.fillStyle = '#14161d';
+  context.fillRect(0, 0, canvas.width, canvas.height);
+
   for (const [index, blob] of images.entries()) {
     const bitmap = await createImageBitmap(blob);
     try {
@@ -114,7 +125,7 @@ async function composite(images: readonly Blob[], grid: SheetGrid): Promise<Blob
     }
   }
 
-  return toPng(canvas);
+  return toTtsImage(canvas);
 }
 
 export interface RenderedSheet {
@@ -230,7 +241,12 @@ export async function renderSharedBack(
     const back = await context.photograph(
       { card: null, cardback: plan.back.character },
       backFormat,
-      { bleed: false, width: format.width }
+      {
+        bleed: false,
+        width: format.width,
+        mimeType: 'image/jpeg',
+        quality: TTS_JPEG_QUALITY
+      }
     );
     context.onImage?.();
     return back;
@@ -249,5 +265,5 @@ export async function renderSharedBack(
   context2d.fillStyle = '#14161d';
   context2d.fillRect(0, 0, canvas.width, canvas.height);
   context.onImage?.();
-  return toPng(canvas);
+  return toTtsImage(canvas);
 }
