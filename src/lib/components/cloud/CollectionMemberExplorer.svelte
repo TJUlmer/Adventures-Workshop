@@ -9,7 +9,7 @@
    * behave differently from ordinary shared sets.
    */
   import AssetsOverview from '$lib/components/tools/AssetsOverview.svelte';
-  import { CARD_PREVIEW_RENDERER_VERSION } from '$lib/cloud/card-previews';
+  import { usableCardPreviewVersion } from '$lib/cloud/card-previews';
   import type { CollectionTile } from '$lib/cloud/collections';
   import {
     fetchSetBySlug,
@@ -249,7 +249,7 @@
   const scopeOptions = $derived(displaySet ? scopeOptionsFor(displaySet) : []);
   const shown = $derived(displaySet ? computeScopedSet(displaySet, viewScope) : null);
   const publishedCardPreviews = $derived(
-    row?.card_preview_version === CARD_PREVIEW_RENDERER_VERSION ? row.card_previews : undefined
+    row && usableCardPreviewVersion(row.card_preview_version) ? row.card_previews : undefined
   );
   const figuresOnly = $derived(focus === 'components');
 </script>

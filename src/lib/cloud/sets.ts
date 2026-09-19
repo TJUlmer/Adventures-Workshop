@@ -846,7 +846,7 @@ export async function refreshPublishedSocialPreview(targetId: string): Promise<b
   return true;
 }
 
-/** One lightweight queue entry for a published row without current card pixels. */
+/** One lightweight queue entry for a published row awaiting current, compact card pixels. */
 export interface CardPreviewRefreshTarget {
   id: string;
   name: string;
@@ -855,7 +855,7 @@ export interface CardPreviewRefreshTarget {
   card_preview_version: number;
 }
 
-/** Published rows whose card-image manifest predates the current renderer. */
+/** Published rows whose card images predate the current renderer or WebP format. */
 export async function listOutdatedCardPreviews(): Promise<CardPreviewRefreshTarget[]> {
   await auth.ensureFresh();
   if (!auth.user) return [];
@@ -869,7 +869,7 @@ export async function listOutdatedCardPreviews(): Promise<CardPreviewRefreshTarg
 /**
  * Backfill one immutable published snapshot without moving its content revision.
  *
- * The narrow database RPC verifies every uploaded PNG and changes only the
+ * The narrow database RPC verifies every uploaded image and changes only the
  * derived manifest/version columns. A failure leaves the old row untouched.
  */
 export async function refreshPublishedCardPreviews(

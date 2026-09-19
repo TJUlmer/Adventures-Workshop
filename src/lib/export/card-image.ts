@@ -296,6 +296,9 @@ export interface CardImageOptions {
   bleed: boolean;
   /** Output width in pixels. Defaults to the template's own resolution. */
   width?: number;
+  /** Gallery previews can use a smaller encoded format without changing print exports. */
+  mimeType?: string;
+  quality?: number;
 }
 
 /**
@@ -322,7 +325,7 @@ export async function renderElementImage(
 }
 
 /**
- * Render a live plate to a PNG.
+ * Render a live plate to an image. PNG remains the default for print exports.
  *
  * `plate` must be the element carrying the print file's aspect ratio — the
  * renderer's `.plate` — so the crop maths matches what is on screen. The format
@@ -358,7 +361,9 @@ export async function renderPlateImage(
       width: region.width * scale,
       height: region.height * scale
     },
-    outWidth
+    outWidth,
+    options.mimeType,
+    options.quality
   );
 }
 

@@ -17,6 +17,41 @@ turning ordinary edits, soft deletion, publication, or conflict recovery into da
 `tts-assets` is excluded. A Tabletop Simulator save can refer to those public URLs without
 leaving a database record, so the server cannot prove that an object is unused.
 
+## Gallery card image conversion
+
+Migration `0030_webp_card_previews.sql` allows the admin refresh to store WebP card images.
+Deploy that migration before the client that writes WebP. Version 4 PNG manifests remain
+visible while version 5 is rolled out. Publishing a set creates WebP images for changed
+faces; the admin's **Gallery card images** refresh converts older published snapshots
+without changing their document revision. It can take a while for a large set, and a
+failed set remains in the queue for retry.
+
+The new images do not themselves release storage: the old PNG objects remain until they
+are proven unreferenced and the cleanup grace period has elapsed. In the SQL editor,
+measure the preview split without exposing any object URLs:
+
+```sql
+with live as materialized (
+  select name from public.storage_cleanup_live_set_assets()
+)
+select
+  case when live.name is null then 'unreferenced' else 'referenced' end as status,
+  lower(substring(object.name from '[.](png|webp)$')) as format,
+  count(*) as files,
+  round(sum(coalesce((object.metadata ->> 'size')::bigint, 0)) / 1048576.0, 1) as mib
+from storage.objects as object
+left join live on live.name = object.name
+where object.bucket_id = 'set-assets'
+  and object.name ~ '/card-preview-[0-9a-f]{8}-[0-9a-f]{8}[.](png|webp)$'
+group by status, format
+order by status, format;
+```
+
+After the refresh, confirm the referenced WebP count and visually inspect published cards.
+Use the existing dry-run cleanup workflow below to measure old unreferenced PNG bytes.
+Deletion still requires its backup, grace period, and canary checks; there is no automatic
+removal during publishing or refresh.
+
 ## Safety model
 
 Migration `0015_storage_cleanup.sql` creates a service-role-only candidate ledger and planner.

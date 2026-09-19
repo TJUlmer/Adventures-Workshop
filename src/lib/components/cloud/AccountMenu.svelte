@@ -418,11 +418,11 @@
                 {:else if cardPreviewQueue.length > 0}
                   <small>
                     {cardPreviewQueue.length} published
-                    {cardPreviewQueue.length === 1 ? 'set needs' : 'sets need'} authoritative card
-                    images.
+                    {cardPreviewQueue.length === 1 ? 'set needs' : 'sets need'} gallery card
+                    images refreshed or converted to compact WebP.
                   </small>
                 {:else}
-                  <small>Every published set has current gallery card images.</small>
+                  <small>Every published set has compact gallery card images.</small>
                 {/if}
               </div>
 
@@ -437,7 +437,7 @@
                   disabled={cardPreviewQueueLoading || cardPreviewQueue.length === 0 || previewRefreshing}
                   onclick={refreshCardPreviews}
                 >
-                  Generate missing card images
+                  Refresh gallery card images
                 </Button>
               {/if}
 

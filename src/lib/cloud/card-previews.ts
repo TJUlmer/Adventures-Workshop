@@ -1,5 +1,5 @@
 /**
- * Lossless card pictures stored beside one published revision.
+ * Card pictures stored beside one published revision.
  *
  * These are not a second renderer or a parallel export plan. Publication runs
  * the same canonical jobs as "All cards as PNGs", then the shared gallery
@@ -11,8 +11,13 @@ import type { CardPngJob } from '$lib/export/card-pngs';
 import { hashEntity } from '$lib/sets/fingerprint';
 import type { AdventureSet } from '$lib/sets/types';
 
-/** Bump whenever a renderer change makes the stored pixels stale. */
-export const CARD_PREVIEW_RENDERER_VERSION = 4;
+/** Bump whenever the renderer or stored image format changes. */
+export const CARD_PREVIEW_RENDERER_VERSION = 5;
+
+/** The previous renderer's PNGs remain usable while the admin refresh converts them. */
+export function usableCardPreviewVersion(version: number): boolean {
+  return version >= 4 && version <= CARD_PREVIEW_RENDERER_VERSION;
+}
 
 export type CardPreviewSide = 'front' | 'back';
 export type CardPreviewManifest = Record<string, string>;
@@ -27,7 +32,7 @@ export interface ReusableCardPreviews {
 export interface CardPreviewRenderResult {
   /** Faces whose stored pixels are no longer valid and were photographed. */
   rendered: Map<string, Blob>;
-  /** Current faces proven to still match their stored immutable PNG. */
+  /** Current faces proven to still match their stored immutable image. */
   reused: CardPreviewManifest;
   /** A proof for every current face, including both rendered and reused ones. */
   fingerprints: CardPreviewFingerprintManifest;
@@ -133,7 +138,11 @@ export async function renderCardPreviews(
     fingerprints[key] = fingerprint;
     const previousUrl = previous?.manifest[key]?.trim() ?? '';
 
-    if (mayReuse && previousUrl && previous?.fingerprints[key] === fingerprint) {
+    if (
+      mayReuse &&
+      /[.]webp(?:[?#]|$)/i.test(previousUrl) &&
+      previous?.fingerprints[key] === fingerprint
+    ) {
       reused[key] = previousUrl;
     } else {
       pending.push({ job, key });
@@ -151,7 +160,9 @@ export async function renderCardPreviews(
       for (const { job, key } of pending) {
         const renderJob = cardPngRenderJob(set, job);
         const image = await photograph(renderJob.stage, renderJob.format, {
-          bleed: false
+          bleed: false,
+          mimeType: 'image/webp',
+          quality: 0.85
         });
         if (!image) throw new Error(`Could not render ${job.name} for the published gallery.`);
         rendered.set(key, image);
