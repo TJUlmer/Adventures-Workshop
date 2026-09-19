@@ -92,6 +92,10 @@
   font-weight: 400;
   font-style: normal;
   font-display: block;
+  /* This file's inherited fi/fl ligatures retain Oswald's original height
+     while the individual glyphs were redrawn to the shorter card metrics, so
+     words such as "fighter" otherwise grow visibly at the join. */
+  font-feature-settings: 'liga' 0;
 }
 
 /*
