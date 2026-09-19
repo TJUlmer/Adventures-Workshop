@@ -6,6 +6,7 @@ export function cleanupRequest(value) {
   const limit = boundedInteger(body.limit, 250, 1, 500);
   const mode = body.mode === 'legacy-card-previews'
     || body.mode === 'owner-superseded'
+    || body.mode === 'owner-gallery-previews'
     || body.mode === 'owner-tts-unretained'
     ? body.mode
     : 'standard';
@@ -21,7 +22,7 @@ export function cleanupRequest(value) {
     graceDays,
     limit,
     mode,
-    ...(mode === 'owner-superseded' ? { ownerId } : {}),
+    ...(mode === 'owner-superseded' || mode === 'owner-gallery-previews' ? { ownerId } : {}),
     ...(mode === 'owner-tts-unretained' ? { ownerId, sourceKey } : {}),
   };
 }

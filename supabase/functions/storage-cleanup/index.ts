@@ -31,8 +31,11 @@ Deno.serve(async (request) => {
     // An empty request intentionally uses the safest defaults.
   }
   const options = cleanupRequest(rawBody);
-  if (options.mode === 'owner-superseded' && !options.ownerId) {
-    return json({ error: 'A valid ownerId is required for owner-superseded cleanup' }, 400);
+  if (
+    (options.mode === 'owner-superseded' || options.mode === 'owner-gallery-previews')
+    && !options.ownerId
+  ) {
+    return json({ error: 'A valid ownerId is required for owner cleanup' }, 400);
   }
   if (options.mode === 'owner-tts-unretained' && (!options.ownerId || !options.sourceKey)) {
     return json({ error: 'A valid ownerId and sourceKey are required for owner TTS cleanup' }, 400);
@@ -45,12 +48,15 @@ Deno.serve(async (request) => {
   try {
     const legacyCardPreviews = options.mode === 'legacy-card-previews';
     const ownerSuperseded = options.mode === 'owner-superseded';
+    const ownerGalleryPreviews = options.mode === 'owner-gallery-previews';
     const ownerTtsUnretained = options.mode === 'owner-tts-unretained';
     const plan = await rpc<Record<string, unknown>>(
       supabaseUrl,
       credentials.requestKey,
       ownerTtsUnretained
         ? 'storage_cleanup_owner_tts_unretained_plan'
+        : ownerGalleryPreviews
+        ? 'storage_cleanup_owner_gallery_preview_plan'
         : ownerSuperseded
         ? 'storage_cleanup_owner_superseded_plan'
         : legacyCardPreviews
@@ -62,6 +68,8 @@ Deno.serve(async (request) => {
             requested_source_key: options.sourceKey,
             requested_limit: options.limit,
           }
+        : ownerGalleryPreviews
+        ? { requested_owner_id: options.ownerId, requested_limit: options.limit }
         : ownerSuperseded
         ? { requested_owner_id: options.ownerId, requested_limit: options.limit }
         : legacyCardPreviews
@@ -93,6 +101,8 @@ Deno.serve(async (request) => {
           due = await rpc<boolean>(supabaseUrl, credentials.requestKey,
             ownerTtsUnretained
               ? 'storage_cleanup_owner_tts_asset_is_unretained'
+              : ownerGalleryPreviews
+              ? 'storage_cleanup_owner_gallery_preview_is_unreferenced'
               : ownerSuperseded
               ? 'storage_cleanup_owner_asset_is_unreferenced'
               : legacyCardPreviews
@@ -102,6 +112,12 @@ Deno.serve(async (request) => {
               ? {
                   requested_owner_id: options.ownerId,
                   requested_source_key: options.sourceKey,
+                  requested_name: candidate.name,
+                  expected_object_updated_at: candidate.objectUpdatedAt,
+                }
+              : ownerGalleryPreviews
+              ? {
+                  requested_owner_id: options.ownerId,
                   requested_name: candidate.name,
                   expected_object_updated_at: candidate.objectUpdatedAt,
                 }
@@ -171,7 +187,11 @@ function executionEnabled(mode: string) {
   if (mode === 'legacy-card-previews') {
     return Deno.env.get('STORAGE_CLEANUP_LEGACY_PREVIEWS_EXECUTE') === 'enabled';
   }
-  if (mode === 'owner-superseded' || mode === 'owner-tts-unretained') {
+  if (
+    mode === 'owner-superseded'
+    || mode === 'owner-gallery-previews'
+    || mode === 'owner-tts-unretained'
+  ) {
     return Deno.env.get('STORAGE_CLEANUP_OWNER_EXECUTE') === 'enabled';
   }
   return Deno.env.get('STORAGE_CLEANUP_EXECUTE') === 'enabled';

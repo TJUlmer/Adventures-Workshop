@@ -49,6 +49,20 @@ assert.deepEqual(
 );
 assert.deepEqual(
   cleanupRequest({
+    mode: 'owner-gallery-previews',
+    ownerId: '44C2EEC0-E640-42E8-A292-799F3EE0C948',
+    dryRun: false,
+  }),
+  {
+    dryRun: false,
+    graceDays: 30,
+    limit: 250,
+    mode: 'owner-gallery-previews',
+    ownerId: '44c2eec0-e640-42e8-a292-799f3ee0c948',
+  },
+);
+assert.deepEqual(
+  cleanupRequest({
     mode: 'owner-tts-unretained',
     ownerId: '44C2EEC0-E640-42E8-A292-799F3EE0C948',
     sourceKey: 'set_example-123',
