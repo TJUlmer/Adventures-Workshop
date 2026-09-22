@@ -237,9 +237,8 @@ export interface CharacterCardDesign {
    * are left out: they are a supplied picture at a measured position, and
    * scaling them would walk them off it.
    *
-   * A ceiling still applies above this — the quote is fitted to the band
-   * between the marks and the attribution (`fitScale`), so on a long quote
-   * turning this up buys less than the number suggests, or nothing.
+   * The renderer uses the open rows beside the quotation marks and attribution
+   * before shrinking oversized copy back inside the panel.
    */
   quoteScale: number;
   /** The special ability's name, its rule and its body text — one colour for all three. */

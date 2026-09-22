@@ -292,12 +292,7 @@
     };
   });
 
-  /**
-   * The smallest a quote may shrink to, as a fraction of its *unscaled*
-   * calibrated size — see the effect that uses it below for why dividing by
-   * `design.quoteScale` there, not this constant on its own, is what keeps
-   * that true at every setting of the "Quote text size" slider.
-   */
+  /** The smallest the automatic fit may make the template's calibrated type. */
   const QUOTE_MIN_SCALE = 0.5;
 
   /**
@@ -352,34 +347,15 @@
   const hasAttribution = $derived(hasQuote && identity.quote.attribution.trim().length > 0);
 
   /**
-   * The true room on each side of `QUOTE_CENTER`, not forced to match one
-   * another — up to the quote marks above, down to the attribution line (or
-   * the band's own foot) below. Always used in full, not only once a quote
-   * is long enough to need it: an earlier version kept the box symmetric
-   * (bounded by whichever side is tighter) by default and only widened it
-   * once `fitScale` hit its floor and the text still overflowed — which
-   * meant a merely-longish quote shrank text it didn't have to, because the
-   * box it was shrinking to fit was smaller than the band actually is. Using
-   * the full room unconditionally means shrinking only ever has to make up
-   * the gap between the band's real size and the text's, not between the
-   * text and an artificially tight symmetric box.
-   *
-   * The trade a short quote makes for this: its visual centre sits a few
-   * pixels off `QUOTE_CENTER` — the calibrated single-line position — rather
-   * than exactly on it, by half the difference between these two margins
-   * (about 13px on Red's own card). Worth it: that shift is not something
-   * anyone is likely to notice, where a shrunk-more-than-necessary or
-   * visibly clipped quote both are.
+   * The text is horizontally inset beyond the quotation marks, so its clipping
+   * box can safely share their vertical row instead of beginning below them.
+   * Keep the measured one-line centre while giving wrapped copy the same room
+   * above and below; the lower half ends alongside the attribution rather than
+   * treating its entire row as unavailable.
    */
-  const quoteAboveHalf = $derived(quoteCentre - (quoteMarkY + 24 * quotePanelScale));
-  const QUOTE_BELOW_HALF = $derived(
-    (hasAttribution
-      ? quoteAttributionTop - 24 * quotePanelScale
-      : CHARACTER_BANDS.bottom - 60 * quotePanelScale) - quoteCentre
-  );
-
-  const quoteZoneTop = $derived(quoteCentre - quoteAboveHalf);
-  const quoteZoneHeight = $derived(Math.max(1, quoteAboveHalf + QUOTE_BELOW_HALF));
+  const QUOTE_ZONE_INSET = 24;
+  const quoteZoneTop = $derived(abilityDividerBottom + QUOTE_ZONE_INSET * quotePanelScale);
+  const quoteZoneHeight = $derived(Math.max(1, 2 * (quoteCentre - quoteZoneTop)));
 
   let abilityBox: HTMLDivElement | null = $state(null);
   let abilityContent: HTMLDivElement | null = $state(null);
@@ -433,34 +409,7 @@
     });
   });
 
-  /**
-   * Re-fit whenever the printed quote, the size it is set at, or the zone it
-   * has to fit in changes. `quoteTextSize` is read here as well as in the
-   * markup: without it, dragging the slider up past what the band can hold
-   * would leave the previous, larger `--fit-scale` in place and the copy
-   * would overflow rather than be shrunk back.
-   *
-   * A lower floor than `fitScale`'s own default: an author's own real quote
-   * ("the box now tries the calibrated symmetric size first…", 241
-   * characters) still overflowed at 0.7 even in the full-width band — the
-   * default floor, right for gameplay text that must stay legible, is not
-   * automatically right for decorative flavour text a few words longer than
-   * most. `QUOTE_MIN_SCALE` (0.5) was enough for that quote with room to
-   * spare; genuinely book-length flavour text can still outrun it, and
-   * `overflow: hidden` is still what happens then.
-   *
-   * The floor passed to `fitScale` is `QUOTE_MIN_SCALE` divided by
-   * `design.quoteScale`, not `QUOTE_MIN_SCALE` itself — `--fit-scale`
-   * multiplies `quoteTextSize`, which is *already* `quoteScale` times the
-   * calibrated base size, so a bare `0.5` floor only ever bottoms out at
-   * `quoteScale × 0.5` of that base. At the slider's own 160% ceiling that
-   * floor is 80% of the calibrated size — nowhere near small enough for a
-   * long quote to shrink into the same band a 100%-scale one fits in, so an
-   * author who both lengthened a quote and turned it up hit the *effective*
-   * floor without ever reaching the number `0.5` promised. Dividing keeps
-   * the floor an absolute size relative to the base, whatever the slider is
-   * doing on top of it.
-   */
+  /** Re-fit scaled copy only when it exceeds the expanded quote region. */
   $effect(() => {
     void identity.quote.text;
     void quoteTextSize;
@@ -644,11 +593,8 @@
     style:height={py(quoteZoneHeight)}
   >
     <!--
-      `quoteScale` multiplies the measured size; `--fit-scale` still divides it
-      back down if the result outgrows the band. The two are separate on
-      purpose — one is the author's choice, the other is the panel's own
-      ceiling, and folding them together would let a long quote's shrink
-      silently reset the slider.
+      `quoteScale` supplies the requested size; `--fit-scale` remains the
+      overflow backstop now that the box uses the panel's available room.
     -->
     <p
       class="quote-text"
