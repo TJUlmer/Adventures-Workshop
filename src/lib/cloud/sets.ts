@@ -13,6 +13,8 @@
  * untouched by whether a set has ever been published.
  */
 import { parseSetFile, serializeSet } from '$lib/export/json';
+import { hasArtwork } from '$lib/core/artwork';
+import { usesAutomaticBoxArt } from '$lib/sets/box-art';
 import { charactersByRole, setStats } from '$lib/sets/queries';
 import { computeScopedSet } from '$lib/sets/scope';
 import type { PublishScope } from '$lib/sets/scope';
@@ -31,6 +33,7 @@ import { shortHash } from '$lib/core/hash';
 import { renderCharacterCards } from './character-cards';
 import {
   CARD_PREVIEW_RENDERER_VERSION,
+  deckBackPreviewKey,
   renderCardPreviews
 } from './card-previews';
 import type {
@@ -41,6 +44,7 @@ import type {
 import { renderSocialImage, SOCIAL_IMAGE_RENDERER_VERSION } from './social-image';
 import {
   AUTOMATIC_BOX_THUMBNAIL_STEM,
+  CARD_PREVIEW_UPLOAD_STEM,
   renderThumbnailWithKind
 } from './thumbnail';
 import { ASSET_BUCKET, cloudConfig } from './config';
@@ -392,7 +396,7 @@ async function createCardPreviewManifest(
           image,
           userId,
           storageSetId,
-          `card-preview-${keyHash}`
+          `${CARD_PREVIEW_UPLOAD_STEM}-${keyHash}`
         );
       } catch (cause) {
         if (failures.length === 0) failures.push({ cause });
@@ -495,15 +499,35 @@ export async function publishSet(
    */
   let thumbnailUrl = '';
   try {
-    const thumbnail = await renderThumbnailWithKind(scoped, {
-      // A villain slice remains `kind: 'adventure'`, but it is one side of a
-      // product rather than a box to advertise in its own right.
-      automaticBoxArt: scope.kind === 'full'
-    });
-    if (thumbnail) {
-      const stem =
-        thumbnail.kind === 'automatic-box' ? AUTOMATIC_BOX_THUMBNAIL_STEM : 'thumb';
-      thumbnailUrl = await uploadBlob(thumbnail.blob, user.id, set.id, stem);
+    const automaticBoxArt = scope.kind === 'full' && usesAutomaticBoxArt(scoped);
+
+    /*
+     * A solo character's tile is their printed deck back. The old path
+     * downscaled `cardback.artwork`, which is only the picture underneath the
+     * template; replacement art concealed the bug because that file already
+     * was the entire back. Reuse the canonical preview publication just
+     * rendered rather than photographing or uploading the same card twice.
+     */
+    if (!automaticBoxArt && !hasArtwork(scoped.boxArt)) {
+      const representative =
+        scoped.characters.find((character) => character.role === 'villain') ??
+        scoped.characters.find((character) => character.role === 'hero') ??
+        scoped.characters[0];
+      if (representative) {
+        thumbnailUrl =
+          cardPreviewSnapshot.manifest[deckBackPreviewKey(representative.id)]?.trim() ?? '';
+      }
+    }
+
+    /* Uploaded box art, automatic compilation art and legacy documents with
+       no rendered back still use the established artwork renderer. */
+    if (!thumbnailUrl) {
+      const thumbnail = await renderThumbnailWithKind(scoped, { automaticBoxArt });
+      if (thumbnail) {
+        const stem =
+          thumbnail.kind === 'automatic-box' ? AUTOMATIC_BOX_THUMBNAIL_STEM : 'thumb';
+        thumbnailUrl = await uploadBlob(thumbnail.blob, user.id, set.id, stem);
+      }
     }
   } catch {
     thumbnailUrl = '';
@@ -947,9 +971,12 @@ export interface GalleryCharacter {
   character_id: string;
   name: string;
   role: string;
-  /** Their deck back, or failing that a portrait or card art. May be empty. */
+  /**
+   * Their rendered deck back, or a legacy fallback to its source artwork,
+   * portrait or card art. May be empty.
+   */
   image_url: string;
-  /** Whether `image_url` is a full print plate. See `GallerySet.cover_bleeds`. */
+  /** Whether the legacy image fallback is a full print plate. Rendered backs are not. */
   image_bleeds: boolean;
   /**
    * A picture of their character card, photographed at publish.

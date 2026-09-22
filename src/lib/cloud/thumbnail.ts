@@ -8,8 +8,9 @@
  *
  * An uploaded box cover is always shown exactly as supplied. A full Adventure
  * or multi-hero product without one receives the lightweight derived
- * compilation from `renderer/GeneratedBoxArt.svelte`; single heroes and scoped
- * publications keep using the representative source-art fallback below.
+ * compilation from `renderer/GeneratedBoxArt.svelte`. Publication reuses its
+ * finished deck-back preview for a solo character; the representative source
+ * artwork below remains the fallback when no rendered face is available.
  */
 import type { Artwork } from '$lib/core/artwork';
 import { hasArtwork } from '$lib/core/artwork';
@@ -33,8 +34,16 @@ const QUALITY = 0.8;
 /** Generated uploads carry their provenance without adding a database column. */
 export const AUTOMATIC_BOX_THUMBNAIL_STEM = 'auto-box';
 
+/** Rendered card URLs carry their bleed-free provenance for thumbnail reuse. */
+export const CARD_PREVIEW_UPLOAD_STEM = 'card-preview';
+
 export function isAutomaticBoxThumbnail(url: string): boolean {
   return url.includes(`/${AUTOMATIC_BOX_THUMBNAIL_STEM}-`);
+}
+
+/** A reused deck-back preview is already cropped to the card's cut area. */
+function isRenderedCardThumbnail(url: string): boolean {
+  return url.includes(`/${CARD_PREVIEW_UPLOAD_STEM}-`);
 }
 
 /**
@@ -42,14 +51,19 @@ export function isAutomaticBoxThumbnail(url: string): boolean {
  *
  * `cover_bleeds` describes the raw database-derived fallback. Legacy `thumb-*`
  * uploads are literal downscales of that same picture and therefore share the
- * answer. The new `auto-box-*` composition is the sole exception and names
- * itself in the existing content-addressed path so old rows remain correct.
+ * answer. Generated box art and a reused rendered deck back are already
+ * finished, bleed-free pictures; both name themselves in their existing
+ * content-addressed paths so old rows remain correct.
  */
 export function thumbnailOrCoverBleeds(
   thumbnailUrl: string,
   coverBleeds: boolean
 ): boolean {
-  return coverBleeds && !isAutomaticBoxThumbnail(thumbnailUrl);
+  return (
+    coverBleeds &&
+    !isAutomaticBoxThumbnail(thumbnailUrl) &&
+    !isRenderedCardThumbnail(thumbnailUrl)
+  );
 }
 
 /**

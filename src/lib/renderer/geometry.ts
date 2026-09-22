@@ -984,7 +984,14 @@ export const HERO_RIBBON_OWNER = {
   top: 598,
   /** The template's letters stand 91px, which the name face sets at 136.5. */
   size: inName(136.5),
-  lineHeight: 0.88,
+  /**
+   * The clipping box must include the face's full sideways glyph extent.
+   * At 0.88 the 29px line box held 35px-wide Bebas capitals, so the
+   * photographed gallery face shaved their sides even though the live type
+   * still looked plausible at editor scale. `HERO_RIBBON_OWNER_LEFT` derives
+   * from this value below, keeping the visible capitals on the measured axis.
+   */
+  lineHeight: 1.2,
   /** Clear space between the start of the name and the pennant's shoulder. */
   pointGap: 33,
   /**
