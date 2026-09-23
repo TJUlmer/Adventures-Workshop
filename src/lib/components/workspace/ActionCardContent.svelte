@@ -57,13 +57,15 @@
   let { card }: Props = $props();
 
   const deckOptions = $derived(
-    workshop.adventure.decks.map((deck) => {
-      const owner = deckOwner(workshop.adventure, deck);
-      return {
-        value: deck.id as string,
-        label: owner ? `${deckLabel(deck)} · ${characterLabel(owner)}` : deckLabel(deck)
-      };
-    })
+    workshop.adventure.decks
+      .filter((deck) => deck.kind === 'action' || deck.kind === 'special')
+      .map((deck) => {
+        const owner = deckOwner(workshop.adventure, deck);
+        return {
+          value: deck.id as string,
+          label: owner ? `${deckLabel(deck)} · ${characterLabel(owner)}` : deckLabel(deck)
+        };
+      })
   );
 
   /**

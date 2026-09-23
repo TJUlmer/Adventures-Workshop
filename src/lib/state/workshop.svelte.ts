@@ -146,6 +146,11 @@ function defaultCardType(deck: Deck): CardType {
   return 'action';
 }
 
+/** A deck may be renamed or re-owned, but its renderer family cannot change. */
+function deckAcceptsCardType(deck: Deck, type: CardType): boolean {
+  return defaultCardType(deck) === type;
+}
+
 /** Addresses an entity that owns artwork. */
 export type EntityRef =
   | { readonly entity: 'card'; readonly id: CardId }
@@ -1272,7 +1277,9 @@ export class WorkshopStore {
     const deck = findDeck(this.adventure, deckId);
     if (!deck) return null;
 
-    const card = createCard(type ?? defaultCardType(deck), deck.id);
+    const cardType = type ?? defaultCardType(deck);
+    if (!deckAcceptsCardType(deck, cardType)) return null;
+    const card = createCard(cardType, deck.id);
     this.adventure.cards.push(card);
     this.selectCard(card.id);
     this.touch();
@@ -1343,7 +1350,9 @@ export class WorkshopStore {
   }
 
   moveCard(id: CardId, deckId: DeckId): void {
-    if (!findDeck(this.adventure, deckId)) return;
+    const card = findCard(this.adventure, id);
+    const deck = findDeck(this.adventure, deckId);
+    if (!card || !deck || !deckAcceptsCardType(deck, card.type)) return;
     this.editCard(id, (card) => {
       card.deckId = deckId;
     });
@@ -1368,6 +1377,8 @@ export class WorkshopStore {
     if (!target) return;
 
     const deckId = target.deckId;
+    const deck = findDeck(this.adventure, deckId);
+    if (!deck || !deckAcceptsCardType(deck, moving.type)) return;
     cards.splice(from, 1);
 
     // Recompute after the removal — the target may have shifted down one.
@@ -1388,7 +1399,8 @@ export class WorkshopStore {
     const cards = this.adventure.cards;
     const from = cards.findIndex((card) => card.id === id);
     const moving = cards[from];
-    if (from === -1 || !moving || !findDeck(this.adventure, deckId)) return;
+    const deck = findDeck(this.adventure, deckId);
+    if (from === -1 || !moving || !deck || !deckAcceptsCardType(deck, moving.type)) return;
 
     cards.splice(from, 1);
     moving.deckId = deckId;

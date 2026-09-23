@@ -78,6 +78,8 @@ import type {
 } from '$lib/characters/types';
 import type { Artwork } from '$lib/core/artwork';
 import { createArtwork } from '$lib/core/artwork';
+import { createDeck } from '$lib/decks/factory';
+import type { DeckId } from '$lib/decks/types';
 import type { DialRange, Figure, ModelFile, TokenBuild } from '$lib/figures/types';
 import { createDialRange, createFigure, createTokenBuild, FIGURE_KINDS } from '$lib/figures/types';
 import { MAX_POLYGON_SIDES, MIN_POLYGON_SIDES, TOKEN_SHAPES } from '$lib/models/token';
@@ -1029,7 +1031,7 @@ export function normalizeSet(value: AdventureSet): AdventureSet {
     };
   });
 
-  const decks = (Array.isArray(raw['decks']) ? raw['decks'] : []).map((entry) => {
+  const decks: Loose[] = (Array.isArray(raw['decks']) ? raw['decks'] : []).map((entry) => {
     const deck = asRecord(entry);
     return { ...deck, kind: renameLegacyKind(deck['kind']) };
   });
@@ -1037,6 +1039,57 @@ export function normalizeSet(value: AdventureSet): AdventureSet {
   const cards = (Array.isArray(raw['cards']) ? raw['cards'] : [])
     .map(normalizeCard)
     .filter((card): card is Card => card !== null);
+
+  /*
+   * CharacterEditor once offered every deck kind for every character-owned
+   * deck. Changing the stock "Action deck" to Initiative moved it out of the
+   * character branch immediately. A later Add card then quite reasonably
+   * created a real Initiative card inside that damaged deck, so blindly
+   * changing the kind back would preserve one mismatch while fixing another.
+   *
+   * The unchanged stock name makes the damaged origin unambiguous. Restore
+   * that deck to Action and move any genuine Initiative cards into the
+   * adventure's set-level Initiative deck, creating it only when necessary.
+   * Both changes self-terminate on the next pass, keeping normalization
+   * idempotent, and no authored card content is reinterpreted or discarded.
+   */
+  const damagedActionDeckIds = new Set(
+    decks
+      .filter(
+        (deck) =>
+          deck['kind'] === 'initiative' &&
+          typeof deck['ownerId'] === 'string' &&
+          str(deck['name']).trim().toLowerCase() === 'action deck'
+      )
+      .map((deck) => deck['id'])
+      .filter((id): id is string => typeof id === 'string')
+  );
+
+  let repairedDecks = decks.map((deck) =>
+    damagedActionDeckIds.has(deck['id'] as string) ? { ...deck, kind: 'action' } : deck
+  );
+  let repairedCards = cards;
+  const initiativeCardsToMove = cards.filter(
+    (card) => damagedActionDeckIds.has(card.deckId) && card.type === 'initiative'
+  );
+  if (initiativeCardsToMove.length > 0) {
+    let initiativeDeck = decks.find(
+      (deck) => deck['kind'] === 'initiative' && deck['ownerId'] === null
+    );
+    if (!initiativeDeck) {
+      initiativeDeck = createDeck('initiative') as unknown as Loose;
+      repairedDecks = [...repairedDecks, initiativeDeck];
+    }
+    const storedInitiativeDeckId = initiativeDeck['id'];
+    if (typeof storedInitiativeDeckId === 'string') {
+      const initiativeDeckId = storedInitiativeDeckId as DeckId;
+      repairedCards = cards.map((card) =>
+        damagedActionDeckIds.has(card.deckId) && card.type === 'initiative'
+          ? { ...card, deckId: initiativeDeckId }
+          : card
+      );
+    }
+  }
 
   const kind = SET_KINDS.includes(raw['kind'] as SetKind)
     ? (raw['kind'] as SetKind)
@@ -1050,8 +1103,8 @@ export function normalizeSet(value: AdventureSet): AdventureSet {
     singleHero: kind === 'heroes' && bool(raw['singleHero'], false),
     style: repairStyleOverride(asRecord(raw['style'])),
     characters,
-    decks,
-    cards,
+    decks: repairedDecks,
+    cards: repairedCards,
     threat: threatTrack(raw['threat']),
     map: adventureMap(raw['map'], num(raw['schemaVersion'], 0) < 46),
     figures: (Array.isArray(raw['figures']) ? raw['figures'] : []).map(figure),

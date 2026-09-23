@@ -19,7 +19,7 @@
   } from '$lib/characters/types';
   import { CHARACTER_ROLE_META } from '$lib/characters/types';
   import type { DeckId, DeckKind } from '$lib/decks/types';
-  import { DECK_KIND_META, DECK_KINDS } from '$lib/decks/types';
+  import { DECK_KIND_META } from '$lib/decks/types';
   import { characterEditorView } from '$lib/state/character-editor-view.svelte';
   import { workshop } from '$lib/state/workshop.svelte';
   import {
@@ -72,7 +72,16 @@
   const character = $derived(workshop.selectedCharacter);
   const decks = $derived(character ? workshop.decksFor(character.id) : []);
 
-  const deckKindOptions = DECK_KINDS.map((kind) => ({
+  /*
+   * Initiative, Rules and Event are collected in set-level sidebar groups.
+   * Letting a character's ordinary deck be changed to one of those kinds
+   * made the branch disappear immediately; worse, its existing action cards
+   * were then filtered out by the Initiative presentation and looked lost.
+   * Character-owned Rules/Event decks are created through their card editor
+   * and remain labelled below, but this control only switches between the two
+   * kinds that share the action-card template.
+   */
+  const deckKindOptions = (['action', 'special'] as const).map((kind) => ({
     value: kind,
     label: DECK_KIND_META[kind].label
   }));
@@ -90,7 +99,7 @@
 
   function setDeckKind(deckId: DeckId, kind: string): void {
     const deck = decks.find((candidate) => candidate.id === deckId);
-    if (deck) deck.kind = kind as DeckKind;
+    if (deck && (kind === 'action' || kind === 'special')) deck.kind = kind as DeckKind;
   }
 
   /**
@@ -262,11 +271,15 @@
 
             <div class="deck-controls">
               <div class="deck-kind">
-                <Select
-                  value={deck.kind}
-                  options={deckKindOptions}
-                  onchange={(kind) => setDeckKind(deck.id, kind)}
-                />
+                {#if deck.kind === 'action' || deck.kind === 'special'}
+                  <Select
+                    value={deck.kind}
+                    options={deckKindOptions}
+                    onchange={(kind) => setDeckKind(deck.id, kind)}
+                  />
+                {:else}
+                  <span class="fixed-deck-kind">{DECK_KIND_META[deck.kind].label}</span>
+                {/if}
               </div>
               <span class="deck-count numeric" title="Cards to print">{deckSize(cards)}</span>
               <Button size="sm" onclick={() => workshop.addCard(deck.id)}>
@@ -814,6 +827,18 @@
   .deck-kind {
     flex: 1 1 130px;
     min-width: 0;
+  }
+
+  .fixed-deck-kind {
+    display: flex;
+    align-items: center;
+    min-height: 32px;
+    padding-inline: var(--space-3);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-sm);
+    background: var(--surface-sunken);
+    font-size: var(--text-sm);
+    color: var(--text-muted);
   }
 
   .deck-count {
