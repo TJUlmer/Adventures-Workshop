@@ -176,5 +176,29 @@ const syntaxErrors = (syntax.diagnostics ?? []).filter(
   (diagnostic) => diagnostic.category === ts.DiagnosticCategory.Error,
 );
 assert.deepEqual(syntaxErrors, []);
+assert.match(edgeFunction, /STORAGE_CLEANUP_CRON_TOKEN/);
 
-console.log('Storage cleanup helpers and Edge Function: 16 assertions passed');
+const latestDraftMigration = readFileSync(
+  new URL('../supabase/migrations/0036_superseded_revision_cleanup.sql', import.meta.url),
+  'utf8',
+);
+assert.equal(
+  latestDraftMigration.match(/public\.storage_cleanup_live_draft_assets\(\)/g)?.length,
+  3,
+);
+assert.doesNotMatch(latestDraftMigration, /from public\.set_drafts as draft/);
+assert.match(latestDraftMigration, /superseded = true/);
+assert.match(latestDraftMigration, /interval '3 days'/);
+assert.match(latestDraftMigration, /tts_exports_queue_superseded_assets/);
+
+const scheduleMigration = readFileSync(
+  new URL('../supabase/migrations/0038_daily_storage_cleanup.sql', import.meta.url),
+  'utf8',
+);
+assert.match(scheduleMigration, /create extension if not exists pg_cron/);
+assert.match(scheduleMigration, /create extension if not exists pg_net/);
+assert.match(scheduleMigration, /storage-cleanup-daily/);
+assert.match(scheduleMigration, /storage_cleanup_cron_token/);
+assert.match(scheduleMigration, /"dryRun":false,"limit":500/);
+
+console.log('Storage cleanup helpers, Edge Function, retention, and schedule: 27 assertions passed');

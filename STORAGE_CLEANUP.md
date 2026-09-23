@@ -5,24 +5,37 @@ turning ordinary edits, soft deletion, publication, or conflict recovery into da
 
 ## What it may clean
 
-- `draft-assets`: a complete `<owner>/<set>/` prefix only when no `set_drafts` row exists
-  for that owner and local set ID. Active and soft-deleted drafts retain every object in
-  their prefix, including older content-addressed files that another browser may still know
-  about.
+- `draft-assets`: individual objects not referenced by the latest saved cloud-draft document.
+  The one current document remains indefinitely, including while it is soft-deleted and can be
+  restored. Assets removed by a successful newer draft revision become due after three days;
+  abandoned uploads that never belonged to a saved revision keep the 30-day safety period.
 - `set-assets`: individual objects not referenced anywhere in either a current `sets` row
   or a `set_contributions` row. The scan considers every string in those rows so covers the
   published document, thumbnails, social images, character cards, covers, and contribution
-  payloads.
+  payloads. Assets removed by a successful republish or unpublish become due after three days;
+  abandoned uploads that never reached a published row keep the 30-day safety period.
 - `tts-assets`: generated files that are absent from the one retained manifest for the latest
-  published revision. Unpublished exports, collection exports, superseded revisions, and legacy
-  objects without a manifest enter the same 30-day candidate grace period. Re-exporting the
-  exact current published snapshot replaces its retained manifest; shared paths stay live while
-  any retained manifest names them.
+  published revision. Files unique to a replaced published revision become due after three days.
+  Unpublished exports, collection exports, and legacy objects without a retained manifest keep
+  the 30-day candidate grace period. Re-exporting the exact current published snapshot replaces
+  its retained manifest; shared paths stay live while any retained manifest names them.
 
 Migration `0032_tts_export_retention.sql` adds the manifest that makes TTS cleanup provable.
 Exports made before that migration have no manifest and therefore receive a fresh 30-day grace
 period from the first cleanup scan after rollout. Authors can preserve the current published
 revision by exporting it again from its published page during that period.
+
+Migration `0036_superseded_revision_cleanup.sql` changes ordinary draft cleanup from whole-folder
+retention to exact references in the one current `set_drafts` document. It also marks assets
+removed from a committed draft, gallery, or retained TTS revision with a three-day safety period.
+The ordinary 30-day grace period continues to cover uncommitted and temporary uploads, while
+every deletion still uses the same live-reference proof and deletion-time recheck as the
+owner-scoped cleanup path.
+
+Online TTS exports use content-hashed object names. Re-exporting the same set with byte-identical
+generated files reuses their existing Storage objects and writes only another small manifest row;
+the downloaded TTS JSON stays on the author's device. A changed generated file receives a new
+path, and the old path is protected only while an active retained manifest still names it.
 
 ## Gallery card image conversion
 
@@ -98,7 +111,17 @@ UUID and exact TTS source key. Current retained manifest paths are excluded and 
 each deletion. This mode exists for pre-manifest exports that cannot wait for the ordinary grace
 period; run its dry report first because deleting a legacy path can break an older saved TTS file.
 
-The migration does not schedule the function and does not enable deletion.
+Migration `0038_daily_storage_cleanup.sql` schedules the standard cleanup once per day at
+09:20 UTC. It uses Supabase Cron and `pg_net` to call the Edge Function with a dedicated token;
+the scheduled request never carries a project-wide secret key. The migration requires these
+two values to exist first:
+
+- `storage_cleanup_project_url` in Supabase Vault, containing the project API URL; and
+- `storage_cleanup_cron_token` in both Supabase Vault and the Edge Function secrets, containing
+  the same randomly generated token.
+
+The daily request uses `{ "dryRun": false, "limit": 500 }`. The function still refuses every
+standard deletion unless `STORAGE_CLEANUP_EXECUTE=enabled` is present in its environment.
 
 ## Rollout checklist
 
@@ -117,8 +140,17 @@ The migration does not schedule the function and does not enable deletion.
    `STORAGE_CLEANUP_EXECUTE=enabled`.
 7. Verify active drafts, restored soft-deleted drafts, published sets, and open/resolved
    contributions still load on two browsers and two accounts.
-8. Only then schedule a weekly server-side run. Keep the 500-object hard cap and monitor the
-   aggregate failure count.
+8. Create a random cleanup token of at least 32 bytes. Store it under
+   `storage_cleanup_cron_token` in Supabase Vault and `STORAGE_CLEANUP_CRON_TOKEN` in Edge
+   Function secrets. Store the project API URL under `storage_cleanup_project_url` in Vault.
+9. Apply migration `0038_daily_storage_cleanup.sql`, then confirm `storage-cleanup-daily`
+   appears in `cron.job` with the expected schedule and command.
+10. Invoke the scheduled command once while `STORAGE_CLEANUP_EXECUTE` is absent and verify the
+    Edge Function rejects deletion. Run a separate authenticated dry request and inspect its
+    bucket totals.
+11. Set `STORAGE_CLEANUP_EXECUTE=enabled`, invoke the job once, and verify the Edge Function
+    reports zero failures. Keep the 500-object hard cap and monitor `cron.job_run_details`, the
+    `pg_net` HTTP response, and Edge Function logs.
 
 To pause cleanup, remove or change `STORAGE_CLEANUP_EXECUTE`. Dry runs remain available for
 capacity measurement. Disabling the cloud-draft product flag does not itself authorise or run

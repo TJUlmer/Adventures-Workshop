@@ -200,8 +200,12 @@ function executionEnabled(mode: string) {
 function cleanupCredentials() {
   const secretKeys = parseSecretKeys(Deno.env.get('SUPABASE_SECRET_KEYS'));
   const legacyServiceRole = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')?.trim() ?? '';
+  const cronToken = Deno.env.get('STORAGE_CLEANUP_CRON_TOKEN')?.trim() ?? '';
   const acceptedKeys = [...secretKeys];
   if (legacyServiceRole) acceptedKeys.push(legacyServiceRole);
+  /* The scheduler gets a purpose-specific credential that can invoke only
+     this function. It must never need a project-wide secret key. */
+  if (cronToken) acceptedKeys.push(cronToken);
   if (acceptedKeys.length === 0) throw new Error('No Supabase secret key is configured');
 
   return {
