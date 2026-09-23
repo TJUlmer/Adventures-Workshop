@@ -319,8 +319,10 @@ RLS writes itself from an existing, attacked-and-tested precedent.
 
 Two directions, both ending in the *other* side's acceptance:
 
-- **Creator submits** — the collection is open for submissions; a creator
-  points their published deck at it; an organizer accepts.
+- **Creator submits** — the collection is open for submissions, the creator
+  accepted a person-level invitation, or one of their decks is already an
+  accepted member; they point another published deck at it and an organizer
+  accepts.
 - **Organizer invites** — an organizer adds a deck by its share link; that
   deck's owner accepts.
 

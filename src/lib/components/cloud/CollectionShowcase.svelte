@@ -32,6 +32,8 @@
     charactersFailed?: boolean;
     canManage?: boolean;
     canUseMemberTools?: boolean;
+    /** The member workspace currently offers a path to another contribution. */
+    canAddDeck?: boolean;
     workspaceAttention?: number;
     announcement?: string | null;
     onmanage: () => void;
@@ -51,6 +53,7 @@
     charactersFailed = false,
     canManage = false,
     canUseMemberTools = false,
+    canAddDeck = false,
     workspaceAttention = 0,
     announcement = null,
     onmanage,
@@ -289,7 +292,7 @@
           </small>
         </span>
         <Button variant="secondary" onclick={canManage ? onmanage : onmember}>
-          Project workspace{workspaceAttention > 0 ? ` · ${workspaceAttention}` : ''}
+          {canManage ? 'Project workspace' : canAddDeck ? 'Add a deck' : 'Your contribution'}{workspaceAttention > 0 ? ` · ${workspaceAttention}` : ''}
         </Button>
       </div>
     {/if}

@@ -1579,7 +1579,7 @@
     <section class="collections">
       <h2 class="section-title">Collections</h2>
       <p class="section-hint">
-        Themed boxes you organize, or that a deck of yours is part of.
+        Projects you organize or contribute to. Open one to add a published deck or manage your contribution.
       </p>
       <ul class="collection-grid">
         {#each myCollections as entry (entry.id)}
@@ -1608,8 +1608,8 @@
                     {entry.is_organizer
                       ? 'Organizer'
                       : entry.my_deck_count > 0
-                        ? 'Your deck is in this'
-                        : 'Joined — no deck yet'}
+                        ? 'Creator · Add another deck'
+                        : 'Creator · Add a deck'}
                   </span>
                   <span>{entry.deck_count} {entry.deck_count === 1 ? 'deck' : 'decks'}</span>
                   {#if entry.visibility !== 'public'}

@@ -669,10 +669,7 @@
     )
   );
 
-  /**
-   * Whether this visitor already has a deck here, in any state that means
-   * "you are dealt with" — accepted, or awaiting somebody's decision.
-   */
+  /** Whether this visitor already has a deck here or awaiting a decision. */
   const iHaveADeckHere = $derived(
     memberships.some(
       (row) =>
@@ -697,13 +694,20 @@
    * to nothing.
    */
   const joining = $derived.by(() => {
-    if (organizer || iHaveADeckHere) return 'settled';
+    if (organizer) return 'settled';
     if (!auth.signedIn) return 'signed-out';
     if (!submissionAccess) return 'invite-only';
     if (myPublished.length === 0) return 'nothing-published';
-    if (offerable.length === 0) return 'settled';
+    /* Having one accepted deck does not finish a creator's participation.
+       Keep an explicit route to a second contribution, even when that deck
+       still needs to be published before it can enter the picker. */
+    if (offerable.length === 0) return iHaveADeckHere ? 'nothing-offerable' : 'settled';
     return 'can-offer';
   });
+
+  const canAddDeck = $derived(
+    !organizer && submissionAccessCurrent && submissionAccess && joining !== 'settled'
+  );
 
   async function loadMembership(): Promise<CollectionMembership[] | null> {
     const request = ++membershipRequest;
@@ -1408,6 +1412,7 @@
             {charactersFailed}
             canManage={organizer}
             canUseMemberTools={hasMemberTools}
+            {canAddDeck}
             announcement={claimNotice}
             workspaceAttention={organizer ? submissions.length : myInvitations.length}
             onmanage={() => showWorkspace()}
@@ -2170,20 +2175,31 @@
         </section>
       {/if}
 
-      <!-- Every visitor gets an explicit answer to “how do I add my deck?” -->
+      <!--
+        Every non-organizer gets an explicit answer to “how do I add my
+        deck?”, even while one of the three workspace reads is unavailable.
+        Hiding the whole panel behind successful reads made a transient RPC
+        failure look exactly like “only organizers can add decks”.
+      -->
       {#if pageMode === 'workspace' && manageTab === 'decks' && (
-        joining === 'signed-out'
-        || (
-          membershipRowsCurrent
-          && publishedRowsCurrent
-          && (organizer || submissionAccessCurrent)
-          && (organizer ? offerable.length > 0 : joining !== 'settled')
-        )
+        !organizer || (membershipRowsCurrent && publishedRowsCurrent && offerable.length > 0)
       )}
         <section class="panel joining">
-          <h2>{organizer ? 'Add one of your decks' : 'Choose a deck to contribute'}</h2>
+          <h2>Add one of your decks</h2>
           {#if joining === 'signed-out'}
             <p class="hint">Sign in to choose one of your published decks for this collection.</p>
+          {:else if membershipLoading && (!publishedRowsCurrent || !submissionAccessCurrent)}
+            <p class="hint" role="status">Loading your published decks and contribution access…</p>
+          {:else if !publishedRowsCurrent || !submissionAccessCurrent}
+            <p class="hint">
+              We couldn’t load your published decks or confirm your contribution access.
+            </p>
+            <button
+              type="button"
+              class="btn"
+              disabled={membershipLoading}
+              onclick={() => void loadMembership()}
+            >Try again</button>
           {:else if joining === 'nothing-published'}
             <p class="hint">
               First open the deck you want to contribute and choose <strong>Export → Publish</strong>.
@@ -2199,6 +2215,17 @@
               This project is invitation-only. Send an organizer the published deck’s share link
               so they can invite it.
             </p>
+          {:else if joining === 'nothing-offerable'}
+            <p class="hint">
+              All of your published decks are already in this project or waiting on a decision.
+              To add another, open its working copy and choose <strong>Export → Publish</strong>,
+              then return here.
+            </p>
+            <button
+              type="button"
+              class="btn"
+              onclick={() => navigation.leaveCollection({ kind: 'home' })}
+            >Open your sets</button>
           {:else}
             {#if !organizer}<p class="consent">{CONSENT}</p>{/if}
             <div class="deck-picker">
