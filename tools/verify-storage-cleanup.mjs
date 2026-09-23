@@ -177,6 +177,8 @@ const syntaxErrors = (syntax.diagnostics ?? []).filter(
 );
 assert.deepEqual(syntaxErrors, []);
 assert.match(edgeFunction, /STORAGE_CLEANUP_CRON_TOKEN/);
+assert.match(edgeFunction, /storage_cleanup_record_run/);
+assert.match(edgeFunction, /reportSaved/);
 
 const latestDraftMigration = readFileSync(
   new URL('../supabase/migrations/0036_superseded_revision_cleanup.sql', import.meta.url),
@@ -201,4 +203,13 @@ assert.match(scheduleMigration, /storage-cleanup-daily/);
 assert.match(scheduleMigration, /storage_cleanup_cron_token/);
 assert.match(scheduleMigration, /"dryRun":false,"limit":500/);
 
-console.log('Storage cleanup helpers, Edge Function, retention, and schedule: 27 assertions passed');
+const historyMigration = readFileSync(
+  new URL('../supabase/migrations/0039_storage_cleanup_run_history.sql', import.meta.url),
+  'utf8',
+);
+assert.match(historyMigration, /create table if not exists public\.storage_cleanup_runs/);
+assert.match(historyMigration, /recorded_at < now\(\) - interval '90 days'/);
+assert.match(historyMigration, /jsonb_typeof\(buckets\) = 'array'/);
+assert.match(historyMigration, /storage cleanup reporting is restricted to the service role/);
+
+console.log('Storage cleanup helpers, retention, schedule, and reporting: 33 assertions passed');

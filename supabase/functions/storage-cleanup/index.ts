@@ -177,11 +177,51 @@ Deno.serve(async (request) => {
       });
     }
 
-    return json(publicReport(plan, result));
+    const report = {
+      ...publicReport(plan, result),
+      status: 'completed',
+      errorCategory: null,
+    };
+    const reportSaved = await recordRun(supabaseUrl, credentials.requestKey, report);
+    return json({ ...report, reportSaved });
   } catch {
-    return json({ error: 'Storage cleanup could not be planned' }, 500);
+    const reportSaved = await recordRun(supabaseUrl, credentials.requestKey, {
+      status: 'failed',
+      errorCategory: 'planning',
+      mode: options.mode,
+      dryRun: options.dryRun,
+      generatedAt: new Date().toISOString(),
+      graceSeconds: options.graceDays * 86_400,
+      limit: options.limit,
+      staleMarkersRemoved: 0,
+      buckets: [],
+      attempted: 0,
+      deleted: 0,
+      skipped: 0,
+      failed: 1,
+      recheckFailed: 0,
+      deleteFailed: 0,
+      forgetFailed: 0,
+    });
+    return json({ error: 'Storage cleanup could not be planned', reportSaved }, 500);
   }
 });
+
+async function recordRun(
+  supabaseUrl: string,
+  requestKey: string,
+  report: Record<string, unknown>,
+) {
+  try {
+    await rpc<void>(supabaseUrl, requestKey, 'storage_cleanup_record_run', {
+      run_report: report,
+    });
+    return true;
+  } catch {
+    console.error('Storage cleanup aggregate report could not be saved');
+    return false;
+  }
+}
 
 function executionEnabled(mode: string) {
   if (mode === 'legacy-card-previews') {

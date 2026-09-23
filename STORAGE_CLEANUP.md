@@ -123,6 +123,27 @@ two values to exist first:
 The daily request uses `{ "dryRun": false, "limit": 500 }`. The function still refuses every
 standard deletion unless `STORAGE_CLEANUP_EXECUTE=enabled` is present in its environment.
 
+## Daily reports
+
+Migration `0039_storage_cleanup_run_history.sql` adds a service-role-only aggregate history.
+Every successful dry or destructive invocation records its bucket totals, attempted and deleted
+counts, failure categories, and stale-marker count. Planning failures record a small failure row.
+Object paths, owner ids, and credentials are never stored in the report.
+
+Each new report removes reports older than 90 days. This bounds database growth without adding
+another scheduled task. `cron.job_run_details` still records whether Cron queued the request;
+`storage_cleanup_runs` records what the Edge Function actually did.
+
+Inspect recent results through an administrator connection:
+
+```sql
+select recorded_at, status, mode, dry_run, attempted, deleted, failed,
+       stale_markers_removed, buckets
+from public.storage_cleanup_runs
+order by recorded_at desc
+limit 30;
+```
+
 ## Rollout checklist
 
 1. Apply the migration to the recovery project and run it inside the existing rollback
