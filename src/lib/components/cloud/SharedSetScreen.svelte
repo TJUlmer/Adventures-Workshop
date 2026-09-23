@@ -155,6 +155,7 @@
   let compactLayout = $state(false);
   let actionsDialog = $state<HTMLDialogElement | null>(null);
   let cardSize = $state<number>(GALLERY_CARD_SIZE.start);
+  let fullScreen = $state(false);
   const publishedCardPreviews = $derived(
     row && usableCardPreviewVersion(row.card_preview_version) ? row.card_previews : undefined
   );
@@ -178,7 +179,16 @@
   let failedMastheadArtwork = $state<string[]>([]);
 
   function openPrint(selected: AdventureSet): void {
+    fullScreen = false;
     printSet = selected;
+  }
+
+  function toggleFullScreen(): void {
+    fullScreen = !fullScreen;
+  }
+
+  function handleWindowKeydown(event: KeyboardEvent): void {
+    if (event.key === 'Escape' && fullScreen) fullScreen = false;
   }
 
   function retryPreparation(): void {
@@ -503,6 +513,7 @@
     // A stale hero id from the previous set would otherwise survive the
     // navigation and quietly filter the overview down to nothing.
     viewScope = { kind: 'full' };
+    fullScreen = false;
 
     void (async () => {
       try {
@@ -861,6 +872,8 @@
     viewScope = parseScopeKey(key);
   }
 </script>
+
+<svelte:window onkeydown={handleWindowKeydown} />
 
 {#if printSet}
   <PrintScreen set={printSet} onback={() => (printSet = null)} />
@@ -1271,7 +1284,7 @@
         the tallest element on the page, so anything placed under it is off
         screen exactly when it is wanted.
       -->
-      <div class="split">
+      <div class="split" class:fullscreen={fullScreen}>
         <div class="main">
           <!--
             The Overview below owns the scrollbar, so this sibling remains in
@@ -1322,6 +1335,18 @@
                   oninput={(event) => (cardSize = event.currentTarget.valueAsNumber)}
                 />
               </label>
+
+              <button
+                type="button"
+                class="fullscreen-toggle"
+                class:active={fullScreen}
+                aria-pressed={fullScreen}
+                aria-label={fullScreen ? 'Exit full screen preview' : 'Open full screen preview'}
+                title={fullScreen ? 'Exit full screen' : 'Full screen'}
+                onclick={toggleFullScreen}
+              >
+                {fullScreen ? 'Exit full screen' : 'Full screen'}
+              </button>
 
               {#if compactLayout}
                 <button
@@ -1782,6 +1807,25 @@
     grid-template-columns: minmax(0, 1fr) clamp(480px, 48vw, 640px);
   }
 
+  /*
+   * This is deliberately an in-app viewing mode rather than the browser's
+   * Fullscreen API. The same Explore bar and scroll container stay mounted,
+   * so entering it neither prompts the browser nor loses the visitor's place.
+   * Covering the viewport also removes both the global/set mastheads while
+   * the single-column grid drops the actions rail.
+   */
+  .split.fullscreen {
+    position: fixed;
+    z-index: var(--z-overlay);
+    inset: 0;
+    grid-template-columns: minmax(0, 1fr);
+    background: var(--surface-sunken);
+  }
+
+  .split.fullscreen .rail {
+    display: none;
+  }
+
   /* The overview owns its own scrolling; this is only the box it fills. */
   .main {
     display: flex;
@@ -1809,7 +1853,7 @@
 
   .explore-controls {
     display: grid;
-    grid-template-columns: minmax(170px, auto) minmax(200px, 1fr) auto;
+    grid-template-columns: minmax(170px, auto) minmax(200px, 1fr) auto auto;
     align-items: center;
     gap: var(--space-4);
     min-width: 0;
@@ -1878,6 +1922,31 @@
 
   .zoom-control input {
     width: 112px;
+  }
+
+  .fullscreen-toggle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 34px;
+    padding: 0 var(--space-3);
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-sm);
+    background: var(--surface-default);
+    color: var(--text-secondary);
+    font: inherit;
+    font-size: var(--text-xs);
+    font-weight: var(--weight-semibold);
+    white-space: nowrap;
+    cursor: pointer;
+  }
+
+  .fullscreen-toggle:hover,
+  .fullscreen-toggle:focus-visible,
+  .fullscreen-toggle.active {
+    border-color: var(--border-strong);
+    background: var(--surface-selected);
+    color: var(--text-default);
   }
 
   .jump-nav {
@@ -2117,9 +2186,9 @@
 
     .explore-controls {
       grid-template-areas:
-        'copy zoom'
-        'filter filter';
-      grid-template-columns: minmax(0, 1fr) auto;
+        'copy zoom fullscreen'
+        'filter filter filter';
+      grid-template-columns: minmax(0, 1fr) auto auto;
       gap: var(--space-2) var(--space-3);
     }
 
@@ -2139,6 +2208,10 @@
 
     .zoom-control {
       grid-area: zoom;
+    }
+
+    .fullscreen-toggle {
+      grid-area: fullscreen;
     }
   }
 
@@ -2276,9 +2349,9 @@
 
     .explore-controls {
       grid-template-areas:
-        'copy actions'
-        'filter zoom';
-      grid-template-columns: minmax(0, 1fr) auto;
+        'copy fullscreen actions'
+        'filter zoom zoom';
+      grid-template-columns: minmax(0, 1fr) auto auto;
       gap: var(--space-2) var(--space-3);
     }
 
@@ -2347,6 +2420,11 @@
 
     .zoom-control input {
       width: 76px;
+    }
+
+    .fullscreen-toggle {
+      grid-area: fullscreen;
+      min-height: 44px;
     }
 
     .mobile-actions {
