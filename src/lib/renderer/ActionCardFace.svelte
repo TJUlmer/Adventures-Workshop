@@ -1312,6 +1312,17 @@
   style:background={fillCss(theme.frame)}
 ></div>
 
+<!--
+  Full-card transparent overlays deliberately paint after the frame: crossing
+  that edge is what creates a border break. Array order is their layer order;
+  the quantity line remains later so an overlay cannot hide the card count.
+-->
+{#each card.artworkLayers as layer (layer.id)}
+  <div class="artwork-overlay">
+    <CardArt artwork={layer.artwork} background="transparent" fit="contain" />
+  </div>
+{/each}
+
 <!-- The copies count prints over the border, so it is drawn after it. -->
 <div
   class="quantity"
@@ -1578,6 +1589,13 @@
     /* The wide badge needs a shorter box and a neutral baseline. */
     height: 0.68em;
     vertical-align: 0em;
+  }
+
+  .artwork-overlay {
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+    pointer-events: none;
   }
 
   .tuck-effect {

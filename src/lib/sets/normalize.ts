@@ -49,6 +49,7 @@ import type {
   ActionCard,
   BonusAbility,
   Card,
+  CardArtworkLayer,
   CardOwner,
   CombatSymbol,
   EventCard,
@@ -334,6 +335,20 @@ function bonusAbility(value: unknown): BonusAbility {
     textSize: textSize === null ? null : Math.min(130, Math.max(50, textSize)),
     iconSize: iconSize === null ? null : Math.min(4, Math.max(1, iconSize))
   });
+}
+
+function cardArtworkLayers(value: unknown): CardArtworkLayer[] {
+  if (!Array.isArray(value)) return [];
+  const seen = new Set<string>();
+  const layers: CardArtworkLayer[] = [];
+  for (const entry of value) {
+    const raw = asRecord(entry);
+    const id = raw['id'];
+    if (typeof id !== 'string' || id.length === 0 || seen.has(id)) continue;
+    seen.add(id);
+    layers.push({ id: id as CardArtworkLayer['id'], artwork: artwork(raw['artwork']) });
+  }
+  return layers;
 }
 
 function abilityBlocks(value: unknown) {
@@ -898,6 +913,7 @@ function normalizeCard(value: unknown): Card | null {
       return {
         ...common,
         type: 'action',
+        artworkLayers: cardArtworkLayers(raw['artworkLayers']),
         title: str(raw['title']),
         attack: nullableNum(raw['attack'], 2),
         defense: nullableNum(raw['defense'], null),

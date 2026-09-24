@@ -5,6 +5,7 @@ import type { DeckId } from '$lib/decks/types';
 import type { CardStyleOverride, Fill } from './style';
 
 export type CardId = Id<'Card'>;
+export type CardArtworkLayerId = Id<'CardArtworkLayer'>;
 
 /**
  * The three printed card templates in an Adventures set. This is the card's
@@ -232,9 +233,20 @@ export type CardOwner = (typeof CARD_OWNERS)[number] | HeroCharacterCardId;
 export const TUCK_EFFECT_ORIENTATIONS = ['bottom', 'right'] as const;
 export type TuckEffectOrientation = (typeof TUCK_EFFECT_ORIENTATIONS)[number];
 
+/**
+ * A transparent image composed over an action card after its printed frame.
+ * Array order is back-to-front, matching the layer list in the editor.
+ */
+export interface CardArtworkLayer {
+  readonly id: CardArtworkLayerId;
+  artwork: Artwork;
+}
+
 /** A villain, minion or hero action card. */
 export interface ActionCard extends CardCommon {
   type: 'action';
+  /** Optional full-card overlays used for border breaks and foreground details. */
+  artworkLayers: CardArtworkLayer[];
   /** `CardCommon.name` is a ribbon-name override, never the card's own label. */
   /** Sanitised inline HTML, printed above the ability text. */
   title: string;

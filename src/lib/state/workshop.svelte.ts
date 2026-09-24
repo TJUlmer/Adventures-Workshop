@@ -22,11 +22,17 @@ import type { AdventureMap, AdventureMapId } from '$lib/map/types';
 import { applyEntries } from '$lib/sets/contribution';
 import type { ChangeEntry } from '$lib/sets/contribution';
 import { normalizeSet } from '$lib/sets/normalize';
-import { createCard, createDeceptionCard, duplicateCard } from '$lib/cards/factory';
+import {
+  createCard,
+  createCardArtworkLayer,
+  createDeceptionCard,
+  duplicateCard
+} from '$lib/cards/factory';
 import type { CardStyleOverride, CardTheme } from '$lib/cards/style';
 import { stockTheme } from '$lib/cards/theme';
 import type {
   Card,
+  CardArtworkLayerId,
   CardId,
   CardType,
   InitiativeBandKey,
@@ -155,6 +161,11 @@ function deckAcceptsCardType(deck: Deck, type: CardType): boolean {
 /** Addresses an entity that owns artwork. */
 export type EntityRef =
   | { readonly entity: 'card'; readonly id: CardId }
+  | {
+      readonly entity: 'cardArtworkLayer';
+      readonly id: CardId;
+      readonly layerId: CardArtworkLayerId;
+    }
   | { readonly entity: 'character'; readonly id: CharacterId }
   /**
    * One band of a character card. Addressed by band *name* rather than by
@@ -1526,6 +1537,11 @@ export class WorkshopStore {
   /** The artwork block a ref points at, or `null` if the ref is stale. */
   artworkFor(ref: EntityRef): Artwork | null {
     if (ref.entity === 'threat') return this.adventure.threat.background;
+    if (ref.entity === 'cardArtworkLayer') {
+      const card = findCard(this.adventure, ref.id);
+      if (!card || card.type !== 'action') return null;
+      return card.artworkLayers.find((layer) => layer.id === ref.layerId)?.artwork ?? null;
+    }
     if (ref.entity === 'characterBand') {
       return this.characterCardDesignFor(ref.id, ref.cardId)?.[ref.band].artwork ?? null;
     }
@@ -1537,6 +1553,36 @@ export class WorkshopStore {
         ? findCard(this.adventure, ref.id)
         : findCharacter(this.adventure, ref.id);
     return owner ? owner.artwork : null;
+  }
+
+  addCardArtworkLayer(id: CardId): CardArtworkLayerId | null {
+    const card = findCard(this.adventure, id);
+    if (!card || card.type !== 'action') return null;
+    const layer = createCardArtworkLayer();
+    card.artworkLayers.push(layer);
+    this.touch();
+    return layer.id;
+  }
+
+  removeCardArtworkLayer(id: CardId, layerId: CardArtworkLayerId): void {
+    const card = findCard(this.adventure, id);
+    if (!card || card.type !== 'action') return;
+    const index = card.artworkLayers.findIndex((layer) => layer.id === layerId);
+    if (index < 0) return;
+    card.artworkLayers.splice(index, 1);
+    this.touch();
+  }
+
+  moveCardArtworkLayer(id: CardId, layerId: CardArtworkLayerId, direction: -1 | 1): void {
+    const card = findCard(this.adventure, id);
+    if (!card || card.type !== 'action') return;
+    const index = card.artworkLayers.findIndex((layer) => layer.id === layerId);
+    const next = index + direction;
+    if (index < 0 || next < 0 || next >= card.artworkLayers.length) return;
+    const [layer] = card.artworkLayers.splice(index, 1);
+    if (!layer) return;
+    card.artworkLayers.splice(next, 0, layer);
+    this.touch();
   }
 
   /** Attach a local image. Passing `null` detaches it and resets placement. */
@@ -1610,7 +1656,13 @@ export class WorkshopStore {
    */
   styleFor(target: StyleTarget): CardStyleOverride | null {
     if (target.entity === 'set') return this.adventure.style;
-    if (target.entity === 'threat' || target.entity === 'figure') return null;
+    if (
+      target.entity === 'threat' ||
+      target.entity === 'figure' ||
+      target.entity === 'cardArtworkLayer'
+    ) {
+      return null;
+    }
     if (target.entity === 'card') return findCard(this.adventure, target.id)?.style ?? null;
     return findCharacter(this.adventure, target.id)?.style ?? null;
   }

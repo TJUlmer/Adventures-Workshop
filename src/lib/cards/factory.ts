@@ -5,7 +5,16 @@ import { INITIATIVE_BAND_DEFAULTS } from '$lib/renderer/geometry';
 import { actionTextToPlain } from '$lib/text/action-text';
 import { SUBJECT_TOKEN } from '$lib/text/tokens';
 import { solid } from './style';
-import type { Card, CardCommon, CardId, CardOfType, CardType, InitiativeBands } from './types';
+import type {
+  Card,
+  CardArtworkLayer,
+  CardArtworkLayerId,
+  CardCommon,
+  CardId,
+  CardOfType,
+  CardType,
+  InitiativeBands
+} from './types';
 import { CARD_TYPE_META, createAbilityBlocks, createHeadingPlacement, initiativeHeading } from './types';
 
 /** Band defaults, sampled from the print template. */
@@ -21,6 +30,13 @@ function createInitiativeBands(): InitiativeBands {
     subject: band('subject'),
     rightNow: band('rightNow'),
     endOfRound: band('endOfRound')
+  };
+}
+
+export function createCardArtworkLayer(): CardArtworkLayer {
+  return {
+    id: createId<CardArtworkLayerId>('cardartlayer'),
+    artwork: createArtwork()
   };
 }
 
@@ -96,6 +112,7 @@ export function createCard<TType extends CardType>(
       return {
         ...common,
         type: 'action',
+        artworkLayers: [],
         title: '',
         attack: 2,
         defense: 2,
@@ -124,7 +141,7 @@ export function createCard<TType extends CardType>(
         tuckEffectOrientation: 'bottom',
         showCornerBadge: false,
         cornerBadge: ''
-      } as CardOfType<TType>;
+      } as unknown as CardOfType<TType>;
   }
 }
 
@@ -166,6 +183,10 @@ export function duplicateCard(card: Card): Card {
     copy.backReplacement = cloneArtwork(copy.backReplacement);
   }
   if (copy.type === 'action') {
+    copy.artworkLayers = copy.artworkLayers.map((layer) => ({
+      id: createId<CardArtworkLayerId>('cardartlayer'),
+      artwork: cloneArtwork(layer.artwork)
+    }));
     copy.ability = { ...copy.ability };
     copy.defenseAbility = { ...copy.defenseAbility };
   }

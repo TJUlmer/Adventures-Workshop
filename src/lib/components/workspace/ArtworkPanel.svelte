@@ -38,6 +38,8 @@
      * the printed card never shows.
      */
     aspect?: number;
+    /** Preserve a transparent overlay's own proportions inside its full-card window. */
+    fit?: 'fill' | 'contain';
   }
 
   let {
@@ -46,7 +48,8 @@
     styleTarget = null,
     resolved = null,
     bedOrigin,
-    aspect = 1346 / 1061
+    aspect = 1346 / 1061,
+    fit = 'fill'
   }: Props = $props();
 
   const bedOverridden = $derived(
@@ -207,7 +210,11 @@
       onpointerup={endDrag}
       onpointercancel={endDrag}
     >
-      <CardArt {artwork} background={resolved ? fillCss(resolved.artBackground) : 'var(--surface-inset)'} />
+      <CardArt
+        {artwork}
+        background={resolved ? fillCss(resolved.artBackground) : 'var(--surface-inset)'}
+        {fit}
+      />
       <div class="drag-hint">
         <Icon name="move" size={13} />
         Drag to reposition

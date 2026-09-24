@@ -25,7 +25,7 @@
     displayFontStack,
     displayFontWeight
   } from '$lib/renderer/fonts';
-  import type { Card } from '$lib/cards/types';
+  import type { Card, CardId } from '$lib/cards/types';
   import { CARD_TYPE_META } from '$lib/cards/types';
   import { hasArtwork } from '$lib/core/artwork';
   import { ART_WINDOW, HERO_ART_WINDOW_HEIGHT } from '$lib/renderer/geometry';
@@ -33,6 +33,7 @@
   import { workshop } from '$lib/state/workshop.svelte';
   import { Button, Field, FillEditor, Icon, Section, Select, Tabs } from '$lib/ui';
   import ActionCardContent from './ActionCardContent.svelte';
+  import ArtworkLayersPanel from './ArtworkLayersPanel.svelte';
   import ArtworkPanel from './ArtworkPanel.svelte';
   import InitiativeBandsPanel from './InitiativeBandsPanel.svelte';
   import InitiativeCardContent from './InitiativeCardContent.svelte';
@@ -69,6 +70,15 @@
   );
 
   let tab = $state<Tab>('content');
+  let borderBreaksVisible = $state(false);
+  let borderBreaksCardId = $state<CardId | null>(null);
+
+  $effect(() => {
+    const nextId = card?.id ?? null;
+    if (nextId === borderBreaksCardId) return;
+    borderBreaksCardId = nextId;
+    borderBreaksVisible = false;
+  });
 
   /**
    * Whether the composed design is reachable at all.
@@ -253,6 +263,22 @@
               bedOrigin={originFor('artBackground')}
               aspect={isHeroCard ? ART_WINDOW.width / HERO_ART_WINDOW_HEIGHT : undefined}
             />
+          </Section>
+          <Section
+            title="Border breaks"
+            description="Layer transparent images over the composed card and position each independently."
+          >
+            {#snippet actions()}
+              <Button size="sm" onclick={() => (borderBreaksVisible = !borderBreaksVisible)}>
+                {borderBreaksVisible ? 'Hide border breaks' : 'Show border breaks'}
+                {#if !borderBreaksVisible && card.artworkLayers.length > 0}
+                  ({card.artworkLayers.length})
+                {/if}
+              </Button>
+            {/snippet}
+            {#if borderBreaksVisible}
+              <ArtworkLayersPanel {card} />
+            {/if}
           </Section>
         {:else if card.type === 'event'}
           <!--
