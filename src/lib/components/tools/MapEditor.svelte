@@ -51,6 +51,7 @@
     zoneStyleFor
   } from '$lib/map/types';
   import type {
+    AdventureMapId,
     MapEnvironmentPiece,
     MapEnvironmentPieceId,
     MapLabelCorner,
@@ -68,7 +69,9 @@
   import { Button, EmptyState, HexInput, Icon, Slider, Switch, TextInput } from '$lib/ui';
 
   const set = $derived(workshop.adventure);
-  const map = $derived(set.map);
+  const map = $derived(
+    set.maps.find((entry) => entry.id === workshop.mapEditingId) ?? set.maps[0]!
+  );
   /** What the export will actually produce — a preset's own row, or solved
       from `aspect` on `custom`. See `mapPrintSize`. */
   const printSize = $derived(mapPrintSize(map));
@@ -119,6 +122,52 @@
   let board = $state<HTMLDivElement | null>(null);
   let artInput = $state<HTMLInputElement | null>(null);
   let artError = $state<string | null>(null);
+  let confirmingMapDelete = $state(false);
+
+  $effect(() => {
+    if (!set.maps.some((entry) => entry.id === workshop.mapEditingId)) {
+      const first = set.maps[0];
+      if (first) workshop.selectMapForEditing(first.id);
+    }
+  });
+
+  function resetMapSelections(): void {
+    selected = null;
+    colorSelection = new Set();
+    selectedZoneColor = null;
+    linkFrom = null;
+    dragging = null;
+    draggingNote = null;
+    draggingEnvironment = null;
+    selectedNote = null;
+    selectedEnvironment = null;
+    dragChanged = false;
+  }
+
+  function selectMap(mapId: AdventureMapId): void {
+    if (mapId === map.id) return;
+    if (dragChanged) workshop.commitMapEdit();
+    else workshop.cancelMapEdit();
+    workshop.selectMapForEditing(mapId);
+    confirmingMapDelete = false;
+    resetMapSelections();
+  }
+
+  function addMap(): void {
+    const mapId = workshop.addMap();
+    workshop.selectMapForEditing(mapId);
+    confirmingMapDelete = false;
+    resetMapSelections();
+  }
+
+  function removeCurrentMap(): void {
+    if (!confirmingMapDelete) {
+      confirmingMapDelete = true;
+      return;
+    }
+    if (workshop.removeMap(map.id)) resetMapSelections();
+    confirmingMapDelete = false;
+  }
   let paletteInput = $state<HTMLInputElement | null>(null);
   let exporting = $state(false);
   let exportError = $state<string | null>(null);
@@ -498,7 +547,7 @@
   function onPointerDown(event: PointerEvent): void {
     const point = toModel(event);
     if (!point) return;
-    const hit = spaceAt(point);
+    const hit = map.showSpacesAndPaths ? spaceAt(point) : null;
 
     if (mode === 'place') {
       const target = event.target instanceof Element ? event.target : null;
@@ -522,6 +571,11 @@
         (event.currentTarget as Element).setPointerCapture?.(event.pointerId);
         return;
       }
+
+      /* A hidden board is an artwork view, not an invisible editing surface.
+         Environment pieces remain draggable above, and Text remains useful,
+         but Place must not create a space the author cannot see. */
+      if (!map.showSpacesAndPaths) return;
 
       if (hit) {
         // Shift-click adds to (or drops from) the running colour selection
@@ -576,6 +630,7 @@
     }
 
     if (mode === 'link') {
+      if (!map.showSpacesAndPaths) return;
       if (!hit) {
         linkFrom = null;
         return;
@@ -749,7 +804,7 @@
       });
       if (!blob) throw new Error('The map did not render.');
       saveExport({
-        filename: `${slugify(set.name, 'adventure-set')}-map.png`,
+        filename: `${slugify(set.name, 'adventure-set')}-${slugify(map.name, 'map')}.png`,
         mimeType: 'image/png',
         blob
       });
@@ -1143,6 +1198,39 @@
     </div>
   </header>
 
+  <div class="map-switcher">
+    <div class="map-tabs" role="tablist" aria-label="Maps in this set">
+      {#each set.maps as entry, index (entry.id)}
+        <button
+          type="button"
+          role="tab"
+          class="map-tab"
+          class:active={entry.id === map.id}
+          aria-selected={entry.id === map.id}
+          onclick={() => selectMap(entry.id)}
+        >
+          <span>{entry.name.trim() || `Map ${index + 1}`}</span>
+          {#if !entry.enabled}<small>Off</small>{/if}
+        </button>
+      {/each}
+    </div>
+    <div class="map-switcher-actions">
+      <Button size="sm" onclick={addMap}>
+        <Icon name="plus" size={13} />
+        Map
+      </Button>
+      {#if set.maps.length > 1}
+        <Button
+          size="sm"
+          variant={confirmingMapDelete ? 'danger' : 'secondary'}
+          onclick={removeCurrentMap}
+        >
+          {confirmingMapDelete ? 'Confirm delete' : 'Delete map'}
+        </Button>
+      {/if}
+    </div>
+  </div>
+
   {#if exportError}<p class="error" role="alert">{exportError}</p>{/if}
 
   <!--
@@ -1214,6 +1302,29 @@
           >
             <Icon name="eye" size={13} />
             Numbers
+          </button>
+
+          <button
+            type="button"
+            class="mode"
+            class:active={map.showSpacesAndPaths}
+            aria-pressed={map.showSpacesAndPaths}
+            title={map.showSpacesAndPaths
+              ? 'Hide all spaces and paths in this map, including previews and exports'
+              : 'Show all spaces and paths in this map, including previews and exports'}
+            onclick={() => {
+              const visible = !map.showSpacesAndPaths;
+              workshop.editMap((m) => (m.showSpacesAndPaths = visible));
+              if (!visible) {
+                selected = null;
+                colorSelection = new Set();
+                linkFrom = null;
+                dragging = null;
+              }
+            }}
+          >
+            <Icon name="eye" size={13} />
+            Spaces &amp; paths
           </button>
 
           <!--
@@ -1607,7 +1718,7 @@
               linking={mode === 'link' ? linkFrom : null}
             />
 
-            {#if showNumbers}
+            {#if showNumbers && map.showSpacesAndPaths}
               <!--
                 Drawn here, over `MapBoard` rather than inside it — `MapBoard`
                 is also what the export photographs (see its own doc comment:
@@ -2491,6 +2602,68 @@
     column-gap: var(--space-4);
     row-gap: var(--space-4);
     align-items: start;
+  }
+
+  .map-switcher {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
+    margin-bottom: var(--space-5);
+    padding: var(--space-2);
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-md);
+    background: var(--surface-raised);
+  }
+
+  .map-tabs {
+    display: flex;
+    flex: 1;
+    gap: var(--space-1);
+    min-width: 0;
+    overflow-x: auto;
+  }
+
+  .map-tab {
+    display: inline-flex;
+    flex: none;
+    align-items: baseline;
+    gap: var(--space-2);
+    min-height: 2.25rem;
+    padding: 0 var(--space-3);
+    border: 1px solid transparent;
+    border-radius: var(--radius-sm);
+    background: transparent;
+    color: var(--text-muted);
+    font: inherit;
+    font-size: var(--text-sm);
+    font-weight: var(--weight-semibold);
+    cursor: pointer;
+  }
+
+  .map-tab:hover,
+  .map-tab.active {
+    border-color: var(--border-default);
+    background: var(--surface-inset);
+    color: var(--text-primary);
+  }
+
+  .map-tab.active {
+    border-color: var(--accent);
+  }
+
+  .map-tab small {
+    color: var(--text-muted);
+    font-size: var(--text-2xs);
+    font-weight: var(--weight-medium);
+    letter-spacing: var(--tracking-wide);
+    text-transform: uppercase;
+  }
+
+  .map-switcher-actions {
+    display: flex;
+    flex: none;
+    gap: var(--space-2);
   }
 
   .head-actions {

@@ -247,7 +247,7 @@ three are load-bearing:
   invisible until someone exports and finds every card wrong. Fixing it means
   flattening each member's set layer down into its character layer at merge
   time, which is a real transformation on someone else's design.
-- **Set-level singletons do not merge.** `threat`, `map`, `initiativeBack`,
+- **Set-level structures do not merge.** `threat`, `maps`, `initiativeBack`,
   `boxArt`, `meta` — one each, and no rule for choosing.
 
 Concatenating the **finished object graphs** sidesteps all three, because each

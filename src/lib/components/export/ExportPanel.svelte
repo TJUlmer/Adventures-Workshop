@@ -111,7 +111,7 @@
       scopedSet.rulebooks.length > 0 ||
       scopedSet.box.enabled ||
       scopedSet.threat.enabled ||
-      scopedSet.map.enabled
+      scopedSet.maps.some((map) => map.enabled)
   );
   const selectionActive = $derived(isExportSelectionActive(selection));
 

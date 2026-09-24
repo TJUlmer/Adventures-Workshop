@@ -33,7 +33,7 @@ export interface ExportSelection {
   excludedRulebookIds: ReadonlySet<RulebookId>;
   /** Ignored when the set's own `threat.enabled` is already `false`. */
   includeThreat: boolean;
-  /** Ignored when the set's own `map.enabled` is already `false`. */
+  /** Ignored when none of the set's maps are enabled. */
   includeMap: boolean;
   /** Whether to wrap the TTS contents in the set's presentation box. */
   includeBox: boolean;
@@ -98,7 +98,9 @@ export function applyExportSelection(set: AdventureSet, selection: ExportSelecti
     figures,
     rulebooks,
     threat: selection.includeThreat ? set.threat : { ...set.threat, enabled: false },
-    map: selection.includeMap ? set.map : { ...set.map, enabled: false },
+    maps: selection.includeMap
+      ? set.maps
+      : set.maps.map((map) => ({ ...map, enabled: false })),
     box: selection.includeBox ? set.box : { enabled: false, skin: null }
   });
 }

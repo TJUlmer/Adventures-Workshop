@@ -62,7 +62,7 @@ TypeScript is pinned to `~6` because `svelte-check` does not run on 7 yet.
   (vertical writing mode, bottom-anchored panel).
 - **Template art is a CSS alpha mask over a fill**, so shapes take any colour.
 - **The document is four flat arrays** related by ID (`characters`, `decks`, `cards`),
-  plus set-level singletons (style, threat track, map); every grouping the UI shows is
+  plus set-level structures (style, threat track, maps); every grouping the UI shows is
   derived. `sets/queries.ts` holds the derivations. IDs are branded types, preserved
   across a fork except the set's own.
 - **Analysis is derived and read-only.** `src/lib/analysis/official/` is a versioned

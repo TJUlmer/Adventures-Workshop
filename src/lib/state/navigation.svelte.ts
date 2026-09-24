@@ -35,7 +35,7 @@ export const SET_PAGE_META: Readonly<Record<SetPage, SetPageMeta>> = {
   home: { label: 'Edit', hint: 'What this set is and how complete it is', icon: 'grid' },
   editor: { label: 'Cards', hint: 'Edit a card or a character', icon: 'card' },
   threat: { label: 'Threat track', hint: 'The villain’s threat track', icon: 'skull' },
-  map: { label: 'Map', hint: 'The board the adventure is played on', icon: 'grid' },
+  map: { label: 'Map', hint: 'The boards this set can be played on', icon: 'grid' },
   figures: { label: 'Components', hint: 'Figures, tokens and game pieces', icon: 'users' },
   symbols: {
     label: 'Symbols',

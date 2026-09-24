@@ -141,7 +141,7 @@
         </section>
       {/if}
 
-      {#if set.threat.enabled || set.map.enabled}
+      {#if set.threat.enabled || set.maps.some((map) => map.enabled)}
         <section class="group">
           <h3 class="group-title">Board</h3>
           {#if set.threat.enabled}
@@ -151,9 +151,9 @@
               onchange={(checked) => onchange({ ...selection, includeThreat: checked })}
             />
           {/if}
-          {#if set.map.enabled}
+          {#if set.maps.some((map) => map.enabled)}
             <Switch
-              label="Map"
+              label={set.maps.filter((map) => map.enabled).length === 1 ? 'Map' : 'Maps'}
               checked={selection.includeMap}
               onchange={(checked) => onchange({ ...selection, includeMap: checked })}
             />

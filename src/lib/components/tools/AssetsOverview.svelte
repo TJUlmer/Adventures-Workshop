@@ -411,6 +411,7 @@
   const orderedCharacters = $derived(
     ROLE_ORDER.flatMap((role) => set.characters.filter((character) => character.role === role))
   );
+  const enabledMaps = $derived(set.maps.filter((map) => map.enabled));
 
   function groupsFor(character: Character): Group[] {
     return groups.filter((group) => group.owner?.id === character.id);
@@ -429,7 +430,7 @@
           set.rulebooks.length > 0 ||
           set.box.enabled ||
           set.threat.enabled ||
-          set.map.enabled
+          enabledMaps.length > 0
   );
 
   let lightboxItems = $state<GalleryCardItem[]>([]);
@@ -825,14 +826,14 @@
     />
   {/if}
 
-  {#if !figuresOnly && (set.threat.enabled || set.map.enabled)}
+  {#if !figuresOnly && (set.threat.enabled || enabledMaps.length > 0)}
     <section class="showcase battlefield" id={anchorId('battlefield')}>
       <header class="section-heading">
         <div>
           <span class="section-kicker">On the table</span>
           <h2>Battlefield</h2>
         </div>
-        <p>The threat tracker and map in their physical playing order.</p>
+        <p>The threat tracker and maps included with this set.</p>
       </header>
 
       <div class="board-stack">
@@ -863,13 +864,13 @@
           </article>
         {/if}
 
-        {#if set.map.enabled}
+        {#each enabledMaps as map, index (map.id)}
           <article class="board-card">
             <header class="board-heading">
-              <h3>Map</h3>
+              <h3>{map.name.trim() || (enabledMaps.length === 1 ? 'Map' : `Map ${index + 1}`)}</h3>
               <span class="numeric">
-                {set.map.spaces.length} {set.map.spaces.length === 1 ? 'space' : 'spaces'} ·
-                {set.map.paths.length} {set.map.paths.length === 1 ? 'path' : 'paths'}
+                {map.spaces.length} {map.spaces.length === 1 ? 'space' : 'spaces'} ·
+                {map.paths.length} {map.paths.length === 1 ? 'path' : 'paths'}
               </span>
             </header>
             <svelte:element
@@ -877,22 +878,25 @@
               class="track-open"
               type={interactive ? 'button' : undefined}
               role={interactive ? 'button' : undefined}
-              onclick={interactive ? () => navigation.go('map') : undefined}
+              onclick={interactive ? () => {
+                workshop.selectMapForEditing(map.id);
+                navigation.go('map');
+              } : undefined}
             >
-              <svelte:boundary onerror={(error) => report('The map', error)}>
+              <svelte:boundary onerror={(error) => report(map.name || 'The map', error)}>
                 <MapBoard
-                  map={set.map}
+                  {map}
                   customSymbols={set.customSymbols}
                   setName={set.name}
                   authorName={set.meta.author}
                 />
                 {#snippet failed(error)}
-                  {@render broken('The map', error)}
+                  {@render broken(map.name || 'The map', error)}
                 {/snippet}
               </svelte:boundary>
             </svelte:element>
           </article>
-        {/if}
+        {/each}
       </div>
     </section>
   {/if}

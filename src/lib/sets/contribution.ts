@@ -111,7 +111,7 @@ export function readEntity(set: AdventureSet, key: string): unknown {
     case SET_KEYS.threat:
       return set.threat;
     case SET_KEYS.map:
-      return set.map;
+      return set.maps;
     case SET_KEYS.boxArt:
       return set.boxArt;
     case SET_KEYS.box:
@@ -174,7 +174,7 @@ function labelFor(set: AdventureSet, key: string, value: unknown): string {
     case SET_KEYS.threat:
       return 'Threat track';
     case SET_KEYS.map:
-      return 'Adventure map';
+      return 'Adventure maps';
     case SET_KEYS.boxArt:
       return 'Box art';
     case SET_KEYS.box:
@@ -397,7 +397,7 @@ function applySetPart(
     case SET_KEYS.threat:
       return { ...set, threat: value as unknown as AdventureSet['threat'] };
     case SET_KEYS.map:
-      return { ...set, map: value as unknown as AdventureSet['map'] };
+      return { ...set, maps: value as unknown as AdventureSet['maps'] };
     case SET_KEYS.boxArt:
       return { ...set, boxArt: value as unknown as AdventureSet['boxArt'] };
     case SET_KEYS.box:

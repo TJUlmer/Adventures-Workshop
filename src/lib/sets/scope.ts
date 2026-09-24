@@ -94,7 +94,7 @@ export function computeScopedSet(set: AdventureSet, scope: PublishScope): Advent
  * A hero and everything it owns — reusing the same ownership queries the rest
  * of the app already reads a character's content through.
  *
- * `threat`/`map` reset to their disabled defaults rather than carrying the
+ * `threat`/`maps` reset to their disabled defaults rather than carrying the
  * villain's board along: neither has an ownership field, and both are
  * meaningless for a hero to publish. `boxArt` is dropped for the same reason
  * it is dropped from the villain slice below — see `villainSlice`.
@@ -126,7 +126,7 @@ function heroSlice(set: AdventureSet, characterId: CharacterId): AdventureSet {
     figures: figuresForCharacter(set, characterId),
     rulebooks: [],
     threat: createThreatTrack(),
-    map: createAdventureMap(),
+    maps: [createAdventureMap()],
     boxArt: createArtwork(),
     box: { enabled: false, skin: null },
     initiativeBack: createArtwork(),

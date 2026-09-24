@@ -191,7 +191,7 @@ export function fingerprintSet(set: AdventureSet): Record<string, string> {
     }),
     [SET_KEYS.style]: hashEntity(set.style),
     [SET_KEYS.threat]: hashEntity(set.threat),
-    [SET_KEYS.map]: hashEntity(set.map),
+    [SET_KEYS.map]: hashEntity(set.maps),
     [SET_KEYS.boxArt]: hashEntity(set.boxArt),
     [SET_KEYS.box]: hashEntity(set.box),
     [SET_KEYS.initiativeBack]: hashEntity({

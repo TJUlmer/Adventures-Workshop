@@ -45,6 +45,7 @@ import { THREAT_TRACK } from '$lib/renderer/geometry';
 export type MapSpaceId = Id<'MapSpace'>;
 export type MapPathId = Id<'MapPath'>;
 export type MapEnvironmentPieceId = Id<'MapEnvironmentPiece'>;
+export type AdventureMapId = Id<'AdventureMap'>;
 
 /** Which side of the rim a start marker sits on. */
 export type MapStartSide = 'top' | 'right' | 'bottom' | 'left';
@@ -446,8 +447,11 @@ export function createMapEnvironmentPiece(
 }
 
 export interface AdventureMap {
+  readonly id: AdventureMapId;
   enabled: boolean;
   name: string;
+  /** Whether spaces, paths and their attached gameplay markers are printed. */
+  showSpacesAndPaths: boolean;
   /** Whether the printed map identity plate is visible. */
   showLabel: boolean;
   /** Corner occupied by the printed title and author plate. */
@@ -558,10 +562,12 @@ export function createMapPath(from: MapSpaceId, to: MapSpaceId): MapPath {
   };
 }
 
-export function createAdventureMap(): AdventureMap {
+export function createAdventureMap(enabled = false, name = ''): AdventureMap {
   return {
-    enabled: false,
-    name: '',
+    id: createId<AdventureMapId>('map'),
+    enabled,
+    name,
+    showSpacesAndPaths: true,
     showLabel: true,
     labelCorner: 'bottom-left',
     size: 'large',

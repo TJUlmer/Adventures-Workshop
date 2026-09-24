@@ -305,6 +305,9 @@ export interface TtsDeckImages {
 
 export interface TtsMapImage {
   readonly url: string;
+  readonly name: string;
+  readonly spaceCount: number;
+  readonly pathCount: number;
   /** Printed proportions, so the board can be scaled back to the right shape. */
   readonly mm: { readonly width: number; readonly height: number };
 }
@@ -320,8 +323,8 @@ export interface TtsSaveInput {
   readonly decks: readonly TtsDeckImages[];
   /** The threat board, as a single card. */
   readonly threat: TtsThreatImage | null;
-  /** The map, as a single card behind it. */
-  readonly map: TtsMapImage | null;
+  /** Every enabled map, each as its own card behind the threat track. */
+  readonly maps: readonly TtsMapImage[];
   /** Figures: models written beside the save, and whole saved objects spliced in. */
   readonly components: readonly object[];
   /** Assets for the optional presentation box that contains the exported objects. */
@@ -575,14 +578,12 @@ function deckObject(images: TtsDeckImages, at: TtsTransform, sheetIdBase: number
  * the map at a fixed scale. Placed so its far edge meets the track's near one,
  * which is where it sits on the printed board.
  */
-function mapObject(set: AdventureSet, map: TtsMapImage, posZ: number): object {
-  const spaces = set.map.spaces.length;
-
+function mapObject(set: AdventureSet, map: TtsMapImage, posX: number, posZ: number): object {
   return {
     Name: 'CardCustom',
-    Transform: transform(0, posZ, scaleOf(map.mm)),
-    Nickname: `${set.name} — map`,
-    Description: `${spaces} ${spaces === 1 ? 'space' : 'spaces'}, ${set.map.paths.length} ${set.map.paths.length === 1 ? 'path' : 'paths'}.`,
+    Transform: transform(posX, posZ, scaleOf(map.mm)),
+    Nickname: `${set.name} — ${map.name}`,
+    Description: `${map.spaceCount} ${map.spaceCount === 1 ? 'space' : 'spaces'}, ${map.pathCount} ${map.pathCount === 1 ? 'path' : 'paths'}.`,
     ...OBJECT_DEFAULTS,
     Hands: false,
     HideWhenFaceDown: false,
@@ -866,7 +867,7 @@ function layOut(images: readonly TtsDeckImages[]): TtsTransform[] {
  * decks, boards and components keep their own data and relationships.
  */
 export function buildTabletopSimulatorSave(input: TtsSaveInput): string {
-  const { set, decks, threat, map, components, box } = input;
+  const { set, decks, threat, maps, components, box } = input;
   const positions = layOut(decks);
 
   const objects: object[] = decks.map((deck, index) =>
@@ -880,9 +881,13 @@ export function buildTabletopSimulatorSave(input: TtsSaveInput): string {
 
   /* Behind the track, far enough back that the two meet edge to edge rather
      than overlapping: half the track's depth plus half the map's, in inches. */
-  if (map) {
-    const gap = (THREAT_TRACK.mm.height / 2 + map.mm.height / 2) / MM_PER_INCH;
-    objects.push(mapObject(set, map, Number((-6 - gap).toFixed(3))));
+  if (maps.length > 0) {
+    const widest = Math.max(...maps.map((map) => map.mm.width / MM_PER_INCH));
+    for (const [index, map] of maps.entries()) {
+      const gap = (THREAT_TRACK.mm.height / 2 + map.mm.height / 2) / MM_PER_INCH;
+      const posX = (index - (maps.length - 1) / 2) * (widest + 1);
+      objects.push(mapObject(set, map, Number(posX.toFixed(3)), Number((-6 - gap).toFixed(3))));
+    }
   }
   objects.push(...components);
 

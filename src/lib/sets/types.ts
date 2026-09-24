@@ -458,10 +458,17 @@ export type SetId = Id<'Set'>;
  * v65 — the presentation box gained an optional six-face texture image.
  *      Older sets keep their existing flat export until an author adds one.
  *
+ * v66 — the set's single `map` became an ordered `maps` array and each map
+ *      gained a stable ID. Older documents keep their existing board as the
+ *      first entry; older builds would discard every additional map on save.
+ *
+ * v67 — each map gained a persisted spaces-and-paths visibility setting.
+ *      Existing maps remain visible; older builds would discard the choice.
+ *
  * Older documents are *repaired*, not rejected — see `sets/normalize.ts`. Only
  * a version newer than this build understands is refused.
  */
-export const SET_SCHEMA_VERSION = 65;
+export const SET_SCHEMA_VERSION = 67;
 
 /**
  * What a set is for.
@@ -586,8 +593,8 @@ export interface AdventureSet {
   cards: Card[];
   /** The villain's threat track, if the adventure uses one. */
   threat: ThreatTrack;
-  /** The board the adventure is played on, if it has one. */
-  map: AdventureMap;
+  /** The boards this set may be played on. At least one disabled entry exists. */
+  maps: AdventureMap[];
   /** Miniatures, tokens and other physical components. */
   figures: Figure[];
   /** Finished PDF rulebooks included with this set. */

@@ -809,7 +809,7 @@
   /** Match the Overview's physical order so the bar reads left-to-right like the page. */
   function exploreLinksFor(currentSet: AdventureSet): ExploreLink[] {
     const links: ExploreLink[] = [];
-    if (currentSet.threat.enabled || currentSet.map.enabled) {
+    if (currentSet.threat.enabled || currentSet.maps.some((map) => map.enabled)) {
       links.push({ key: 'battlefield', label: 'Battlefield' });
     }
     if (currentSet.figures.length > 0) links.push({ key: 'components', label: 'Components' });

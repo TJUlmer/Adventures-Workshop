@@ -759,8 +759,9 @@ export async function exportTabletopSimulator(
   const warnings: string[] = [];
 
   const plans = planTabletopDecks(set);
+  const enabledMaps = set.maps.filter((map) => map.enabled);
   const total = plans.reduce((count, plan) => count + imageCount(plan), 0) +
-    (set.threat.enabled ? 1 : 0) + (set.map.enabled ? 1 : 0);
+    (set.threat.enabled ? 1 : 0) + enabledMaps.length;
   let done = 0;
 
   const decks: TtsDeckImages[] = [];
@@ -841,10 +842,10 @@ export async function exportTabletopSimulator(
     }
   }
 
-  let map: TtsMapImage | null = null;
-  if (set.map.enabled) {
+  const maps: TtsMapImage[] = [];
+  for (const [index, map] of enabledMaps.entries()) {
     /* Same deliberate 3072px hosted ceiling as the threat strip. */
-    const board = await photographMapBoard(set.map, {
+    const board = await photographMapBoard(map, {
       width: MAX_SHEET_PIXELS,
       customSymbols: set.customSymbols,
       setName: set.name,
@@ -853,18 +854,26 @@ export async function exportTabletopSimulator(
       quality: TTS_JPEG_QUALITY
     });
     done += 1;
-    options.onProgress?.(done, total, 'Map');
+    const mapName = map.name.trim() || (enabledMaps.length === 1 ? 'Map' : `Map ${index + 1}`);
+    options.onProgress?.(done, total, mapName);
 
     if (board) {
       const path = await writeAsset(
-        files, taken, `map/${slugify(set.name, 'adventure-set')}-map`, 'jpg', board
+        files,
+        taken,
+        `map/${slugify(set.name, 'adventure-set')}-${slugify(mapName, `map-${index + 1}`)}`,
+        'jpg',
+        board
       );
-      map = {
+      maps.push({
         url: urlFor(path),
+        name: mapName,
+        spaceCount: map.spaces.length,
+        pathCount: map.paths.length,
         /* Height from the aspect the author set, so the card is scaled to the
            board's real proportions rather than to the image's rounded pixels. */
-        mm: { width: MAP_WIDTH_MM, height: mapHeightMm(set.map) }
-      };
+        mm: { width: MAP_WIDTH_MM, height: mapHeightMm(map) }
+      });
     }
   }
 
@@ -901,7 +910,7 @@ export async function exportTabletopSimulator(
   const box = set.box.enabled ? await writePresentationBox(set, urlFor, files, taken) : null;
 
   const saveName = `${slugify(set.name, 'adventure-set')}.json`;
-  const saveText = buildTabletopSimulatorSave({ set, decks, threat, map, components, box });
+  const saveText = buildTabletopSimulatorSave({ set, decks, threat, maps, components, box });
 
   if (options.hosting.kind === 'online') {
     const uploaded = await options.hosting.host.upload(files, (progress) => {

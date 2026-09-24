@@ -17,7 +17,8 @@
  * identity. That keeps shared editors (style, artwork) from mutating props
  * they do not own.
  */
-import type { AdventureMap } from '$lib/map/types';
+import { createAdventureMap } from '$lib/map/types';
+import type { AdventureMap, AdventureMapId } from '$lib/map/types';
 import { applyEntries } from '$lib/sets/contribution';
 import type { ChangeEntry } from '$lib/sets/contribution';
 import { normalizeSet } from '$lib/sets/normalize';
@@ -180,9 +181,10 @@ export class WorkshopStore {
   adventure = $state<AdventureSet>(createEmptySet());
 
   /** Map history is session-only; the document remains the sole persisted state. */
-  #mapUndo: AdventureMap[] = [];
+  #mapUndo: AdventureMap[][] = [];
   #mapHistorySetId: SetId | null = null;
-  #mapEditStart: AdventureMap | null = null;
+  #mapEditStart: AdventureMap[] | null = null;
+  mapEditingId = $state<AdventureMapId | null>(null);
   mapUndoCount = $state(0);
   canUndoMap = $derived(this.mapUndoCount > 0);
 
@@ -887,16 +889,54 @@ export class WorkshopStore {
        instead of leaving its starting snapshot attached to the next edit. */
     if (this.#mapEditStart) this.#commitMapSnapshot(this.#mapEditStart);
     this.#mapEditStart = null;
-    const before = this.#snapshotMap();
-    mutate(this.adventure.map);
+    const before = this.#snapshotMaps();
+    const map =
+      this.adventure.maps.find((entry) => entry.id === this.mapEditingId) ??
+      this.adventure.maps[0];
+    if (!map) return;
+    this.mapEditingId = map.id;
+    mutate(map);
     this.#commitMapSnapshot(before);
     this.touch();
+  }
+
+  /** Add a blank, enabled board and make the whole operation undoable. */
+  addMap(): AdventureMapId {
+    this.#ensureMapHistory();
+    const before = this.#snapshotMaps();
+    const map = createAdventureMap(true, `Map ${this.adventure.maps.length + 1}`);
+    this.adventure.maps.push(map);
+    this.mapEditingId = map.id;
+    this.#commitMapSnapshot(before);
+    this.touch();
+    return map.id;
+  }
+
+  /** Remove one board, while preserving the invariant that a set always has one. */
+  removeMap(mapId: AdventureMapId): boolean {
+    if (this.adventure.maps.length <= 1) return false;
+    const index = this.adventure.maps.findIndex((map) => map.id === mapId);
+    if (index < 0) return false;
+    this.#ensureMapHistory();
+    const before = this.#snapshotMaps();
+    this.adventure.maps.splice(index, 1);
+    if (this.mapEditingId === mapId) {
+      this.mapEditingId = this.adventure.maps[Math.min(index, this.adventure.maps.length - 1)]?.id ?? null;
+    }
+    this.#commitMapSnapshot(before);
+    this.touch();
+    return true;
+  }
+
+  /** Choose which board the singleton map editor's existing commands target. */
+  selectMapForEditing(mapId: AdventureMapId): void {
+    if (this.adventure.maps.some((map) => map.id === mapId)) this.mapEditingId = mapId;
   }
 
   /** Begin one pointer gesture whose live movement mutates the map directly. */
   beginMapEdit(): void {
     this.#ensureMapHistory();
-    if (!this.#mapEditStart) this.#mapEditStart = this.#snapshotMap();
+    if (!this.#mapEditStart) this.#mapEditStart = this.#snapshotMaps();
   }
 
   /** Finish a pointer gesture as one undoable edit. */
@@ -918,14 +958,17 @@ export class WorkshopStore {
     this.#mapEditStart = null;
     const previous = this.#mapUndo.pop();
     if (!previous) return false;
-    this.adventure.map = previous;
+    this.adventure.maps = previous;
+    if (!this.adventure.maps.some((map) => map.id === this.mapEditingId)) {
+      this.mapEditingId = this.adventure.maps[0]?.id ?? null;
+    }
     this.mapUndoCount = this.#mapUndo.length;
     this.touch();
     return true;
   }
 
-  #snapshotMap(): AdventureMap {
-    return structuredClone($state.snapshot(this.adventure.map));
+  #snapshotMaps(): AdventureMap[] {
+    return structuredClone($state.snapshot(this.adventure.maps));
   }
 
   #ensureMapHistory(): void {
@@ -936,10 +979,11 @@ export class WorkshopStore {
     this.#mapUndo = [];
     this.#mapHistorySetId = id;
     this.#mapEditStart = null;
+    this.mapEditingId = this.adventure.maps[0]?.id ?? null;
     this.mapUndoCount = 0;
   }
 
-  #commitMapSnapshot(snapshot: AdventureMap): void {
+  #commitMapSnapshot(snapshot: AdventureMap[]): void {
     this.#mapUndo.push(snapshot);
     /* Embedded board artwork can be large. Thirty deliberate actions is a
        useful working history without letting a long map session retain an

@@ -21,6 +21,7 @@ import {
 } from '$lib/cards/types';
 import type {
   AdventureMap,
+  AdventureMapId,
   MapEnvironmentPiece,
   MapEnvironmentPieceId,
   MapNoteId,
@@ -521,8 +522,10 @@ function adventureMap(value: unknown, repairFormerPathBlack = false): AdventureM
     .filter((path): path is MapPath => path !== null);
 
   return {
+    id: typeof raw['id'] === 'string' ? (raw['id'] as AdventureMapId) : defaults.id,
     enabled: bool(raw['enabled'], defaults.enabled),
     name: str(raw['name']),
+    showSpacesAndPaths: bool(raw['showSpacesAndPaths'], defaults.showSpacesAndPaths),
     showLabel: bool(raw['showLabel'], defaults.showLabel),
     labelCorner: (MAP_LABEL_CORNERS as readonly string[]).includes(raw['labelCorner'] as string)
       ? (raw['labelCorner'] as AdventureMap['labelCorner'])
@@ -1095,7 +1098,25 @@ export function normalizeSet(value: AdventureSet): AdventureSet {
     ? (raw['kind'] as SetKind)
     : 'adventure';
 
-  return {
+  const repairFormerPathBlack = num(raw['schemaVersion'], 0) < 46;
+  const repairedMaps = Array.isArray(raw['maps'])
+    ? raw['maps'].map((entry) => adventureMap(entry, repairFormerPathBlack))
+    : [adventureMap(raw['map'], repairFormerPathBlack)];
+  const mapIds = new Set<AdventureMapId>();
+  const storedMaps = repairedMaps.map((map) => {
+    if (!mapIds.has(map.id)) {
+      mapIds.add(map.id);
+      return map;
+    }
+    /* A duplicate ID would collapse two keyed editor tabs into one. Repair it
+       once at the import boundary; the generated replacement is persisted,
+       so subsequent normalization passes remain stable. */
+    const id = createAdventureMap().id;
+    mapIds.add(id);
+    return { ...map, id };
+  });
+
+  const normalized = {
     ...value,
     /* Read back from the raw value, never defaulted blind — a set authored
        before `kind` existed opens as an adventure, which is what it was. */
@@ -1106,7 +1127,7 @@ export function normalizeSet(value: AdventureSet): AdventureSet {
     decks: repairedDecks,
     cards: repairedCards,
     threat: threatTrack(raw['threat']),
-    map: adventureMap(raw['map'], num(raw['schemaVersion'], 0) < 46),
+    maps: storedMaps.length > 0 ? storedMaps : [createAdventureMap()],
     figures: (Array.isArray(raw['figures']) ? raw['figures'] : []).map(figure),
     rulebooks: (Array.isArray(raw['rulebooks']) ? raw['rulebooks'] : [])
       .map(asRecord)
@@ -1136,5 +1157,12 @@ export function normalizeSet(value: AdventureSet): AdventureSet {
     initiativeBack: artwork(raw['initiativeBack']),
     useInitiativeBack: bool(raw['useInitiativeBack'], false),
     origin: origin(raw['origin'])
-  } as unknown as AdventureSet;
+  } as unknown as AdventureSet & { map?: unknown };
+
+  /* v66 replaces the singleton rather than mirroring it. Leaving the legacy
+     property on a normalized object would write two competing sources back
+     to IndexedDB and make a hand-edited file's winner depend on its schema
+     number. The array is the only persisted source after this boundary. */
+  delete normalized.map;
+  return normalized;
 }

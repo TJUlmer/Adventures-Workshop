@@ -275,9 +275,9 @@
           <!-- Beside the threat track, because on the table they are one board. -->
           <button type="button" class="tile" onclick={() => navigation.go('map')}>
             <span class="tile-count numeric">
-              {set.map.enabled ? set.map.spaces.length : '—'}
+              {set.maps.filter((map) => map.enabled).length || '—'}
             </span>
-            <span class="tile-label">Map spaces</span>
+            <span class="tile-label">Maps</span>
           </button>
 
           <button type="button" class="tile" onclick={() => navigation.go('editor')}>

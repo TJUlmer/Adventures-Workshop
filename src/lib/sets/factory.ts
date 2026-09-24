@@ -44,7 +44,7 @@ export function createEmptySet(draft: SetDraft = {}): AdventureSet {
     decks: [],
     cards: [],
     threat: createThreatTrack(),
-    map: createAdventureMap(),
+    maps: [createAdventureMap()],
     figures: [],
     rulebooks: [],
     box: createPresentationBox(),

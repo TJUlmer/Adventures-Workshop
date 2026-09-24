@@ -1162,6 +1162,7 @@
       </defs>
     {/if}
 
+    {#if map.showSpacesAndPaths}
     {#if boardWidth > 0}
       <!--
         `transform="scale(1 / boardWidth)"` is what makes this group's own
@@ -1535,6 +1536,7 @@
         {/if}
       </g>
     {/each}
+    {/if}
 
     <!-- Back-to-front array order is the author-controlled z-order. These are
          deliberately after every space and before rule markers/text. -->
@@ -1561,6 +1563,7 @@
       the space outline at its own centrepoint. Each tail is independent, so a
       matching portal elsewhere can face or curve in an unrelated direction.
     -->
+    {#if map.showSpacesAndPaths}
     <g class="secret-passages">
       {#each secretPassages as portal (portal.id)}
         <g
@@ -1623,6 +1626,7 @@
         </g>
       {/each}
     </g>
+    {/if}
 
     {#each map.notes as note (note.id)}
       <!--
