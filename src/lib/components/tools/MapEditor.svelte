@@ -1335,6 +1335,19 @@
             Spaces &amp; paths
           </button>
 
+          <button
+            type="button"
+            class="mode"
+            class:active={map.autoLargeFighter}
+            aria-pressed={map.autoLargeFighter}
+            title="Automatically mark paths longer than {LARGE_FIGHTER_CENTRE_THRESHOLD_MM} mm centre to centre"
+            onclick={() =>
+              workshop.editMap((m) => (m.autoLargeFighter = !m.autoLargeFighter))}
+          >
+            <Icon name="move" size={13} />
+            Auto large-fighter pins
+          </button>
+
           <!--
             The one control worth reaching for as often as a mode — the
             board is nothing without its picture — sitting in what would
@@ -2456,22 +2469,14 @@
 
               {/if}
 
-              <div class="zone-auto">
-                <Switch
-                  checked={map.autoLargeFighter}
-                  label="Auto large-fighter pins"
-                  hint="Mark connections over {LARGE_FIGHTER_CENTRE_THRESHOLD_MM} mm centre to centre"
-                  onchange={(autoLargeFighter) =>
-                    workshop.editMap((m) => (m.autoLargeFighter = autoLargeFighter))}
-                />
+              {@render topologyPanel()}
               </div>
-              </div>
-
             </div>
           {/snippet}
         </div>
 
-        <div class="block topology-block">
+        {#snippet topologyPanel()}
+        <div class="topology-block">
           <div class="topology-heading">
             <div>
               <h2 class="panel-title">Map analysis</h2>
@@ -2570,6 +2575,7 @@
             </span>
           </div>
         </div>
+        {/snippet}
       </section>
     {/if}
   </div>
@@ -2807,15 +2813,21 @@
   }
 
   .topology-block {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
     align-items: stretch;
     width: 100%;
+    margin-top: var(--space-1);
+    padding-top: var(--space-4);
+    border-top: 1px solid var(--border-default);
   }
 
   .topology-heading {
     display: flex;
+    flex-direction: column;
     align-items: flex-start;
-    justify-content: space-between;
-    gap: var(--space-3);
+    gap: var(--space-2);
     width: 100%;
   }
 
@@ -2881,7 +2893,7 @@
 
   .centre-grid {
     display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: 1fr;
     gap: var(--space-3);
     width: 100%;
   }
@@ -2980,9 +2992,6 @@
     .side-col { grid-row: 2; }
     .selected-block { grid-row: 3; margin-top: 0; }
 
-    .centre-grid {
-      grid-template-columns: 1fr;
-    }
   }
 
   /* Keep the semantic wrapper transparent; `.side-col` is the actual grid
@@ -3051,12 +3060,6 @@
     place-items: center;
     font-size: var(--text-sm);
     line-height: 1;
-  }
-
-  .zone-auto {
-    width: 100%;
-    padding-top: var(--space-3);
-    border-top: 1px solid var(--border-default);
   }
 
   .selected-scroll {
