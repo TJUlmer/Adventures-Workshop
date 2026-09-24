@@ -1914,7 +1914,7 @@
 
   <div class="body">
     {#if welcomeMode}
-      <div class="first-run">
+      <div class="first-run" class:has-community={cloudEnabled()}>
         <main class="welcome-main">
           <section class="welcome">
             <div class="welcome-copy">
@@ -3441,11 +3441,74 @@
     margin-inline: auto;
   }
 
+  .first-run.has-community {
+    grid-template-columns: minmax(260px, 320px) minmax(0, 1fr) minmax(280px, 340px);
+    max-width: 1540px;
+  }
+
   .welcome-main {
     display: flex;
     flex-direction: column;
     gap: var(--space-5);
     min-width: 0;
+  }
+
+  /* Community is the left rail on a wide welcome screen. Keeping it inside
+     `welcome-main` in the document preserves the page's single main landmark;
+     this nested grid only changes its visual placement. */
+  .has-community .welcome-main {
+    grid-column: 1 / 3;
+    display: grid;
+    grid-template-columns: minmax(260px, 320px) minmax(0, 1fr);
+  }
+
+  .has-community .welcome-main > :not(.community) {
+    grid-column: 2;
+  }
+
+  .has-community .community {
+    grid-column: 1;
+    grid-row: 1 / span 3;
+    align-self: start;
+    padding: var(--space-5);
+  }
+
+  .has-community .community-head {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: var(--space-2);
+  }
+
+  .has-community .community-head p {
+    text-align: left;
+  }
+
+  .has-community .spotlight {
+    grid-template-columns: 1fr;
+    gap: var(--space-4);
+    padding: var(--space-4);
+  }
+
+  .has-community .spotlight-art {
+    width: min(210px, 82%);
+    justify-self: center;
+  }
+
+  .has-community .spotlight-name {
+    font-size: var(--text-lg);
+  }
+
+  .has-community .spotlight-creator {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .has-community .creator-profile {
+    display: none;
+  }
+
+  .has-community .welcome-gallery-slots {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--space-3);
   }
 
   .welcome {
@@ -4147,8 +4210,79 @@
     color: var(--text-muted);
   }
 
+  @media (min-width: 1181px) and (max-width: 1400px) {
+    .has-community .welcome {
+      grid-template-columns: 1fr;
+      padding: var(--space-6);
+    }
+
+    .has-community .welcome-montage {
+      min-height: 245px;
+    }
+  }
+
+  @media (max-width: 1180px) {
+    .first-run.has-community {
+      grid-template-columns: minmax(0, 1fr) minmax(280px, 340px);
+      max-width: 1180px;
+    }
+
+    .has-community .welcome-main {
+      grid-column: auto;
+      display: flex;
+    }
+
+    .has-community .welcome-main > :not(.community),
+    .has-community .community {
+      grid-column: auto;
+      grid-row: auto;
+    }
+
+    .has-community .community {
+      order: -1;
+    }
+
+    .has-community .community-head {
+      align-items: end;
+      flex-direction: row;
+      gap: var(--space-5);
+    }
+
+    .has-community .community-head p {
+      text-align: right;
+    }
+
+    .has-community .spotlight {
+      grid-template-columns: minmax(180px, 240px) minmax(0, 1fr);
+      gap: var(--space-6);
+      padding: var(--space-5);
+    }
+
+    .has-community .spotlight-art {
+      width: 100%;
+    }
+
+    .has-community .spotlight-name {
+      font-size: var(--text-xl);
+    }
+
+    .has-community .spotlight-creator {
+      grid-template-columns: auto minmax(0, 1fr) auto;
+    }
+
+    .has-community .creator-profile {
+      display: inline;
+    }
+
+    .has-community .welcome-gallery-slots {
+      grid-template-columns: repeat(3, minmax(110px, 150px));
+      gap: var(--space-4);
+    }
+  }
+
   @media (max-width: 1050px) {
-    .first-run {
+    .first-run,
+    .first-run.has-community {
       grid-template-columns: 1fr;
     }
 
@@ -4205,7 +4339,8 @@
     .head,
     .capabilities-head,
     .principles-head,
-    .community-head {
+    .community-head,
+    .has-community .community-head {
       align-items: flex-start;
       flex-direction: column;
     }
@@ -4228,7 +4363,8 @@
       min-height: 245px;
     }
 
-    .community-head p {
+    .community-head p,
+    .has-community .community-head p {
       text-align: left;
     }
 
@@ -4253,16 +4389,19 @@
       grid-column: 1 / -1;
     }
 
-    .spotlight {
+    .spotlight,
+    .has-community .spotlight {
       grid-template-columns: minmax(150px, 210px) minmax(0, 1fr);
       gap: var(--space-4);
     }
 
-    .creator-profile {
+    .creator-profile,
+    .has-community .creator-profile {
       display: none;
     }
 
-    .spotlight-creator {
+    .spotlight-creator,
+    .has-community .spotlight-creator {
       grid-template-columns: auto minmax(0, 1fr);
     }
   }
@@ -4324,16 +4463,19 @@
       height: 118px;
     }
 
-    .spotlight {
+    .spotlight,
+    .has-community .spotlight {
       grid-template-columns: 1fr;
     }
 
-    .spotlight-art {
+    .spotlight-art,
+    .has-community .spotlight-art {
       width: min(220px, 72%);
       justify-self: center;
     }
 
-    .welcome-gallery-slots {
+    .welcome-gallery-slots,
+    .has-community .welcome-gallery-slots {
       grid-template-columns: repeat(2, minmax(100px, 1fr));
     }
 

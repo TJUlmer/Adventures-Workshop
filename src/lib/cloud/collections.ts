@@ -88,6 +88,10 @@ export interface CollectionTile {
   preview_card_url: string;
   sort_order: number;
   ready: boolean;
+  /** The creator's introduction for this deck inside this collection. */
+  description: string;
+  /** Author-assigned play difficulty, from 1 to 5; absent until they choose one. */
+  difficulty_rating: number | null;
 }
 
 /**
@@ -132,6 +136,8 @@ export interface CollectionMembership {
   /** The published revision the author most recently marked ready. */
   ready_revision: number | null;
   sort_order: number;
+  description: string;
+  difficulty_rating: number | null;
   invited_by: string | null;
   created_at: string;
   updated_at: string;
@@ -213,6 +219,8 @@ interface MembershipRow {
   ready: boolean;
   ready_revision: number | null;
   sort_order: number;
+  description: string;
+  difficulty_rating: number | null;
   invited_by: string | null;
   created_at: string;
   updated_at: string;
@@ -239,6 +247,8 @@ function asMembership(row: MembershipRow): CollectionMembership {
     ready: row.ready,
     ready_revision: row.ready_revision,
     sort_order: row.sort_order,
+    description: row.description,
+    difficulty_rating: row.difficulty_rating,
     invited_by: row.invited_by,
     created_at: row.created_at,
     updated_at: row.updated_at,
@@ -841,6 +851,42 @@ export async function setMemberReady(
   await request(`/rest/v1/collection_members?${memberFilter(collectionId, setId)}`, {
     method: 'PATCH',
     body: { ready },
+    headers: { Prefer: 'return=minimal' }
+  });
+}
+
+/**
+ * The deck author's own introduction and difficulty rating for this project.
+ *
+ * Both values live on the membership rather than the published set: the same
+ * deck may join several collections whose audience and framing differ. The
+ * database guard refuses this update from an organizer who does not own the
+ * deck, even though organizers may edit the membership's order and status.
+ */
+export async function updateMemberDetails(
+  collectionId: string,
+  setId: string,
+  description: string,
+  difficultyRating: number | null
+): Promise<void> {
+  const cleanDescription = description.trim();
+  if (cleanDescription.length > 600) {
+    throw new CloudError('Collection descriptions can be up to 600 characters.', 0);
+  }
+  if (
+    difficultyRating !== null &&
+    (!Number.isInteger(difficultyRating) || difficultyRating < 1 || difficultyRating > 5)
+  ) {
+    throw new CloudError('Difficulty must be between 1 and 5.', 0);
+  }
+
+  await auth.ensureFresh();
+  await request(`/rest/v1/collection_members?${memberFilter(collectionId, setId)}`, {
+    method: 'PATCH',
+    body: {
+      description: cleanDescription,
+      difficulty_rating: difficultyRating
+    },
     headers: { Prefer: 'return=minimal' }
   });
 }

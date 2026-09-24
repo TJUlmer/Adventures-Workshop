@@ -287,7 +287,10 @@ just made. It also ties a curation right to a deck when the two are plainly
 separate: an organizer may run a project without contributing to it.
 
 So `collection_organizers` is its own table, keyed by person, and
-`collection_members` is only ever "which decks are in".
+`collection_members` is keyed only by which decks are in. It may carry facts
+about that deck's place in this particular project — ordering, readiness, its
+creator-written introduction and difficulty — but never a person's organizer
+role.
 `collections.created_by` is audit only and carries no privilege — a trigger
 seeds the creator as the first organizer, because doing that as a second
 client-side insert is one failed request away from a collection nobody can
@@ -477,6 +480,8 @@ collection_members
   set_id        uuid not null references sets (id) on delete cascade
   status        text check (status in ('invited','submitted','accepted','declined','removed'))
   ready         boolean not null default false
+  description   text not null default ''  -- this collection's introduction
+  difficulty_rating smallint null check (difficulty_rating between 1 and 5)
   sort_order    integer not null default 0   -- not `position`: a reserved
                                              -- column keyword in RETURNS TABLE
   primary key (collection_id, set_id)
@@ -526,6 +531,16 @@ revoked in favour of the existing soft statuses. Apply
 latter also changes the result shape of `collection_memberships`, so its UI must
 deploy with it.
 
+### Creator-written roster details — migration `0040`
+
+An accepted deck's author can add a short collection-specific description and
+a difficulty rating out of five from **Your contribution**. Both values stay on
+the membership: they describe how the deck is presented in this project and do
+not revise the published set or follow it into another collection. The member
+guard allows only the deck owner to edit them. The accepted-member public RPC
+projects them onto the showcase, where the character roster has wider tiles for
+the paragraph and rating; pending rows never expose them publicly.
+
 ### One new function, and one footgun
 
 `collection_by_slug(text)` mirrors `set_by_slug` — `security definer`, exact
@@ -570,6 +585,9 @@ boundary* above.
   copy, republish, and deliberately mark that published revision Ready. An
   organizer gets a prominent review queue and can inspect the submitted public
   deck before accepting or declining it.
+- **Collection-specific roster copy.** Each creator writes their deck's short
+  introduction and difficulty rating in **Your contribution**; the public
+  character roster displays both without changing the underlying set.
 - **A revision-bound readiness line** — "4 of 6 ready" — computed from
   membership rows alone. Republishing resets Ready instead of allowing a stale
   declaration to survive a changed deck.

@@ -53,6 +53,7 @@
     setMemberReady,
     submitDeck,
     updateCollection,
+    updateMemberDetails,
     uploadCollectionBanner
   } from '$lib/cloud/collections';
   import { fetchSetSummaryBySlug, listMyPublishedSets } from '$lib/cloud/sets';
@@ -584,6 +585,15 @@
   let membershipScope = '';
   let selectedOfferId = $state('');
 
+  interface ContributionDetailsDraft {
+    description: string;
+    difficulty: number | null;
+    sourceUpdatedAt: string;
+    dirty: boolean;
+  }
+
+  let contributionDetails = $state<Record<string, ContributionDetailsDraft>>({});
+
   function publicationFor(setId: string): PublishedSet | undefined {
     return myPublished.find((row) => row.id === setId);
   }
@@ -921,6 +931,53 @@
   const myAccepted = $derived(
     acceptedMemberships.filter((row) => row.set?.owner_id === auth.user?.id)
   );
+
+  $effect(() => {
+    const currentIds = new Set(myAccepted.map((row) => row.set_id));
+    for (const row of myAccepted) {
+      const current = contributionDetails[row.set_id];
+      if (current?.dirty) continue;
+      if (current?.sourceUpdatedAt === row.updated_at) continue;
+      contributionDetails[row.set_id] = {
+        description: row.description ?? '',
+        difficulty:
+          row.difficulty_rating !== null && row.difficulty_rating !== undefined
+            ? row.difficulty_rating
+            : null,
+        sourceUpdatedAt: row.updated_at,
+        dirty: false
+      };
+    }
+    for (const setId of Object.keys(contributionDetails)) {
+      if (!currentIds.has(setId)) delete contributionDetails[setId];
+    }
+  });
+
+  function contributionDetailsChanged(
+    row: CollectionMembership,
+    draft: ContributionDetailsDraft
+  ): boolean {
+    return (
+      draft.description.trim() !== (row.description ?? '') ||
+      draft.difficulty !== (row.difficulty_rating ?? null)
+    );
+  }
+
+  async function saveContributionDetails(
+    row: CollectionMembership,
+    draft: ContributionDetailsDraft
+  ): Promise<void> {
+    await run(`details-${row.set_id}`, async () => {
+      await updateMemberDetails(
+        collection!.id,
+        row.set_id,
+        draft.description,
+        draft.difficulty
+      );
+      draft.dirty = false;
+      notice = `Collection details saved for ${row.set?.name || 'this deck'}.`;
+    });
+  }
 
   /**
    * My accepted decks here that are still unlisted, once the collection is
@@ -1946,6 +2003,7 @@
               {@const publication = publicationFor(row.set_id)}
               {@const localDraft = publication ? draftIsOnHome(publication) : false}
               {@const readyHere = row.ready && row.set?.visibility !== 'private'}
+              {@const details = contributionDetails[row.set_id]}
               <article class="contribution-card">
                 <header class="contribution-head">
                   <span>
@@ -1971,6 +2029,74 @@
                         : 'The published copy is hidden. Share it by Private link so the collection can display it when the project launches.'}
                   </span>
                 </div>
+
+                {#if details}
+                  <div class="contribution-details">
+                    <div class="details-intro">
+                      <strong>Public roster details</strong>
+                      <span>Introduce this deck on the collection page and rate its difficulty.</span>
+                    </div>
+
+                    <label class="details-description">
+                      <span>Deck description</span>
+                      <textarea
+                        rows="4"
+                        maxlength="600"
+                        placeholder="A short introduction to this character, their play style, or what makes the deck distinctive."
+                        value={details.description}
+                        disabled={busy !== null || membershipLoading || !membershipRowsCurrent}
+                        oninput={(event) => {
+                          details.description = event.currentTarget.value;
+                          details.dirty = true;
+                        }}
+                      ></textarea>
+                      <small>{details.description.length}/600</small>
+                    </label>
+
+                    <fieldset class="difficulty-field">
+                      <legend>Difficulty rating</legend>
+                      <div class="difficulty-options" aria-label="Difficulty out of 5">
+                        {#each [1, 2, 3, 4, 5] as rating}
+                          <button
+                            type="button"
+                            class:chosen={details.difficulty === rating}
+                            aria-pressed={details.difficulty === rating}
+                            disabled={busy !== null || membershipLoading || !membershipRowsCurrent}
+                            onclick={() => {
+                              details.difficulty = rating;
+                              details.dirty = true;
+                            }}
+                          >{rating}</button>
+                        {/each}
+                        <span>/ 5</span>
+                        {#if details.difficulty !== null}
+                          <button
+                            type="button"
+                            class="clear-rating"
+                            disabled={busy !== null || membershipLoading || !membershipRowsCurrent}
+                            onclick={() => {
+                              details.difficulty = null;
+                              details.dirty = true;
+                            }}
+                          >Clear</button>
+                        {/if}
+                      </div>
+                      <small>1 is easiest to learn; 5 is the most demanding.</small>
+                    </fieldset>
+
+                    <button
+                      type="button"
+                      class="btn save-details"
+                      disabled={
+                        busy !== null ||
+                        membershipLoading ||
+                        !membershipRowsCurrent ||
+                        !contributionDetailsChanged(row, details)
+                      }
+                      onclick={() => void saveContributionDetails(row, details)}
+                    >{busy === `details-${row.set_id}` ? 'Saving…' : 'Save roster details'}</button>
+                  </div>
+                {/if}
 
                 <p>
                   {readyHere
@@ -3191,6 +3317,133 @@
     line-height: var(--leading-normal);
   }
 
+  .contribution-details {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: var(--space-4) var(--space-5);
+    margin-top: var(--space-4);
+    padding: var(--space-4);
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-md);
+    background: var(--surface-inset);
+  }
+
+  .details-intro,
+  .details-description {
+    grid-column: 1 / -1;
+  }
+
+  .details-intro,
+  .details-description {
+    display: grid;
+    gap: var(--space-1);
+  }
+
+  .details-intro strong,
+  .details-description > span,
+  .difficulty-field legend {
+    color: var(--text-primary);
+    font-size: var(--text-sm);
+    font-weight: var(--weight-semibold);
+  }
+
+  .details-intro span,
+  .details-description small,
+  .difficulty-field small {
+    color: var(--text-muted);
+    font-size: var(--text-xs);
+    line-height: var(--leading-normal);
+  }
+
+  .details-description textarea {
+    width: 100%;
+    min-height: 6.5rem;
+    resize: vertical;
+    padding: var(--space-3);
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-sm);
+    background: var(--surface-raised);
+    color: var(--text-primary);
+    font: inherit;
+    font-size: var(--text-sm);
+    line-height: var(--leading-normal);
+  }
+
+  .details-description textarea:focus-visible {
+    outline: none;
+    box-shadow: var(--focus-ring);
+  }
+
+  .details-description small {
+    justify-self: end;
+  }
+
+  .difficulty-field {
+    display: grid;
+    gap: var(--space-2);
+    min-width: 0;
+    margin: 0;
+    padding: 0;
+    border: 0;
+  }
+
+  .difficulty-options {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: var(--space-1);
+  }
+
+  .difficulty-options button {
+    display: grid;
+    width: var(--space-7);
+    height: var(--space-7);
+    place-items: center;
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-sm);
+    background: var(--surface-raised);
+    color: var(--text-secondary);
+    font: inherit;
+    font-size: var(--text-sm);
+    cursor: pointer;
+  }
+
+  .difficulty-options button:hover,
+  .difficulty-options button.chosen {
+    border-color: var(--accent);
+    background: var(--accent-soft);
+    color: var(--text-accent);
+  }
+
+  .difficulty-options button:disabled {
+    cursor: default;
+    opacity: 0.55;
+  }
+
+  .difficulty-options > span {
+    margin-left: var(--space-1);
+    color: var(--text-muted);
+    font-size: var(--text-sm);
+  }
+
+  .difficulty-options button.clear-rating {
+    display: inline;
+    width: auto;
+    height: auto;
+    margin-left: var(--space-2);
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: var(--text-muted);
+    font-size: var(--text-xs);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
+
+  .save-details {
+    align-self: end;
+  }
+
   .contribution-head {
     display: flex;
     align-items: flex-start;
@@ -3695,6 +3948,14 @@
 
     .launch-panel {
       grid-template-columns: 1fr;
+    }
+
+    .contribution-details {
+      grid-template-columns: 1fr;
+    }
+
+    .save-details {
+      justify-self: start;
     }
 
     .launch-mark,

@@ -434,6 +434,7 @@
           <ul class="character-grid">
             {#each filteredCharacters as character (characterKey(character))}
               {@const key = characterKey(character)}
+              {@const member = tileById.get(character.set_id)}
               <li>
                 <article class="character-tile">
                   <button
@@ -474,7 +475,24 @@
                         style:--role-tint={`var(--role-${character.character_role}, var(--text-muted))`}
                       >{roleLabel(character.character_role)}</span>
                     </div>
-                    <p>{character.set_name || 'Untitled set'}</p>
+                    {#if member?.difficulty_rating}
+                      <div
+                        class="character-difficulty"
+                        aria-label={`Difficulty ${member.difficulty_rating} out of 5`}
+                      >
+                        <span>Difficulty</span>
+                        <span class="difficulty-scale" aria-hidden="true">
+                          {#each [1, 2, 3, 4, 5] as rating}
+                            <i class:filled={rating <= member.difficulty_rating}></i>
+                          {/each}
+                        </span>
+                        <strong>{member.difficulty_rating}/5</strong>
+                      </div>
+                    {/if}
+                    {#if member?.description}
+                      <p class="character-description">{member.description}</p>
+                    {/if}
+                    <p class="character-set">{character.set_name || 'Untitled set'}</p>
                     <button class="creator-link" type="button" onclick={() => onopenauthor(character.owner_id)}>
                       By {character.author_name || 'Anonymous'}
                     </button>
@@ -1040,11 +1058,13 @@
   }
 
   .character-grid {
-    grid-template-columns: repeat(auto-fill, minmax(11.5rem, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(14.5rem, 1fr));
     gap: var(--space-5);
   }
 
   .character-tile {
+    display: flex;
+    flex-direction: column;
     height: 100%;
     overflow: hidden;
     border: 1px solid var(--border-subtle);
@@ -1123,9 +1143,10 @@
 
   .character-copy {
     display: flex;
+    flex: 1 1 auto;
     flex-direction: column;
-    gap: var(--space-1);
-    padding: var(--space-3);
+    gap: var(--space-2);
+    padding: var(--space-4);
   }
 
   .character-name-row {
@@ -1166,6 +1187,50 @@
     margin: 0;
     color: var(--text-muted);
     font-size: var(--text-xs);
+  }
+
+  .character-difficulty {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    color: var(--text-muted);
+    font-size: var(--text-2xs);
+    font-weight: var(--weight-semibold);
+    letter-spacing: var(--tracking-wide);
+    text-transform: uppercase;
+  }
+
+  .character-difficulty strong {
+    color: var(--text-accent);
+    font-size: var(--text-xs);
+  }
+
+  .difficulty-scale {
+    display: flex;
+    gap: 3px;
+  }
+
+  .difficulty-scale i {
+    width: var(--space-3);
+    height: 4px;
+    border-radius: var(--radius-full);
+    background: var(--border-default);
+  }
+
+  .difficulty-scale i.filled {
+    background: var(--accent);
+  }
+
+  .character-copy p.character-description {
+    color: var(--text-secondary);
+    font-size: var(--text-sm);
+    line-height: var(--leading-normal);
+    text-wrap: pretty;
+  }
+
+  .character-copy p.character-set {
+    margin-top: auto;
+    padding-top: var(--space-2);
   }
 
   .creator-link {
