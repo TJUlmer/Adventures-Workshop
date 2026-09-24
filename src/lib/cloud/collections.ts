@@ -170,6 +170,24 @@ export interface CollectionOrganizer {
   profile: { display_name: string; avatar_url: string } | null;
 }
 
+/** One dated project goal, visible to the collection team and managed by organizers. */
+export interface CollectionMilestone {
+  id: string;
+  collection_id: string;
+  title: string;
+  note: string;
+  target_date: string;
+  completed_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CollectionMilestoneFields {
+  title: string;
+  note: string;
+  targetDate: string;
+}
+
 /**
  * One private message about one deck in this collection's workspace.
  *
@@ -888,6 +906,96 @@ export async function updateMemberDetails(
       difficulty_rating: difficultyRating
     },
     headers: { Prefer: 'return=minimal' }
+  });
+}
+
+// -- Project timeline -----------------------------------------------------
+
+const COLLECTION_MILESTONE_COLUMNS =
+  'id,collection_id,title,note,target_date,completed_at,created_at,updated_at';
+
+function milestoneBody(fields: CollectionMilestoneFields): Record<string, string> {
+  const title = fields.title.trim();
+  const note = fields.note.trim();
+  if (!title) throw new CloudError('Give this milestone a name.', 0);
+  if (title.length > 120) throw new CloudError('Milestone names can be up to 120 characters.', 0);
+  if (note.length > 400) throw new CloudError('Milestone descriptions can be up to 400 characters.', 0);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(fields.targetDate)) {
+    throw new CloudError('Choose a goal date for this milestone.', 0);
+  }
+  return { title, note, target_date: fields.targetDate };
+}
+
+/** The private project timeline. Database policy limits this to the collection team. */
+export async function listCollectionMilestones(
+  collectionId: string
+): Promise<CollectionMilestone[]> {
+  await auth.ensureFresh();
+  return request<CollectionMilestone[]>(
+    `/rest/v1/collection_milestones?select=${COLLECTION_MILESTONE_COLUMNS}` +
+      `&collection_id=eq.${encodeURIComponent(collectionId)}` +
+      '&order=target_date.asc,created_at.asc'
+  );
+}
+
+/** Add one project goal. Only an organizer passes the table policy. */
+export async function createCollectionMilestone(
+  collectionId: string,
+  fields: CollectionMilestoneFields
+): Promise<void> {
+  await auth.ensureFresh();
+  await request('/rest/v1/collection_milestones', {
+    method: 'POST',
+    body: { collection_id: collectionId, ...milestoneBody(fields) },
+    headers: { Prefer: 'return=minimal' }
+  });
+}
+
+/** Add the common multi-phase plan in one database request. */
+export async function createCollectionMilestones(
+  collectionId: string,
+  milestones: readonly CollectionMilestoneFields[]
+): Promise<void> {
+  if (milestones.length === 0) return;
+  await auth.ensureFresh();
+  await request('/rest/v1/collection_milestones', {
+    method: 'POST',
+    body: milestones.map((fields) => ({ collection_id: collectionId, ...milestoneBody(fields) })),
+    headers: { Prefer: 'return=minimal' }
+  });
+}
+
+/** Change an existing goal. Only organizers may update timeline rows. */
+export async function updateCollectionMilestone(
+  milestoneId: string,
+  fields: CollectionMilestoneFields
+): Promise<void> {
+  await auth.ensureFresh();
+  await request(`/rest/v1/collection_milestones?id=eq.${encodeURIComponent(milestoneId)}`, {
+    method: 'PATCH',
+    body: milestoneBody(fields),
+    headers: { Prefer: 'return=minimal' }
+  });
+}
+
+/** Mark a goal done, or reopen it. The timestamp keeps completion meaningful. */
+export async function setCollectionMilestoneComplete(
+  milestoneId: string,
+  complete: boolean
+): Promise<void> {
+  await auth.ensureFresh();
+  await request(`/rest/v1/collection_milestones?id=eq.${encodeURIComponent(milestoneId)}`, {
+    method: 'PATCH',
+    body: { completed_at: complete ? new Date().toISOString() : null },
+    headers: { Prefer: 'return=minimal' }
+  });
+}
+
+/** Remove one timeline goal. The UI requires a confirming second click. */
+export async function deleteCollectionMilestone(milestoneId: string): Promise<void> {
+  await auth.ensureFresh();
+  await request(`/rest/v1/collection_milestones?id=eq.${encodeURIComponent(milestoneId)}`, {
+    method: 'DELETE'
   });
 }
 

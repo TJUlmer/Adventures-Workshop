@@ -485,6 +485,15 @@ collection_members
   sort_order    integer not null default 0   -- not `position`: a reserved
                                              -- column keyword in RETURNS TABLE
   primary key (collection_id, set_id)
+
+collection_milestones
+  id            uuid primary key
+  collection_id uuid not null references collections (id) on delete cascade
+  title         text not null check (1..120 characters)
+  note          text not null default '' check (up to 400 characters)
+  target_date   date not null
+  completed_at  timestamptz null
+  created_at, updated_at
 ```
 
 Notes that are not obvious:
@@ -541,6 +550,16 @@ guard allows only the deck owner to edit them. The accepted-member public RPC
 projects them onto the showcase, where the character roster has wider tiles for
 the paragraph and rating; pending rows never expose them publicly.
 
+### Project timeline — migration `0041`
+
+The working room has a shared milestone timeline. An organizer can add custom
+goals or start with the common five-phase plan — initial drafts, testing,
+visuals, teaser season, and reveal — then adjust dates, descriptions, and
+completion as the project changes. Everyone who has actually joined the team
+can read it, including a person who accepted an invitation before contributing
+a deck; merely receiving an unanswered invitation grants nothing. Timeline
+rows are absent from the public collection page and every anonymous projection.
+
 ### One new function, and one footgun
 
 `collection_by_slug(text)` mirrors `set_by_slug` — `security definer`, exact
@@ -593,6 +612,8 @@ boundary* above.
   declaration to survive a changed deck.
 - **Private deck discussions** inside the workspace, available to the project
   team and never rendered or returned on the public page.
+- **A shared project timeline** with organizer-managed goal dates and
+  completion. Contributors see the same plan without gaining edit authority.
 - **A reverse link** on each member's own `/shared/{slug}`: *part of Winter
   Extravaganza*. Cheap, and it is what makes the thing read as a project
   rather than a list of links.

@@ -89,6 +89,7 @@
   import CollectionExportSelector from '$lib/components/export/CollectionExportSelector.svelte';
   import CollectionDeckDiscussion from './CollectionDeckDiscussion.svelte';
   import CollectionShowcase from './CollectionShowcase.svelte';
+  import CollectionTimeline from './CollectionTimeline.svelte';
 
   interface Props {
     slug: string;
@@ -1302,7 +1303,7 @@
   let confirmingDelete = $state(false);
 
   type PageMode = 'showcase' | 'workspace';
-  type ManageTab = 'decks' | 'people' | 'settings';
+  type ManageTab = 'decks' | 'timeline' | 'people' | 'settings';
   type ExportChoice = 'print' | 'images' | 'tts' | null;
 
   let pageMode = $state<PageMode>('showcase');
@@ -1607,6 +1608,14 @@
           </button>
           <button
             type="button"
+            class:on={manageTab === 'timeline'}
+            aria-current={manageTab === 'timeline' ? 'page' : undefined}
+            onclick={() => (manageTab = 'timeline')}
+          >
+            Timeline
+          </button>
+          <button
+            type="button"
             class:on={manageTab === 'people'}
             aria-current={manageTab === 'people' ? 'page' : undefined}
             onclick={() => (manageTab = 'people')}
@@ -1634,13 +1643,37 @@
           <button type="button" class="btn" onclick={retryOrganizerCheck}>Try again</button>
         </div>
       {:else if pageMode === 'workspace'}
-        <div class="workspace-heading">
-          <div>
-            <p class="eyebrow">Contributions</p>
-            <h2>Work on your part of {heading}</h2>
+        <nav class="manage-tabs member-tabs" aria-label="Collection workspace">
+          <button
+            type="button"
+            class:on={manageTab === 'decks'}
+            aria-current={manageTab === 'decks' ? 'page' : undefined}
+            onclick={() => (manageTab = 'decks')}
+          >
+            Contributions
+          </button>
+          <button
+            type="button"
+            class:on={manageTab === 'timeline'}
+            aria-current={manageTab === 'timeline' ? 'page' : undefined}
+            onclick={() => (manageTab = 'timeline')}
+          >
+            Timeline
+          </button>
+        </nav>
+        {#if manageTab === 'decks'}
+          <div class="workspace-heading">
+            <div>
+              <p class="eyebrow">Contributions</p>
+              <h2>Work on your part of {heading}</h2>
+            </div>
+            <p>Choose a published deck, keep its working copy up to date, then mark the latest revision Ready.</p>
           </div>
-          <p>Choose a published deck, keep its working copy up to date, then mark the latest revision Ready.</p>
-        </div>
+        {/if}
+      {/if}
+
+      {#if pageMode === 'workspace' && manageTab === 'timeline'}
+        <CollectionTimeline collectionId={collection.id} canManage={organizer} />
       {/if}
 
       {#if organizer && pageMode === 'workspace' && manageTab === 'settings'}

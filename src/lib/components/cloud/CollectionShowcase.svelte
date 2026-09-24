@@ -478,6 +478,9 @@
                     {#if member?.difficulty_rating}
                       <div
                         class="character-difficulty"
+                        class:easy={member.difficulty_rating === 1}
+                        class:moderate={member.difficulty_rating === 2 || member.difficulty_rating === 3}
+                        class:demanding={member.difficulty_rating === 4 || member.difficulty_rating === 5}
                         aria-label={`Difficulty ${member.difficulty_rating} out of 5`}
                       >
                         <span>Difficulty</span>
@@ -1190,6 +1193,7 @@
   }
 
   .character-difficulty {
+    --difficulty-colour: var(--warning);
     display: flex;
     align-items: center;
     gap: var(--space-2);
@@ -1201,8 +1205,20 @@
   }
 
   .character-difficulty strong {
-    color: var(--text-accent);
+    color: var(--difficulty-colour);
     font-size: var(--text-xs);
+  }
+
+  .character-difficulty.easy {
+    --difficulty-colour: var(--success);
+  }
+
+  .character-difficulty.moderate {
+    --difficulty-colour: var(--warning);
+  }
+
+  .character-difficulty.demanding {
+    --difficulty-colour: var(--danger);
   }
 
   .difficulty-scale {
@@ -1218,7 +1234,7 @@
   }
 
   .difficulty-scale i.filled {
-    background: var(--accent);
+    background: var(--difficulty-colour);
   }
 
   .character-copy p.character-description {
