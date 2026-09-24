@@ -2507,9 +2507,10 @@
             <div>
               <dt>Paths</dt>
               <dd class="numeric">{topology.pathCount}</dd>
-              {#if topology.oneWayPathCount > 0}
-                <small>{topology.oneWayPathCount} one-way</small>
-              {/if}
+              <small>
+                {topology.oneWayPathCount} one-way · {topology.secretPathCount}
+                {topology.secretPathCount === 1 ? 'secret path' : 'secret paths'}
+              </small>
             </div>
             <div>
               <dt>Longest travel route</dt>

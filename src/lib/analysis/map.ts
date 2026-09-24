@@ -13,6 +13,8 @@ export interface MapTopologyAnalysis {
   spaceCount: number;
   pathCount: number;
   oneWayPathCount: number;
+  /** Matching endpoint markers form one secret path; they do not enter the movement graph. */
+  secretPathCount: number;
   /** Weak components: arrow direction is ignored when finding disconnected islands. */
   componentCount: number;
   isolatedSpaces: MapAnalysisSpace[];
@@ -231,6 +233,9 @@ export function analyseMap(map: AdventureMap): MapTopologyAnalysis {
     spaceCount: map.spaces.length,
     pathCount: map.paths.length,
     oneWayPathCount: map.paths.filter((path) => path.oneWay).length,
+    secretPathCount: Math.floor(
+      map.spaces.filter((space) => space.secretPassage !== null).length / 2
+    ),
     componentCount: componentCount(adjacency),
     isolatedSpaces: ordered(isolated),
     deadEndSpaces: ordered(deadEnds),
