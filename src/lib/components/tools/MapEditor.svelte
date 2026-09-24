@@ -17,8 +17,9 @@
    * The board itself is `MapBoard`, read-only, with the affordances laid over
    * it. Same split as the threat track: what is exported must not be able to
    * draw a handle.
-   */
+  */
   import { tick } from 'svelte';
+  import { analyseMap } from '$lib/analysis/map';
   import MapBoard from '$lib/renderer/MapBoard.svelte';
   import { solid } from '$lib/cards/style';
   import { createArtwork, hasArtwork } from '$lib/core/artwork';
@@ -43,7 +44,6 @@
     MAP_SIZES,
     MAP_WIDTH_MM,
     neighbours,
-    orphanSpaces,
     pathExists,
     pathCentreDistanceMm,
     showsLargeFighterMarker,
@@ -345,7 +345,7 @@
     { value: 'text', label: 'Text', hint: 'Click the board to place a label, or drag one to move it' }
   ];
 
-  const orphans = $derived(orphanSpaces(map));
+  const topology = $derived(analyseMap(map));
   const selectedSpace = $derived(findSpace(map, selected));
   const selectedPortalSymbol = $derived(
     selectedSpace?.secretPassage?.symbolId
@@ -365,6 +365,14 @@
     }
     return colours;
   });
+
+  function topologySpaceLabel(space: { number: number; label: string }): string {
+    return space.label ? `${space.label} (Space ${space.number})` : `Space ${space.number}`;
+  }
+
+  function topologySpaceList(spaces: ReadonlyArray<{ number: number; label: string }>): string {
+    return spaces.map(topologySpaceLabel).join(', ');
+  }
 
   /**
    * Select one space, or fold it into the running colour-selection.
@@ -2458,18 +2466,110 @@
                 />
               </div>
               </div>
+
             </div>
           {/snippet}
         </div>
 
-        <p class="stats">
-          {map.spaces.length}
-          {map.spaces.length === 1 ? 'space' : 'spaces'} · {map.paths.length}
-          {map.paths.length === 1 ? 'path' : 'paths'}
-          {#if orphans.length > 0}
-            · <span class="warn">{orphans.length} unconnected</span>
-          {/if}
-        </p>
+        <div class="block topology-block">
+          <div class="topology-heading">
+            <div>
+              <h2 class="panel-title">Map analysis</h2>
+              <p class="hint">
+                Centres minimize the most movement needed before attacking a fighter on any
+                other space. One-way arrows restrict movement but not adjacency.
+              </p>
+            </div>
+            <span
+              class="topology-status"
+              class:warn={topology.componentCount > 1 || !topology.mutuallyReachable}
+            >
+              {topology.spaceCount === 0
+                ? 'No spaces'
+                : topology.componentCount > 1
+                  ? `${topology.componentCount} disconnected groups`
+                  : topology.mutuallyReachable
+                    ? 'Fully reachable'
+                    : 'Directional travel'}
+            </span>
+          </div>
+
+          <dl class="topology-stats">
+            <div>
+              <dt>Total spaces</dt>
+              <dd class="numeric">{topology.spaceCount}</dd>
+            </div>
+            <div>
+              <dt>Paths</dt>
+              <dd class="numeric">{topology.pathCount}</dd>
+              {#if topology.oneWayPathCount > 0}
+                <small>{topology.oneWayPathCount} one-way</small>
+              {/if}
+            </div>
+            <div>
+              <dt>Longest travel route</dt>
+              <dd class="numeric">
+                {topology.travelDiameter === null
+                  ? '—'
+                  : `${topology.travelDiameter} ${topology.travelDiameter === 1 ? 'path' : 'paths'}`}
+              </dd>
+            </div>
+          </dl>
+
+          <div class="centre-grid">
+            <article class="centre-card">
+              <header>
+                <div>
+                  <span>Melee centre</span>
+                  <strong>
+                    {topology.meleeAttackRadius === null
+                      ? 'No map-wide centre'
+                      : `Move ${topology.meleeAttackRadius}`}
+                  </strong>
+                </div>
+                <Icon name="move" size={18} />
+              </header>
+              <p>
+                {topology.meleeAttackCentres.length > 0
+                  ? topologySpaceList(topology.meleeAttackCentres)
+                  : 'No space can reach an adjacent attack position for every other space.'}
+              </p>
+              <small>Move until the target is adjacent.</small>
+            </article>
+
+            <article class="centre-card">
+              <header>
+                <div>
+                  <span>Ranged centre</span>
+                  <strong>
+                    {topology.rangedAttackRadius === null
+                      ? 'No map-wide centre'
+                      : `Move ${topology.rangedAttackRadius}`}
+                  </strong>
+                </div>
+                <Icon name="move" size={18} />
+              </header>
+              <p>
+                {topology.rangedAttackCentres.length > 0
+                  ? topologySpaceList(topology.rangedAttackCentres)
+                  : 'No space can reach a ranged attack position for every other space.'}
+              </p>
+              <small>Move until the target is adjacent or shares a colour zone.</small>
+            </article>
+          </div>
+
+          <div class="topology-findings">
+            <span title={topology.isolatedSpaces.length > 0 ? topologySpaceList(topology.isolatedSpaces) : undefined}>
+              <strong class="numeric">{topology.isolatedSpaces.length}</strong> isolated
+            </span>
+            <span title={topology.deadEndSpaces.length > 0 ? topologySpaceList(topology.deadEndSpaces) : undefined}>
+              <strong class="numeric">{topology.deadEndSpaces.length}</strong> dead ends
+            </span>
+            <span title={topology.bottleneckSpaces.length > 0 ? topologySpaceList(topology.bottleneckSpaces) : undefined}>
+              <strong class="numeric">{topology.bottleneckSpaces.length}</strong> bottlenecks
+            </span>
+          </div>
+        </div>
       </section>
     {/if}
   </div>
@@ -2706,6 +2806,145 @@
     border-radius: 0 0 0 var(--radius-sm);
   }
 
+  .topology-block {
+    align-items: stretch;
+    width: 100%;
+  }
+
+  .topology-heading {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: var(--space-3);
+    width: 100%;
+  }
+
+  .topology-heading .hint {
+    max-width: 76ch;
+    margin: var(--space-1) 0 0;
+  }
+
+  .topology-status {
+    flex: none;
+    padding: var(--space-1) var(--space-2);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-full);
+    background: var(--surface-raised);
+    font-size: var(--text-2xs);
+    color: var(--text-muted);
+  }
+
+  .topology-status.warn {
+    border-color: var(--warning);
+    color: var(--warning);
+  }
+
+  .topology-stats {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    width: 100%;
+    margin: 0;
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-sm);
+    background: var(--surface-raised);
+  }
+
+  .topology-stats > div {
+    min-width: 0;
+    padding: var(--space-3);
+    border-right: 1px solid var(--border-default);
+  }
+
+  .topology-stats > div:last-child {
+    border-right: 0;
+  }
+
+  .topology-stats dt,
+  .centre-card span {
+    font-size: var(--text-2xs);
+    color: var(--text-muted);
+  }
+
+  .topology-stats dd {
+    margin: var(--space-1) 0 0;
+    font-size: var(--text-sm);
+    font-weight: var(--weight-semibold);
+    color: var(--text-primary);
+  }
+
+  .topology-stats small {
+    display: block;
+    margin-top: var(--space-1);
+    font-size: var(--text-2xs);
+    color: var(--text-muted);
+  }
+
+  .centre-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--space-3);
+    width: 100%;
+  }
+
+  .centre-card {
+    min-width: 0;
+    padding: var(--space-3);
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-sm);
+    background: var(--surface-raised);
+  }
+
+  .centre-card header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
+    color: var(--text-accent);
+  }
+
+  .centre-card header div {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+  }
+
+  .centre-card strong {
+    font-size: var(--text-sm);
+    color: var(--text-primary);
+  }
+
+  .centre-card p {
+    overflow-wrap: anywhere;
+    margin: var(--space-3) 0 var(--space-1);
+    font-size: var(--text-xs);
+    line-height: var(--leading-normal);
+    color: var(--text-secondary);
+  }
+
+  .centre-card small {
+    font-size: var(--text-2xs);
+    color: var(--text-muted);
+  }
+
+  .topology-findings {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2) var(--space-4);
+    width: 100%;
+    font-size: var(--text-xs);
+    color: var(--text-secondary);
+  }
+
+  .topology-findings span {
+    display: inline-flex;
+    align-items: baseline;
+    gap: var(--space-1);
+  }
+
+  .topology-findings strong {
+    color: var(--text-primary);
+  }
+
   .side-col {
     grid-column: 2;
     display: flex;
@@ -2740,6 +2979,10 @@
     .map-col { grid-row: 1; }
     .side-col { grid-row: 2; }
     .selected-block { grid-row: 3; margin-top: 0; }
+
+    .centre-grid {
+      grid-template-columns: 1fr;
+    }
   }
 
   /* Keep the semantic wrapper transparent; `.side-col` is the actual grid
