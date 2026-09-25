@@ -86,6 +86,12 @@
   let exploreNode = $state<HTMLElement | null>(null);
   let showcaseNode = $state<HTMLDivElement | null>(null);
   let choseMode = false;
+  /**
+   * Character cards are full published previews, so fetch one only after its
+   * roster tile has actually been hovered or focused. Keep it mounted after
+   * that first look so returning to the tile swaps immediately.
+   */
+  let peekedCharacters = $state(new Set<string>());
 
   const title = $derived(collection.name.trim() || 'Untitled collection');
   const tileById = $derived.by(() => new Map(tiles.map((tile) => [tile.set_id, tile])));
@@ -178,6 +184,11 @@
     /* Forks preserve entity ids, so the set id is part of every public roster
        identity even when the character name and local id are also identical. */
     return `${character.set_id}:${character.character_id}`;
+  }
+
+  function peekCharacter(key: string): void {
+    if (peekedCharacters.has(key)) return;
+    peekedCharacters = new Set(peekedCharacters).add(key);
   }
 
   function tileImage(tile: CollectionTile): string {
@@ -440,17 +451,18 @@
                   <button
                     type="button"
                     class="character-visual"
+                    class:has-card={!!character.image_url && !!character.card_url}
                     style:aspect-ratio={CARD_ASPECT}
                     style:--trim-scale={TRIM_SCALE_TALL}
                     style:background={tint(key)}
                     data-member-trigger={`character:${key}`}
                     disabled={tilesLoading && !tileById.has(character.set_id)}
                     aria-label={`Explore ${character.character_name || 'this character'} in ${character.set_name || 'their set'}`}
+                    onpointerenter={() => peekCharacter(key)}
+                    onfocusin={() => peekCharacter(key)}
                     onclick={() => openCharacter(character)}
                   >
-                    {#if character.card_url}
-                      <img class="character-card" src={character.card_url} alt="" loading="lazy" />
-                    {:else if character.image_url}
+                    {#if character.image_url}
                       <img
                         class="character-art"
                         class:trimmed={character.image_bleeds}
@@ -458,8 +470,19 @@
                         alt=""
                         loading="lazy"
                       />
+                    {:else if character.card_url}
+                      <img class="character-card" src={character.card_url} alt="" loading="lazy" />
                     {:else}
                       <span class="character-initials">{initials(character.character_name)}</span>
+                    {/if}
+                    {#if character.image_url && character.card_url && peekedCharacters.has(key)}
+                      <img class="character-card card-peek" src={character.card_url} alt="" />
+                    {/if}
+                    {#if character.image_url && character.card_url}
+                      <span class="peek-hint">
+                        <Icon name="card" size={11} />
+                        Character card
+                      </span>
                     {/if}
                     <span class="inspect-cue">
                       {tilesLoading && !tileById.has(character.set_id)
@@ -1118,6 +1141,19 @@
     background: var(--surface-sunken);
   }
 
+  .character-visual img.card-peek {
+    position: absolute;
+    inset: 0;
+    object-fit: contain;
+    opacity: 0;
+    transition: opacity var(--duration-normal) var(--ease-out);
+  }
+
+  .character-visual:hover img.card-peek,
+  .character-visual:focus-visible img.card-peek {
+    opacity: 1;
+  }
+
   .character-art {
     object-fit: cover;
   }
@@ -1133,6 +1169,27 @@
     opacity: 0.72;
   }
 
+  .peek-hint {
+    position: absolute;
+    top: var(--space-2);
+    left: var(--space-2);
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px var(--space-2);
+    border-radius: var(--radius-full);
+    background: color-mix(in oklab, var(--grey-1000) 70%, transparent);
+    color: var(--grey-100);
+    font-size: var(--text-2xs);
+    letter-spacing: var(--tracking-wide);
+    transition: opacity var(--duration-fast) var(--ease-out);
+  }
+
+  .character-visual:hover .peek-hint,
+  .character-visual:focus-visible .peek-hint {
+    opacity: 0;
+  }
+
   .inspect-cue {
     position: absolute;
     right: var(--space-2);
@@ -1142,6 +1199,13 @@
     background: color-mix(in oklab, var(--grey-1000) 70%, transparent);
     color: var(--grey-100);
     font-size: var(--text-2xs);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .character-visual img.card-peek,
+    .peek-hint {
+      transition: none;
+    }
   }
 
   .character-copy {
