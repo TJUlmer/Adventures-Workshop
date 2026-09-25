@@ -79,7 +79,7 @@ import type {
   HeroSidekick
 } from '$lib/characters/types';
 import type { Artwork } from '$lib/core/artwork';
-import { createArtwork } from '$lib/core/artwork';
+import { createArtwork, DEFAULT_TRANSFORM } from '$lib/core/artwork';
 import { createDeck } from '$lib/decks/factory';
 import type { DeckId } from '$lib/decks/types';
 import type { DialRange, Figure, ModelFile, TokenBuild } from '$lib/figures/types';
@@ -188,11 +188,20 @@ function repairStyleOverride(raw: Loose): Loose {
 /** Fills in transform, adjustments and effects added after the first release. */
 function artwork(value: unknown): Artwork {
   const raw = asRecord(value);
+  const transform = asRecord(raw['transform']);
   return createArtwork({
     source: typeof raw['source'] === 'string' ? raw['source'] : null,
     label: str(raw['label']),
     crop: asRecord(raw['crop']),
-    transform: asRecord(raw['transform']),
+    transform: {
+      scale: num(transform['scale'], DEFAULT_TRANSFORM.scale),
+      stretchX: Math.min(4, Math.max(0.1, num(transform['stretchX'], DEFAULT_TRANSFORM.stretchX))),
+      stretchY: Math.min(4, Math.max(0.1, num(transform['stretchY'], DEFAULT_TRANSFORM.stretchY))),
+      offsetX: num(transform['offsetX'], DEFAULT_TRANSFORM.offsetX),
+      offsetY: num(transform['offsetY'], DEFAULT_TRANSFORM.offsetY),
+      rotation: num(transform['rotation'], DEFAULT_TRANSFORM.rotation),
+      flipX: bool(transform['flipX'], DEFAULT_TRANSFORM.flipX)
+    },
     adjustments: asRecord(raw['adjustments']),
     effects: asRecord(raw['effects'])
   });

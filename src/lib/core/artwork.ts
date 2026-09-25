@@ -27,6 +27,9 @@ export const FULL_CROP: CropRect = { x: 0, y: 0, width: 1, height: 1 };
 export interface ArtTransform {
   /** 1 = fill the window. */
   scale: number;
+  /** Independent dimensions for deliberate non-uniform resizing. */
+  stretchX: number;
+  stretchY: number;
   /** Offset as a fraction of the window, so it survives a resize. */
   offsetX: number;
   offsetY: number;
@@ -37,6 +40,8 @@ export interface ArtTransform {
 
 export const DEFAULT_TRANSFORM: ArtTransform = {
   scale: 1,
+  stretchX: 1,
+  stretchY: 1,
   offsetX: 0,
   offsetY: 0,
   rotation: 0,
@@ -181,7 +186,9 @@ export function artLayout(artwork: Artwork): ArtLayout {
   const parts = [
     `translate(${(transform.offsetX * 100).toFixed(3)}%, ${(transform.offsetY * 100).toFixed(3)}%)`,
     `rotate(${transform.rotation}deg)`,
-    `scale(${(transform.flipX ? -transform.scale : transform.scale).toFixed(4)}, ${transform.scale.toFixed(4)})`
+    `scale(${(
+      (transform.flipX ? -transform.scale : transform.scale) * transform.stretchX
+    ).toFixed(4)}, ${(transform.scale * transform.stretchY).toFixed(4)})`
   ];
 
   return {

@@ -468,10 +468,13 @@ export type SetId = Id<'Set'>;
  * v68 — action cards gained ordered full-card artwork overlays for border
  *      breaks. Older cards open with none; older builds would discard them.
  *
+ * v69 — artwork transforms gained independent horizontal and vertical stretch.
+ *      Existing artwork remains at 100% in both dimensions.
+ *
  * Older documents are *repaired*, not rejected — see `sets/normalize.ts`. Only
  * a version newer than this build understands is refused.
  */
-export const SET_SCHEMA_VERSION = 68;
+export const SET_SCHEMA_VERSION = 69;
 
 /**
  * What a set is for.

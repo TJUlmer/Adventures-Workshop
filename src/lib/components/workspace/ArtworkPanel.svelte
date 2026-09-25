@@ -40,6 +40,8 @@
     aspect?: number;
     /** Preserve a transparent overlay's own proportions inside its full-card window. */
     fit?: 'fill' | 'contain';
+    /** Border-break overlays resize their whole image rather than crop its source. */
+    resizeMode?: 'crop' | 'stretch';
   }
 
   let {
@@ -49,7 +51,8 @@
     resolved = null,
     bedOrigin,
     aspect = 1346 / 1061,
-    fit = 'fill'
+    fit = 'fill',
+    resizeMode = 'crop'
   }: Props = $props();
 
   const bedOverridden = $derived(
@@ -134,10 +137,14 @@
   function moveDrag(event: PointerEvent): void {
     if (!drag || event.pointerId !== drag.pointerId || !artwork) return;
     const offsetX = clampOffset(
-      drag.startOffsetX + ((event.clientX - drag.startX) * artwork.crop.width) / drag.boxWidth
+      drag.startOffsetX +
+        ((event.clientX - drag.startX) * (resizeMode === 'crop' ? artwork.crop.width : 1)) /
+          drag.boxWidth
     );
     const offsetY = clampOffset(
-      drag.startOffsetY + ((event.clientY - drag.startY) * artwork.crop.height) / drag.boxHeight
+      drag.startOffsetY +
+        ((event.clientY - drag.startY) * (resizeMode === 'crop' ? artwork.crop.height : 1)) /
+          drag.boxHeight
     );
     workshop.setTransform(target, { offsetX, offsetY });
   }
@@ -214,6 +221,7 @@
         {artwork}
         background={resolved ? fillCss(resolved.artBackground) : 'var(--surface-inset)'}
         {fit}
+        useCrop={resizeMode === 'crop'}
       />
       <div class="drag-hint">
         <Icon name="move" size={13} />
@@ -230,6 +238,9 @@
         step={0.01}
         neutral={1}
         format={pct}
+        editable
+        inputMultiplier={100}
+        inputUnit="%"
         onchange={(scale) => workshop.setTransform(target, { scale })}
       />
       <Slider
@@ -240,6 +251,8 @@
         step={1}
         neutral={0}
         format={(value) => `${value}°`}
+        editable
+        inputUnit="°"
         onchange={(rotation) => workshop.setTransform(target, { rotation })}
       />
       <Slider
@@ -250,6 +263,9 @@
         step={0.005}
         neutral={0}
         format={signed}
+        editable
+        inputMultiplier={100}
+        inputUnit="%"
         onchange={(offsetX) => workshop.setTransform(target, { offsetX })}
       />
       <Slider
@@ -260,33 +276,71 @@
         step={0.005}
         neutral={0}
         format={signed}
+        editable
+        inputMultiplier={100}
+        inputUnit="%"
         onchange={(offsetY) => workshop.setTransform(target, { offsetY })}
       />
-      <!--
-        Crop width and height live here rather than in a section of their own:
-        with horizontal and vertical offsets already positioning the image,
-        left and top were a second way to say the same thing.
-      -->
-      <Slider
-        label="Crop width"
-        value={artwork.crop.width}
-        min={0.1}
-        max={1}
-        step={0.005}
-        neutral={1}
-        format={pct}
-        onchange={(width) => workshop.setCrop(target, { width })}
-      />
-      <Slider
-        label="Crop height"
-        value={artwork.crop.height}
-        min={0.1}
-        max={1}
-        step={0.005}
-        neutral={1}
-        format={pct}
-        onchange={(height) => workshop.setCrop(target, { height })}
-      />
+      {#if resizeMode === 'stretch'}
+        <Slider
+          label="Width"
+          value={artwork.transform.stretchX}
+          min={0.1}
+          max={4}
+          step={0.01}
+          neutral={1}
+          format={pct}
+          editable
+          inputMultiplier={100}
+          inputUnit="%"
+          onchange={(stretchX) => workshop.setTransform(target, { stretchX })}
+        />
+        <Slider
+          label="Height"
+          value={artwork.transform.stretchY}
+          min={0.1}
+          max={4}
+          step={0.01}
+          neutral={1}
+          format={pct}
+          editable
+          inputMultiplier={100}
+          inputUnit="%"
+          onchange={(stretchY) => workshop.setTransform(target, { stretchY })}
+        />
+      {:else}
+        <!--
+          Crop width and height live here rather than in a section of their own:
+          with horizontal and vertical offsets already positioning the image,
+          left and top were a second way to say the same thing.
+        -->
+        <Slider
+          label="Crop width"
+          value={artwork.crop.width}
+          min={0.1}
+          max={1}
+          step={0.005}
+          neutral={1}
+          format={pct}
+          editable
+          inputMultiplier={100}
+          inputUnit="%"
+          onchange={(width) => workshop.setCrop(target, { width })}
+        />
+        <Slider
+          label="Crop height"
+          value={artwork.crop.height}
+          min={0.1}
+          max={1}
+          step={0.005}
+          neutral={1}
+          format={pct}
+          editable
+          inputMultiplier={100}
+          inputUnit="%"
+          onchange={(height) => workshop.setCrop(target, { height })}
+        />
+      {/if}
     </div>
 
     <Switch

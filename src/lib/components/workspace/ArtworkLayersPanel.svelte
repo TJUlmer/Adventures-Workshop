@@ -1,6 +1,8 @@
 <script lang="ts">
+  import { onDestroy } from 'svelte';
   import type { ActionCard, CardArtworkLayerId } from '$lib/cards/types';
   import { BLEED } from '$lib/renderer/geometry';
+  import { cardArtworkLayerView } from '$lib/state/card-artwork-layer-view.svelte';
   import { workshop } from '$lib/state/workshop.svelte';
   import { Button, Icon } from '$lib/ui';
   import ArtworkPanel from './ArtworkPanel.svelte';
@@ -10,8 +12,11 @@
   }
 
   let { card }: Props = $props();
-  let selectedId = $state<CardArtworkLayerId | null>(null);
   let confirmingRemoval = $state<CardArtworkLayerId | null>(null);
+
+  const selectedId = $derived(
+    cardArtworkLayerView.cardId === card.id ? cardArtworkLayerView.layerId : null
+  );
 
   const selectedLayer = $derived(
     card.artworkLayers.find((layer) => layer.id === selectedId) ?? null
@@ -19,12 +24,14 @@
 
   $effect(() => {
     if (selectedId && card.artworkLayers.some((layer) => layer.id === selectedId)) return;
-    selectedId = card.artworkLayers[0]?.id ?? null;
+    cardArtworkLayerView.select(card.id, card.artworkLayers[0]?.id ?? null);
     confirmingRemoval = null;
   });
 
+  onDestroy(() => cardArtworkLayerView.clear(card.id));
+
   function addLayer(): void {
-    selectedId = workshop.addCardArtworkLayer(card.id);
+    cardArtworkLayerView.select(card.id, workshop.addCardArtworkLayer(card.id));
     confirmingRemoval = null;
   }
 
@@ -41,7 +48,8 @@
 <div class="layer-heading">
   <p class="hint">
     Add transparent images over the finished card to let figures, props, or effects cross its
-    frame. Layers at the bottom of this list paint first.
+    frame. Select a layer, then drag or transform it directly in the preview. Layers at the bottom
+    of this list paint first.
   </p>
   <Button size="sm" onclick={addLayer}>
     <Icon name="plus" size={13} />
@@ -63,7 +71,7 @@
           class="layer-select"
           aria-pressed={layer.id === selectedId}
           onclick={() => {
-            selectedId = layer.id;
+            cardArtworkLayerView.select(card.id, layer.id);
             confirmingRemoval = null;
           }}
         >
@@ -114,6 +122,7 @@
         hint="Transparent PNG or WebP works best. Positioning uses the entire card, including its border."
         aspect={BLEED.width / BLEED.height}
         fit="contain"
+        resizeMode="stretch"
       />
     </div>
   {/if}

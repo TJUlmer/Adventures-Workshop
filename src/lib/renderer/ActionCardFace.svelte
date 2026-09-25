@@ -1319,7 +1319,7 @@
 -->
 {#each card.artworkLayers as layer (layer.id)}
   <div class="artwork-overlay">
-    <CardArt artwork={layer.artwork} background="transparent" fit="contain" />
+    <CardArt artwork={layer.artwork} background="transparent" fit="contain" useCrop={false} />
   </div>
 {/each}
 

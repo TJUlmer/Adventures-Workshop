@@ -4,7 +4,7 @@
    * Shared by every card template so all of them treat art identically.
    */
   import type { Artwork } from '$lib/core/artwork';
-  import { artLayout, artMaskCss, hasArtwork } from '$lib/core/artwork';
+  import { artLayout, artMaskCss, FULL_CROP, hasArtwork } from '$lib/core/artwork';
 
   interface Props {
     artwork: Artwork;
@@ -20,11 +20,15 @@
      * a square plate should letterbox rather than be squashed into it.
      */
     fit?: 'fill' | 'contain';
+    /** Border-break overlays resize the whole source instead of cropping it. */
+    useCrop?: boolean;
   }
 
-  let { artwork, background, fit = 'fill' }: Props = $props();
+  let { artwork, background, fit = 'fill', useCrop = true }: Props = $props();
 
-  const layout = $derived(artLayout(artwork));
+  const layout = $derived(
+    artLayout(useCrop ? artwork : { ...artwork, crop: FULL_CROP })
+  );
   const mask = $derived(artMaskCss(artwork.effects));
   const present = $derived(hasArtwork(artwork));
 </script>

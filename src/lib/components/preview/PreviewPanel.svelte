@@ -15,10 +15,12 @@
   import { CardRenderer } from '$lib/renderer';
   import type { CardFormat } from '$lib/renderer/geometry';
   import { BLEED_MM, CARD_FORMATS, trimBox } from '$lib/renderer/geometry';
+  import { cardArtworkLayerView } from '$lib/state/card-artwork-layer-view.svelte';
   import { characterEditorView } from '$lib/state/character-editor-view.svelte';
   import { findDeck, initiativeSubjectForCard } from '$lib/sets/queries';
   import { workshop } from '$lib/state/workshop.svelte';
   import { Button, EmptyState, Icon } from '$lib/ui';
+  import ArtworkTransformOverlay from './ArtworkTransformOverlay.svelte';
 
   let showBleed = $state(false);
   let showGuides = $state(false);
@@ -82,6 +84,18 @@
   );
   const deck = $derived(card ? findDeck(workshop.adventure, card.deckId) : null);
   const meta = $derived(card ? CARD_TYPE_META[card.type] : null);
+  const selectedArtworkLayer = $derived.by(() => {
+    if (
+      card?.type !== 'action' ||
+      cardArtworkLayerView.cardId !== card.id ||
+      !cardArtworkLayerView.layerId
+    ) {
+      return null;
+    }
+    return (
+      card.artworkLayers.find((layer) => layer.id === cardArtworkLayerView.layerId) ?? null
+    );
+  });
 
   /**
    * A stand-in action card, so the figure's style controls have something to
@@ -264,7 +278,7 @@
           ? ` — ${characterSlot.entry?.name.trim() || primaryCardName(statCard) || 'Untitled'}`
           : ''}
       </span>
-      <div class="card-slot" style:width="{zoom * 100}%">
+      <div class="card-slot" style:width="{zoom * 100}%" style:--zoom={zoom}>
         <CardRenderer
           card={null}
           {statCard}
@@ -285,16 +299,21 @@
     -->
     {#if card || characterSlot?.kind === 'cardback'}
       {#if statCard}<span class="face-label">Deck back</span>{/if}
-      <div class="card-slot" style:width="{zoom * 100}%">
-        <CardRenderer
-          {card}
-          {cardback}
-          character={owner}
-          {theme}
-          {initiativeSubject}
-          options={{ showBleed: bleeding, showGuides: showGuides && bleeding }}
-          customSymbols={workshop.adventure.customSymbols}
-        />
+      <div class="card-slot" style:width="{zoom * 100}%" style:--zoom={zoom}>
+        <div class="card-canvas">
+          <CardRenderer
+            {card}
+            {cardback}
+            character={owner}
+            {theme}
+            {initiativeSubject}
+            options={{ showBleed: bleeding, showGuides: showGuides && bleeding }}
+            customSymbols={workshop.adventure.customSymbols}
+          />
+          {#if card?.type === 'action' && selectedArtworkLayer}
+            <ArtworkTransformOverlay cardId={card.id} layer={selectedArtworkLayer} />
+          {/if}
+        </div>
       </div>
     {/if}
 
@@ -305,7 +324,7 @@
         why it sits in the same stack rather than in a panel of its own.
       -->
       <span class="face-label">Reverse</span>
-      <div class="card-slot" style:width="{zoom * 100}%">
+      <div class="card-slot" style:width="{zoom * 100}%" style:--zoom={zoom}>
         <CardRenderer
           {card}
           character={owner}
@@ -326,7 +345,7 @@
       -->
       <div class="sample">
         <span class="sample-label">Action card defaults</span>
-        <div class="card-slot" style:width="{zoom * 100}%">
+        <div class="card-slot" style:width="{zoom * 100}%" style:--zoom={zoom}>
           <CardRenderer
             card={sampleCard}
             character={cardback}
@@ -344,7 +363,7 @@
            card that belongs to no deck and is never saved. -->
       <div class="sample">
         <span class="sample-label">{workshop.adventure.kind === 'heroes' ? 'Hero action card' : 'Set style'} defaults</span>
-        <div class="card-slot" style:width="{zoom * 100}%">
+        <div class="card-slot" style:width="{zoom * 100}%" style:--zoom={zoom}>
           <CardRenderer
             card={setSample}
             character={workshop.adventure.kind === 'heroes' ? setSampleHero : null}
@@ -430,7 +449,7 @@
       class="zoom-range"
       type="range"
       min="0.5"
-      max="1"
+      max="2"
       step="0.01"
       value={zoom}
       aria-label="Preview size"
@@ -506,14 +525,26 @@
     min-height: 0;
     display: flex;
     flex-direction: column;
-    align-items: center;
+    align-items: safe center;
     gap: var(--space-5);
     padding: var(--space-6) var(--space-5);
+    overflow-x: auto;
   }
 
   .card-slot {
-    max-width: 372px;
+    flex: none;
+    max-width: calc(372px * var(--zoom));
     transition: width var(--duration-fast) var(--ease-out);
+  }
+
+  /*
+   * Direct-manipulation chrome is a sibling of the renderer's `.frame`, not a
+   * child of its `.plate`. The export photographs only `.plate`, so selection
+   * boxes and transform handles can never leak into a saved card.
+   */
+  .card-canvas {
+    position: relative;
+    width: 100%;
   }
 
   /* Set apart from the deck back above it, which *is* part of the set. */
