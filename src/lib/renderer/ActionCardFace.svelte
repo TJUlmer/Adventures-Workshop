@@ -1002,6 +1002,45 @@
   {/if}
 </div>
 
+<!-- The owner and copies line belongs to the card-content layer even though it
+     sits outside the clipped interior. Keeping it before `above-content` lets
+     border-break artwork cross this copy at the same boundary as the title,
+     values and abilities instead of inventing a separate fixed layer. -->
+<div
+  class="quantity"
+  style:right={px(
+    BLEED.width -
+      (isHero ? OWNER_LINE.right : QUANTITY.right) +
+      (hasRightTuckEffect ? TUCK_EFFECT.thickness : 0)
+  )}
+  style:top={py(
+    capTopToBoxTop(
+      (isHero ? OWNER_LINE.capTop : QUANTITY.capTop) -
+        (hasBottomTuckEffect ? TUCK_EFFECT.thickness : 0),
+      QUANTITY.size
+    )
+  )}
+  style:font-size={pu(QUANTITY.size)}
+  style:color={theme.bodyInk}
+>
+  <!--
+    Who owns the card, ahead of the count — the one thing here that is new for
+    a hero card. `right` alone anchors this element, with no `left` or `width`
+    set, so prepending copy grows the box leftward and the count stays put
+    exactly where it already was.
+  -->
+  {#if isHero}
+    <span class="quantity-owner">{ownerFullLabel}</span>
+    <span class="quantity-rule" style:width={pu(OWNER_LINE.ruleWidth)}></span>
+  {/if}
+  <!--
+    A lowercase letter x, not the multiplication sign: the printed mark is a
+    full x-height "x" sitting on the baseline beside the figure, where "×" sets
+    small and centres itself on the digit's middle.
+  -->
+  x{card.quantity}
+</div>
+
 <!-- Above every interior element, but still underneath the card's ribbon and
      outer frame. This is the useful "subject over the rules panel" boundary. -->
 {@render artworkLayerStack('above-content', false)}
@@ -1344,44 +1383,8 @@
 ></div>
 
 <!-- Existing and newly added layers default here, preserving the original
-     border-break behaviour. The quantity line remains later and legible. -->
+     border-break behaviour. -->
 {@render artworkLayerStack('above-frame', false)}
-
-<!-- The copies count prints over the border, so it is drawn after it. -->
-<div
-  class="quantity"
-  style:right={px(
-    BLEED.width -
-      (isHero ? OWNER_LINE.right : QUANTITY.right) +
-      (hasRightTuckEffect ? TUCK_EFFECT.thickness : 0)
-  )}
-  style:top={py(
-    capTopToBoxTop(
-      (isHero ? OWNER_LINE.capTop : QUANTITY.capTop) -
-        (hasBottomTuckEffect ? TUCK_EFFECT.thickness : 0),
-      QUANTITY.size
-    )
-  )}
-  style:font-size={pu(QUANTITY.size)}
-  style:color={theme.bodyInk}
->
-  <!--
-    Who owns the card, ahead of the count — the one thing here that is new for
-    a hero card. `right` alone anchors this element, with no `left` or `width`
-    set, so prepending copy grows the box leftward and the count stays put
-    exactly where it already was.
-  -->
-  {#if isHero}
-    <span class="quantity-owner">{ownerFullLabel}</span>
-    <span class="quantity-rule" style:width={pu(OWNER_LINE.ruleWidth)}></span>
-  {/if}
-  <!--
-    A lowercase letter x, not the multiplication sign: the printed mark is a
-    full x-height "x" sitting on the baseline beside the figure, where "×" sets
-    small and centres itself on the digit's middle.
-  -->
-  x{card.quantity}
-</div>
 
 <style>
   .bed {

@@ -139,13 +139,15 @@
 </div>
 
 <div class="layers" role="list" aria-label="Card and artwork layer stack">
-  {@render fixedLayer('Copies & owner', 'Always kept legible at the top')}
   {@render artworkRows('above-frame')}
   {@render fixedLayer('Outer frame', 'The card border and rounded edge')}
   {@render artworkRows('above-ribbon')}
   {@render fixedLayer('Name / combat ribbon', 'Ribbon fill, text, symbol and value')}
   {@render artworkRows('above-content')}
-  {@render fixedLayer('Card content & effects', 'Title, values, abilities, boost and special effects')}
+  {@render fixedLayer(
+    'Card content & effects',
+    'Title, values, abilities, boost, owner, copies and special effects'
+  )}
   {@render artworkRows('above-artwork')}
   {@render fixedLayer('Main artwork', 'The card’s ordinary illustration')}
 </div>
