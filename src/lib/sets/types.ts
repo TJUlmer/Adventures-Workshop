@@ -474,7 +474,7 @@ export type SetId = Id<'Set'>;
  * Older documents are *repaired*, not rejected — see `sets/normalize.ts`. Only
  * a version newer than this build understands is refused.
  */
-export const SET_SCHEMA_VERSION = 69;
+export const SET_SCHEMA_VERSION = 70;
 
 /**
  * What a set is for.

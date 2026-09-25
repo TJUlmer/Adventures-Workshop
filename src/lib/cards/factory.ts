@@ -15,7 +15,13 @@ import type {
   CardType,
   InitiativeBands
 } from './types';
-import { CARD_TYPE_META, createAbilityBlocks, createHeadingPlacement, initiativeHeading } from './types';
+import {
+  CARD_TYPE_META,
+  DEFAULT_CARD_ARTWORK_LAYER_PLACEMENT,
+  createAbilityBlocks,
+  createHeadingPlacement,
+  initiativeHeading
+} from './types';
 
 /** Band defaults, sampled from the print template. */
 function createInitiativeBands(): InitiativeBands {
@@ -36,6 +42,7 @@ function createInitiativeBands(): InitiativeBands {
 export function createCardArtworkLayer(): CardArtworkLayer {
   return {
     id: createId<CardArtworkLayerId>('cardartlayer'),
+    placement: DEFAULT_CARD_ARTWORK_LAYER_PLACEMENT,
     artwork: createArtwork()
   };
 }
@@ -185,6 +192,7 @@ export function duplicateCard(card: Card): Card {
   if (copy.type === 'action') {
     copy.artworkLayers = copy.artworkLayers.map((layer) => ({
       id: createId<CardArtworkLayerId>('cardartlayer'),
+      placement: layer.placement,
       artwork: cloneArtwork(layer.artwork)
     }));
     copy.ability = { ...copy.ability };

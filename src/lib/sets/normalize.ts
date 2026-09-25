@@ -12,7 +12,9 @@
  */
 import {
   CARD_OWNERS,
+  CARD_ARTWORK_LAYER_PLACEMENTS,
   COMBAT_SYMBOLS,
+  DEFAULT_CARD_ARTWORK_LAYER_PLACEMENT,
   createAbilityBlocks,
   createBonusAbility,
   createHeadingPlacement,
@@ -50,6 +52,7 @@ import type {
   BonusAbility,
   Card,
   CardArtworkLayer,
+  CardArtworkLayerPlacement,
   CardOwner,
   CombatSymbol,
   EventCard,
@@ -355,7 +358,16 @@ function cardArtworkLayers(value: unknown): CardArtworkLayer[] {
     const id = raw['id'];
     if (typeof id !== 'string' || id.length === 0 || seen.has(id)) continue;
     seen.add(id);
-    layers.push({ id: id as CardArtworkLayer['id'], artwork: artwork(raw['artwork']) });
+    const placement = CARD_ARTWORK_LAYER_PLACEMENTS.includes(
+      raw['placement'] as CardArtworkLayerPlacement
+    )
+      ? (raw['placement'] as CardArtworkLayerPlacement)
+      : DEFAULT_CARD_ARTWORK_LAYER_PLACEMENT;
+    layers.push({
+      id: id as CardArtworkLayer['id'],
+      placement,
+      artwork: artwork(raw['artwork'])
+    });
   }
   return layers;
 }

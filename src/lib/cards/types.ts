@@ -8,6 +8,22 @@ export type CardId = Id<'Card'>;
 export type CardArtworkLayerId = Id<'CardArtworkLayer'>;
 
 /**
+ * Fixed compositing boundaries an action-card overlay may sit above.
+ *
+ * Ordered back-to-front. Card chrome itself is not editable or reorderable;
+ * moving an artwork layer changes which one of these locked groups paints
+ * immediately underneath it.
+ */
+export const CARD_ARTWORK_LAYER_PLACEMENTS = [
+  'above-artwork',
+  'above-content',
+  'above-ribbon',
+  'above-frame'
+] as const;
+export type CardArtworkLayerPlacement = (typeof CARD_ARTWORK_LAYER_PLACEMENTS)[number];
+export const DEFAULT_CARD_ARTWORK_LAYER_PLACEMENT: CardArtworkLayerPlacement = 'above-frame';
+
+/**
  * The three printed card templates in an Adventures set. This is the card's
  * *layout*, not its combat role — an action card carries an attack value, a
  * defense value, or both.
@@ -239,6 +255,7 @@ export type TuckEffectOrientation = (typeof TUCK_EFFECT_ORIENTATIONS)[number];
  */
 export interface CardArtworkLayer {
   readonly id: CardArtworkLayerId;
+  placement: CardArtworkLayerPlacement;
   artwork: Artwork;
 }
 

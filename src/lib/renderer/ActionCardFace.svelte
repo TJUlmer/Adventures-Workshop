@@ -17,7 +17,7 @@
    */
   import type { CardTheme } from '$lib/cards/style';
   import { customPatternFilter, fillCss } from '$lib/cards/style';
-  import type { ActionCard } from '$lib/cards/types';
+  import type { ActionCard, CardArtworkLayerPlacement } from '$lib/cards/types';
   import { abilityIsEmpty } from '$lib/cards/types';
   import { primaryCardName, resolvedHeroName } from '$lib/characters/factory';
   import type { Character } from '$lib/characters/types';
@@ -360,6 +360,24 @@
   });
 </script>
 
+{#snippet artworkLayerStack(
+  placement: CardArtworkLayerPlacement,
+  insideInterior: boolean
+)}
+  {#each card.artworkLayers.filter((layer) => layer.placement === placement) as layer (layer.id)}
+    <div
+      class="artwork-overlay"
+      class:interior-coordinates={insideInterior}
+      style:left={insideInterior ? pu(-INTERIOR.x) : undefined}
+      style:top={insideInterior ? pu(-INTERIOR.y) : undefined}
+      style:width={insideInterior ? pu(BLEED.width) : undefined}
+      style:height={insideInterior ? pu(BLEED.height) : undefined}
+    >
+      <CardArt artwork={layer.artwork} background="transparent" fit="contain" useCrop={false} />
+    </div>
+  {/each}
+{/snippet}
+
 <!--
   The interior bled out under the border, in the border's own fill. The two
   boxes are drawn to meet exactly, so at some zooms they round to positions a
@@ -392,6 +410,11 @@
   <div class="art" style:height={pu(artWindowHeight)}>
     <CardArt artwork={card.artwork} background={fillCss(theme.artBackground)} />
   </div>
+
+  <!-- Full-card coordinates, clipped by `.interior`, so a foreground figure
+       can sit over the illustration while every piece of card copy stays on
+       top. The negative inset merely restores the plate's coordinate origin. -->
+  {@render artworkLayerStack('above-artwork', true)}
 
   {#if card.showCornerBadge}
     <!-- The frame is painted later and trims the outer corner, making this read
@@ -979,6 +1002,10 @@
   {/if}
 </div>
 
+<!-- Above every interior element, but still underneath the card's ribbon and
+     outer frame. This is the useful "subject over the rules panel" boundary. -->
+{@render artworkLayerStack('above-content', false)}
+
 {#if isHero}
   <!--
     A hero's combat ribbon.
@@ -1168,6 +1195,10 @@
   </div>
 {/if}
 
+<!-- The requested frame break: artwork may cross the ribbon while the fixed
+     outer frame still trims and visually contains it. -->
+{@render artworkLayerStack('above-ribbon', false)}
+
 <!--
   Split card: two stacked halves with a floating separator. The lower half is
   sized by its own content and the upper half absorbs the remainder, so the
@@ -1312,16 +1343,9 @@
   style:background={fillCss(theme.frame)}
 ></div>
 
-<!--
-  Full-card transparent overlays deliberately paint after the frame: crossing
-  that edge is what creates a border break. Array order is their layer order;
-  the quantity line remains later so an overlay cannot hide the card count.
--->
-{#each card.artworkLayers as layer (layer.id)}
-  <div class="artwork-overlay">
-    <CardArt artwork={layer.artwork} background="transparent" fit="contain" useCrop={false} />
-  </div>
-{/each}
+<!-- Existing and newly added layers default here, preserving the original
+     border-break behaviour. The quantity line remains later and legible. -->
+{@render artworkLayerStack('above-frame', false)}
 
 <!-- The copies count prints over the border, so it is drawn after it. -->
 <div
@@ -1596,6 +1620,10 @@
     inset: 0;
     overflow: hidden;
     pointer-events: none;
+  }
+
+  .artwork-overlay.interior-coordinates {
+    inset: auto;
   }
 
   .tuck-effect {
