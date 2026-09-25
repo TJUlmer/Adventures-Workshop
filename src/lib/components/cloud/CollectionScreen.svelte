@@ -1116,10 +1116,15 @@
     /* Fetched rather than read off the tiles: a tile is a summary, and both
        rendering and paging need the whole document. This is also the slow
        half, so it reports per deck. */
-    const { decks, skipped } = await fetchCollectionDecks(collection.slug, (progress) => {
+    const { decks, skipped } = await fetchCollectionDecks(tiles, (progress) => {
       boxProgress = `Fetching ${progress.name} — ${progress.done} of ${progress.total}…`;
     });
     boxSkipped = skipped;
+
+    if (decks.length === 0 && skipped.length > 0) {
+      boxProblem = "None of this collection's decks could be loaded.";
+      return null;
+    }
 
     const problem = combinableProblem(decks);
     if (problem) {

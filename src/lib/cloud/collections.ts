@@ -466,7 +466,7 @@ export interface FetchBoxProgress {
 }
 
 /**
- * Every accepted deck in a collection, hydrated.
+ * Every supplied collection tile, hydrated into its published deck.
  *
  * Sequential, not parallel, and that is deliberate: each document carries its
  * own embedded artwork, so six decks fetched at once is six multi-megabyte
@@ -480,12 +480,16 @@ export interface FetchBoxProgress {
  * such deck in a six-deck project must not make the other five undownloadable.
  * Failures come back as `skipped` for the caller to show, which is also the
  * only place a visitor ever learns that a box is incomplete.
+ *
+ * The caller supplies the tiles it already resolved for the current viewer.
+ * A private project uses an authenticated workspace projection while a public
+ * page uses the anonymous projection. Re-fetching anonymously here used to
+ * turn a private project's visible roster into an empty export.
  */
 export async function fetchCollectionDecks(
-  slug: string,
+  tiles: readonly CollectionTile[],
   onProgress?: (progress: FetchBoxProgress) => void
 ): Promise<{ decks: CollectionDeck[]; skipped: { name: string; reason: string }[] }> {
-  const tiles = await fetchCollectionTiles(slug);
   const decks: CollectionDeck[] = [];
   const skipped: { name: string; reason: string }[] = [];
 
