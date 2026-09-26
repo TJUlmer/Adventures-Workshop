@@ -14,9 +14,10 @@
     sidebar: Snippet;
     workspace: Snippet;
     preview: Snippet;
+    status?: Snippet;
   }
 
-  let { sidebar, workspace, preview }: Props = $props();
+  let { sidebar, workspace, preview, status }: Props = $props();
 
   const DEFAULT_PREVIEW_WIDTH = 424;
   const MIN_PREVIEW_WIDTH = 320;
@@ -43,18 +44,20 @@
   let panes = $state<HTMLDivElement | null>(null);
   let sidebarPane = $state<HTMLElement | null>(null);
   let workspacePane = $state<HTMLElement | null>(null);
+  let previewDivider = $state<HTMLDivElement | null>(null);
   let layoutMode = $state<LayoutMode>(initialMode());
   // This is view state, not document state. Re-entering Cards deliberately
   // starts on Edit so the current desktop behaviour remains the default.
   let activePane = $state<ActivePane>('edit');
   let previewWidth = $state(DEFAULT_PREVIEW_WIDTH);
+  let previewMaximum = $state(MAX_PREVIEW_WIDTH);
   let resizeDrag = $state<{
     pointerId: number;
     startX: number;
     startWidth: number;
   } | null>(null);
 
-  function maximumPreviewWidth(): number {
+  function measuredMaximumPreviewWidth(): number {
     if (!panes || !sidebarPane) return MAX_PREVIEW_WIDTH;
     // Below this breakpoint the resizable desktop preview becomes a selectable
     // surface. Do not shrink a remembered desktop preference merely because
@@ -70,7 +73,7 @@
   }
 
   function clampPreviewWidth(value: number): number {
-    return Math.min(maximumPreviewWidth(), Math.max(MIN_PREVIEW_WIDTH, value));
+    return Math.min(previewMaximum, Math.max(MIN_PREVIEW_WIDTH, value));
   }
 
   function rememberPreviewWidth(): void {
@@ -114,7 +117,7 @@
     if (event.key === 'ArrowLeft') setPreviewWidth(previewWidth + step);
     else if (event.key === 'ArrowRight') setPreviewWidth(previewWidth - step);
     else if (event.key === 'Home') setPreviewWidth(MIN_PREVIEW_WIDTH);
-    else if (event.key === 'End') setPreviewWidth(maximumPreviewWidth());
+    else if (event.key === 'End') setPreviewWidth(previewMaximum);
     else return;
     event.preventDefault();
   }
@@ -132,8 +135,14 @@
     activePane = pane;
   }
 
-  function recoverFocusAfterResize(): void {
+  function recoverFocusAfterResize(dividerWasFocused = false): void {
     const focused = document.activeElement;
+    if (dividerWasFocused && layoutMode !== 'desktop') {
+      panes
+        ?.querySelector<HTMLButtonElement>('.pane-switcher [aria-pressed="true"]')
+        ?.focus({ preventScroll: true });
+      return;
+    }
     if (!(focused instanceof HTMLElement) || !panes?.contains(focused)) return;
     const hiddenPane = focused.closest<HTMLElement>('[data-workspace-pane]');
     if (!hiddenPane || hiddenPane.getAttribute('aria-hidden') !== 'true') return;
@@ -143,20 +152,21 @@
   }
 
   /*
-   * A selection made in Contents is an instruction to edit that entity. The
-   * store assigns a fresh selection object even when the same row is picked
-   * again, so identity is the event signal and no pane state leaks into the
-   * document or browser history.
+   * A selection made in Contents, or through the set-details control, is an
+   * instruction to reveal Edit. The store assigns a fresh selection object
+   * even when the same subject is picked again, so identity is the event
+   * signal and no pane state leaks into the document or browser history.
    */
   let observedSelection = workshop.selection;
   $effect(() => {
     const selection = workshop.selection;
     if (selection === observedSelection) return;
     observedSelection = selection;
-    if (selection.target === 'set') return;
-
+    const cameFromContents =
+      activePane === 'contents' || Boolean(sidebarPane?.contains(document.activeElement));
+    const shouldFocusEditor = selection.target === 'set' || cameFromContents;
     activePane = 'edit';
-    if (layoutMode !== 'desktop') {
+    if (layoutMode !== 'desktop' && shouldFocusEditor) {
       void tick().then(() => workspacePane?.focus({ preventScroll: true }));
     }
   });
@@ -172,9 +182,11 @@
     const observer = new ResizeObserver(() => {
       const nextMode = modeForWidth(panes?.clientWidth ?? window.innerWidth);
       if (nextMode !== layoutMode) {
+        const dividerWasFocused = document.activeElement === previewDivider;
         layoutMode = nextMode;
-        void tick().then(recoverFocusAfterResize);
+        void tick().then(() => recoverFocusAfterResize(dividerWasFocused));
       }
+      previewMaximum = measuredMaximumPreviewWidth();
       previewWidth = clampPreviewWidth(previewWidth);
     });
     if (panes) observer.observe(panes);
@@ -218,10 +230,11 @@
     aria-label="Resize card preview"
     aria-orientation="vertical"
     aria-valuemin={MIN_PREVIEW_WIDTH}
-    aria-valuemax={Math.round(maximumPreviewWidth())}
+    aria-valuemax={Math.round(previewMaximum)}
     aria-valuenow={Math.round(previewWidth)}
     aria-valuetext="{Math.round(previewWidth)} pixels wide"
     tabindex="0"
+    bind:this={previewDivider}
     title="Drag to resize the card preview. Double-click to reset."
     onpointerdown={beginResize}
     onpointermove={resize}
@@ -240,6 +253,10 @@
   >
     {@render preview()}
   </aside>
+
+  {#if status}
+    <footer class="pane-status">{@render status()}</footer>
+  {/if}
 
   {#if layoutMode !== 'desktop'}
     <nav class="pane-switcher" aria-label="Cards workspace views">
@@ -268,6 +285,7 @@
   .panes {
     display: grid;
     grid-template-columns: var(--sidebar-width) minmax(0, 1fr) 8px var(--preview-width);
+    grid-template-rows: minmax(0, 1fr) auto;
     flex: 1 1 auto;
     min-height: 0;
   }
@@ -288,6 +306,7 @@
 
   .workspace {
     background: var(--surface-canvas);
+    --workspace-inline-padding: var(--space-7);
   }
 
   .preview {
@@ -327,14 +346,27 @@
   }
 
   .pane-hidden {
-    display: none;
+    /* Keep an inactive renderer at its real pane dimensions. Some printable
+       faces fit author-length text synchronously and do not re-measure merely
+       because a hidden pane became visible; `display: none` mounted them at
+       zero width and could therefore leave the first mobile preview stale. */
+    visibility: hidden;
+    pointer-events: none;
+  }
+
+  .pane-status {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    height: var(--statusbar-height);
+    border-top: 1px solid var(--border-subtle);
+    background: var(--surface-sunken);
   }
 
   .pane-switcher {
     display: flex;
     gap: var(--space-1);
     min-width: 0;
-    padding: var(--space-1) var(--space-2) max(var(--space-1), env(safe-area-inset-bottom));
+    padding: var(--space-1) var(--space-2);
     border-top: 1px solid var(--border-subtle);
     background: var(--surface-sunken);
   }
@@ -366,12 +398,12 @@
 
   .panes[data-layout='tablet'] {
     grid-template-columns: var(--sidebar-width) minmax(0, 1fr);
-    grid-template-rows: minmax(0, 1fr) auto;
+    grid-template-rows: minmax(0, 1fr) auto auto;
   }
 
   .panes[data-layout='tablet'] .sidebar {
     grid-column: 1;
-    grid-row: 1 / 3;
+    grid-row: 1 / 4;
   }
 
   .panes[data-layout='tablet'] .workspace,
@@ -380,9 +412,20 @@
     grid-row: 1;
   }
 
+  .panes[data-layout='tablet'] .workspace {
+    --workspace-inline-padding: var(--space-5);
+  }
+
   .panes[data-layout='tablet'] .pane-switcher {
     grid-column: 2;
+    grid-row: 3;
+  }
+
+  .panes[data-layout='tablet'] .pane-status {
+    grid-column: 2;
     grid-row: 2;
+    height: var(--statusbar-height);
+    padding-block-end: 0;
   }
 
   .panes[data-layout='tablet'] .preview-divider,
@@ -392,7 +435,7 @@
 
   .panes[data-layout='phone'] {
     grid-template-columns: minmax(0, 1fr);
-    grid-template-rows: minmax(0, 1fr) auto;
+    grid-template-rows: minmax(0, 1fr) auto auto;
   }
 
   .panes[data-layout='phone'] .sidebar,
@@ -404,6 +447,17 @@
 
   .panes[data-layout='phone'] .pane-switcher {
     grid-column: 1;
+    grid-row: 3;
+  }
+
+  .panes[data-layout='phone'] .pane-status {
+    grid-column: 1;
     grid-row: 2;
+    height: var(--statusbar-height);
+    padding-block-end: 0;
+  }
+
+  .panes[data-layout='phone'] .workspace {
+    --workspace-inline-padding: var(--space-4);
   }
 </style>

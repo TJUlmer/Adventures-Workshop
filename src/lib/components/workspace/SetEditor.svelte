@@ -134,7 +134,7 @@
     gap: var(--space-4);
     flex: 1 1 auto;
     min-height: 0;
-    padding: var(--space-5) var(--space-7) var(--space-9);
+    padding: var(--space-5) var(--workspace-inline-padding, var(--space-7)) var(--space-9);
   }
 
   .starters {
@@ -203,5 +203,12 @@
     letter-spacing: var(--tracking-caps);
     text-transform: uppercase;
     color: var(--text-muted);
+  }
+
+  @media (max-height: 500px) {
+    .body {
+      gap: var(--space-3);
+      padding-block: var(--space-2) var(--space-6);
+    }
   }
 </style>

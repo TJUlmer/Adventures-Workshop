@@ -7,6 +7,7 @@
    * the tabs — moved to `TitleBar`'s "Home" button instead, once that existed
    * beside "Gallery", rather than duplicated in both places.
    */
+  import { onMount, tick } from 'svelte';
   import { SET_PAGE_META } from '$lib/state/navigation.svelte';
   import type { SetPage } from '$lib/state/navigation.svelte';
   import { navigation } from '$lib/state/navigation.svelte';
@@ -41,9 +42,41 @@
   );
 
   const current = $derived(navigation.page);
+
+  let nav = $state<HTMLElement | null>(null);
+
+  /** Reveal only inside this strip; generic scrollIntoView can move the page
+   * vertically when navigation is triggered by a tile elsewhere on screen. */
+  function revealCurrentTab(): void {
+    const active = nav?.querySelector<HTMLElement>('[aria-current="page"]');
+    if (!nav || !active) return;
+    const viewport = nav.getBoundingClientRect();
+    const item = active.getBoundingClientRect();
+    const inset = 8;
+    if (item.left < viewport.left + inset) {
+      nav.scrollLeft += item.left - viewport.left - inset;
+    } else if (item.right > viewport.right - inset) {
+      nav.scrollLeft += item.right - viewport.right + inset;
+    }
+  }
+
+  $effect(() => {
+    const page = current;
+    const visiblePages = pages;
+    void page;
+    void visiblePages;
+    void tick().then(revealCurrentTab);
+  });
+
+  onMount(() => {
+    if (!nav) return;
+    const observer = new ResizeObserver(revealCurrentTab);
+    observer.observe(nav);
+    return () => observer.disconnect();
+  });
 </script>
 
-<nav class="set-nav" aria-label="Set sections">
+<nav class="set-nav" aria-label="Set sections" bind:this={nav}>
   {#each pages as page (page)}
     {@const meta = SET_PAGE_META[page]}
     <button
@@ -68,6 +101,13 @@
     height: 100%;
     padding-inline: var(--space-3);
     overflow-x: auto;
+    overscroll-behavior-inline: contain;
+    scroll-padding-inline: var(--space-2);
+    scrollbar-width: none;
+  }
+
+  .set-nav::-webkit-scrollbar {
+    display: none;
   }
 
   .tab {
@@ -98,5 +138,22 @@
 
   .tab-label {
     font-weight: var(--weight-medium);
+  }
+
+  @media (max-width: 760px), (max-height: 500px) {
+    .set-nav {
+      padding-inline: var(--space-2);
+    }
+
+    .tab {
+      gap: var(--space-1);
+      padding-inline: var(--space-2);
+    }
+  }
+
+  @media (any-pointer: coarse) {
+    .tab {
+      min-height: var(--touch-target);
+    }
   }
 </style>

@@ -257,22 +257,22 @@ available.
 
 ### Work
 
-- [ ] Refactor `EditorPanes.svelte` into desktop, tablet, and phone modes.
-- [ ] Show exactly one full-width pane on a phone.
-- [ ] Keep panes mounted while inactive.
-- [ ] Auto-open Edit after selecting a card, character, deck, or relevant set
+- [x] Refactor `EditorPanes.svelte` into desktop, tablet, and phone modes.
+- [x] Show exactly one full-width pane on a phone.
+- [x] Keep panes mounted while inactive.
+- [x] Auto-open Edit after selecting a card, character, deck, or relevant set
   item from Contents.
-- [ ] Add an explicit Preview mode at tablet widths instead of removing the
+- [x] Add an explicit Preview mode at tablet widths instead of removing the
   preview entirely.
-- [ ] Preserve the desktop preview resizer, stored width, keyboard operation,
+- [x] Preserve the desktop preview resizer, stored width, keyboard operation,
   and reset behaviour.
-- [ ] Reduce mobile workspace inline padding to approximately 12–16px where
+- [x] Reduce mobile workspace inline padding to approximately 12–16px where
   measurement shows it is necessary.
-- [ ] Compact the global banner, title row, set navigation, and status bar.
-- [ ] Retain a clear save/sync/offline/conflict state while hiding redundant
+- [x] Compact the global banner, title row, set navigation, and status bar.
+- [x] Retain a clear save/sync/offline/conflict state while hiding redundant
   phone-only counts.
-- [ ] Make the active set-navigation item visible after load or navigation.
-- [ ] Apply bottom safe-area padding to the pane switcher.
+- [x] Make the active set-navigation item visible after load or navigation.
+- [x] Apply bottom safe-area padding to the pane switcher.
 
 ### Likely files
 
@@ -287,14 +287,14 @@ available.
 
 ### Exit criteria
 
-- [ ] At 320, 360, 390, and 412px, the active pane receives the useful page
+- [x] At 320, 360, 390, and 412px, the active pane receives the useful page
   width with no shell-level horizontal overflow.
-- [ ] A user can select a card, edit it, and inspect the preview without
+- [x] A user can select a card, edit it, and inspect the preview without
   rotating the phone.
-- [ ] Pane switching preserves values, selection, and useful scroll state.
-- [ ] Long set names ellipsize without displacing Save or Export.
-- [ ] Landscape 844 × 390 retains a usable scrolling workspace.
-- [ ] At desktop width, the existing three-pane layout and preview resizer
+- [x] Pane switching preserves values, selection, and useful scroll state.
+- [x] Long set names ellipsize without displacing Save or Export.
+- [x] Landscape 844 × 390 retains a usable scrolling workspace.
+- [x] At desktop width, the existing three-pane layout and preview resizer
   behave unchanged.
 
 ---

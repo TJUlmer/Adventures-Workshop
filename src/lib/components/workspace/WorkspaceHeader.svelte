@@ -31,7 +31,7 @@
     align-items: flex-start;
     justify-content: space-between;
     gap: var(--space-5);
-    padding: var(--space-6) var(--space-7) var(--space-5);
+    padding: var(--space-6) var(--workspace-inline-padding, var(--space-7)) var(--space-5);
     border-bottom: 1px solid var(--border-subtle);
     background: linear-gradient(
       180deg,
@@ -74,5 +74,20 @@
     display: flex;
     gap: var(--space-2);
     flex: none;
+  }
+
+  @media (max-height: 500px) {
+    .header {
+      align-items: center;
+      padding-block: var(--space-2);
+    }
+
+    .title {
+      font-size: var(--text-xl);
+    }
+
+    .subtitle {
+      display: none;
+    }
   }
 </style>

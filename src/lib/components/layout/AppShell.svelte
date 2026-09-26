@@ -16,9 +16,11 @@
     /** The page. Either a full-width tool or the three-pane workspace. */
     page: Snippet;
     statusbar?: Snippet;
+    /** Cards renders status inside its pane grid so the switcher can own the safe bottom edge. */
+    showStatusbar?: boolean;
   }
 
-  let { titlebar, subnav, page, statusbar }: Props = $props();
+  let { titlebar, subnav, page, statusbar, showStatusbar = true }: Props = $props();
 </script>
 
 <div class="shell" class:with-subnav={Boolean(subnav)}>
@@ -30,13 +32,14 @@
 
   <div class="page">{@render page()}</div>
 
-  {#if statusbar}
+  {#if statusbar && showStatusbar}
     <footer class="statusbar">{@render statusbar()}</footer>
   {/if}
 </div>
 
 <style>
   .shell {
+    --set-nav-height: 38px;
     display: grid;
     /* An implicit grid column uses its children's min-content width. At 320px
        the title controls made that column 347px wide even though SetNav owns
@@ -49,7 +52,7 @@
   }
 
   .shell.with-subnav {
-    grid-template-rows: var(--titlebar-height) 38px minmax(0, 1fr) auto;
+    grid-template-rows: var(--titlebar-height) var(--set-nav-height) minmax(0, 1fr) auto;
   }
 
   .titlebar {
@@ -76,5 +79,26 @@
     height: var(--statusbar-height);
     border-top: 1px solid var(--border-subtle);
     background: var(--surface-sunken);
+  }
+
+  @media (max-width: 760px) {
+    .shell {
+      --set-nav-height: 40px;
+      --statusbar-height: 22px;
+    }
+  }
+
+  @media (max-height: 500px) {
+    .shell {
+      --titlebar-height: 46px;
+      --set-nav-height: 40px;
+      --statusbar-height: 20px;
+    }
+  }
+
+  @media (any-pointer: coarse) {
+    .shell {
+      --set-nav-height: 48px;
+    }
   }
 </style>

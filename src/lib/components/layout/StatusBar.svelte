@@ -4,33 +4,38 @@
 
   const stats = $derived(workshop.stats);
 
-  const savedLabel = $derived.by(() => {
-    if (workshop.savedAt === null) return 'Not saved yet';
+  const savedLabels = $derived.by(() => {
+    if (workshop.savedAt === null) {
+      return { full: 'Not saved yet', compact: 'Not saved yet' };
+    }
     const time = new Date(workshop.savedAt);
     const localTime = time.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     switch (persistenceCoordinator.status.kind) {
       case 'synced':
-        return `Saved locally and to cloud · ${localTime}`;
+        return {
+          full: `Saved locally and to cloud · ${localTime}`,
+          compact: `Saved · synced · ${localTime}`
+        };
       case 'pending':
-        return `Saved locally · Cloud save pending`;
+        return { full: 'Saved locally · Cloud save pending', compact: 'Saved · cloud pending' };
       case 'saving':
-        return `Saved locally · Saving to cloud…`;
+        return { full: 'Saved locally · Saving to cloud…', compact: 'Saved · syncing…' };
       case 'offline':
-        return `Saved locally · Offline — cloud save pending`;
+        return { full: 'Saved locally · Offline — cloud save pending', compact: 'Saved · offline' };
       case 'retrying':
-        return `Saved locally · Cloud retry queued`;
+        return { full: 'Saved locally · Cloud retry queued', compact: 'Saved · retry queued' };
       case 'conflict':
-        return 'Saved locally · Cloud conflict — autosave paused';
+        return { full: 'Saved locally · Cloud conflict — autosave paused', compact: 'Saved · cloud conflict' };
       case 'error':
-        return 'Saved locally · Cloud save paused';
+        return { full: 'Saved locally · Cloud save paused', compact: 'Saved · cloud paused' };
       default:
-        return `Saved locally · ${localTime}`;
+        return { full: `Saved locally · ${localTime}`, compact: `Saved · ${localTime}` };
     }
   });
 </script>
 
 <div class="status">
-  <div class="group">
+  <div class="group counts">
     <span class="stat"><b class="numeric">{stats.characterCount}</b> characters</span>
     <span class="sep"></span>
     <span class="stat"><b class="numeric">{stats.cardCount}</b> cards</span>
@@ -38,7 +43,7 @@
     <span class="stat"><b class="numeric">{stats.printCount}</b> to print</span>
   </div>
 
-  <div class="group">
+  <div class="group persistence">
     {#if workshop.saveError}
       <span class="stat failed">{workshop.saveError}</span>
     {:else}
@@ -46,8 +51,8 @@
         class="stat saved"
         class:pending={workshop.savedAt === null || persistenceCoordinator.status.kind !== 'synced'}
         class:attention={persistenceCoordinator.status.kind === 'conflict' || persistenceCoordinator.status.kind === 'error'}
-        title={persistenceCoordinator.status.message ?? undefined}
-      >{savedLabel}</span>
+        title={persistenceCoordinator.status.message ?? savedLabels.full}
+      ><span class="full-label">{savedLabels.full}</span><span class="compact-label">{savedLabels.compact}</span></span>
     {/if}
   </div>
 </div>
@@ -69,6 +74,10 @@
     align-items: center;
     gap: var(--space-3);
     min-width: 0;
+  }
+
+  .compact-label {
+    display: none;
   }
 
   .stat b {
@@ -118,5 +127,33 @@
     border-radius: var(--radius-full);
     background: var(--warning);
     vertical-align: middle;
+  }
+
+  @media (max-width: 760px), (max-height: 500px) {
+    .status {
+      justify-content: flex-end;
+      padding-inline: var(--space-3);
+      white-space: nowrap;
+    }
+
+    .counts,
+    .full-label {
+      display: none;
+    }
+
+    .persistence,
+    .stat {
+      min-width: 0;
+      max-width: 100%;
+    }
+
+    .stat {
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .compact-label {
+      display: inline;
+    }
   }
 </style>

@@ -74,7 +74,7 @@
 
   <div class="actions">
     {#if message}
-      <span class="message">{message}</span>
+      <span class="message" role="status" aria-live="polite">{message}</span>
     {/if}
 
     <Button size="sm" variant="ghost" title="Save now" onclick={saveNow}>
@@ -219,9 +219,44 @@
   .message {
     font-size: var(--text-xs);
     color: var(--text-tertiary);
+    min-width: 0;
     max-width: 34ch;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+  }
+
+  @media (max-width: 760px), (max-height: 500px) {
+    .bar {
+      gap: var(--space-2);
+      padding-inline: var(--space-3);
+    }
+
+    .doc {
+      padding-inline: var(--space-2);
+    }
+
+    .actions {
+      gap: var(--space-1);
+    }
+
+    /* Save feedback is useful, but the title and both permanent actions must
+       win the row when space is tight. The full message remains announced by
+       its live DOM text while the visual copy gives way. */
+    .message {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      overflow: hidden;
+      clip-path: inset(50%);
+      white-space: nowrap;
+    }
+  }
+
+  @media (any-pointer: coarse) {
+    .doc,
+    .export-item {
+      min-height: var(--touch-target);
+    }
   }
 </style>

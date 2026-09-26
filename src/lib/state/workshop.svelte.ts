@@ -838,7 +838,10 @@ export class WorkshopStore {
 
   /** Selecting always means "take me to the editor" — that is what it is for. */
   selectSet(): void {
-    this.selection = SET_SELECTION;
+    // A fresh object is also the view-event signal. On a phone, tapping Set
+    // details while the hierarchy is visible must reveal Edit even when the
+    // set was already the selected subject.
+    this.selection = { target: 'set' };
     navigation.go('editor');
   }
 

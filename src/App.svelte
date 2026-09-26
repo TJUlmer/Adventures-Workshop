@@ -236,7 +236,7 @@
              from paper so it cannot shift a sheet. -->
         <PrintScreen set={printSet ?? workshop.adventure} />
       {:else}
-        <AppShell>
+        <AppShell showStatusbar={currentPage !== 'editor'}>
           {#snippet titlebar()}
             <TitleBar />
           {/snippet}
@@ -256,6 +256,9 @@
                 {/snippet}
                 {#snippet preview()}
                   <PreviewPanel />
+                {/snippet}
+                {#snippet status()}
+                  <StatusBar />
                 {/snippet}
               </EditorPanes>
             {:else if currentPage === 'threat'}
@@ -301,7 +304,9 @@
 <style>
   .app-frame {
     display: grid;
-    grid-template-rows: 72px minmax(0, 1fr);
+    grid-template-rows:
+      calc(var(--global-banner-height, 72px) + env(safe-area-inset-top))
+      minmax(0, 1fr);
     height: 100%;
     min-height: 0;
     background: var(--surface-canvas);
@@ -309,6 +314,8 @@
 
   .global-banner {
     min-width: 0;
+    padding-block-start: env(safe-area-inset-top);
+    padding-inline: env(safe-area-inset-left) env(safe-area-inset-right);
     border-bottom: 1px solid var(--border-subtle);
     background: linear-gradient(180deg, var(--surface-base), var(--surface-sunken));
   }
@@ -316,6 +323,23 @@
   .app-view {
     min-width: 0;
     min-height: 0;
+    padding-inline: env(safe-area-inset-left) env(safe-area-inset-right);
+    padding-block-end: env(safe-area-inset-bottom);
+  }
+
+  /* The phone controls already use 44px targets; the former 72px row left
+     unused air around them and took nearly a fifth of a short landscape
+     viewport before the set workspace began. */
+  @media (max-width: 760px) {
+    .app-frame {
+      --global-banner-height: 56px;
+    }
+  }
+
+  @media (max-height: 500px) {
+    .app-frame {
+      --global-banner-height: 48px;
+    }
   }
 
   @media print {
@@ -330,6 +354,7 @@
 
     .app-view {
       height: auto;
+      padding: 0;
     }
   }
 </style>

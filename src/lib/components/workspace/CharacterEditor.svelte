@@ -794,7 +794,7 @@
     gap: var(--space-4);
     flex: 1 1 auto;
     min-height: 0;
-    padding: var(--space-5) var(--space-7) var(--space-9);
+    padding: var(--space-5) var(--workspace-inline-padding, var(--space-7)) var(--space-9);
   }
 
   .hint {
@@ -957,6 +957,13 @@
   @container workspace (max-width: 480px) {
     .tiles {
       grid-template-columns: minmax(0, 1fr);
+    }
+  }
+
+  @media (max-height: 500px) {
+    .body {
+      gap: var(--space-3);
+      padding-block: var(--space-2) var(--space-6);
     }
   }
 </style>

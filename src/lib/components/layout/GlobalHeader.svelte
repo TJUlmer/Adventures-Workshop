@@ -463,4 +463,16 @@
       display: none;
     }
   }
+
+  @media (any-pointer: coarse) {
+    .brand,
+    .nav-link,
+    .continue-link {
+      min-height: var(--touch-target);
+    }
+
+    .nav-link {
+      min-width: var(--touch-target);
+    }
+  }
 </style>

@@ -350,7 +350,7 @@
     align-items: flex-start;
     justify-content: space-between;
     gap: var(--space-4);
-    padding: var(--space-6) var(--space-7) var(--space-4);
+    padding: var(--space-6) var(--workspace-inline-padding, var(--space-7)) var(--space-4);
   }
 
   .identity {
@@ -384,7 +384,7 @@
   }
 
   .tabs {
-    padding-inline: var(--space-7);
+    padding-inline: var(--workspace-inline-padding, var(--space-7));
   }
 
   .body {
@@ -393,7 +393,7 @@
     gap: var(--space-7);
     flex: 1 1 auto;
     min-height: 0;
-    padding: var(--space-6) var(--space-7) var(--space-10);
+    padding: var(--space-6) var(--workspace-inline-padding, var(--space-7)) var(--space-10);
   }
 
   /* The chosen face, set in the words that will actually be on the card. */
@@ -406,5 +406,21 @@
     text-transform: uppercase;
     color: var(--text-primary);
     overflow-wrap: anywhere;
+  }
+
+  @media (max-height: 500px) {
+    .head {
+      align-items: center;
+      padding-block: var(--space-2);
+    }
+
+    .title {
+      font-size: var(--text-xl);
+    }
+
+    .body {
+      gap: var(--space-4);
+      padding-block: var(--space-2) var(--space-6);
+    }
   }
 </style>
