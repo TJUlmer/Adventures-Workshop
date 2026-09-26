@@ -17,7 +17,11 @@
    */
   import type { CardTheme } from '$lib/cards/style';
   import { customPatternFilter, fillCss } from '$lib/cards/style';
-  import type { ActionCard, CardArtworkLayerPlacement } from '$lib/cards/types';
+  import type {
+    ActionCard,
+    CardArtworkLayer,
+    CardCompositeLayerId
+  } from '$lib/cards/types';
   import { abilityIsEmpty } from '$lib/cards/types';
   import { primaryCardName, resolvedHeroName } from '$lib/characters/factory';
   import type { Character } from '$lib/characters/types';
@@ -358,24 +362,39 @@
     if (segment?.kind !== 'customSymbol') return null;
     return customSymbols.find((entry) => entry.id === segment.id)?.source ?? null;
   });
+
+  function layerZ(layerId: CardCompositeLayerId): number {
+    const index = card.layerOrder.indexOf(layerId);
+    return index < 0 ? 0 : index + 1;
+  }
 </script>
 
-{#snippet artworkLayerStack(
-  placement: CardArtworkLayerPlacement,
-  insideInterior: boolean
-)}
-  {#each card.artworkLayers.filter((layer) => layer.placement === placement) as layer (layer.id)}
+{#snippet artworkLayer(layer: CardArtworkLayer)}
+  {#if layerZ(layer.id) < layerZ('card-content')}
     <div
-      class="artwork-overlay"
-      class:interior-coordinates={insideInterior}
-      style:left={insideInterior ? pu(-INTERIOR.x) : undefined}
-      style:top={insideInterior ? pu(-INTERIOR.y) : undefined}
-      style:width={insideInterior ? pu(BLEED.width) : undefined}
-      style:height={insideInterior ? pu(BLEED.height) : undefined}
+      class="artwork-overlay-clip"
+      style:left={px(INTERIOR.x)}
+      style:top={py(INTERIOR.y)}
+      style:width={px(INTERIOR.width)}
+      style:height={py(INTERIOR.height)}
+      style:border-radius={pu(INTERIOR_RADIUS)}
+      style:z-index={layerZ(layer.id)}
     >
+      <div
+        class="artwork-overlay full-card-coordinates"
+        style:left={pu(-INTERIOR.x)}
+        style:top={pu(-INTERIOR.y)}
+        style:width={pu(BLEED.width)}
+        style:height={pu(BLEED.height)}
+      >
+        <CardArt artwork={layer.artwork} background="transparent" fit="contain" useCrop={false} />
+      </div>
+    </div>
+  {:else}
+    <div class="artwork-overlay" style:z-index={layerZ(layer.id)}>
       <CardArt artwork={layer.artwork} background="transparent" fit="contain" useCrop={false} />
     </div>
-  {/each}
+  {/if}
 {/snippet}
 
 <!--
@@ -390,32 +409,36 @@
   style:background={fillCss(theme.frame)}
 ></div>
 
-<!--
-  Interior: artwork, then the divider and body panel stacked against the
-  bottom, clipped to the frame window.
-
-  The artwork keeps its full window whatever the copy does — the panel rises
-  *over* it rather than squeezing it, so the image is never rescaled and what
-  it shows only ever changes from the Design tab. How far the panel may rise is
-  the art window's floor.
--->
+<!-- The illustration and card content use separate clipped planes so either
+     can move independently through the card's compositing stack. -->
 <div
-  class="interior"
+  class="interior artwork-interior"
   style:left={px(INTERIOR.x)}
   style:top={py(INTERIOR.y)}
   style:width={px(INTERIOR.width)}
   style:height={py(INTERIOR.height)}
   style:border-radius={pu(INTERIOR_RADIUS)}
+  style:z-index={layerZ('main-artwork')}
 >
   <div class="art" style:height={pu(artWindowHeight)}>
     <CardArt artwork={card.artwork} background={fillCss(theme.artBackground)} />
   </div>
+</div>
 
-  <!-- Full-card coordinates, clipped by `.interior`, so a foreground figure
-       can sit over the illustration while every piece of card copy stays on
-       top. The negative inset merely restores the plate's coordinate origin. -->
-  {@render artworkLayerStack('above-artwork', true)}
+{#each card.artworkLayers as layer (layer.id)}
+  {@render artworkLayer(layer)}
+{/each}
 
+<!-- Bottom-anchored content rises over the illustration without resizing it. -->
+<div
+  class="interior content-interior"
+  style:left={px(INTERIOR.x)}
+  style:top={py(INTERIOR.y)}
+  style:width={px(INTERIOR.width)}
+  style:height={py(INTERIOR.height)}
+  style:border-radius={pu(INTERIOR_RADIUS)}
+  style:z-index={layerZ('card-content')}
+>
   {#if card.showCornerBadge}
     <!-- The frame is painted later and trims the outer corner, making this read
          as a notch in the card rather than a square floating over the artwork. -->
@@ -1022,6 +1045,7 @@
   )}
   style:font-size={pu(QUANTITY.size)}
   style:color={theme.bodyInk}
+  style:z-index={layerZ('card-content')}
 >
   <!--
     Who owns the card, ahead of the count — the one thing here that is new for
@@ -1041,10 +1065,7 @@
   x{card.quantity}
 </div>
 
-<!-- Above every interior element, but still underneath the card's ribbon and
-     outer frame. This is the useful "subject over the rules panel" boundary. -->
-{@render artworkLayerStack('above-content', false)}
-
+<div class="ribbon-layer" style:z-index={layerZ('name-ribbon')}>
 {#if isHero}
   <!--
     A hero's combat ribbon.
@@ -1233,10 +1254,7 @@
     <div class="banner-head" style:height={pu(BANNER_HEAD.height)}></div>
   </div>
 {/if}
-
-<!-- The requested frame break: artwork may cross the ribbon while the fixed
-     outer frame still trims and visually contains it. -->
-{@render artworkLayerStack('above-ribbon', false)}
+</div>
 
 <!--
   Split card: two stacked halves with a floating separator. The lower half is
@@ -1380,11 +1398,8 @@
   class="mask outer-border"
   class:hero-border={isHero}
   style:background={fillCss(theme.frame)}
+  style:z-index={layerZ('outer-frame')}
 ></div>
-
-<!-- Existing and newly added layers default here, preserving the original
-     border-break behaviour. -->
-{@render artworkLayerStack('above-frame', false)}
 
 <style>
   .bed {
@@ -1625,8 +1640,20 @@
     pointer-events: none;
   }
 
-  .artwork-overlay.interior-coordinates {
+  .artwork-overlay-clip {
+    position: absolute;
+    overflow: hidden;
+    pointer-events: none;
+  }
+
+  .artwork-overlay.full-card-coordinates {
     inset: auto;
+  }
+
+  .ribbon-layer {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
   }
 
   .tuck-effect {

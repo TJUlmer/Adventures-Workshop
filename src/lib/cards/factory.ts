@@ -17,7 +17,7 @@ import type {
 } from './types';
 import {
   CARD_TYPE_META,
-  DEFAULT_CARD_ARTWORK_LAYER_PLACEMENT,
+  DEFAULT_CARD_LAYER_ORDER,
   createAbilityBlocks,
   createHeadingPlacement,
   initiativeHeading
@@ -42,7 +42,6 @@ function createInitiativeBands(): InitiativeBands {
 export function createCardArtworkLayer(): CardArtworkLayer {
   return {
     id: createId<CardArtworkLayerId>('cardartlayer'),
-    placement: DEFAULT_CARD_ARTWORK_LAYER_PLACEMENT,
     artwork: createArtwork()
   };
 }
@@ -120,6 +119,7 @@ export function createCard<TType extends CardType>(
         ...common,
         type: 'action',
         artworkLayers: [],
+        layerOrder: [...DEFAULT_CARD_LAYER_ORDER],
         title: '',
         attack: 2,
         defense: 2,
@@ -190,11 +190,15 @@ export function duplicateCard(card: Card): Card {
     copy.backReplacement = cloneArtwork(copy.backReplacement);
   }
   if (copy.type === 'action') {
-    copy.artworkLayers = copy.artworkLayers.map((layer) => ({
-      id: createId<CardArtworkLayerId>('cardartlayer'),
-      placement: layer.placement,
-      artwork: cloneArtwork(layer.artwork)
-    }));
+    const copiedLayerIds = new Map<CardArtworkLayerId, CardArtworkLayerId>();
+    copy.artworkLayers = copy.artworkLayers.map((layer) => {
+      const id = createId<CardArtworkLayerId>('cardartlayer');
+      copiedLayerIds.set(layer.id, id);
+      return { id, artwork: cloneArtwork(layer.artwork) };
+    });
+    copy.layerOrder = copy.layerOrder.map(
+      (layerId) => copiedLayerIds.get(layerId as CardArtworkLayerId) ?? layerId
+    );
     copy.ability = { ...copy.ability };
     copy.defenseAbility = { ...copy.defenseAbility };
   }

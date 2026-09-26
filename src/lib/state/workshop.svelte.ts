@@ -33,13 +33,13 @@ import { stockTheme } from '$lib/cards/theme';
 import type {
   Card,
   CardArtworkLayerId,
+  CardCompositeLayerId,
   CardId,
   CardType,
   InitiativeBandKey,
   InitiativeBandStyle,
   InitiativeVariant
 } from '$lib/cards/types';
-import { CARD_ARTWORK_LAYER_PLACEMENTS } from '$lib/cards/types';
 import { characterLabel, createCharacter } from '$lib/characters/factory';
 import type {
   CardbackDesign,
@@ -1561,6 +1561,7 @@ export class WorkshopStore {
     if (!card || card.type !== 'action') return null;
     const layer = createCardArtworkLayer();
     card.artworkLayers.push(layer);
+    card.layerOrder.push(layer.id);
     this.touch();
     return layer.id;
   }
@@ -1571,51 +1572,25 @@ export class WorkshopStore {
     const index = card.artworkLayers.findIndex((layer) => layer.id === layerId);
     if (index < 0) return;
     card.artworkLayers.splice(index, 1);
+    const orderIndex = card.layerOrder.indexOf(layerId);
+    if (orderIndex >= 0) card.layerOrder.splice(orderIndex, 1);
     this.touch();
   }
 
-  moveCardArtworkLayer(id: CardId, layerId: CardArtworkLayerId, direction: -1 | 1): void {
+  moveCardCompositeLayer(
+    id: CardId,
+    layerId: CardCompositeLayerId,
+    direction: -1 | 1
+  ): void {
     const card = findCard(this.adventure, id);
     if (!card || card.type !== 'action') return;
-    const layer = card.artworkLayers.find((entry) => entry.id === layerId);
-    if (!layer) return;
-
-    /*
-     * Each placement is a slot between two immutable card-element groups.
-     * Moving within a slot changes ordinary paint order; moving past the end
-     * crosses exactly one locked group and enters the neighbouring slot. The
-     * document array is rebuilt back-to-front so serialisation, duplication
-     * and every renderer all retain the same unambiguous order.
-     */
-    const buckets = new Map(
-      CARD_ARTWORK_LAYER_PLACEMENTS.map((placement) => [
-        placement,
-        card.artworkLayers.filter((entry) => entry.placement === placement)
-      ])
-    );
-    const placementIndex = CARD_ARTWORK_LAYER_PLACEMENTS.indexOf(layer.placement);
-    const bucket = buckets.get(layer.placement);
-    if (!bucket || placementIndex < 0) return;
-    const layerIndex = bucket.findIndex((entry) => entry.id === layerId);
-    if (layerIndex < 0) return;
-
-    const nextIndex = layerIndex + direction;
-    if (nextIndex >= 0 && nextIndex < bucket.length) {
-      [bucket[layerIndex], bucket[nextIndex]] = [bucket[nextIndex]!, bucket[layerIndex]!];
-    } else {
-      const nextPlacement = CARD_ARTWORK_LAYER_PLACEMENTS[placementIndex + direction];
-      if (!nextPlacement) return;
-      bucket.splice(layerIndex, 1);
-      layer.placement = nextPlacement;
-      const nextBucket = buckets.get(nextPlacement);
-      if (!nextBucket) return;
-      if (direction > 0) nextBucket.unshift(layer);
-      else nextBucket.push(layer);
-    }
-
-    card.artworkLayers = CARD_ARTWORK_LAYER_PLACEMENTS.flatMap(
-      (placement) => buckets.get(placement) ?? []
-    );
+    const index = card.layerOrder.indexOf(layerId);
+    const nextIndex = index + direction;
+    if (index < 0 || nextIndex < 0 || nextIndex >= card.layerOrder.length) return;
+    [card.layerOrder[index], card.layerOrder[nextIndex]] = [
+      card.layerOrder[nextIndex]!,
+      card.layerOrder[index]!
+    ];
     this.touch();
   }
 

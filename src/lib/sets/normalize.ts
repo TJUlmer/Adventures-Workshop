@@ -13,7 +13,9 @@
 import {
   CARD_OWNERS,
   CARD_ARTWORK_LAYER_PLACEMENTS,
+  CARD_FIXED_LAYERS,
   COMBAT_SYMBOLS,
+  DEFAULT_CARD_LAYER_ORDER,
   DEFAULT_CARD_ARTWORK_LAYER_PLACEMENT,
   createAbilityBlocks,
   createBonusAbility,
@@ -53,6 +55,7 @@ import type {
   Card,
   CardArtworkLayer,
   CardArtworkLayerPlacement,
+  CardCompositeLayerId,
   CardOwner,
   CombatSymbol,
   EventCard,
@@ -349,10 +352,16 @@ function bonusAbility(value: unknown): BonusAbility {
   });
 }
 
-function cardArtworkLayers(value: unknown): CardArtworkLayer[] {
-  if (!Array.isArray(value)) return [];
+function cardArtworkState(
+  value: unknown,
+  orderValue: unknown
+): { artworkLayers: CardArtworkLayer[]; layerOrder: CardCompositeLayerId[] } {
+  if (!Array.isArray(value)) {
+    return { artworkLayers: [], layerOrder: [...DEFAULT_CARD_LAYER_ORDER] };
+  }
   const seen = new Set<string>();
   const layers: CardArtworkLayer[] = [];
+  const legacyPlacements = new Map<string, CardArtworkLayerPlacement>();
   for (const entry of value) {
     const raw = asRecord(entry);
     const id = raw['id'];
@@ -365,11 +374,42 @@ function cardArtworkLayers(value: unknown): CardArtworkLayer[] {
       : DEFAULT_CARD_ARTWORK_LAYER_PLACEMENT;
     layers.push({
       id: id as CardArtworkLayer['id'],
-      placement,
       artwork: artwork(raw['artwork'])
     });
+    legacyPlacements.set(id, placement);
   }
-  return layers;
+
+  const artworkIds = new Set(layers.map((layer) => layer.id as string));
+  const fixedIds = new Set<string>(CARD_FIXED_LAYERS);
+  const ordered: CardCompositeLayerId[] = [];
+  const orderedIds = new Set<string>();
+  const push = (id: string): void => {
+    if (orderedIds.has(id) || (!fixedIds.has(id) && !artworkIds.has(id))) return;
+    orderedIds.add(id);
+    ordered.push(id as CardCompositeLayerId);
+  };
+
+  if (Array.isArray(orderValue)) {
+    for (const id of orderValue) if (typeof id === 'string') push(id);
+    for (const id of DEFAULT_CARD_LAYER_ORDER) push(id);
+    for (const layer of layers) push(layer.id);
+  } else {
+    const after = (placement: CardArtworkLayerPlacement) => {
+      for (const layer of layers) {
+        if (legacyPlacements.get(layer.id) === placement) push(layer.id);
+      }
+    };
+    push('main-artwork');
+    after('above-artwork');
+    push('card-content');
+    after('above-content');
+    push('name-ribbon');
+    after('above-ribbon');
+    push('outer-frame');
+    after('above-frame');
+  }
+
+  return { artworkLayers: layers, layerOrder: ordered };
 }
 
 function abilityBlocks(value: unknown) {
@@ -930,11 +970,12 @@ function normalizeCard(value: unknown): Card | null {
         useBackReplacement: bool(raw['useBackReplacement'], false)
       } as EventCard;
 
-    default:
+    default: {
+      const artworkState = cardArtworkState(raw['artworkLayers'], raw['layerOrder']);
       return {
         ...common,
         type: 'action',
-        artworkLayers: cardArtworkLayers(raw['artworkLayers']),
+        ...artworkState,
         title: str(raw['title']),
         attack: nullableNum(raw['attack'], 2),
         defense: nullableNum(raw['defense'], null),
@@ -966,6 +1007,7 @@ function normalizeCard(value: unknown): Card | null {
         showCornerBadge: bool(raw['showCornerBadge'], false),
         cornerBadge: str(raw['cornerBadge'])
       } as ActionCard;
+    }
   }
 }
 

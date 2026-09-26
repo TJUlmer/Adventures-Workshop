@@ -7,13 +7,7 @@ import type { CardStyleOverride, Fill } from './style';
 export type CardId = Id<'Card'>;
 export type CardArtworkLayerId = Id<'CardArtworkLayer'>;
 
-/**
- * Fixed compositing boundaries an action-card overlay may sit above.
- *
- * Ordered back-to-front. Card chrome itself is not editable or reorderable;
- * moving an artwork layer changes which one of these locked groups paints
- * immediately underneath it.
- */
+/** Legacy v70 insertion points, retained only to repair saved documents. */
 export const CARD_ARTWORK_LAYER_PLACEMENTS = [
   'above-artwork',
   'above-content',
@@ -22,6 +16,17 @@ export const CARD_ARTWORK_LAYER_PLACEMENTS = [
 ] as const;
 export type CardArtworkLayerPlacement = (typeof CARD_ARTWORK_LAYER_PLACEMENTS)[number];
 export const DEFAULT_CARD_ARTWORK_LAYER_PLACEMENT: CardArtworkLayerPlacement = 'above-frame';
+
+/** Built-in action-card groups that participate in the compositing stack. */
+export const CARD_FIXED_LAYERS = [
+  'main-artwork',
+  'card-content',
+  'name-ribbon',
+  'outer-frame'
+] as const;
+export type CardFixedLayer = (typeof CARD_FIXED_LAYERS)[number];
+export type CardCompositeLayerId = CardFixedLayer | CardArtworkLayerId;
+export const DEFAULT_CARD_LAYER_ORDER: CardFixedLayer[] = [...CARD_FIXED_LAYERS];
 
 /**
  * The three printed card templates in an Adventures set. This is the card's
@@ -250,12 +255,10 @@ export const TUCK_EFFECT_ORIENTATIONS = ['bottom', 'right'] as const;
 export type TuckEffectOrientation = (typeof TUCK_EFFECT_ORIENTATIONS)[number];
 
 /**
- * A transparent image composed over an action card after its printed frame.
- * Array order is back-to-front, matching the layer list in the editor.
+ * A transparent image participating in an action card's compositing stack.
  */
 export interface CardArtworkLayer {
   readonly id: CardArtworkLayerId;
-  placement: CardArtworkLayerPlacement;
   artwork: Artwork;
 }
 
@@ -264,6 +267,8 @@ export interface ActionCard extends CardCommon {
   type: 'action';
   /** Optional full-card overlays used for border breaks and foreground details. */
   artworkLayers: CardArtworkLayer[];
+  /** Every built-in and uploaded layer, ordered back-to-front. */
+  layerOrder: CardCompositeLayerId[];
   /** `CardCommon.name` is a ribbon-name override, never the card's own label. */
   /** Sanitised inline HTML, printed above the ability text. */
   title: string;

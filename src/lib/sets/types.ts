@@ -471,10 +471,17 @@ export type SetId = Id<'Set'>;
  * v69 — artwork transforms gained independent horizontal and vertical stretch.
  *      Existing artwork remains at 100% in both dimensions.
  *
+ * v70 — action-card overlays gained four fixed insertion points through the
+ *      card composition, preserving the former above-frame position by default.
+ *
+ * v71 — those insertion points became one freely reorderable stack containing
+ *      both uploaded artwork and the four built-in card-element groups. Older
+ *      cards are expanded into the same back-to-front order they already drew.
+ *
  * Older documents are *repaired*, not rejected — see `sets/normalize.ts`. Only
  * a version newer than this build understands is refused.
  */
-export const SET_SCHEMA_VERSION = 70;
+export const SET_SCHEMA_VERSION = 71;
 
 /**
  * What a set is for.

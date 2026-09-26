@@ -1,11 +1,12 @@
 <script lang="ts">
   import { onDestroy } from 'svelte';
-  import { CARD_ARTWORK_LAYER_PLACEMENTS } from '$lib/cards/types';
+  import { CARD_FIXED_LAYERS } from '$lib/cards/types';
   import type {
     ActionCard,
     CardArtworkLayer,
     CardArtworkLayerId,
-    CardArtworkLayerPlacement
+    CardCompositeLayerId,
+    CardFixedLayer
   } from '$lib/cards/types';
   import { BLEED } from '$lib/renderer/geometry';
   import { cardArtworkLayerView } from '$lib/state/card-artwork-layer-view.svelte';
@@ -19,6 +20,46 @@
 
   let { card }: Props = $props();
   let confirmingRemoval = $state<CardArtworkLayerId | null>(null);
+
+  const FIXED_LAYER_META: Record<CardFixedLayer, { title: string; description: string }> = {
+    'outer-frame': {
+      title: 'Outer frame',
+      description: 'The card border and rounded edge'
+    },
+    'name-ribbon': {
+      title: 'Name / combat ribbon',
+      description: 'Ribbon fill, text, symbol and value'
+    },
+    'card-content': {
+      title: 'Card content & effects',
+      description: 'Title, values, abilities, boost, owner, copies and special effects'
+    },
+    'main-artwork': {
+      title: 'Main artwork',
+      description: 'The card’s ordinary illustration'
+    }
+  };
+
+  type StackRow =
+    | { kind: 'fixed'; id: CardFixedLayer }
+    | { kind: 'artwork'; id: CardArtworkLayerId; layer: CardArtworkLayer };
+
+  function isFixedLayer(id: CardCompositeLayerId): id is CardFixedLayer {
+    return (CARD_FIXED_LAYERS as readonly string[]).includes(id);
+  }
+
+  const stackRows = $derived.by(() => {
+    const artwork = new Map(card.artworkLayers.map((layer) => [layer.id, layer]));
+    const rows: StackRow[] = [];
+    for (const id of [...card.layerOrder].reverse()) {
+      if (isFixedLayer(id)) rows.push({ kind: 'fixed', id });
+      else {
+        const layer = artwork.get(id as CardArtworkLayerId);
+        if (layer) rows.push({ kind: 'artwork', id: layer.id, layer });
+      }
+    }
+    return rows;
+  });
 
   const selectedId = $derived(
     cardArtworkLayerView.cardId === card.id ? cardArtworkLayerView.layerId : null
@@ -50,87 +91,81 @@
     confirmingRemoval = null;
   }
 
-  /** Top-to-bottom for the visual stack; storage and painting are back-to-front. */
-  function layersAt(placement: CardArtworkLayerPlacement): CardArtworkLayer[] {
-    return card.artworkLayers.filter((layer) => layer.placement === placement).reverse();
-  }
-
-  function canMove(layer: CardArtworkLayer, direction: -1 | 1): boolean {
-    const placementIndex = CARD_ARTWORK_LAYER_PLACEMENTS.indexOf(layer.placement);
-    const bucket = card.artworkLayers.filter((entry) => entry.placement === layer.placement);
-    const layerIndex = bucket.findIndex((entry) => entry.id === layer.id);
-    if (direction > 0) {
-      return layerIndex < bucket.length - 1 || placementIndex < CARD_ARTWORK_LAYER_PLACEMENTS.length - 1;
-    }
-    return layerIndex > 0 || placementIndex > 0;
+  function canMove(layerId: CardCompositeLayerId, direction: -1 | 1): boolean {
+    const index = card.layerOrder.indexOf(layerId);
+    const nextIndex = index + direction;
+    return index >= 0 && nextIndex >= 0 && nextIndex < card.layerOrder.length;
   }
 </script>
 
-{#snippet fixedLayer(title: string, description: string)}
-  <div class="fixed-row" role="listitem" aria-label="{title}, fixed card layer">
+{#snippet moveActions(layerId: CardCompositeLayerId)}
+  <Button
+    size="sm"
+    variant="ghost"
+    disabled={!canMove(layerId, 1)}
+    title="Move above the next layer"
+    onclick={() => workshop.moveCardCompositeLayer(card.id, layerId, 1)}
+  >Up</Button>
+  <Button
+    size="sm"
+    variant="ghost"
+    disabled={!canMove(layerId, -1)}
+    title="Move below the next layer"
+    onclick={() => workshop.moveCardCompositeLayer(card.id, layerId, -1)}
+  >Down</Button>
+{/snippet}
+
+{#snippet fixedLayer(layerId: CardFixedLayer)}
+  {@const meta = FIXED_LAYER_META[layerId]}
+  <div class="fixed-row" role="listitem" aria-label="{meta.title}, card element layer">
     <span class="fixed-mark"><Icon name="layers" size={14} /></span>
     <span class="layer-copy">
-      <strong>{title}</strong>
-      <small>{description}</small>
+      <strong>{meta.title}</strong>
+      <small>{meta.description}</small>
     </span>
-    <span class="fixed-tag">Fixed</span>
+    <div class="layer-actions">{@render moveActions(layerId)}</div>
   </div>
 {/snippet}
 
-{#snippet artworkRows(placement: CardArtworkLayerPlacement)}
-  {#each layersAt(placement) as layer (layer.id)}
-    {@const index = card.artworkLayers.indexOf(layer)}
-    <div class="layer-row" class:selected={layer.id === selectedId} role="listitem">
-      <button
-        type="button"
-        class="layer-select"
-        aria-pressed={layer.id === selectedId}
-        onclick={() => {
-          cardArtworkLayerView.select(card.id, layer.id);
-          confirmingRemoval = null;
-        }}
-      >
-        <span class="thumb" class:empty={!layer.artwork.source}>
-          {#if layer.artwork.source}
-            <img src={layer.artwork.source} alt="" />
-          {:else}
-            <Icon name="image" size={14} />
-          {/if}
-        </span>
-        <span class="layer-copy">
-          <strong>Artwork layer {index + 1}</strong>
-          <small>{layer.artwork.label || 'No image attached'}</small>
-        </span>
-      </button>
+{#snippet artworkRow(layer: CardArtworkLayer)}
+  {@const index = card.artworkLayers.indexOf(layer)}
+  <div class="layer-row" class:selected={layer.id === selectedId} role="listitem">
+    <button
+      type="button"
+      class="layer-select"
+      aria-pressed={layer.id === selectedId}
+      onclick={() => {
+        cardArtworkLayerView.select(card.id, layer.id);
+        confirmingRemoval = null;
+      }}
+    >
+      <span class="thumb" class:empty={!layer.artwork.source}>
+        {#if layer.artwork.source}
+          <img src={layer.artwork.source} alt="" />
+        {:else}
+          <Icon name="image" size={14} />
+        {/if}
+      </span>
+      <span class="layer-copy">
+        <strong>Artwork layer {index + 1}</strong>
+        <small>{layer.artwork.label || 'No image attached'}</small>
+      </span>
+    </button>
 
-      <div class="layer-actions">
-        <Button
-          size="sm"
-          variant="ghost"
-          disabled={!canMove(layer, 1)}
-          title="Move above the next layer"
-          onclick={() => workshop.moveCardArtworkLayer(card.id, layer.id, 1)}
-        >Up</Button>
-        <Button
-          size="sm"
-          variant="ghost"
-          disabled={!canMove(layer, -1)}
-          title="Move below the next layer"
-          onclick={() => workshop.moveCardArtworkLayer(card.id, layer.id, -1)}
-        >Down</Button>
-        <Button size="sm" variant="danger" onclick={() => removeLayer(layer.id)}>
-          {confirmingRemoval === layer.id ? 'Confirm remove' : 'Remove'}
-        </Button>
-      </div>
+    <div class="layer-actions">
+      {@render moveActions(layer.id)}
+      <Button size="sm" variant="danger" onclick={() => removeLayer(layer.id)}>
+        {confirmingRemoval === layer.id ? 'Confirm remove' : 'Remove'}
+      </Button>
     </div>
-  {/each}
+  </div>
 {/snippet}
 
 <div class="layer-heading">
   <p class="hint">
     Add transparent images over the finished card to let figures, props, or effects cross its
-    frame. The card layers are fixed; move artwork above or below them, then position it directly
-    in the preview.
+    frame. Move artwork and card elements into any paint order, then position artwork directly in
+    the preview.
   </p>
   <Button size="sm" onclick={addLayer}>
     <Icon name="plus" size={13} />
@@ -139,23 +174,19 @@
 </div>
 
 <div class="layers" role="list" aria-label="Card and artwork layer stack">
-  {@render artworkRows('above-frame')}
-  {@render fixedLayer('Outer frame', 'The card border and rounded edge')}
-  {@render artworkRows('above-ribbon')}
-  {@render fixedLayer('Name / combat ribbon', 'Ribbon fill, text, symbol and value')}
-  {@render artworkRows('above-content')}
-  {@render fixedLayer(
-    'Card content & effects',
-    'Title, values, abilities, boost, owner, copies and special effects'
-  )}
-  {@render artworkRows('above-artwork')}
-  {@render fixedLayer('Main artwork', 'The card’s ordinary illustration')}
+  {#each stackRows as row (row.id)}
+    {#if row.kind === 'fixed'}
+      {@render fixedLayer(row.id)}
+    {:else}
+      {@render artworkRow(row.layer)}
+    {/if}
+  {/each}
 </div>
 
 {#if card.artworkLayers.length === 0}
   <div class="empty">
     <Icon name="image" size={18} />
-    <span>Add artwork, then move it through the fixed card stack.</span>
+    <span>Add artwork, then arrange it with the card elements above.</span>
   </div>
 {/if}
 
@@ -225,17 +256,6 @@
     border-radius: var(--radius-xs);
     color: var(--text-tertiary);
     background: var(--surface-raised);
-  }
-
-  .fixed-tag {
-    padding: 2px var(--space-2);
-    border: 1px solid var(--border-subtle);
-    border-radius: var(--radius-full);
-    color: var(--text-muted);
-    font-size: var(--text-2xs);
-    font-weight: var(--weight-semibold);
-    letter-spacing: var(--tracking-caps);
-    text-transform: uppercase;
   }
 
   .layer-row {
@@ -337,10 +357,6 @@
 
     .fixed-row {
       grid-template-columns: 40px minmax(0, 1fr);
-    }
-
-    .fixed-tag {
-      display: none;
     }
   }
 </style>
