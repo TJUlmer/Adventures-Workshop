@@ -8,6 +8,7 @@
    * carry for "show me the thing I attached".
    */
   import type { Mesh } from '$lib/models/mesh';
+  import type { ModelAnnotation } from '$lib/models/gl';
   import { drawMeshInto, onContextRestored, projectedPixelsPerUnit } from '$lib/models/gl';
 
   const GRID_MINOR_MM = 10;
@@ -23,6 +24,8 @@
     millimetresPerUnit?: number | null;
     /** TTS world units are nominally, but not metrologically, one inch. */
     approximateScale?: boolean;
+    /** Script-created labels the browser projects over the model. */
+    annotations?: readonly ModelAnnotation[];
     /** A number is pixels; CSS lengths let modal callers follow the viewport. */
     height?: number | string;
     /** Lets a larger inspection surface fall back to reference artwork. */
@@ -34,6 +37,7 @@
     texture = null,
     millimetresPerUnit = null,
     approximateScale = false,
+    annotations = [],
     height = 260,
     onfailure
   }: Props = $props();
@@ -105,7 +109,7 @@
     }
 
     try {
-      drawMeshInto(canvas, mesh, textureImage, camera);
+      drawMeshInto(canvas, mesh, textureImage, camera, annotations);
       setFailure(null);
     } catch (cause) {
       setFailure(cause instanceof Error ? cause.message : 'Could not draw the model.');
@@ -141,6 +145,7 @@
     void pitch;
     void zoom;
     void millimetresPerUnit;
+    void annotations;
     draw();
   });
 

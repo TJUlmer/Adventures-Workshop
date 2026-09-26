@@ -578,7 +578,12 @@ async function figureAccentSource(figure: Figure): Promise<HTMLImageElement | nu
   try {
     preview = await loadFigurePreview(figure);
     if (preview) {
-      const snapshot = await renderMeshSnapshot(preview.mesh, preview.texture, 320);
+      const snapshot = await renderMeshSnapshot(
+        preview.mesh,
+        preview.texture,
+        320,
+        preview.annotations
+      );
       if (snapshot) return loadImageSource(snapshot);
     }
   } catch {

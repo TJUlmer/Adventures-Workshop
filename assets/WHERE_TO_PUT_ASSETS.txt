@@ -64,24 +64,24 @@ assets/  — originals and working files, not shipped
   │                       Knockout-HTF29-JuniorLiteweight-CUSTOM.ttf → ability + qty
   │                       Knockout-HTF49-Liteweight-Custom.ttf → boost + combat values
   └── resources/        the Photoshop templates an author paints in
-                          health_dial_skin.psd / .png     ← the dial's face
-                          token_skin_two_sided.psd / .png ← a two-sided token
+                          health_dial_skin_two_sided.psd / .png ← complete dial atlas
+                          token_skin_two_sided.psd / .png       ← a two-sided token
 
   Both skins are *generated*, from the numbers that describe the piece:
                           tools/health-dial-skin.py
                           tools/token-skin.py
 
   Regenerate rather than hand-editing. Their guides are drawn from the real
-  dimensions — the dial's diameter, the Lua's trigger positions, the UV split a
-  two-sided token uses — so they go stale the moment any of those move.
+  dimensions — the fixed dial OBJ's UV triangles and the UV split a two-sided
+  token uses — so they go stale the moment either mesh changes.
 
 Other generated files
 ---------------------
   templates/initiative_frame.png   Initiative Card_border.png, bars erased
   templates/event_logo*.png        lifted out of event_back_template_blank.png
 
-  The health dial has no .obj anywhere: its mesh is generated at export from
-  HEALTH_DIAL_SPEC in src/lib/figures/health-dial.ts.
+  public/assets/templates/health-dial.obj is the fixed health-dial mesh used
+  by both browser previews and exports. Its skin generator reads that same OBJ.
 
 Also available
 --------------

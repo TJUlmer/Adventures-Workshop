@@ -168,6 +168,27 @@ export interface Camera {
   zoom: number;
 }
 
+/**
+ * Surface information that belongs at one point on a model.
+ *
+ * Tabletop Simulator can draw labels and buttons from Lua after a saved object
+ * loads. The browser cannot run that Lua, so a component such as the health
+ * dial supplies the same labels here and the shared viewer projects them over
+ * the mesh. Model-space positions keep an annotation attached while the model
+ * orbits; the optional surface normal hides it when that face is turned away.
+ * Text follows the model's local X/Z plane rather than facing the camera.
+ */
+export interface ModelAnnotation {
+  readonly text: string;
+  readonly position: readonly [number, number, number];
+  readonly normal?: readonly [number, number, number];
+  /** Approximate cap height in the mesh's own units. */
+  readonly size: number;
+  readonly color: string;
+  readonly outline?: string;
+  readonly weight?: number;
+}
+
 /** The camera distance implied by the viewer's fit-to-model framing. */
 function viewDistance(mesh: Mesh, camera: Camera): number {
   return (mesh.bounds.radius / camera.zoom) * MODEL_VIEW_DISTANCE_FACTOR;
@@ -189,6 +210,143 @@ export function projectedPixelsPerUnit(
   const distance = viewDistance(mesh, camera);
   if (!Number.isFinite(distance) || distance <= 0 || viewportHeight <= 0) return 0;
   return viewportHeight / (2 * Math.tan(MODEL_VIEW_VERTICAL_FOV / 2) * distance);
+}
+
+interface ProjectedPoint {
+  x: number;
+  y: number;
+}
+
+/** Project one model-space point through the exact camera used by the mesh. */
+function projectPoint(
+  point: readonly [number, number, number],
+  mesh: Mesh,
+  camera: Camera,
+  viewportWidth: number,
+  viewportHeight: number
+): ProjectedPoint | null {
+  const distance = viewDistance(mesh, camera);
+  const view = modelView(mesh.bounds, distance, camera.yaw, camera.pitch);
+  const [x, y, z] = point;
+  const viewX =
+    (view[0] as number) * x +
+    (view[4] as number) * y +
+    (view[8] as number) * z +
+    (view[12] as number);
+  const viewY =
+    (view[1] as number) * x +
+    (view[5] as number) * y +
+    (view[9] as number) * z +
+    (view[13] as number);
+  const viewZ =
+    (view[2] as number) * x +
+    (view[6] as number) * y +
+    (view[10] as number) * z +
+    (view[14] as number);
+  const clipW = -viewZ;
+  if (!Number.isFinite(clipW) || clipW <= 0) return null;
+
+  const projectionScale = 1 / Math.tan(MODEL_VIEW_VERTICAL_FOV / 2);
+  const ndcX = (viewX * projectionScale) / (viewportWidth / viewportHeight) / clipW;
+  const ndcY = (viewY * projectionScale) / clipW;
+  if (!Number.isFinite(ndcX) || !Number.isFinite(ndcY)) return null;
+
+  return {
+    x: (ndcX * 0.5 + 0.5) * viewportWidth,
+    y: (0.5 - ndcY * 0.5) * viewportHeight
+  };
+}
+
+/** Whether a model-space surface normal points towards the camera. */
+function facesCamera(
+  normal: readonly [number, number, number],
+  mesh: Mesh,
+  camera: Camera
+): boolean {
+  const view = modelView(mesh.bounds, viewDistance(mesh, camera), camera.yaw, camera.pitch);
+  const z =
+    (view[2] as number) * normal[0] +
+    (view[6] as number) * normal[1] +
+    (view[10] as number) * normal[2];
+  return z > 0.04;
+}
+
+/**
+ * Draw projected labels after the WebGL image has been copied into a 2D
+ * target. Keeping this beside the camera maths prevents an interactive viewer
+ * and a still snapshot from placing the same scripted control differently.
+ */
+function drawAnnotations(
+  context: CanvasRenderingContext2D,
+  mesh: Mesh,
+  camera: Camera,
+  annotations: readonly ModelAnnotation[]
+): void {
+  if (annotations.length === 0) return;
+
+  const width = context.canvas.width;
+  const height = context.canvas.height;
+  context.save();
+  context.textAlign = 'center';
+  context.textBaseline = 'middle';
+  context.lineJoin = 'round';
+
+  for (const annotation of annotations) {
+    if (annotation.normal && !facesCamera(annotation.normal, mesh, camera)) continue;
+    const at = projectPoint(annotation.position, mesh, camera, width, height);
+    if (!at || at.x < 0 || at.x > width || at.y < 0 || at.y > height) continue;
+
+    /* A rotation only follows the first surface axis and leaves the glyphs
+       camera-facing. Project both axes instead so labels flatten and
+       foreshorten with the model's top face at low viewing angles. */
+    const alongX = projectPoint(
+      [annotation.position[0] + 1, annotation.position[1], annotation.position[2]],
+      mesh,
+      camera,
+      width,
+      height
+    );
+    const alongZ = projectPoint(
+      [annotation.position[0], annotation.position[1], annotation.position[2] + 1],
+      mesh,
+      camera,
+      width,
+      height
+    );
+    if (!alongX || !alongZ) continue;
+
+    const xX = alongX.x - at.x;
+    const xY = alongX.y - at.y;
+    const zX = alongZ.x - at.x;
+    const zY = alongZ.y - at.y;
+    if (![xX, xY, zX, zY].every(Number.isFinite)) continue;
+
+    /* Canvas implementations rasterize tiny fonts inconsistently. Work in a
+       larger local coordinate system, then scale that system into model units. */
+    const rasterScale = 100;
+    const fontSize = annotation.size * rasterScale;
+
+    context.save();
+    context.transform(
+      xX / rasterScale,
+      xY / rasterScale,
+      zX / rasterScale,
+      zY / rasterScale,
+      at.x,
+      at.y
+    );
+    context.font = `${annotation.weight ?? 700} ${fontSize}px Arial, sans-serif`;
+    if (annotation.outline) {
+      context.strokeStyle = annotation.outline;
+      context.lineWidth = Math.max(1, fontSize * 0.09);
+      context.strokeText(annotation.text, 0, 0);
+    }
+    context.fillStyle = annotation.color;
+    context.fillText(annotation.text, 0, 0);
+    context.restore();
+  }
+
+  context.restore();
 }
 
 /**
@@ -391,7 +549,8 @@ export function drawMeshInto(
   target: HTMLCanvasElement,
   mesh: Mesh,
   textureImage: HTMLImageElement | null,
-  camera: Camera
+  camera: Camera,
+  annotations: readonly ModelAnnotation[] = []
 ): void {
   const source = sharedSource();
   if (source.width !== target.width || source.height !== target.height) {
@@ -405,4 +564,5 @@ export function drawMeshInto(
   if (!context) throw new Error('This browser will not give the page a 2D context.');
   context.clearRect(0, 0, target.width, target.height);
   context.drawImage(source, 0, 0);
+  drawAnnotations(context, mesh, camera, annotations);
 }

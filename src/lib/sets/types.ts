@@ -217,8 +217,8 @@ export type SetId = Id<'Set'>;
  *      Unrelated, and needing no bump of its own: the health dial's new
  *      two-sided art reads the *existing* `Figure.token.twoSided` field —
  *      present on every figure regardless of kind, but never once consulted
- *      for a dial before now. See `figures/health-dial.ts`'s
- *      `healthDialSpec`.
+ *      for a dial before now. The fixed dial's atlas compositor still reads
+ *      that field; the mesh itself always contains both faces.
  *
  * v32 — an action card gained `showRibbonSymbol`/`ribbonSymbol`: the ribbon's
  *      foot, the strip between the name ribbon's point and the divider, filled

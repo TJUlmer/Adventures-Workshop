@@ -7,9 +7,12 @@
  * with many generated figures never opens more than one WebGL context for
  * it — several browsers cap those in the teens per page, and a context per
  * tile would be the kind of thing that works fine in testing and then breaks
- * on someone's real set.
+ * on someone's real set. The still target is a 2D canvas; `drawMeshInto`
+ * borrows the same single WebGL source as interactive viewers before adding
+ * any projected labels.
  */
-import { renderMeshToCanvas } from './gl';
+import type { ModelAnnotation } from './gl';
+import { drawMeshInto } from './gl';
 import type { Mesh } from './mesh';
 
 /** `onload` rather than `decode()` — see `token-model.ts`'s own note on why. */
@@ -44,7 +47,8 @@ let queue: Promise<unknown> = Promise.resolve();
 async function renderOnce(
   mesh: Mesh,
   textureSource: string | null,
-  size: number
+  size: number,
+  annotations: readonly ModelAnnotation[]
 ): Promise<string | null> {
   if (mesh.triangles === 0) return null;
 
@@ -53,7 +57,7 @@ async function renderOnce(
     const canvas = (shared ??= document.createElement('canvas'));
     canvas.width = size;
     canvas.height = size;
-    renderMeshToCanvas(canvas, mesh, textureImage, SNAPSHOT_CAMERA);
+    drawMeshInto(canvas, mesh, textureImage, SNAPSHOT_CAMERA, annotations);
     return canvas.toDataURL('image/png');
   } catch {
     return null;
@@ -69,9 +73,10 @@ async function renderOnce(
 export function renderMeshSnapshot(
   mesh: Mesh,
   textureSource: string | null,
-  size = 160
+  size = 160,
+  annotations: readonly ModelAnnotation[] = []
 ): Promise<string | null> {
-  const run = queue.then(() => renderOnce(mesh, textureSource, size));
+  const run = queue.then(() => renderOnce(mesh, textureSource, size, annotations));
   queue = run.catch(() => undefined);
   return run;
 }

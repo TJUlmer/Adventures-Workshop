@@ -27,15 +27,15 @@
     generatedTokenSpec,
     TOKEN_RIM_COLOR
   } from '$lib/figures/types';
-  import { HEALTH_DIAL_SPEC } from '$lib/figures/health-dial';
+  import { HEALTH_DIAL_MODEL_SIZE_MM } from '$lib/figures/health-dial';
   import type { SkinTemplate } from '$lib/figures/skin-templates';
   import {
-    HEALTH_DIAL_SKIN,
     HEALTH_DIAL_SKIN_TWO_SIDED,
     TOKEN_SKIN
   } from '$lib/figures/skin-templates';
   import { isViewableModel, loadMesh } from '$lib/models/load';
   import type { Mesh } from '$lib/models/mesh';
+  import type { ModelAnnotation } from '$lib/models/gl';
   import type { TokenShape } from '$lib/models/token';
   import { MAX_OUTLINE_DETAIL, MIN_OUTLINE_DETAIL } from '$lib/models/silhouette';
   import type { TokenOutline } from '$lib/models/silhouette';
@@ -72,6 +72,12 @@
     TextInput
   } from '$lib/ui';
   import ModelViewer from './ModelViewer.svelte';
+  import {
+    figurePreviewKey,
+    loadFigurePreview,
+    releaseFigurePreview
+  } from './figure-preview';
+  import type { FigurePreviewModel } from './figure-preview';
   import RulebookLinks from './RulebookLinks.svelte';
 
   const set = $derived(workshop.adventure);
@@ -287,6 +293,7 @@
     mesh: Mesh;
     texture: string | null;
     millimetresPerUnit: number | null;
+    annotations?: readonly ModelAnnotation[];
     approximateScale?: boolean;
   }
 
@@ -298,6 +305,10 @@
   let loaded = $state<Record<string, Preview>>({});
   let loading = $state<Record<string, boolean>>({});
   let exportingId = $state<string | null>(null);
+  let dialPreviews = $state<Record<string, FigurePreviewModel>>({});
+  const dialPreviewKeys: Record<string, string> = {};
+  const dialPreviewRuns: Record<string, number> = {};
+  let dialPreviewDestroyed = false;
 
   /**
    * A generated token is rebuilt whenever its dimensions change, which is what
@@ -324,10 +335,9 @@
    * without reloading the mesh.
    */
   function preview(figure: Figure): Preview | null {
-    if (figure.kind !== 'dial') {
-      const fromTts = ttsPreviews[figure.id];
-      if (fromTts) return fromTts;
-    }
+    if (figure.kind === 'dial') return dialPreviews[figure.id] ?? null;
+    const fromTts = ttsPreviews[figure.id];
+    if (fromTts) return fromTts;
     const token = previews[figure.id];
     if (token) return token;
     const model = loaded[figure.id];
@@ -340,6 +350,51 @@
     }
     return null;
   }
+
+  /** The fixed dial is an asynchronously loaded OBJ rather than a generated token. */
+  $effect(() => {
+    const active = new Set<string>();
+    for (const figure of figures) {
+      if (figure.kind !== 'dial') continue;
+      active.add(figure.id);
+      const key = figurePreviewKey(figure);
+      if (!key || dialPreviewKeys[figure.id] === key) continue;
+
+      dialPreviewKeys[figure.id] = key;
+      const previous = dialPreviews[figure.id];
+      if (previous) releaseFigurePreview(previous);
+      delete dialPreviews[figure.id];
+
+      const run = (dialPreviewRuns[figure.id] ?? 0) + 1;
+      dialPreviewRuns[figure.id] = run;
+      void loadFigurePreview(figure)
+        .then((loadedPreview) => {
+          if (
+            !loadedPreview ||
+            dialPreviewDestroyed ||
+            dialPreviewRuns[figure.id] !== run ||
+            dialPreviewKeys[figure.id] !== key
+          ) {
+            releaseFigurePreview(loadedPreview);
+            return;
+          }
+          dialPreviews[figure.id] = loadedPreview;
+        })
+        .catch((cause: unknown) => {
+          if (!dialPreviewDestroyed && dialPreviewRuns[figure.id] === run) {
+            error = cause instanceof Error ? cause.message : 'Could not read the health dial.';
+          }
+        });
+    }
+
+    for (const id of Object.keys(dialPreviewKeys)) {
+      if (active.has(id)) continue;
+      dialPreviewRuns[id] = (dialPreviewRuns[id] ?? 0) + 1;
+      releaseFigurePreview(dialPreviews[id] ?? null);
+      delete dialPreviews[id];
+      delete dialPreviewKeys[id];
+    }
+  });
 
   /** Token textures, drawn off the reference image and cached per figure. */
   let tokenTextures = $state<Record<string, string>>({});
@@ -695,6 +750,11 @@
   }
 
   onDestroy(() => {
+    dialPreviewDestroyed = true;
+    for (const id of Object.keys(dialPreviewRuns)) {
+      dialPreviewRuns[id] = (dialPreviewRuns[id] ?? 0) + 1;
+    }
+    for (const dialPreview of Object.values(dialPreviews)) releaseFigurePreview(dialPreview);
     ttsPreviewDestroyed = true;
     for (const id of Object.keys(ttsPreviewRuns)) {
       ttsPreviewRuns[id] = (ttsPreviewRuns[id] ?? 0) + 1;
@@ -1096,34 +1156,37 @@
                   </div>
 
                   <p class="hint">
-                    The dial's disc and counter are built in — it counts from
+                    The dial and its controls are built in — it counts from
                     {figure.dialRange.min} to {figure.dialRange.max} and starts full.
-                    The image is applied to its face on export.
+                    Your image is applied to both faces on export.
                   </p>
                 </div>
 
-                <div class="note-block">
-                  <span class="block-title">On the table</span>
-                  <p class="hint">
-                    A {HEALTH_DIAL_SPEC.diameterMm}mm disc showing the current health,
-                    with a trigger either side of the number: click the right one to
-                    raise it, the left one to lower it. Click the number, or alt-click
-                    a trigger, to put the dial back to full.
-                  </p>
+                <div class="note-stack">
+                  <div class="note-block">
+                    <span class="block-title">On the table</span>
+                    <p class="hint">
+                      The portrait disc is {HEALTH_DIAL_MODEL_SIZE_MM.width.toFixed(1)}mm
+                      wide; the complete component, including its controls, is
+                      {' '}{HEALTH_DIAL_MODEL_SIZE_MM.length.toFixed(1)}mm long. Click
+                      the right panel to gain health, the left panel to lose it, and
+                      the RESET tab to return to full. Alt-clicking either panel also
+                      resets it.
+                    </p>
+                  </div>
+
+                  <div class="note-block">
+                    <span class="block-title">Credit</span>
+                    <p class="hint">Health Dial created by Jack North.</p>
+                  </div>
                 </div>
 
                 <div class="note-block">
                   <span class="block-title">Face art</span>
 
-                  <!--
-                    Same switch and the same field a token's own build offers —
-                    `figure.token.twoSided` is the very field a token reads,
-                    just never asked of a dial figure before now (see
-                    `generatedTokenSpec` in `figures/types.ts`).
-                  -->
                   <Switch
                     label="Two-sided art"
-                    hint="The image is two faces side by side — front on the left, back on the right — wrapped one to each side of the disc. Off, the one picture is shown on both."
+                    hint="Use separate front and back artwork, or attach a flattened copy of the complete dial-skin PSD. Off, one picture is repeated on both faces."
                     checked={figure.token.twoSided}
                     onchange={(twoSided) =>
                       workshop.editFigure(figure.id, (f) => (f.token.twoSided = twoSided))}
@@ -1131,22 +1194,19 @@
 
                   {#if figure.token.twoSided}
                     <p class="hint">
-                      The image is read as two squares side by side — the left one is
-                      the front, the face Tabletop Simulator draws the health number
-                      and its triggers over; the right one is the underside, which
-                      the game never marks up. Paint both the right way up: the
-                      underside is turned over by the model, not by you.
+                      The new template is a 1024 × 2048 portrait atlas: front face
+                      above, back face below, with the counter and reset textures in
+                      the centre. Hide its Guides layer before exporting a flattened
+                      PNG. Existing horizontal front|back images remain supported.
                     </p>
-                    {#if HEALTH_DIAL_SKIN_TWO_SIDED.url}
-                      {@render skinLink(HEALTH_DIAL_SKIN_TWO_SIDED, 'The front half carries the same guide as the one-sided template.')}
-                    {/if}
                   {:else}
                     <p class="hint">
                       One picture, shown the same on the front and the back. Turn on
                       two-sided art to paint the disc's two faces separately.
                     </p>
-                    {@render skinLink(HEALTH_DIAL_SKIN, 'The face is a square, the disc inscribed in it.')}
                   {/if}
+
+                  {@render skinLink(HEALTH_DIAL_SKIN_TWO_SIDED, 'Use this to paint the complete two-sided dial skin.')}
                 </div>
               </div>
             {/if}
@@ -1611,6 +1671,7 @@
               <ModelViewer
                 mesh={shown?.mesh ?? null}
                 texture={shown?.texture ?? null}
+                annotations={shown?.annotations ?? []}
                 millimetresPerUnit={shown?.millimetresPerUnit ?? null}
                 approximateScale={shown?.approximateScale ?? false}
               />
@@ -1829,6 +1890,12 @@
     border-radius: var(--radius-md);
     background: var(--surface-inset);
     border: 1px solid var(--border-subtle);
+  }
+
+  .note-stack {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
   }
 
   .block-title {

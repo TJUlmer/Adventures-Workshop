@@ -3,6 +3,7 @@
   import { hasArtwork } from '$lib/core/artwork';
   import type { Figure } from '$lib/figures/types';
   import { figureLabel, FIGURE_KIND_LABELS } from '$lib/figures/types';
+  import type { ModelAnnotation } from '$lib/models/gl';
   import type { Mesh } from '$lib/models/mesh';
   import { Icon } from '$lib/ui';
   import type { FigurePreviewModel } from './figure-preview';
@@ -24,6 +25,7 @@
   let mesh = $state<Mesh | null>(null);
   let texture = $state<string | null>(null);
   let millimetresPerUnit = $state<number | null>(null);
+  let annotations = $state<readonly ModelAnnotation[]>([]);
   let loading = $state(false);
   let failure = $state<string | null>(null);
   let warning = $state<string | null>(null);
@@ -48,6 +50,7 @@
     mesh = null;
     texture = null;
     millimetresPerUnit = null;
+    annotations = [];
     failure = null;
     warning = null;
     viewerFailure = null;
@@ -74,6 +77,7 @@
         mesh = preview.mesh;
         texture = preview.texture;
         millimetresPerUnit = preview.millimetresPerUnit;
+        annotations = preview.annotations;
         warning = preview.warning;
       })
       .catch((error: unknown) => {
@@ -160,6 +164,7 @@
                   {mesh}
                   {texture}
                   {millimetresPerUnit}
+                  {annotations}
                   height="min(62dvh, 620px)"
                   onfailure={onViewerFailure}
                 />

@@ -234,32 +234,33 @@ ownerName)`.
 
 ### The health dial
 
-A plain 50.8mm disc with the current health drawn across it and a trigger either
-side. It is the app's component rather than the author's, so a `dial` figure
-carries only the face image and a `dialRange`; `figures/health-dial.ts` owns the
-rest.
+The fixed health dial is a supplied three-shell component: a 50.7mm portrait
+disc, a counter body, and a reset tab, about 94mm long altogether. A `dial`
+figure carries the artwork and `dialRange`; `figures/health-dial.ts` owns the
+vendored OBJ URL, measured bounds, atlas regions, control anchors and Lua.
 
-The **mesh is generated**, not shipped — it is a circle, which is exactly what
-`models/token.ts` already makes, so `HEALTH_DIAL_SPEC` is a `TokenSpec` and the
-preview, the export and any future print all read the same one. One `.obj` is
-written per export however many dials a set has, since the spec is fixed. The
-face goes through `buildTokenArt`, which is what gets it the square the disc
-samples and a band of rim colour round the edge; hand it the raw picture and it
-arrives stretched with an unpainted rim.
+The **mesh is shipped**, not generated. `public/assets/templates/health-dial.obj`
+is loaded for every browser preview and copied by content hash into a TTS bundle.
+It always has both faces, so `Figure.token.twoSided` changes only how artwork is
+composed. Its texture is a 1:2 portrait atlas: front disc above, back disc below,
+and the counter/reset UV islands across the centre seam. `buildHealthDialArt`
+accepts the new full atlas, repeats one ordinary image on both faces, and keeps
+the previous horizontal front|back input compatible. `tools/health-dial-skin.py`
+derives the layered 1024×2048 PSD guides from the OBJ's actual UV triangles.
 
-The **saved object is** still a file, because a TTS component is more than a
-mesh: `public/assets/templates/health dial.json` carries the counter's Lua and
-the material, and export splices in the mesh URL, the face and the range —
-`MIN_VALUE`/`MAX_VALUE`/`VALUE` rewritten in place via `models/tts.ts`'s
-`readLuaConfig`/`writeLuaConfig`, which reads that table a line at a time rather
-than as Lua. Keep every entry a plain scalar on its own line and the closing
-brace in the first column. The script is a JSON string, so the readable way to
-change it is to spawn the object in Tabletop Simulator, edit it there and save
-it back out.
+The **saved object remains a file**, because a TTS component is more than a
+mesh: `public/assets/templates/health dial.json` carries its Lua and material
+settings with blank mesh/diffuse URLs. Export fills both URLs and rewrites
+`MIN_VALUE`/`MAX_VALUE`/`VALUE` in place via `models/tts.ts`'s
+`readLuaConfig`/`writeLuaConfig`, which reads the CONFIG table one line at a
+time rather than as Lua. Keep every entry a plain scalar on its own line and
+the closing brace in the first column.
 
-The Lua puts its triggers at **0.6 of the disc's radius**, in the model's own
-units — which are inches. Change `HEALTH_DIAL_SPEC.diameterMm` without moving
-them and they walk off the face.
+The browser cannot run TTS Lua. `figures/health-dial-preview.ts` therefore
+describes the value, `<`, `>` and RESET as model-space annotations; the shared
+WebGL viewer projects them over the same coordinates, carries them through
+orbit/zoom, and hides them when the upper face points away. Interactive views,
+Overview thumbnails and social-image snapshots all use that same path.
 
 Its buttons are measured in a unit of TTS's own, and the conversion was read off
 the game rather than guessed: **about 700 button units to the model's inch**, from
@@ -283,12 +284,6 @@ failures look identical to a label that is too big for its rect, so a lot of wha
 was concluded about rect sizes along the way was measured against contaminated
 evidence. The rect proportions in the script are known to work, not known to be
 minimal.
-
-There was a supplied `Health Dial.obj` and a third-party saved object here until
-the project could not get permission to redistribute them. Nothing of either
-survives; that is why the dial is generated rather than shipped. The same went
-for the two-sided token's Photoshop template, and for the sidekick token example
-that came out of it.
 
 Generated tokens (`models/token.ts`) are a flat prism the art wraps onto:
 `circle`, or `polygon` with a side count (a hexagon is six sides — the old `hex`

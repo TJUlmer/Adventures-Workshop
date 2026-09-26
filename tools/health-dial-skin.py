@@ -1,211 +1,314 @@
-"""Build the health dial's skin templates: one-sided, and two-sided.
+"""Build the fixed health dial's two-sided skin template.
 
-The dial is a generated disc (`src/lib/figures/health-dial.ts`) and its texture
-goes through the token texture builder, which lays a *square* of artwork over a
-band of rim colour and hands the square to the disc's face. So the thing an
-author actually paints is that square, and this writes two templates for it —
-a layered PSD to work in and a flattened PNG to look at, for each of the two
-ways a dial can wear its art:
+The replacement dial is not the generated token disc this project used before.
+It is one fixed mesh with a portrait atlas: the front face occupies the upper
+square, the underside occupies the lower square, and several small UV islands
+around their seam paint the health controls and reset button. Authors need to
+paint that *whole atlas*, not two squares laid beside one another.
 
-  * `health_dial_skin` — one square, shown the same on both faces. The common
-    case, and the only one that existed before the dial could wrap to the back.
-  * `health_dial_skin_two_sided` — two squares side by side, front then back,
-    the same front|back layout `token_skin_two_sided.py` already uses for a
-    two-sided token. Front is the disc's *top* face — the one Tabletop
-    Simulator draws the health number and its two triggers over, since the
-    Lua only ever places them clear of the top (`faceY()` in `health
-    dial.json`) — so the front half carries that same guide; the back is a
-    plain disc with nothing drawn over it, because nothing ever is.
+The mesh is the authority for every guide in the document. Parsing its UVs here
+keeps the Photoshop template honest if a later copy of the model changes: the
+two face layers, the two control layers, and the guide wireframe all come from
+the OBJ rather than from hand-measured ellipses.
 
-Two files rather than the one restructured into a 2:1 canvas, because a
-one-sided author's source image is still a plain square, fit straight into
-`buildTokenTexture` — forcing that into a 2:1 canvas and a crop back down
-would be a regression for what stays the more common case. `face_guide()` is
-what keeps the two templates' numbers from drifting apart from each other: the
-front half of the two-sided template and the whole of the one-sided template
-call the exact same drawing code, so a correction to one is a correction to
-both.
+The production layers deliberately contain no character art and no health
+number or arrow glyphs. Tabletop Simulator draws the changing health value and
+the ``<`` / ``>`` controls over the model; baking them into the skin would leave
+the starting value behind when the dial changes. The guide layer shows their
+roles only, and must be hidden before an author saves a finished skin.
 
-Everything drawn here is derived from two numbers that live in the code, so the
-guides cannot drift away from what the dial does:
-
-  * the disc is inscribed in the square, so its edge is a circle of radius W/2;
-  * the Lua puts its triggers at 0.6 of the disc's radius, so they sit at
-    0.3 W either side of the middle. See `health dial.json`.
+Run from the repository root:
 
     python tools/health-dial-skin.py
 
-Regenerate rather than hand-editing — and if the dial's diameter or its trigger
-positions change in the code, change them here too.
+This writes the editable source and its flattened guide preview to
+``assets/resources/`` and copies the PSD to ``public/assets/templates/`` for
+the in-app download link.
 """
 
 from __future__ import annotations
 
+import shutil
 import sys
+from collections import defaultdict
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from PIL import Image, ImageDraw
 
-from skins import GUIDE, blank, centred, font, plate, publish, ring
+from skins import GUIDE, PLATE, PLATE_RING, blank, centred, font, publish, ring
 
-SIZE = 1024
+ROOT = Path(__file__).resolve().parent.parent
+MESH = ROOT / "public" / "assets" / "templates" / "health-dial.obj"
+PUBLIC_PSD = ROOT / "public" / "assets" / "templates" / "health-dial-skin-two-sided.psd"
 
-# Read off the code: `HEALTH_DIAL_SPEC.diameterMm`, and `TRIGGER_X` in the Lua.
-DIAMETER_MM = 50.8
-TRIGGER_X = 0.6
+# The model's UVs are a 1:2 portrait atlas. A power-of-two canvas keeps each
+# face a square while giving the small control islands enough resolution.
+WIDTH = 1024
+FACE = WIDTH
+HEIGHT = FACE * 2
+SIZE = (WIDTH, HEIGHT)
 
-RIM = (26, 26, 26)  # HEALTH_DIAL_RIM
+RIM = (26, 26, 26)
+FRONT = PLATE
+BACK = (48, 55, 67)
+CONTROL = (43, 53, 61)
+RESET = PLATE_RING
 
-MIDDLE = (SIZE / 2, SIZE / 2)
-RADIUS = SIZE / 2
-
-# The two-sided canvas: the same square, twice, side by side.
-HALF = SIZE
-WIDTH, HEIGHT = HALF * 2, HALF
-FACES = (
-    (0, "FRONT", "shows the health number and triggers", True),
-    (HALF, "BACK", "the underside — nothing is drawn over it", False),
-)
-
-
-def rim_layer(size: tuple[int, int]) -> Image.Image:
-    return Image.new("RGBA", size, (*RIM, 255))
-
-
-def plate_layer() -> Image.Image:
-    image = blank((SIZE, SIZE))
-    plate(ImageDraw.Draw(image), MIDDLE, RADIUS, "YOUR ART HERE")
-    return image
+Vertex = tuple[float, float, float]
+Uv = tuple[float, float]
+Normal = tuple[float, float, float]
+Corner = tuple[int, int, int]
+Face = tuple[Corner, ...]
 
 
-def plate_layer_two_sided() -> Image.Image:
-    image = blank((WIDTH, HEIGHT))
+def _index(raw: str, count: int) -> int:
+    """Resolve OBJ's one-based (and occasionally negative) index."""
+    value = int(raw)
+    return value - 1 if value > 0 else count + value
+
+
+def read_obj(path: Path) -> tuple[list[Vertex], list[Uv], list[Normal], list[Face]]:
+    vertices: list[Vertex] = []
+    uvs: list[Uv] = []
+    normals: list[Normal] = []
+    faces: list[Face] = []
+
+    with path.open("r", encoding="utf-8") as source:
+        for line_number, line in enumerate(source, 1):
+            parts = line.split()
+            if not parts or parts[0].startswith("#"):
+                continue
+            if parts[0] == "v":
+                vertices.append(tuple(map(float, parts[1:4])))
+            elif parts[0] == "vt":
+                uvs.append(tuple(map(float, parts[1:3])))
+            elif parts[0] == "vn":
+                normals.append(tuple(map(float, parts[1:4])))
+            elif parts[0] == "f":
+                corners: list[Corner] = []
+                for token in parts[1:]:
+                    fields = token.split("/")
+                    if len(fields) < 3 or not fields[0] or not fields[1] or not fields[2]:
+                        raise ValueError(f"{path}:{line_number}: every face needs v/vt/vn indices")
+                    corners.append(
+                        (
+                            _index(fields[0], len(vertices)),
+                            _index(fields[1], len(uvs)),
+                            _index(fields[2], len(normals)),
+                        )
+                    )
+                if len(corners) < 3:
+                    raise ValueError(f"{path}:{line_number}: face has fewer than three corners")
+                faces.append(tuple(corners))
+
+    if not vertices or not uvs or not normals or not faces:
+        raise ValueError(f"{path} is not a complete textured OBJ")
+    return vertices, uvs, normals, faces
+
+
+def connected_components(vertices: list[Vertex], faces: list[Face]) -> list[list[Face]]:
+    """Group disconnected pieces without trusting exporter-specific OBJ groups."""
+    parent = list(range(len(vertices)))
+
+    def find(index: int) -> int:
+        while parent[index] != index:
+            parent[index] = parent[parent[index]]
+            index = parent[index]
+        return index
+
+    def union(left: int, right: int) -> None:
+        left_root = find(left)
+        right_root = find(right)
+        if left_root != right_root:
+            parent[right_root] = left_root
+
+    for face in faces:
+        anchor = face[0][0]
+        for corner in face[1:]:
+            union(anchor, corner[0])
+
+    grouped: dict[int, list[Face]] = defaultdict(list)
+    for face in faces:
+        grouped[find(face[0][0])].append(face)
+
+    # In model space the disc is highest, the health control is below it, and
+    # reset is lowest. Sorting by the greatest Z is stable across face order.
+    def highest_z(component: list[Face]) -> float:
+        return max(vertices[corner[0]][2] for face in component for corner in face)
+
+    return sorted(grouped.values(), key=highest_z, reverse=True)
+
+
+def normal_y(face: Face, normals: list[Normal]) -> float:
+    return sum(normals[corner[2]][1] for corner in face) / len(face)
+
+
+def uv_point(uv: Uv) -> tuple[float, float]:
+    # OBJ V grows from the bottom; Pillow's Y grows from the top.
+    return uv[0] * WIDTH, (1 - uv[1]) * HEIGHT
+
+
+def paint_faces(image: Image.Image, faces: list[Face], uvs: list[Uv], colour) -> None:
     draw = ImageDraw.Draw(image)
-    for x0, label, _, _ in FACES:
-        plate(draw, (x0 + HALF / 2, HALF / 2), HALF / 2, label)
-    return image
+    for face in faces:
+        draw.polygon([uv_point(uvs[corner[1]]) for corner in face], fill=colour)
 
 
-def face_guide(
-    draw: ImageDraw.ImageDraw,
-    middle: tuple[float, float],
-    radius: float,
-    ink,
-    faint,
-    show_controls: bool,
-) -> None:
-    """The disc's own guide: its edge, crosshairs, and — on the face Tabletop
-    Simulator actually draws over — the health number and its two triggers.
-
-    Shared by the one-sided template and the front half of the two-sided one,
-    so the two guides cannot drift apart: a correction to the trigger position
-    made here is a correction made in both places at once, which is the whole
-    reason this was pulled out rather than copied.
-    """
-    ring(draw, middle, radius - 2, ink, 3, dash=72)
-    ring(draw, middle, radius * 0.94, faint, 2)
-
-    draw.line((middle[0], middle[1] - radius, middle[0], middle[1] + radius), fill=faint, width=1)
-    draw.line((middle[0] - radius, middle[1], middle[0] + radius, middle[1]), fill=faint, width=1)
-
-    if not show_controls:
-        return
-
-    # The health number, which Tabletop Simulator draws over the middle.
-    number = radius * 0.40
-    ring(draw, middle, number, ink, 2, dash=48)
-    centred(draw, (middle[0], middle[1] - number - 26), "HEALTH NUMBER", 26, ink)
-
-    # The triggers: 0.6 of the disc's radius out, which is 0.3 of the square.
-    for direction, glyph, verb in ((-1, "<", "LOWER"), (1, ">", "RAISE")):
-        x = middle[0] + direction * TRIGGER_X * radius
-        spot = radius * 0.15
-        draw.ellipse((x - spot, middle[1] - spot, x + spot, middle[1] + spot), outline=ink, width=2)
-        centred(draw, (x, middle[1]), glyph, 90, faint)
-        centred(draw, (x, middle[1] + spot + 24), verb, 22, ink)
+def body_layer() -> Image.Image:
+    # UV filtering samples just beyond island edges. A dark full-canvas ground
+    # gives every bevel a deliberate rim instead of a transparent fringe.
+    return Image.new("RGBA", SIZE, (*RIM, 255))
 
 
-def guide_layer() -> Image.Image:
-    image = blank((SIZE, SIZE))
+def art_layer(
+    faces: list[Face],
+    uvs: list[Uv],
+    normals: list[Normal],
+    front: bool,
+) -> Image.Image:
+    image = blank(SIZE)
+    selected = [
+        face
+        for face in faces
+        if (normal_y(face, normals) > 0.5 if front else normal_y(face, normals) < -0.5)
+    ]
+    paint_faces(image, selected, uvs, (*(FRONT if front else BACK), 255))
+
+    # A quiet placeholder survives in the flattened guide preview but belongs
+    # to the replaceable layer, so replacing the layer removes it completely.
     draw = ImageDraw.Draw(image)
-    ink = (*GUIDE, 235)
-    faint = (*GUIDE, 110)
-
-    face_guide(draw, MIDDLE, RADIUS, ink, faint, show_controls=True)
-
-    draw.text((22, 18), "Health dial skin — %.1fmm disc" % DIAMETER_MM, font=font(22), fill=ink)
-    draw.multiline_text(
-        (22, SIZE - 118),
-        "The circle is the whole of the dial: the corners are never seen.\n"
-        "Keep the middle and the two triggers clear — the number and the\n"
-        "arrows are drawn by the game, not painted here.",
-        font=font(20),
-        fill=ink,
-        spacing=6,
+    centre = (WIDTH / 2, FACE / 2 if front else FACE * 1.5)
+    centred(
+        draw,
+        (centre[0], centre[1] - 18),
+        "FRONT ARTWORK" if front else "BACK ARTWORK",
+        38,
+        (*PLATE_RING, 255),
     )
+    centred(draw, (centre[0], centre[1] + 30), "REPLACE THIS LAYER", 24, (*PLATE_RING, 255))
     return image
 
 
-def guide_layer_two_sided() -> Image.Image:
-    image = blank((WIDTH, HEIGHT))
+def component_layer(faces: list[Face], uvs: list[Uv], colour) -> Image.Image:
+    image = blank(SIZE)
+    paint_faces(image, faces, uvs, (*colour, 255))
+    return image
+
+
+def face_circle(
+    faces: list[Face],
+    uvs: list[Uv],
+    normals: list[Normal],
+    front: bool,
+) -> tuple[tuple[float, float], float]:
+    """The flat face's inscribed circle, derived from its UV perimeter."""
+    threshold = 0.999 if front else -0.999
+    selected = [
+        face
+        for face in faces
+        if (normal_y(face, normals) > threshold if front else normal_y(face, normals) < threshold)
+    ]
+    points = [uv_point(uvs[corner[1]]) for face in selected for corner in face]
+    if not points:
+        raise ValueError("The dial mesh has no flat front/back face")
+    left = min(point[0] for point in points)
+    right = max(point[0] for point in points)
+    top = min(point[1] for point in points)
+    bottom = max(point[1] for point in points)
+    return ((left + right) / 2, (top + bottom) / 2), min(right - left, bottom - top) / 2
+
+
+def wireframe(
+    draw: ImageDraw.ImageDraw,
+    faces: list[Face],
+    uvs: list[Uv],
+    colour,
+    width: int,
+) -> None:
+    for face in faces:
+        points = [uv_point(uvs[corner[1]]) for corner in face]
+        draw.line(points + [points[0]], fill=colour, width=width)
+
+
+def guide_layer(
+    disc: list[Face],
+    controls: list[Face],
+    reset: list[Face],
+    uvs: list[Uv],
+    normals: list[Normal],
+) -> Image.Image:
+    image = blank(SIZE)
     draw = ImageDraw.Draw(image)
-    ink = (*GUIDE, 235)
-    faint = (*GUIDE, 110)
+    front_ink = (*GUIDE, 210)
+    back_ink = (255, 183, 92, 210)
+    control_ink = (255, 112, 112, 220)
+    reset_ink = (149, 238, 138, 220)
+    faint = (*GUIDE, 80)
 
-    for x0, label, what, controls in FACES:
-        middle = (x0 + HALF / 2, HALF / 2)
-        face_guide(draw, middle, HALF / 2, ink, faint, show_controls=controls)
-        # The square the face samples, same guide role as the token template's.
-        draw.rectangle((x0 + 1, 1, x0 + HALF - 2, HALF - 2), outline=faint, width=1)
-        draw.text((x0 + 22, 18), f"{label} — {what}", font=font(24), fill=ink)
+    front_faces = [face for face in disc if normal_y(face, normals) > 0.5]
+    back_faces = [face for face in disc if normal_y(face, normals) < -0.5]
+    rim_faces = [face for face in disc if abs(normal_y(face, normals)) <= 0.5]
 
-    # The seam, and the one pixel of it that becomes the edge of the piece —
-    # same convention `token_skin_two_sided.psd` uses, for the same reason: a
-    # two-sided image has no separate rim strip to spare.
-    draw.line((HALF, 0, HALF, HEIGHT), fill=ink, width=3)
-    spot = 46
-    ring(draw, (HALF, HALF / 2), spot, ink, 3)
-    draw.line((HALF - spot - 34, HALF / 2, HALF - spot - 6, HALF / 2), fill=ink, width=2)
-    draw.line((HALF + spot + 6, HALF / 2, HALF + spot + 34, HALF / 2), fill=ink, width=2)
-    centred(draw, (HALF, HALF / 2 - spot - 52), "THE RIM IS PAINTED", 24, ink)
-    centred(draw, (HALF, HALF / 2 - spot - 24), "WITH THIS PIXEL", 24, ink)
+    wireframe(draw, front_faces, uvs, front_ink, 2)
+    wireframe(draw, back_faces, uvs, back_ink, 2)
+    wireframe(draw, rim_faces, uvs, faint, 1)
+    wireframe(draw, controls, uvs, control_ink, 2)
+    wireframe(draw, reset, uvs, reset_ink, 2)
 
-    # Fewer, longer lines than the one-sided template's own note — this canvas
-    # is twice as wide, and wrapping to the same narrow measure would run the
-    # paragraph off the bottom of the square.
+    for is_front, ink in ((True, front_ink), (False, back_ink)):
+        centre, radius = face_circle(disc, uvs, normals, is_front)
+        ring(draw, centre, radius, ink, 3, dash=72)
+        ring(draw, centre, radius * 0.94, (*ink[:3], 100), 2)
+        draw.line((centre[0], centre[1] - radius, centre[0], centre[1] + radius), fill=faint, width=1)
+        draw.line((centre[0] - radius, centre[1], centre[0] + radius, centre[1]), fill=faint, width=1)
+
+    draw.line((0, FACE, WIDTH, FACE), fill=front_ink, width=3)
+    centred(draw, (WIDTH / 2, FACE - 56), "HEALTH CONTROLS / RESET UV", 24, control_ink)
+    centred(draw, (WIDTH / 2, FACE - 25), "keep the neutral control layers visible", 18, control_ink)
+
+    draw.text((22, 18), "FRONT / TOP FACE", font=font(24), fill=front_ink)
+    draw.text((22, FACE + 18), "BACK / UNDERSIDE", font=font(24), fill=back_ink)
     draw.multiline_text(
-        (22, HEIGHT - 100),
-        "Two faces of one dial, left then right, each the one-sided template's own square. The health number and its\n"
-        "triggers are only ever drawn on the FRONT by the game, whichever picture is showing there — paint the back\n"
-        "freely. The underside is turned over by the model, not by you.",
-        font=font(20),
-        fill=ink,
-        spacing=6,
+        (22, HEIGHT - 88),
+        "Hide this guide before saving. The game adds the changing health value and < > labels;\n"
+        "do not paint them into either artwork layer.",
+        font=font(19),
+        fill=front_ink,
+        spacing=5,
     )
     return image
 
 
 def main() -> None:
+    if not MESH.exists():
+        raise FileNotFoundError(f"Health dial mesh is missing: {MESH}")
+
+    vertices, uvs, normals, faces = read_obj(MESH)
+    components = connected_components(vertices, faces)
+    if len(components) != 3:
+        raise ValueError(f"Expected disc, health controls, and reset components; found {len(components)}")
+    disc, controls, reset = components
+
+    stem = "health_dial_skin_two_sided"
     publish(
-        "health_dial_skin",
+        stem,
         [
-            (rim_layer((SIZE, SIZE)), "Rim colour", True),
-            (plate_layer(), "Dial face — replace this", True),
-            (guide_layer(), "Guides — hide before saving", True),
+            (body_layer(), "Unpainted body and rim", True),
+            (art_layer(disc, uvs, normals, True), "Front artwork - replace this", True),
+            (art_layer(disc, uvs, normals, False), "Back artwork - replace this", True),
+            (component_layer(controls, uvs, CONTROL), "Health controls - keep visible", True),
+            (component_layer(reset, uvs, RESET), "Reset control - keep visible", True),
+            (guide_layer(disc, controls, reset, uvs, normals), "Guides - hide before saving", True),
         ],
-        (SIZE, SIZE),
+        SIZE,
     )
-    publish(
-        "health_dial_skin_two_sided",
-        [
-            (rim_layer((WIDTH, HEIGHT)), "Seam and rim colour", True),
-            (plate_layer_two_sided(), "Dial faces — replace these", True),
-            (guide_layer_two_sided(), "Guides — hide before saving", True),
-        ],
-        (WIDTH, HEIGHT),
-    )
+
+    source_psd = ROOT / "assets" / "resources" / f"{stem}.psd"
+    PUBLIC_PSD.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copyfile(source_psd, PUBLIC_PSD)
+    print(f"copied {PUBLIC_PSD}")
 
 
 if __name__ == "__main__":

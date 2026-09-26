@@ -3,7 +3,6 @@ import type { Artwork } from '$lib/core/artwork';
 import { createArtwork } from '$lib/core/artwork';
 import type { Id, IsoDateTime } from '$lib/core/id';
 import { createId, now } from '$lib/core/id';
-import { healthDialSpec } from '$lib/figures/health-dial';
 import type { TokenShape, TokenSpec } from '$lib/models/token';
 import { DEFAULT_OUTLINE_DETAIL } from '$lib/models/silhouette';
 import type { TokenOutline } from '$lib/models/silhouette';
@@ -142,21 +141,12 @@ export function tokenSpecOf(token: TokenBuild): TokenSpec {
  * sculpt of its own — a plain `figure`, or a `token`/`piece` with its build
  * switched off — that no generated prism speaks for.
  *
- * A dial is a disc the app owns rather than one the author shapes, so most of
- * its spec is fixed rather than read off `token` — but it is the same
- * generated prism underneath, and going through this one function is what
- * keeps every reader (the editor's live preview, an Overview thumbnail)
- * agreeing on which figures are generated at all, rather than each
- * re-deriving it.
- *
- * `token.twoSided` *is* read off the figure even for a dial, though the rest
- * of `token` is ignored — see `healthDialSpec`. It is stored there rather
- * than as a field of its own because it already means exactly the same thing
- * it means for a real token build, and `TokenBuild` exists on every figure
- * regardless of kind.
+ * A dial has a fixed, supplied component mesh and therefore does not come
+ * through this generated-prism path. Its `token.twoSided` field is still used
+ * by the dial atlas compositor, but it does not alter the mesh.
  */
 export function generatedTokenSpec(figure: Figure): TokenSpec | null {
-  if (figure.kind === 'dial') return healthDialSpec(figure.token.twoSided);
+  if (figure.kind === 'dial') return null;
   return figure.token.enabled ? tokenSpecOf(figure.token) : null;
 }
 

@@ -19,10 +19,10 @@ import { characterLabel } from '$lib/characters/factory';
 import { figureLabel, tokenSpecOf } from '$lib/figures/types';
 import type { Figure } from '$lib/figures/types';
 import {
-  HEALTH_DIAL_MATERIAL,
+  HEALTH_DIAL_LUA,
+  HEALTH_DIAL_MODEL_PATH,
+  HEALTH_DIAL_MODEL_URL,
   HEALTH_DIAL_SAVE_URL,
-  healthDialMeshPath,
-  healthDialSpec
 } from '$lib/figures/health-dial';
 import { buildTokenMesh, tokenObj } from '$lib/models/token';
 import { readLuaConfig, writeLuaConfig } from '$lib/models/tts';
@@ -336,32 +336,28 @@ function localAssetReferences(value: unknown): string[] {
 }
 
 /**
- * The dial's mesh, written once per *variant* — one-sided, two-sided, or both
- * — however many dials of each a set has.
- *
- * `healthDialSpec(twoSided)` is fixed for a given `twoSided`, so every dial
- * sharing that setting has the same mesh bytes as each other. The two variants
- * cannot share a file with one another, though: their UV layouts genuinely
- * differ (`buildTokenMesh`'s `twoSided` branch), so a set with both kinds of
- * dial writes exactly two mesh files rather than either one dial file or one
- * per dial.
+ * The fixed dial mesh, written once however many health dials a set contains.
+ * Its OBJ always carries both atlas faces; art mode changes only the texture.
  */
 async function dialMeshUrl(
-  twoSided: boolean,
+  _twoSided: boolean,
   urlFor: (path: string) => string,
   files: TtsHostedAsset[],
   taken: Set<string>
 ): Promise<string> {
-  /* The old fixed filename was harmless on disk but unsafe on a public host:
-     TTS caches by URL, so a later mesh correction would keep drawing the old
-     geometry. Hash it through the same writer as every other generated file. */
+  const response = await fetch(HEALTH_DIAL_MODEL_URL);
+  if (!response.ok) throw new Error('The built-in health dial mesh could not be read.');
+  const bytes = new Uint8Array(await response.arrayBuffer());
+
+  /* TTS caches by URL, so hash even this fixed file. A later mesh correction
+     then receives a new address rather than continuing to draw stale geometry. */
   const path = await writeBytes(
     files,
     taken,
-    healthDialMeshPath(twoSided).replace(/\.obj$/i, ''),
+    HEALTH_DIAL_MODEL_PATH.replace(/\.obj$/i, ''),
     'obj',
     'model/obj',
-    encoder.encode(tokenObj(buildTokenMesh(healthDialSpec(twoSided)), HEALTH_DIAL_MATERIAL))
+    bytes
   );
   return urlFor(path);
 }
@@ -369,13 +365,9 @@ async function dialMeshUrl(
 /**
  * The health dial: the app's own saved object, wearing the author's face.
  *
- * The counter script and the material come from the shipped template and are
- * left exactly as they are; the mesh and the diffuse are filled in here, because
- * neither has an address until the export knows where it is writing. What the
- * author brings is the face, whether it wraps to the back, and the range — the
- * things that change from one dial to the next. Whether it wraps decides which
- * of the two mesh variants `dialMeshUrl` hands back, same as it decides which
- * texture `buildTokenArt` builds.
+ * The counter script and material come from the sanitized shipped template;
+ * export fills in the bundled fixed OBJ and a complete portrait atlas. What
+ * the author brings is the face treatment and range.
  */
 async function dialObjects(
   figure: Figure,
@@ -394,19 +386,12 @@ async function dialObjects(
 
   const meshUrl = await dialMeshUrl(figure.token.twoSided, urlFor, files, taken);
 
-  let diffuseUrl = '';
-  if (figure.reference.source) {
-    /* Through the token texture builder, not straight out of the document: the
-       disc samples a *square* of its texture and wears a band of rim colour
-       round its edge, and a picture handed over raw would be stretched into the
-       one and would leave the other unpainted. */
-    const texturePath = await writeAsset(
-      files, taken, `models/${slugify(name, 'dial')}`, 'png', await buildTokenArt(figure, 512)
-    );
-    diffuseUrl = urlFor(texturePath);
-  } else {
-    warnings.push(`${name}: no dial face, so the dial arrives blank.`);
-  }
+  /* Always emit an atlas. With no attached art it is a neutral skin, which is
+     still a usable counter and never falls back to a stale texture in TTS. */
+  const texturePath = await writeAsset(
+    files, taken, `models/${slugify(name, 'dial')}`, 'png', await buildTokenArt(figure, 512)
+  );
+  const diffuseUrl = urlFor(texturePath);
 
   return placeSavedObjects(states, index).map((state) => {
     const dial: Record<string, unknown> = { ...(state as Record<string, unknown>), Nickname: name };
@@ -423,17 +408,15 @@ async function dialObjects(
     /* The dial's range lives in its script's `CONFIG` table. Read the entries,
        set the two that matter, and write them back in place — the same in-place
        edit `models/tts.ts` does, so nothing else in the Lua is disturbed. */
-    if (typeof dial['LuaScript'] === 'string') {
-      const config = readLuaConfig(dial['LuaScript']);
-      const set = (key: string, value: number): void => {
-        const entry = config.find((candidate) => candidate.key === key);
-        if (entry) entry.value = value;
-      };
-      set('MIN_VALUE', figure.dialRange.min);
-      set('MAX_VALUE', figure.dialRange.max);
-      set('VALUE', figure.dialRange.max);
-      dial['LuaScript'] = writeLuaConfig(dial['LuaScript'], config);
-    }
+    const config = readLuaConfig(HEALTH_DIAL_LUA);
+    const set = (key: string, value: number): void => {
+      const entry = config.find((candidate) => candidate.key === key);
+      if (entry) entry.value = value;
+    };
+    set('MIN_VALUE', figure.dialRange.min);
+    set('MAX_VALUE', figure.dialRange.max);
+    set('VALUE', figure.dialRange.max);
+    dial['LuaScript'] = writeLuaConfig(HEALTH_DIAL_LUA, config);
 
     return dial;
   });

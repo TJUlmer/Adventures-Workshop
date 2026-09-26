@@ -240,7 +240,12 @@
           if (!preview) continue;
           let snapshot: string | null;
           try {
-            snapshot = await renderMeshSnapshot(preview.mesh, preview.texture, 160);
+            snapshot = await renderMeshSnapshot(
+              preview.mesh,
+              preview.texture,
+              160,
+              preview.annotations
+            );
           } finally {
             releaseFigurePreview(preview);
           }

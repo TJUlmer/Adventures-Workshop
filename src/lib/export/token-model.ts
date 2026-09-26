@@ -6,7 +6,7 @@
  * import dialogue asks for a URL and offers no clue about which file is which.
  */
 import { shortHash } from '$lib/core/hash';
-import { HEALTH_DIAL_INK, HEALTH_DIAL_RIM } from '$lib/figures/health-dial';
+import { HEALTH_DIAL_ATLAS, HEALTH_DIAL_RIM } from '$lib/figures/health-dial';
 import type { Figure } from '$lib/figures/types';
 import { figureLabel, generatedTokenSpec, tokenSpecOf } from '$lib/figures/types';
 import {
@@ -228,29 +228,153 @@ async function buildSolidTexture(color: string, layout: TokenArtLayout): Promise
 }
 
 /**
+ * The fixed dial's two circular UV islands in its 1:2 portrait atlas. Values
+ * are normalized against the complete atlas and measured from the canonical
+ * OBJ; they replace the old generated disc's square and horizontal layouts.
+ */
+interface NormalizedRect {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+function dialFaceRect(face: {
+  uMin: number;
+  uMax: number;
+  vMin: number;
+  vMax: number;
+}): NormalizedRect {
+  return {
+    x: face.uMin,
+    y: 1 - face.vMax,
+    width: face.uMax - face.uMin,
+    height: face.vMax - face.vMin
+  };
+}
+
+const DIAL_FRONT = dialFaceRect(HEALTH_DIAL_ATLAS.front);
+const DIAL_BACK = dialFaceRect(HEALTH_DIAL_ATLAS.back);
+
+interface SourceRect {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+function drawDialFace(
+  context: CanvasRenderingContext2D,
+  image: HTMLImageElement,
+  source: SourceRect,
+  destination: NormalizedRect,
+  atlasWidth: number,
+  atlasHeight: number,
+  zoom: number
+): void {
+  const x = destination.x * atlasWidth;
+  const y = destination.y * atlasHeight;
+  const targetWidth = destination.width * atlasWidth;
+  const targetHeight = destination.height * atlasHeight;
+  const fit = Math.min(targetWidth / source.width, targetHeight / source.height);
+  const scale = fit * Math.max(0.2, zoom);
+  const width = source.width * scale;
+  const height = source.height * scale;
+
+  context.save();
+  context.beginPath();
+  context.ellipse(
+    x + targetWidth / 2,
+    y + targetHeight / 2,
+    targetWidth / 2,
+    targetHeight / 2,
+    0,
+    0,
+    Math.PI * 2
+  );
+  context.clip();
+  context.drawImage(
+    image,
+    source.x,
+    source.y,
+    source.width,
+    source.height,
+    x + (targetWidth - width) / 2,
+    y + (targetHeight - height) / 2,
+    width,
+    height
+  );
+  context.restore();
+}
+
+/**
+ * Paint the fixed dial's complete portrait atlas.
+ *
+ * Existing sets generally contain one face, so that picture is repeated on
+ * both circles. The previous horizontal front|back image remains supported.
+ * A flattened copy of the new PSD is recognized by its 1:2 aspect and passed
+ * through whole, preserving any paint placed on the controls and reset tab.
+ */
+export async function buildHealthDialArt(figure: Figure, size = 1024): Promise<Blob> {
+  const canvas = document.createElement('canvas');
+  canvas.width = size;
+  canvas.height = size * 2;
+  const context = canvas.getContext('2d');
+  if (!context) throw new Error('Could not get a drawing context.');
+
+  context.fillStyle = HEALTH_DIAL_RIM;
+  context.fillRect(0, 0, canvas.width, canvas.height);
+
+  const source = figure.reference.source;
+  if (!source) return encodePng(canvas);
+  const image = await loadImage(source);
+  const aspect = image.width / image.height;
+
+  if (figure.token.twoSided && Math.abs(aspect - 0.5) <= 0.035) {
+    context.drawImage(image, 0, 0, canvas.width, canvas.height);
+    return encodePng(canvas);
+  }
+
+  const full: SourceRect = { x: 0, y: 0, width: image.width, height: image.height };
+  if (!figure.token.twoSided) {
+    drawDialFace(context, image, full, DIAL_FRONT, canvas.width, canvas.height, figure.reference.transform.scale);
+    drawDialFace(context, image, full, DIAL_BACK, canvas.width, canvas.height, figure.reference.transform.scale);
+    return encodePng(canvas);
+  }
+
+  const halfWidth = image.width / 2;
+  drawDialFace(
+    context,
+    image,
+    { x: 0, y: 0, width: halfWidth, height: image.height },
+    DIAL_FRONT,
+    canvas.width,
+    canvas.height,
+    figure.reference.transform.scale
+  );
+  drawDialFace(
+    context,
+    image,
+    { x: halfWidth, y: 0, width: halfWidth, height: image.height },
+    DIAL_BACK,
+    canvas.width,
+    canvas.height,
+    figure.reference.transform.scale
+  );
+  return encodePng(canvas);
+}
+
+/**
  * The texture a build asks for, one-sided or two, at the given size.
  *
- * A health dial comes through here as well, and its `twoSided` reads off the
- * same `figure.token.twoSided` a real token build would — see `health-dial.ts`.
- * It is a disc like any other, but it is the app's component rather than the
- * author's, so a *one-sided* dial's rim is the app's fixed colour rather than
- * one the author picks — there is no rim control on a dial. A two-sided
- * dial's *edge* still has no rim band to fill — like a two-sided token, it
- * samples the seam between the front and back halves of the supplied
- * picture, whatever that happens to be — but its `background` is still the
- * same fixed colour, for the letterbox `buildTwoSidedTexture` now fills
- * around a source that is not already 2:1. Those are two different things a
- * "rim colour" reaches on a two-sided piece: never the edge, sometimes the
- * face.
- *
- * A dial's face is still required — see `tts-bundle.ts`'s `dialObjects`, which
- * never calls this without one — but every other kind falls back to a flat
- * fill of its own rim colour rather than throwing, which is what lets a plain
- * marker (a threat track token, say) ship with no reference image at all.
+ * A health dial branches to its fixed 1:2 atlas before token layout is
+ * calculated. Every other kind falls back to a flat fill of its own rim
+ * colour when it has no image.
  */
 export function buildTokenArt(figure: Figure, size = 1024): Promise<Blob> {
   const source = figure.reference.source;
   const zoom = figure.reference.transform.scale;
+  if (figure.kind === 'dial') return buildHealthDialArt(figure, size);
   /*
    * Through `generatedTokenSpec` rather than `tokenSpecOf(figure.token)`, so
    * a dial's fixed disc is what shapes its texture rather than whatever the
@@ -259,96 +383,16 @@ export function buildTokenArt(figure: Figure, size = 1024): Promise<Blob> {
    * still has to have *some* shape to be.
    */
   const layout = tokenArtLayout(generatedTokenSpec(figure) ?? tokenSpecOf(figure.token), size);
-  if (figure.kind === 'dial') {
-    if (!source) throw new Error('Attach a reference image first — it is what goes on the token.');
-    return figure.token.twoSided
-      ? buildTwoSidedTexture(source, layout, HEALTH_DIAL_RIM, zoom)
-      : buildTokenTexture(source, HEALTH_DIAL_RIM, layout, zoom);
-  }
   if (!source) return buildSolidTexture(figure.token.rimColor, layout);
   return figure.token.twoSided
     ? buildTwoSidedTexture(source, layout, figure.token.rimColor, zoom)
     : buildTokenTexture(source, figure.token.rimColor, layout, zoom);
 }
 
-/**
- * The generated mesh as a preview reads it.
- *
- * A dial's preview texture is two complete copies side by side: the left has
- * the controls TTS floats over its top face and the right is clean. Generated
- * prisms are unindexed and flat-shaded, so their object-space Y normal says
- * which copy each vertex should sample without making the renderer understand
- * what a dial is. The rim follows the clean copy too, preserving the real
- * one-sided rim band or two-sided seam rather than inventing preview geometry.
- */
+/** The generated mesh as a preview reads it. Dials use their supplied OBJ. */
 export function buildTokenPreviewMesh(figure: Figure, spec: TokenSpec): TokenMesh {
-  const mesh = buildTokenMesh(spec);
-  if (figure.kind !== 'dial' || !mesh.uvs) return mesh;
-
-  const uvs = new Float32Array(mesh.uvs);
-  const vertices = mesh.positions.length / 3;
-  for (let vertex = 0; vertex < vertices; vertex += 1) {
-    const uvIndex = vertex * 2;
-    const u = uvs[uvIndex] as number;
-    const normalY = mesh.normals[vertex * 3 + 1] as number;
-    uvs[uvIndex] = normalY > 0.5 ? u / 2 : 0.5 + u / 2;
-  }
-
-  return { ...mesh, uvs };
-}
-
-/**
- * The controls TTS's Lua floats over a dial, painted into a preview-only atlas
- * so they stay attached while the browser's model is rotated.
- *
- * Both halves begin as the production texture, retaining its one- or
- * two-sided layout exactly. Only the left copy receives the controls; paired
- * with `buildTokenPreviewMesh`, the top face samples that copy while the back
- * and rim sample the untouched one. The trigger centres are the script's
- * +/-0.6 of the disc radius.
- */
-async function buildDialPreviewArt(figure: Figure, size: number): Promise<Blob> {
-  const texture = await buildTokenArt(figure, size);
-  const source = URL.createObjectURL(texture);
-
-  try {
-    const image = await loadImage(source);
-    const spec = generatedTokenSpec(figure) ?? tokenSpecOf(figure.token);
-    const layout = tokenArtLayout(spec, size);
-    const canvas = document.createElement('canvas');
-    canvas.width = layout.canvasWidth * 2;
-    canvas.height = layout.canvasHeight;
-    const context = canvas.getContext('2d');
-    if (!context) throw new Error('Could not get a drawing context.');
-
-    context.drawImage(image, 0, 0);
-    context.drawImage(image, layout.canvasWidth, 0);
-
-    const radius = layout.artWidth / 2;
-    const centreX = radius;
-    const centreY = layout.artHeight / 2;
-    const triggerOffset = radius * 0.6;
-    const fontSize = layout.artWidth * 0.3;
-
-    context.save();
-    context.textAlign = 'center';
-    context.textBaseline = 'middle';
-    context.font = `700 ${fontSize}px Arial, sans-serif`;
-    context.fillStyle = HEALTH_DIAL_INK;
-
-    for (const [label, x] of [
-      ['<', centreX - triggerOffset],
-      [String(Math.round(figure.dialRange.max)), centreX],
-      ['>', centreX + triggerOffset]
-    ] as const) {
-      context.fillText(label, x, centreY);
-    }
-    context.restore();
-
-    return encodePng(canvas);
-  } finally {
-    URL.revokeObjectURL(source);
-  }
+  void figure;
+  return buildTokenMesh(spec);
 }
 
 /**
@@ -585,16 +629,10 @@ export async function exportTokenModel(figure: Figure): Promise<ExportResult> {
 /**
  * The texture for showing a generated component on screen.
  *
- * Ordinary tokens show the same paint an export receives. A dial adds the
- * value and triggers that TTS creates from Lua instead, solely to this preview
- * copy; keeping them out of `buildTokenArt` avoids drawing the controls twice
- * after the exported object loads. Only a dial needs an early exit here —
- * everything else always has some texture, even without an image.
+ * The value and controls on a dial are model annotations rather than paint,
+ * matching the labels its Lua creates in Tabletop Simulator.
  */
 export async function tokenTextureUrl(figure: Figure): Promise<string | null> {
-  if (figure.kind === 'dial' && !figure.reference.source) return null;
-  const blob = figure.kind === 'dial'
-    ? await buildDialPreviewArt(figure, 512)
-    : await buildTokenArt(figure, 512);
+  const blob = await buildTokenArt(figure, 512);
   return URL.createObjectURL(blob);
 }
