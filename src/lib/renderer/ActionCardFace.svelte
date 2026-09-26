@@ -235,6 +235,36 @@
   const usesSplitBody = $derived(card.split && hasSeparateDefenseAbility);
 
   /**
+   * The title rule is optional chrome, keyed to whether the author entered any
+   * ability copy. A whitespace-only value is deliberately different from an
+   * untouched field: it prints no copy, but lets an author retain the rule on
+   * an otherwise blank body. Empty editor scaffolding such as `<br>` remains
+   * empty because the editor normalises it to an empty string.
+   */
+  function abilityHasEntry(ability: ActionCard['ability']): boolean {
+    const entered = (value: string): boolean => {
+      const template = document.createElement('template');
+      template.innerHTML = value;
+      return (
+        template.content.querySelector('img') !== null ||
+        (template.content.textContent ?? '').length > 0
+      );
+    };
+
+    return (
+      entered(ability.plain) ||
+      entered(ability.immediately) ||
+      entered(ability.duringCombat) ||
+      entered(ability.afterCombat) ||
+      ability.bonusAbilities.some((bonus) => entered(bonus.text))
+    );
+  }
+
+  const showTitleRule = $derived(
+    abilityHasEntry(card.ability) || (card.split && abilityHasEntry(card.defenseAbility))
+  );
+
+  /**
    * Attack then defense, skipping whichever the card does not print.
    *
    * An ordinary hero's combat value lives in the ribbon. Split combat with no
@@ -766,6 +796,7 @@
 
     <div
       class="rule"
+      class:absent={!showTitleRule}
       style:margin-left={pu(TITLE_RULE.x - BODY_PANEL.x)}
       style:width={pu(TITLE_RULE.width)}
       style:height={pu(TITLE_RULE.height)}
@@ -2174,6 +2205,12 @@
     position: relative;
     z-index: 1;
     flex: none;
+  }
+
+  /* Keep the measured title-to-body geometry unchanged when the optional
+     rule is absent; only its ink disappears. */
+  .rule.absent {
+    visibility: hidden;
   }
 
   /*

@@ -418,13 +418,22 @@
     {/snippet}
   </WorkspaceHeader>
 
-  <div class="body scroll-y">
+  <!--
+    Keep the section switcher outside the scroll region. Character-card and
+    defaults panels are long enough to move a strip inside `.body` completely
+    out of view, leaving no way to change tabs without leaving the character.
+    This matches CardEditor: navigation stays put while only the chosen panel
+    scrolls.
+  -->
+  <div class="tabs">
     <Tabs
       bind:value={characterEditorView.tab}
       tabs={characterTabs}
       label="Character editor sections"
     />
+  </div>
 
+  <div class="body scroll-y">
     {#if character.role === 'hero'}
       {#if characterEditorView.tab === 'identity'}
         <div class="tiles">
@@ -788,6 +797,10 @@
 {/if}
 
 <style>
+  .tabs {
+    padding-inline: var(--workspace-inline-padding, var(--space-7));
+  }
+
   .body {
     display: flex;
     flex-direction: column;

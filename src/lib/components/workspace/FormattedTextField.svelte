@@ -14,6 +14,8 @@
     multiline?: boolean;
     rows?: number;
     prominent?: boolean;
+    /** Keep a whitespace-only edit as an intentional blank value. */
+    preserveWhitespace?: boolean;
     onremove?: () => void;
     onchange: (value: string) => void;
     customSymbols?: CustomSymbol[];
@@ -26,15 +28,27 @@
     multiline = true,
     rows = 3,
     prominent = false,
+    preserveWhitespace = false,
     onremove,
     onchange,
     customSymbols = []
   }: Props = $props();
 
+  function hasIntentionalWhitespace(html: string): boolean {
+    const template = document.createElement('template');
+    template.innerHTML = html;
+    const text = template.content.textContent ?? '';
+    return text.length > 0 && text.trim().length === 0;
+  }
+
+  function cleanValue(html: string): string {
+    if (preserveWhitespace && hasIntentionalWhitespace(html)) return ' ';
+    const clean = sanitizeActionText(html, !multiline);
+    return actionTextIsEmpty(clean) ? '' : clean;
+  }
+
   let editor = $state<HTMLDivElement | null>(null);
-  let display = $state(
-    untrack(() => toDisplayTokens(sanitizeActionText(value, !multiline), customSymbols))
-  );
+  let display = $state(untrack(() => toDisplayTokens(cleanValue(value), customSymbols)));
 
   /*
    * The stored-token round trip distinguishes a local edit from a card switch,
@@ -42,7 +56,7 @@
    * and toolbar actions do not throw the current selection away.
    */
   $effect(() => {
-    const incoming = toDisplayTokens(sanitizeActionText(value, !multiline), customSymbols);
+    const incoming = toDisplayTokens(cleanValue(value), customSymbols);
     const element = editor;
     untrack(() => {
       if (toStoredTokens(display, customSymbols) !== value) display = incoming;
@@ -72,8 +86,7 @@
 
   function commit(): void {
     if (!editor) return;
-    let clean = sanitizeActionText(editor.innerHTML, !multiline);
-    if (actionTextIsEmpty(clean)) clean = '';
+    const clean = cleanValue(editor.innerHTML);
 
     if (clean !== editor.innerHTML) {
       const selection = window.getSelection();

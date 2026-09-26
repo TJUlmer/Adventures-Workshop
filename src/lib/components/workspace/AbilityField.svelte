@@ -142,6 +142,7 @@
     {placeholder}
     {rows}
     {onremove}
+    preserveWhitespace
     {onchange}
     {customSymbols}
   />
