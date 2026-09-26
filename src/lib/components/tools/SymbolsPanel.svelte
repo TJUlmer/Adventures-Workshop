@@ -14,7 +14,7 @@
   import { customSymbolLabel } from '$lib/symbols/types';
   import { workshop } from '$lib/state/workshop.svelte';
   import { namedSymbols } from '$lib/text/tokens';
-  import { Button, EmptyState, Icon, TextInput } from '$lib/ui';
+  import { Button, ConfirmAction, EmptyState, Icon, TextInput } from '$lib/ui';
 
   const symbols = $derived(workshop.adventure.customSymbols);
 
@@ -173,15 +173,15 @@
             {/if}
           </div>
 
-          <button
-            type="button"
-            class="ghost remove"
-            title="Remove {customSymbolLabel(symbol)}"
-            aria-label="Remove symbol"
-            onclick={() => remove(symbol.id)}
+          <ConfirmAction
+            label="Remove {customSymbolLabel(symbol)}"
+            variant="ghost"
+            size="sm"
+            iconOnly
+            onconfirm={() => remove(symbol.id)}
           >
             <Icon name="trash" size={13} />
-          </button>
+          </ConfirmAction>
         </li>
       {/each}
     </ul>
@@ -322,11 +322,11 @@
     color: var(--text-primary);
   }
 
-  .remove {
-    height: 26px;
+  @media (any-pointer: coarse) {
+    .ghost {
+      min-width: var(--touch-target);
+      min-height: var(--touch-target);
+    }
   }
 
-  .remove:hover {
-    color: var(--danger);
-  }
 </style>

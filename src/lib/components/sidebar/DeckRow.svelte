@@ -261,4 +261,10 @@
   .remove:hover {
     color: var(--danger);
   }
+
+  @media (max-width: 760px) {
+    .owner-select {
+      font-size: var(--text-md);
+    }
+  }
 </style>

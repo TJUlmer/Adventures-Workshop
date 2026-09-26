@@ -3353,7 +3353,7 @@
     right: var(--space-2);
     display: flex;
     align-items: center;
-    gap: var(--space-1);
+    gap: var(--space-2);
     padding: 2px;
     border-radius: var(--radius-sm);
     background: color-mix(in oklab, var(--surface-base) 85%, transparent);
@@ -4310,6 +4310,10 @@
   }
 
   @media (max-width: 760px) {
+    .search {
+      font-size: var(--text-md);
+    }
+
     .top-row {
       grid-template-columns: minmax(0, 1fr);
       padding-inline: var(--space-5);
@@ -4622,7 +4626,7 @@
   .deleted-actions {
     display: flex;
     align-items: center;
-    gap: var(--space-1);
+    gap: var(--space-2);
     flex: none;
   }
 

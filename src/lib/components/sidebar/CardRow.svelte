@@ -6,7 +6,7 @@
   import { cardDrag, sideOf } from '$lib/state/card-drag.svelte';
   import { isCardSelected } from '$lib/state/selection';
   import { workshop } from '$lib/state/workshop.svelte';
-  import Icon from '$lib/ui/Icon.svelte';
+  import { ConfirmAction, Icon } from '$lib/ui';
 
   interface Props {
     card: Card;
@@ -19,22 +19,6 @@
   const meta = $derived(CARD_TYPE_META[card.type]);
   const selected = $derived(isCardSelected(workshop.selection, card.id));
   const unnamed = $derived(cardLabel(card).startsWith('Untitled'));
-
-  /** Two clicks to delete — see `CharacterRow`, same reasoning and same size
-      of target. Nothing in the app brings a deleted card back. */
-  let armed = $state(false);
-  let disarm: ReturnType<typeof setTimeout> | null = null;
-
-  function requestRemove(): void {
-    if (disarm) clearTimeout(disarm);
-    if (armed) {
-      armed = false;
-      workshop.removeCard(card.id);
-      return;
-    }
-    armed = true;
-    disarm = setTimeout(() => (armed = false), 3000);
-  }
 
   let row = $state<HTMLDivElement | null>(null);
 
@@ -146,17 +130,20 @@
     {#if card.quantity > 1}<span class="qty numeric">×{card.quantity}</span>{/if}
   </button>
 
-  <button
-    type="button"
+  <!-- Nothing in the app brings a deleted card back, so this stays a
+       two-activation action even in the compact sidebar row. -->
+  <ConfirmAction
     class="remove"
-    class:armed
-    aria-label={armed ? 'Delete card — click again to confirm' : 'Delete card'}
-    title={armed ? 'Click again to delete' : 'Delete card'}
-    onclick={requestRemove}
-    onblur={() => (armed = false)}
+    size="sm"
+    variant="ghost"
+    armedVariant="ghost"
+    iconOnly
+    label="Delete card"
+    confirmLabel="Delete card — activate again to confirm"
+    onconfirm={() => workshop.removeCard(card.id)}
   >
     <Icon name="trash" size={12} />
-  </button>
+  </ConfirmAction>
 </div>
 
 <style>
@@ -164,6 +151,7 @@
     position: relative;
     display: flex;
     align-items: center;
+    gap: var(--space-2);
     border-radius: var(--radius-sm);
     transition: background-color var(--duration-fast) var(--ease-out);
   }
@@ -261,7 +249,7 @@
     letter-spacing: 0.02em;
   }
 
-  .remove {
+  .row > :global(.remove) {
     display: grid;
     place-items: center;
     width: 22px;
@@ -275,20 +263,26 @@
       color var(--duration-fast) var(--ease-out);
   }
 
-  .row:hover .remove,
-  .remove:focus-visible {
+  .row:hover > :global(.remove),
+  .row > :global(.remove:focus-visible) {
     opacity: 1;
   }
 
-  .remove:hover {
+  .row > :global(.remove:hover) {
     color: var(--danger);
   }
 
   /* Armed: visibly loaded, and shown regardless of hover so the second click
      is never aimed at something that has faded back out. */
-  .remove.armed {
+  .row > :global(.remove[data-confirm-armed='true']) {
     opacity: 1;
     color: var(--danger);
     background: color-mix(in oklab, var(--danger) 18%, transparent);
+  }
+
+  @media (any-pointer: coarse) {
+    .row > :global(.remove) {
+      opacity: 1;
+    }
   }
 </style>

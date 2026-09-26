@@ -539,6 +539,7 @@
           onmousedown={(event) => event.stopPropagation()}
           oninput={(event) => applyColor(event.currentTarget.value)}
         />
+        <span class="swatch-face" aria-hidden="true"></span>
       </label>
 
       {#if color !== null}
@@ -678,6 +679,11 @@
     color: var(--text-primary);
   }
 
+  .tool:active:not(:disabled) {
+    background: var(--surface-active);
+    color: var(--text-primary);
+  }
+
   .field {
     position: relative;
     padding: var(--space-3);
@@ -804,19 +810,17 @@
 
   .swatch {
     position: relative;
+    display: grid;
+    place-items: center;
     width: 18px;
     height: 18px;
     flex: none;
-    border-radius: var(--radius-xs);
-    background: var(--swatch);
-    box-shadow: inset 0 0 0 1px hsl(0 0% 100% / 0.18);
     cursor: pointer;
-    overflow: hidden;
   }
 
   /* No override yet: a hollow ring rather than a colour, so an empty swatch
      never reads as "black". */
-  .swatch.empty {
+  .swatch.empty .swatch-face {
     background: none;
     box-shadow: inset 0 0 0 1.5px var(--text-muted);
   }
@@ -826,6 +830,34 @@
     inset: 0;
     opacity: 0;
     cursor: pointer;
+  }
+
+  .swatch-face {
+    width: 18px;
+    height: 18px;
+    border-radius: var(--radius-xs);
+    background: var(--swatch);
+    box-shadow: inset 0 0 0 1px hsl(0 0% 100% / 0.18);
+    pointer-events: none;
+    transition:
+      box-shadow var(--duration-fast) var(--ease-out),
+      transform var(--duration-instant) var(--ease-out);
+  }
+
+  .swatch:focus-within .swatch-face {
+    box-shadow:
+      inset 0 0 0 1px hsl(0 0% 100% / 0.18),
+      0 0 0 3px var(--accent-soft);
+  }
+
+  .swatch.empty:focus-within .swatch-face {
+    box-shadow:
+      inset 0 0 0 1.5px var(--text-muted),
+      0 0 0 3px var(--accent-soft);
+  }
+
+  .swatch:active .swatch-face {
+    transform: scale(0.94);
   }
 
   /*
@@ -896,5 +928,33 @@
     width: auto;
     vertical-align: -0.15em;
     margin-inline: 0.08em;
+  }
+
+  @media (any-pointer: coarse) {
+    .tool,
+    .swatch {
+      min-width: var(--touch-target);
+      min-height: var(--touch-target);
+    }
+
+    .size-range,
+    .size-value {
+      min-height: var(--touch-target);
+    }
+
+    .size-value {
+      min-width: var(--touch-target);
+    }
+  }
+
+  @media (max-width: 760px) {
+    .placeholder,
+    .size-value {
+      font-size: var(--text-md);
+    }
+
+    .editable {
+      --copy-size: var(--text-md);
+    }
   }
 </style>

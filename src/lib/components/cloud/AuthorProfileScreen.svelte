@@ -444,4 +444,10 @@
     color: var(--text-muted);
     overflow-wrap: anywhere;
   }
+
+  @media (max-width: 760px) {
+    .invite select {
+      font-size: var(--text-md);
+    }
+  }
 </style>

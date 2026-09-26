@@ -644,6 +644,13 @@
     opacity: 0.55;
   }
 
+  @media (max-width: 760px) {
+    input,
+    textarea {
+      font-size: var(--text-md);
+    }
+  }
+
   @media (max-width: 720px) {
     .timeline-panel {
       padding: var(--space-4);

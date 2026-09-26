@@ -240,6 +240,11 @@
     color: var(--text-primary);
   }
 
+  .step:active {
+    background: var(--surface-active);
+    color: var(--text-primary);
+  }
+
   .number {
     width: 2.6ch;
     height: 26px;
@@ -259,5 +264,13 @@
 
   .number:focus {
     outline: none;
+  }
+
+  @media (any-pointer: coarse) {
+    .step,
+    .number {
+      min-width: var(--touch-target);
+      min-height: var(--touch-target);
+    }
   }
 </style>

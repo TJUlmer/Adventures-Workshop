@@ -331,4 +331,10 @@
     font-size: var(--text-xs);
     line-height: var(--leading-normal);
   }
+
+  @media (max-width: 760px) {
+    .message {
+      font-size: var(--text-md);
+    }
+  }
 </style>

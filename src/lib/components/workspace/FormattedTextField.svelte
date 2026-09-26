@@ -305,4 +305,10 @@
     border-color: var(--accent);
     box-shadow: 0 0 0 3px var(--accent-soft);
   }
+
+  @media (max-width: 760px) {
+    .input {
+      font-size: var(--text-md);
+    }
+  }
 </style>

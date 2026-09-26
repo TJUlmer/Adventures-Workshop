@@ -84,4 +84,16 @@
   .disabled {
     opacity: 0.45;
   }
+
+  @media (any-pointer: coarse) {
+    .select {
+      min-height: var(--touch-target);
+    }
+  }
+
+  @media (max-width: 760px) {
+    .select {
+      font-size: var(--text-md);
+    }
+  }
 </style>

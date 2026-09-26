@@ -54,65 +54,67 @@
 
 <dialog
   bind:this={dialog}
-  class="chooser"
+  class="chooser ui-dialog-viewport"
   aria-labelledby="new-collection-title"
   onclose={() => oncancel()}
 >
-  <form class="inner" onsubmit={submit}>
-    <header class="head">
-      <h2 class="title" id="new-collection-title">Start a collection</h2>
-      <p class="lede">
-        A collection gathers decks that <strong>other people</strong> own into one themed box
-        with one link — the shape a community jam takes, where several creators each build a
-        deck to a shared theme.
+  <form class="inner ui-dialog-frame" onsubmit={submit}>
+    <div class="body ui-dialog-scroll">
+      <header class="head">
+        <h2 class="title" id="new-collection-title">Start a collection</h2>
+        <p class="lede">
+          A collection gathers decks that <strong>other people</strong> own into one themed box
+          with one link — the shape a community jam takes, where several creators each build a
+          deck to a shared theme.
+        </p>
+      </header>
+
+      <ul class="points">
+        <li>
+          <Icon name="users" size={15} />
+          <span>
+            Every deck stays owned by whoever made it. They keep editing and publishing it; a
+            collection only points at it.
+          </span>
+        </li>
+        <li>
+          <Icon name="card" size={15} />
+          <span>
+            Decks join by invitation or by offering themselves, and the other side always
+            decides. Nothing is added to your collection without its author agreeing.
+          </span>
+        </li>
+        <li>
+          <Icon name="eye" size={15} />
+          <span>
+            It starts private — only the project team can see it. Preview the finished page
+            whenever you like, then share or publish it when everybody is ready.
+          </span>
+        </li>
+      </ul>
+
+      <!--
+        Said plainly, because the alternative is somebody making a collection when
+        they wanted a set and only finding out several screens later.
+      -->
+      <p class="not">
+        If you are building your own cards, you want <strong>New set</strong> instead. A
+        collection holds no cards of its own.
       </p>
-    </header>
 
-    <ul class="points">
-      <li>
-        <Icon name="users" size={15} />
-        <span>
-          Every deck stays owned by whoever made it. They keep editing and publishing it; a
-          collection only points at it.
-        </span>
-      </li>
-      <li>
-        <Icon name="card" size={15} />
-        <span>
-          Decks join by invitation or by offering themselves, and the other side always
-          decides. Nothing is added to your collection without its author agreeing.
-        </span>
-      </li>
-      <li>
-        <Icon name="eye" size={15} />
-        <span>
-          It starts private — only the project team can see it. Preview the finished page
-          whenever you like, then share or publish it when everybody is ready.
-        </span>
-      </li>
-    </ul>
+      <label class="field">
+        <span class="field-label">What is it called?</span>
+        <input
+          type="text"
+          bind:value={name}
+          placeholder="Winter Extravaganza"
+          maxlength="80"
+          autocomplete="off"
+        />
+      </label>
+    </div>
 
-    <!--
-      Said plainly, because the alternative is somebody making a collection when
-      they wanted a set and only finding out several screens later.
-    -->
-    <p class="not">
-      If you are building your own cards, you want <strong>New set</strong> instead. A
-      collection holds no cards of its own.
-    </p>
-
-    <label class="field">
-      <span class="field-label">What is it called?</span>
-      <input
-        type="text"
-        bind:value={name}
-        placeholder="Winter Extravaganza"
-        maxlength="80"
-        autocomplete="off"
-      />
-    </label>
-
-    <footer class="foot">
+    <footer class="foot ui-dialog-actions">
       <button type="button" class="cancel" onclick={() => oncancel()}>Cancel</button>
       <button type="submit" class="create" disabled={busy || name.trim().length === 0}>
         {busy ? 'Creating…' : 'Create collection'}
@@ -125,12 +127,12 @@
   /* Same reset as `NewSetDialog` — the element's own border, padding and
      max-width are not the app's. */
   .chooser {
-    padding: 0;
+    --ui-dialog-inline-size: 560px;
+
     border: 1px solid var(--border-default);
     border-radius: var(--radius-lg, 12px);
     background: var(--surface-raised);
     color: var(--text-default);
-    max-width: min(560px, calc(100vw - var(--space-6) * 2));
   }
 
   .chooser::backdrop {
@@ -138,6 +140,10 @@
   }
 
   .inner {
+    background: inherit;
+  }
+
+  .body {
     display: flex;
     flex-direction: column;
     gap: var(--space-5);
@@ -230,6 +236,9 @@
     display: flex;
     justify-content: flex-end;
     gap: var(--space-2);
+    padding: var(--space-4) var(--space-6);
+    border-top: 1px solid var(--border-subtle);
+    background: inherit;
   }
 
   .cancel,
@@ -259,5 +268,34 @@
   .create:focus-visible {
     outline: none;
     box-shadow: var(--focus-ring);
+  }
+
+  @media (any-pointer: coarse) {
+    .cancel,
+    .create {
+      min-width: var(--touch-target);
+      min-height: var(--touch-target);
+    }
+  }
+
+  @media (max-width: 760px) {
+    .field input {
+      font-size: var(--text-md);
+    }
+  }
+
+  @media (max-width: 600px) {
+    .chooser {
+      --ui-dialog-gutter: var(--space-3);
+    }
+
+    .body {
+      padding: var(--space-5) var(--space-4);
+    }
+
+    .foot {
+      padding-right: var(--space-4);
+      padding-left: var(--space-4);
+    }
   }
 </style>

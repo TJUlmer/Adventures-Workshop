@@ -72,12 +72,12 @@
 
 <dialog
   bind:this={dialog}
-  class="selector"
+  class="selector ui-dialog-viewport"
   aria-labelledby="collection-export-selector-title"
   onclose={() => onclose()}
 >
-  <div class="inner">
-    <header class="head">
+  <div class="inner ui-dialog-frame">
+    <header class="head ui-dialog-header">
       <h2 class="title" id="collection-export-selector-title">Customize what's included</h2>
       <p class="lede">
         Choose any combination of characters. This applies to print sheets, card images and
@@ -85,7 +85,7 @@
       </p>
     </header>
 
-    <div class="body scroll-y">
+    <div class="body ui-dialog-scroll">
       {#each groups as group (group.member.tile.set_id)}
         <section class="group">
           <header class="group-head">
@@ -105,7 +105,7 @@
       {/each}
     </div>
 
-    <footer class="foot">
+    <footer class="foot ui-dialog-actions">
       <p aria-live="polite">{selected} of {total} characters selected</p>
       <div class="actions">
         <Button variant="ghost" onclick={() => onchange(new Map())}>Reset</Button>
@@ -117,9 +117,9 @@
 
 <style>
   .selector {
-    width: min(520px, calc(100vw - var(--space-6) * 2));
-    max-height: min(720px, calc(100vh - var(--space-6) * 2));
-    padding: 0;
+    --ui-dialog-inline-size: 520px;
+    --ui-dialog-block-cap: 720px;
+
     border: 1px solid var(--border-default);
     border-radius: var(--radius-lg);
     background: var(--surface-raised);
@@ -131,10 +131,7 @@
   }
 
   .inner {
-    display: flex;
-    max-height: min(720px, calc(100vh - var(--space-6) * 2));
-    min-height: 0;
-    flex-direction: column;
+    background: inherit;
   }
 
   .head {
@@ -208,6 +205,7 @@
     gap: var(--space-3);
     padding: var(--space-4) var(--space-6);
     border-top: 1px solid var(--border-subtle);
+    background: inherit;
   }
 
   .foot p {
@@ -222,8 +220,7 @@
 
   @media (max-width: 520px) {
     .selector {
-      width: calc(100vw - var(--space-4) * 2);
-      max-height: calc(100vh - var(--space-4) * 2);
+      --ui-dialog-gutter: var(--space-4);
     }
 
     .head,

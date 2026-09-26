@@ -171,6 +171,11 @@
     background: var(--surface-hover);
   }
 
+  .readout:active {
+    color: var(--text-primary);
+    background: var(--surface-active);
+  }
+
   .readout.modified {
     color: var(--text-accent);
   }
@@ -206,6 +211,11 @@
 
   .nudge:hover:not(:disabled) {
     background: var(--surface-hover);
+    color: var(--text-primary);
+  }
+
+  .nudge:active:not(:disabled) {
+    background: var(--surface-active);
     color: var(--text-primary);
   }
 
@@ -298,5 +308,35 @@
     border: none;
     border-radius: 50%;
     background: var(--grey-100);
+  }
+
+  @media (any-pointer: coarse) {
+    .readout {
+      min-width: var(--touch-target);
+      min-height: var(--touch-target);
+    }
+
+    .precision {
+      height: auto;
+      min-height: calc(var(--touch-target) + 2px);
+    }
+
+    .nudge,
+    .entry {
+      min-width: var(--touch-target);
+      min-height: var(--touch-target);
+    }
+
+    /* The range element owns the hit box. Its track and thumb remain the
+       compact visual controls defined above. */
+    .range {
+      height: var(--touch-target);
+    }
+  }
+
+  @media (max-width: 760px) {
+    .entry {
+      font-size: var(--text-md);
+    }
   }
 </style>

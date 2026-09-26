@@ -24,6 +24,7 @@
   import { workshop } from '$lib/state/workshop.svelte';
   import {
     Button,
+    ConfirmAction,
     Field,
     FillEditor,
     Icon,
@@ -215,15 +216,16 @@
           <li class="ability">
             <div class="ability-row">
               <TextInput bind:value={ability.name} placeholder="Ability name" prominent />
-              <Button
+              <ConfirmAction
                 size="sm"
                 variant="ghost"
+                armedVariant="danger"
                 iconOnly
-                aria-label="Remove ability"
-                onclick={() => onRemove(index)}
+                label="Remove ability"
+                onconfirm={() => onRemove(index)}
               >
                 <Icon name="trash" size={13} />
-              </Button>
+              </ConfirmAction>
             </div>
             <AbilityField
               label="Ability text"
@@ -286,16 +288,16 @@
                 <Icon name="plus" size={13} />
                 Card
               </Button>
-              <Button
+              <ConfirmAction
                 size="sm"
                 variant="ghost"
+                armedVariant="danger"
                 iconOnly
-                aria-label="Delete deck"
-                title="Delete deck and its {cards.length} cards"
-                onclick={() => workshop.removeDeck(deck.id)}
+                label="Delete deck and its {cards.length} cards"
+                onconfirm={() => workshop.removeDeck(deck.id)}
               >
                 <Icon name="trash" size={13} />
-              </Button>
+              </ConfirmAction>
             </div>
           </li>
         {/each}
@@ -403,10 +405,16 @@
     colorVar={meta.colorVar}
   >
     {#snippet actions()}
-      <Button variant="danger" size="sm" onclick={() => workshop.removeCharacter(character.id)}>
+      <ConfirmAction
+        variant="danger"
+        size="sm"
+        label="Delete character and its decks"
+        confirmText="Confirm delete"
+        onconfirm={() => workshop.removeCharacter(character.id)}
+      >
         <Icon name="trash" size={13} />
         Delete
-      </Button>
+      </ConfirmAction>
     {/snippet}
   </WorkspaceHeader>
 
@@ -634,14 +642,16 @@
         {@const extra = activeExtra.entry}
         {@const index = activeExtra.index}
         <div class="extra-head">
-          <Button
+          <ConfirmAction
             size="sm"
             variant="danger"
-            onclick={() => removeCharacterCard(index)}
+            label="Delete this character card"
+            confirmText="Confirm delete"
+            onconfirm={() => removeCharacterCard(index)}
           >
             <Icon name="trash" size={13} />
             Delete this character card
-          </Button>
+          </ConfirmAction>
         </div>
 
         {@render characterCardReplacement(extra.characterCard, extra.id)}

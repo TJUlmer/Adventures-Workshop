@@ -46,4 +46,16 @@
     font-style: italic;
     color: var(--text-secondary);
   }
+
+  @media (any-pointer: coarse) {
+    .textarea {
+      min-height: var(--touch-target);
+    }
+  }
+
+  @media (max-width: 760px) {
+    .textarea {
+      font-size: var(--text-md);
+    }
+  }
 </style>

@@ -26,6 +26,7 @@
       value={shown}
       oninput={(event) => onchange(event.currentTarget.value)}
     />
+    <span class="swatch-face" aria-hidden="true"></span>
     <span class="sr-only">Choose colour</span>
   </label>
 
@@ -71,14 +72,12 @@
 
   .swatch {
     position: relative;
+    display: grid;
+    place-items: center;
     width: 20px;
     height: 20px;
     flex: none;
-    border-radius: var(--radius-xs);
-    background: var(--swatch);
-    box-shadow: inset 0 0 0 1px hsl(0 0% 100% / 0.18);
     cursor: pointer;
-    overflow: hidden;
   }
 
   /* The native picker is the real control; the swatch is its face. */
@@ -87,6 +86,28 @@
     inset: 0;
     opacity: 0;
     cursor: pointer;
+  }
+
+  .swatch-face {
+    width: 20px;
+    height: 20px;
+    border-radius: var(--radius-xs);
+    background: var(--swatch);
+    box-shadow: inset 0 0 0 1px hsl(0 0% 100% / 0.18);
+    pointer-events: none;
+    transition:
+      box-shadow var(--duration-fast) var(--ease-out),
+      transform var(--duration-instant) var(--ease-out);
+  }
+
+  .swatch:focus-within .swatch-face {
+    box-shadow:
+      inset 0 0 0 1px hsl(0 0% 100% / 0.18),
+      0 0 0 3px var(--accent-soft);
+  }
+
+  .swatch:active .swatch-face {
+    transform: scale(0.94);
   }
 
   /*
@@ -129,5 +150,23 @@
   .reset:hover {
     background: var(--surface-hover);
     color: var(--text-primary);
+  }
+
+  .reset:active {
+    background: var(--surface-active);
+    color: var(--text-primary);
+  }
+
+  @media (any-pointer: coarse) {
+    .color-input {
+      height: auto;
+      min-height: calc(var(--touch-target) + 2px);
+    }
+
+    .swatch,
+    .reset {
+      width: var(--touch-target);
+      height: var(--touch-target);
+    }
   }
 </style>

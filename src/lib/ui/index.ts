@@ -2,6 +2,7 @@ export { default as AngleDial } from './AngleDial.svelte';
 export { default as Badge } from './Badge.svelte';
 export { default as Button } from './Button.svelte';
 export { default as ColorInput } from './ColorInput.svelte';
+export { default as ConfirmAction } from './ConfirmAction.svelte';
 export { default as EmptyState } from './EmptyState.svelte';
 export { default as Field } from './Field.svelte';
 export { default as FillEditor } from './FillEditor.svelte';

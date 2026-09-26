@@ -124,6 +124,11 @@
     color: var(--text-primary);
   }
 
+  .nudge:active:not(:disabled) {
+    background: var(--surface-active);
+    color: var(--text-primary);
+  }
+
   .nudge:disabled {
     opacity: 0.35;
     cursor: default;
@@ -158,5 +163,24 @@
   .unit {
     font-size: var(--text-2xs);
     color: var(--text-muted);
+  }
+
+  @media (any-pointer: coarse) {
+    .stepper {
+      height: auto;
+      min-height: calc(var(--touch-target) + 2px);
+    }
+
+    .nudge,
+    .value {
+      min-width: var(--touch-target);
+      min-height: var(--touch-target);
+    }
+  }
+
+  @media (max-width: 760px) {
+    .value {
+      font-size: var(--text-md);
+    }
   }
 </style>

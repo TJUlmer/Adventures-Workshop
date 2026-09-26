@@ -80,7 +80,9 @@
     onpointercancel={() => (dragging = false)}
     onkeydown={onKey}
   >
-    <span class="pointer"></span>
+    <span class="dial-face" aria-hidden="true">
+      <span class="pointer"></span>
+    </span>
   </div>
 
   <input
@@ -112,9 +114,21 @@
    */
   .dial {
     position: relative;
+    display: grid;
+    place-items: center;
     width: 26px;
     height: 26px;
     flex: none;
+    border-radius: 50%;
+    cursor: grab;
+    touch-action: none;
+  }
+
+  .dial-face {
+    position: relative;
+    display: block;
+    width: 26px;
+    height: 26px;
     border-radius: 50%;
     background: linear-gradient(
       var(--angle),
@@ -122,20 +136,27 @@
       color-mix(in oklab, var(--accent) 45%, var(--grey-750))
     );
     box-shadow: inset 0 0 0 1px var(--border-default);
-    cursor: grab;
-    touch-action: none;
-    transition: box-shadow var(--duration-fast) var(--ease-out);
+    transition:
+      box-shadow var(--duration-fast) var(--ease-out),
+      transform var(--duration-instant) var(--ease-out);
   }
 
-  .dial:hover {
+  .dial:hover .dial-face {
     box-shadow: inset 0 0 0 1px var(--border-strong);
   }
 
   .dial:focus-visible {
     outline: none;
+  }
+
+  .dial:focus-visible .dial-face {
     box-shadow:
       inset 0 0 0 1px var(--accent),
       0 0 0 3px var(--accent-soft);
+  }
+
+  .dial:active .dial-face {
+    transform: scale(0.96);
   }
 
   .dial.dragging {
@@ -185,8 +206,31 @@
     color: var(--text-primary);
   }
 
+  .readout:focus-visible {
+    border-radius: var(--radius-xs);
+    box-shadow: 0 0 0 3px var(--accent-soft);
+  }
+
   .deg {
     font-size: var(--text-2xs);
     color: var(--text-muted);
+  }
+
+  @media (any-pointer: coarse) {
+    .dial {
+      width: var(--touch-target);
+      height: var(--touch-target);
+    }
+
+    .readout {
+      min-width: var(--touch-target);
+      min-height: var(--touch-target);
+    }
+  }
+
+  @media (max-width: 760px) {
+    .readout {
+      font-size: var(--text-md);
+    }
   }
 </style>

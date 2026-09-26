@@ -204,22 +204,22 @@ canvases.
 
 ### Work
 
-- [ ] Add coarse-pointer sizing for buttons, icon buttons, switches,
+- [x] Add coarse-pointer sizing for buttons, icon buttons, switches,
   steppers, colour swatches, reset actions, segmented controls, tabs, slider
   nudges, and angle controls.
-- [ ] Give sliders a touchable track/thumb region while retaining their
+- [x] Give sliders a touchable track/thumb region while retaining their
   compact visual appearance.
-- [ ] Use at least 16px text for phone inputs, textareas, selects, numeric
+- [x] Use at least 16px text for phone inputs, textareas, selects, numeric
   fields, hexadecimal fields, and contenteditable areas.
-- [ ] Keep at least 8px separation between adjacent destructive and
+- [x] Keep at least 8px separation between adjacent destructive and
   non-destructive actions.
-- [ ] Preserve visible focus and pressed states in addition to hover.
-- [ ] Make dynamic tabs horizontally scrollable and keep the selected tab in
+- [x] Preserve visible focus and pressed states in addition to hover.
+- [x] Make dynamic tabs horizontally scrollable and keep the selected tab in
   view.
-- [ ] Let chip/picker rows wrap or scroll without reintroducing tiny targets.
-- [ ] Standardize dialogs and sheets on `100dvh`, safe-area padding,
+- [x] Let chip/picker rows wrap or scroll without reintroducing tiny targets.
+- [x] Standardize dialogs and sheets on `100dvh`, safe-area padding,
   scrollable bodies, and sticky actions.
-- [ ] Centralize confirmation for destructive operations that have no undo.
+- [x] Centralize confirmation for destructive operations that have no undo.
 
 ### Likely files
 
@@ -244,9 +244,9 @@ canvases.
   page.
 - [ ] Touch sizing activates on a touch-capable laptop even when a mouse is
   also present.
-- [ ] Narrow mouse-only desktop windows retain appropriate desktop density.
-- [ ] No control introduces new horizontal page overflow.
-- [ ] Existing keyboard and mouse behaviour remains intact.
+- [x] Narrow mouse-only desktop windows retain appropriate desktop density.
+- [x] No control introduces new horizontal page overflow.
+- [x] Existing keyboard and mouse behaviour remains intact.
 
 ---
 

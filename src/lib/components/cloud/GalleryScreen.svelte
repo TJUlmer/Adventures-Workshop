@@ -1338,4 +1338,10 @@
     justify-content: center;
     margin-top: var(--space-5);
   }
+
+  @media (max-width: 760px) {
+    .search {
+      font-size: var(--text-md);
+    }
+  }
 </style>

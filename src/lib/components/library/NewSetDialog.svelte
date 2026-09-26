@@ -41,34 +41,36 @@
 
 <dialog
   bind:this={dialog}
-  class="chooser"
+  class="chooser ui-dialog-viewport"
   aria-labelledby="new-set-title"
   onclose={() => oncancel()}
 >
-  <div class="inner">
-    <header class="head">
-      <h2 class="title" id="new-set-title">What are you making?</h2>
-      <p class="lede">
-        This sets up your workspace. You can change it later in Settings, and nothing you make is
-        ever deleted by changing it.
-      </p>
-    </header>
+  <div class="inner ui-dialog-frame">
+    <div class="body ui-dialog-scroll">
+      <header class="head">
+        <h2 class="title" id="new-set-title">What are you making?</h2>
+        <p class="lede">
+          This sets up your workspace. You can change it later in Settings, and nothing you make is
+          ever deleted by changing it.
+        </p>
+      </header>
 
-    <div class="kinds">
-      {#each SET_KINDS as kind (kind)}
-        {@const meta = SET_KIND_META[kind]}
-        <button type="button" class="kind" onclick={() => onchoose(kind)}>
-          <span class="kind-head">
-            <Icon name={meta.icon as IconName} size={16} />
-            <span class="kind-label">{meta.label}</span>
-          </span>
-          <span class="kind-summary">{meta.summary}</span>
-          <span class="kind-detail">{meta.detail}</span>
-        </button>
-      {/each}
+      <div class="kinds">
+        {#each SET_KINDS as kind (kind)}
+          {@const meta = SET_KIND_META[kind]}
+          <button type="button" class="kind" onclick={() => onchoose(kind)}>
+            <span class="kind-head">
+              <Icon name={meta.icon as IconName} size={16} />
+              <span class="kind-label">{meta.label}</span>
+            </span>
+            <span class="kind-summary">{meta.summary}</span>
+            <span class="kind-detail">{meta.detail}</span>
+          </button>
+        {/each}
+      </div>
     </div>
 
-    <footer class="foot">
+    <footer class="foot ui-dialog-actions">
       <button type="button" class="cancel" onclick={() => oncancel()}>Cancel</button>
     </footer>
   </div>
@@ -80,12 +82,12 @@
    * are not the app's. Reset here rather than fought with per-rule below.
    */
   .chooser {
-    padding: 0;
+    --ui-dialog-inline-size: 640px;
+
     border: 1px solid var(--border-default);
     border-radius: var(--radius-lg, 12px);
     background: var(--surface-raised);
     color: var(--text-default);
-    max-width: min(640px, calc(100vw - var(--space-6) * 2));
   }
 
   .chooser::backdrop {
@@ -93,6 +95,10 @@
   }
 
   .inner {
+    background: inherit;
+  }
+
+  .body {
     display: flex;
     flex-direction: column;
     gap: var(--space-5);
@@ -176,6 +182,9 @@
   .foot {
     display: flex;
     justify-content: flex-end;
+    padding: var(--space-4) var(--space-6);
+    border-top: 1px solid var(--border-subtle);
+    background: inherit;
   }
 
   .cancel {
@@ -191,5 +200,27 @@
   .cancel:hover {
     border-color: var(--border-strong);
     color: var(--text-default);
+  }
+
+  @media (any-pointer: coarse) {
+    .cancel {
+      min-width: var(--touch-target);
+      min-height: var(--touch-target);
+    }
+  }
+
+  @media (max-width: 640px) {
+    .chooser {
+      --ui-dialog-gutter: var(--space-3);
+    }
+
+    .body {
+      padding: var(--space-5) var(--space-4);
+    }
+
+    .foot {
+      padding-right: var(--space-4);
+      padding-left: var(--space-4);
+    }
   }
 </style>

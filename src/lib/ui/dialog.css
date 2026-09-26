@@ -1,0 +1,61 @@
+/**
+ * Shared geometry for native dialogs.
+ *
+ * The dialog element stays in each feature component so its `showModal()`,
+ * cancellation and close semantics remain explicit there. These classes own
+ * only the layout contract: keep the surface inside the dynamic viewport,
+ * give exactly one child the scrollbar, and leave chrome reachable.
+ *
+ * The safe-area terms are useful immediately on browsers whose layout
+ * viewport exposes them and are ready for an eventual `viewport-fit=cover`
+ * rollout. That meta setting must wait until the whole application shell,
+ * not just its dialogs, protects every edge.
+ */
+.ui-dialog-viewport {
+  --ui-dialog-inline-size: 40rem;
+  --ui-dialog-block-cap: 100dvh;
+  --ui-dialog-gutter: var(--space-6);
+  --ui-dialog-safe-inline: max(
+    var(--ui-dialog-gutter),
+    env(safe-area-inset-left),
+    env(safe-area-inset-right)
+  );
+  --ui-dialog-safe-block: max(
+    var(--ui-dialog-gutter),
+    env(safe-area-inset-top),
+    env(safe-area-inset-bottom)
+  );
+
+  inline-size: min(
+    var(--ui-dialog-inline-size),
+    calc(100vw - var(--ui-dialog-safe-inline) - var(--ui-dialog-safe-inline))
+  );
+  max-inline-size: none;
+  max-block-size: min(
+    var(--ui-dialog-block-cap),
+    calc(100dvh - var(--ui-dialog-safe-block) - var(--ui-dialog-safe-block))
+  );
+  padding: 0;
+  overflow: hidden;
+}
+
+.ui-dialog-frame {
+  display: flex;
+  min-block-size: 0;
+  max-block-size: inherit;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.ui-dialog-header,
+.ui-dialog-actions {
+  flex: none;
+}
+
+.ui-dialog-scroll {
+  min-block-size: 0;
+  flex: 1 1 auto;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}

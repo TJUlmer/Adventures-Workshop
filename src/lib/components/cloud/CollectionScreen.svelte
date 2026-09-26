@@ -3928,6 +3928,19 @@
     font-size: var(--text-sm);
   }
 
+  @media (max-width: 760px) {
+    .editor input,
+    .editor textarea,
+    .row-actions select,
+    .deck-picker select,
+    .details-description textarea,
+    .invite-row input,
+    .label-input,
+    .panel.box .field input {
+      font-size: var(--text-md);
+    }
+  }
+
   @media (max-width: 720px) {
     .body {
       padding: var(--space-4) var(--space-4) var(--space-9);

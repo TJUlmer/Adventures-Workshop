@@ -33,4 +33,16 @@
     background: var(--surface-hover);
     color: var(--text-primary);
   }
+
+  .toggle:active {
+    background: var(--surface-active);
+    color: var(--text-primary);
+  }
+
+  @media (any-pointer: coarse) {
+    .toggle {
+      min-width: var(--touch-target);
+      min-height: var(--touch-target);
+    }
+  }
 </style>

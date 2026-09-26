@@ -492,6 +492,12 @@
     margin: 0;
   }
 
+  @media (max-width: 760px) {
+    .viewer-toolbar select {
+      font-size: var(--text-md);
+    }
+  }
+
   @media (max-width: 700px) {
     .member-context {
       flex-direction: column;

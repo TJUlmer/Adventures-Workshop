@@ -101,15 +101,15 @@
 
 <dialog
   bind:this={dialog}
-  class="guide"
+  class="guide ui-dialog-viewport"
   aria-labelledby="guide-title"
   onclose={() => guides.close()}
   onclick={onbackdrop}
   {onkeydown}
 >
   {#if guide && step}
-    <div class="inner">
-      <header class="head">
+    <div class="inner ui-dialog-frame">
+      <header class="head ui-dialog-header">
         <span class="mark"><Icon name={guide.icon} size={15} /></span>
         <h2 class="title" id="guide-title">{guide.title}</h2>
         <button type="button" class="close" aria-label="Close guide" onclick={() => guides.close()}>
@@ -124,7 +124,7 @@
         the previous shot's loaded dimensions.
       -->
       {#key guides.index}
-        <div class="body">
+        <div class="body ui-dialog-scroll">
           <p class="text">{step.text}</p>
           {#if step.shot}
             <GuideShot shot={step.shot} alt={step.alt ?? ''} hotspots={step.hotspots} />
@@ -132,7 +132,7 @@
         </div>
       {/key}
 
-      <footer class="foot">
+      <footer class="foot ui-dialog-actions">
         <button
           type="button"
           class="nav"
@@ -178,14 +178,12 @@
 <style>
   /* `dialog`'s own border, padding and max-width are not this app's. */
   .guide {
-    padding: 0;
+    --ui-dialog-inline-size: 760px;
+
     border: 1px solid var(--border-default);
     border-radius: var(--radius-lg);
     background: var(--surface-raised);
     color: var(--text-default);
-    width: min(760px, calc(100vw - var(--space-6) * 2));
-    max-width: none;
-    max-height: calc(100vh - var(--space-6) * 2);
   }
 
   .guide::backdrop {
@@ -193,9 +191,7 @@
   }
 
   .inner {
-    display: flex;
-    flex-direction: column;
-    max-height: calc(100vh - var(--space-6) * 2);
+    background: inherit;
   }
 
   .head {
@@ -272,6 +268,7 @@
     gap: var(--space-4);
     padding: var(--space-4) var(--space-6);
     border-top: 1px solid var(--border-subtle);
+    background: inherit;
   }
 
   /*
@@ -299,9 +296,23 @@
   .dots {
     display: flex;
     gap: var(--space-2);
+    max-width: 100%;
+    overflow-x: auto;
+    overflow-y: hidden;
+    overscroll-behavior-inline: contain;
   }
 
   .dot {
+    display: grid;
+    place-items: center;
+    width: 6px;
+    height: 6px;
+    flex: none;
+    background: transparent;
+  }
+
+  .dot::before {
+    content: '';
     width: 6px;
     height: 6px;
     border-radius: var(--radius-full);
@@ -309,11 +320,11 @@
     transition: background var(--duration-fast) var(--ease-out);
   }
 
-  .dot:hover {
+  .dot:hover::before {
     background: var(--text-muted);
   }
 
-  .dot.here {
+  .dot.here::before {
     background: var(--accent);
   }
 
@@ -352,6 +363,47 @@
   .nav.primary:hover {
     background: var(--accent-hover, var(--accent));
     color: var(--text-on-accent);
+  }
+
+  @media (any-pointer: coarse) {
+    .close,
+    .nav,
+    .dot {
+      min-width: var(--touch-target);
+      min-height: var(--touch-target);
+    }
+
+    .dots {
+      gap: 0;
+    }
+  }
+
+  @media (max-width: 640px) {
+    .guide {
+      --ui-dialog-gutter: var(--space-3);
+    }
+
+    .head,
+    .body,
+    .foot {
+      padding-right: var(--space-4);
+      padding-left: var(--space-4);
+    }
+
+    .foot {
+      flex-wrap: wrap;
+      gap: var(--space-2);
+    }
+
+    .progress {
+      order: 3;
+      flex-basis: 100%;
+    }
+
+    .end {
+      flex-wrap: wrap;
+      margin-left: auto;
+    }
   }
 
 </style>

@@ -4,7 +4,7 @@
   import { CHARACTER_ROLE_META } from '$lib/characters/types';
   import { isCharacterSelected } from '$lib/state/selection';
   import { workshop } from '$lib/state/workshop.svelte';
-  import Icon from '$lib/ui/Icon.svelte';
+  import { ConfirmAction, Icon } from '$lib/ui';
 
   interface Props {
     character: Character;
@@ -21,34 +21,6 @@
   const selected = $derived(isCharacterSelected(workshop.selection, character.id));
   const unnamed = $derived(character.name.trim().length === 0);
 
-  /**
-   * Delete takes two clicks: the first arms the button, the second does it.
-   *
-   * A character is not a small thing to lose — its decks and cards survive as
-   * orphans (`workshop.removeCharacter` only nulls their `ownerId`) but the
-   * figure itself, its artwork and its whole character card do not, and
-   * nothing in the app brings those back. This was one click on a 22px icon
-   * that only appears on hover, right beside the row you click to *select*
-   * the character, and somebody duly lost work to it.
-   *
-   * Armed rather than a dialogue because the row is 22px wide — there is no
-   * space for a Delete/Cancel pair like `HomeScreen`'s, and a modal over a
-   * sidebar row is heavier than the act deserves. The arm lapses on its own
-   * so a stray first click cannot sit waiting to catch the next one.
-   */
-  let armed = $state(false);
-  let disarm: ReturnType<typeof setTimeout> | null = null;
-
-  function requestRemove(): void {
-    if (disarm) clearTimeout(disarm);
-    if (armed) {
-      armed = false;
-      workshop.removeCharacter(character.id);
-      return;
-    }
-    armed = true;
-    disarm = setTimeout(() => (armed = false), 3000);
-  }
 </script>
 
 <div class="row" class:selected>
@@ -78,17 +50,21 @@
     <span class="meta numeric">{printCount}</span>
   </button>
 
-  <button
-    type="button"
+  <!-- A past one-click control here lost work. The compact in-place action is
+       deliberately two-step: character art and the character card have no
+       recovery path, while a modal would overwhelm this sidebar row. -->
+  <ConfirmAction
     class="remove"
-    class:armed
-    aria-label={armed ? 'Delete character — click again to confirm' : 'Delete character'}
-    title={armed ? 'Click again to delete' : 'Delete character'}
-    onclick={requestRemove}
-    onblur={() => (armed = false)}
+    size="sm"
+    variant="ghost"
+    armedVariant="ghost"
+    iconOnly
+    label="Delete character"
+    confirmLabel="Delete character — activate again to confirm"
+    onconfirm={() => workshop.removeCharacter(character.id)}
   >
     <Icon name="trash" size={12} />
-  </button>
+  </ConfirmAction>
 </div>
 
 <style>
@@ -96,6 +72,7 @@
     position: relative;
     display: flex;
     align-items: center;
+    gap: var(--space-2);
     border-radius: var(--radius-sm);
     transition: background-color var(--duration-fast) var(--ease-out);
   }
@@ -194,7 +171,7 @@
     color: var(--text-muted);
   }
 
-  .remove {
+  .row > :global(.remove) {
     display: grid;
     place-items: center;
     width: 22px;
@@ -210,18 +187,24 @@
 
   /* Armed: visibly loaded, and shown regardless of hover so the second click
      is never aimed at something that has faded back out. */
-  .remove.armed {
+  .row > :global(.remove[data-confirm-armed='true']) {
     opacity: 1;
     color: var(--danger);
     background: color-mix(in oklab, var(--danger) 18%, transparent);
   }
 
-  .row:hover .remove,
-  .remove:focus-visible {
+  .row:hover > :global(.remove),
+  .row > :global(.remove:focus-visible) {
     opacity: 1;
   }
 
-  .remove:hover {
+  .row > :global(.remove:hover) {
     color: var(--danger);
+  }
+
+  @media (any-pointer: coarse) {
+    .row > :global(.remove) {
+      opacity: 1;
+    }
   }
 </style>

@@ -229,6 +229,10 @@
   --space-9: 3rem; /* 48 */
   --space-10: 4rem; /* 64 */
 
+  /* The visual face of a compact control may stay smaller; this is the
+     minimum interactive box used when any attached pointer is coarse. */
+  --touch-target: 44px;
+
   --radius-xs: 4px;
   --radius-sm: 6px;
   --radius-md: 9px;

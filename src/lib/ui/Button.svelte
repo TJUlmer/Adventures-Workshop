@@ -95,6 +95,10 @@
     background: var(--accent-hover);
   }
 
+  .primary:active:not(:disabled) {
+    background: var(--accent-press);
+  }
+
   .secondary {
     background: var(--surface-overlay);
     border-color: var(--border-default);
@@ -103,6 +107,12 @@
 
   .secondary:hover:not(:disabled) {
     background: var(--grey-750);
+    border-color: var(--border-strong);
+    color: var(--text-primary);
+  }
+
+  .secondary:active:not(:disabled) {
+    background: var(--surface-active);
     border-color: var(--border-strong);
     color: var(--text-primary);
   }
@@ -117,6 +127,11 @@
     color: var(--text-primary);
   }
 
+  .ghost:active:not(:disabled) {
+    background: var(--surface-active);
+    color: var(--text-primary);
+  }
+
   .danger {
     background: transparent;
     border-color: color-mix(in oklab, var(--danger) 35%, transparent);
@@ -127,7 +142,22 @@
     background: color-mix(in oklab, var(--danger) 14%, transparent);
   }
 
+  .danger:active:not(:disabled) {
+    background: color-mix(in oklab, var(--danger) 22%, transparent);
+  }
+
   .block {
     width: 100%;
+  }
+
+  @media (any-pointer: coarse) {
+    .btn {
+      min-width: var(--touch-target);
+      min-height: var(--touch-target);
+    }
+
+    .icon-only {
+      min-width: var(--touch-target);
+    }
   }
 </style>

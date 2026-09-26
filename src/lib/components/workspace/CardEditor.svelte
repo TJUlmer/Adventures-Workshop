@@ -31,7 +31,7 @@
   import { ART_WINDOW, HERO_ART_WINDOW_HEIGHT } from '$lib/renderer/geometry';
   import { characterForCard, resolveStyleForCard, styleOriginForCard } from '$lib/sets/queries';
   import { workshop } from '$lib/state/workshop.svelte';
-  import { Button, Field, FillEditor, Icon, Section, Select, Tabs } from '$lib/ui';
+  import { Button, ConfirmAction, Field, FillEditor, Icon, Section, Select, Tabs } from '$lib/ui';
   import ActionCardContent from './ActionCardContent.svelte';
   import ArtworkLayersPanel from './ArtworkLayersPanel.svelte';
   import ArtworkPanel from './ArtworkPanel.svelte';
@@ -132,16 +132,16 @@
       >
         <Icon name="copy" size={14} />
       </Button>
-      <Button
+      <ConfirmAction
         size="sm"
         variant="ghost"
+        armedVariant="danger"
         iconOnly
-        aria-label="Delete card"
-        title="Delete"
-        onclick={() => workshop.removeCard(card.id)}
+        label="Delete card"
+        onconfirm={() => workshop.removeCard(card.id)}
       >
         <Icon name="trash" size={14} />
-      </Button>
+      </ConfirmAction>
     </div>
   </header>
 
@@ -379,7 +379,7 @@
 
   .actions {
     display: flex;
-    gap: var(--space-1);
+    gap: var(--space-2);
     flex: none;
   }
 

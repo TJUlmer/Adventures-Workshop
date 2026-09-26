@@ -126,42 +126,44 @@
 
 <dialog
   bind:this={dialog}
-  class="update-dialog"
+  class="update-dialog ui-dialog-viewport"
   aria-labelledby="fork-update-title"
   oncancel={(event) => {
     if (busy) event.preventDefault();
   }}
   onclose={() => oncancel()}
 >
-  <div class="inner">
-    <header class="head">
-      <span class="warning-icon"><Icon name="rotate" size={18} /></span>
-      <div>
-        <h2 id="fork-update-title">Replace this copy with revision {latestRevision}?</h2>
-        <p>It is currently based on revision {currentRevision}.</p>
-      </div>
-    </header>
+  <div class="inner ui-dialog-frame">
+    <div class="body ui-dialog-scroll">
+      <header class="head">
+        <span class="warning-icon"><Icon name="rotate" size={18} /></span>
+        <div>
+          <h2 id="fork-update-title">Replace this copy with revision {latestRevision}?</h2>
+          <p>It is currently based on revision {currentRevision}.</p>
+        </div>
+      </header>
 
-    <div class="warning">
-      <strong>This is a complete replacement, not a merge.</strong>
-      <p>
-        Every card, image, component, and setting in this copy will be replaced by the latest
-        published version. Changes you made here cannot be recovered unless you first download a
-        project backup from Export.
-      </p>
+      <div class="warning">
+        <strong>This is a complete replacement, not a merge.</strong>
+        <p>
+          Every card, image, component, and setting in this copy will be replaced by the latest
+          published version. Changes you made here cannot be recovered unless you first download a
+          project backup from Export.
+        </p>
+      </div>
+
+      <label class="acknowledgement" class:disabled={busy}>
+        <input type="checkbox" bind:checked={acknowledged} disabled={busy} />
+        <span>I understand that my changes to this copy will be overwritten.</span>
+      </label>
+
+      {#if progressLabel}
+        <p class="progress" aria-live="polite"><span class="spinner"></span>{progressLabel}</p>
+      {/if}
+      {#if error}<p class="error" role="alert">{error}</p>{/if}
     </div>
 
-    <label class="acknowledgement" class:disabled={busy}>
-      <input type="checkbox" bind:checked={acknowledged} disabled={busy} />
-      <span>I understand that my changes to this copy will be overwritten.</span>
-    </label>
-
-    {#if progressLabel}
-      <p class="progress" aria-live="polite"><span class="spinner"></span>{progressLabel}</p>
-    {/if}
-    {#if error}<p class="error" role="alert">{error}</p>{/if}
-
-    <footer class="actions">
+    <footer class="actions ui-dialog-actions">
       <Button variant="secondary" onclick={close} disabled={busy}>Cancel</Button>
       <Button variant="danger" onclick={() => void replaceCopy()} disabled={!acknowledged || busy}>
         Replace my copy
@@ -172,9 +174,8 @@
 
 <style>
   .update-dialog {
-    width: min(520px, calc(100vw - var(--space-6) * 2));
-    max-width: none;
-    padding: 0;
+    --ui-dialog-inline-size: 520px;
+
     border: 1px solid var(--border-default);
     border-radius: var(--radius-lg);
     background: var(--surface-raised);
@@ -186,6 +187,10 @@
   }
 
   .inner {
+    background: inherit;
+  }
+
+  .body {
     display: flex;
     flex-direction: column;
     gap: var(--space-5);
@@ -289,9 +294,27 @@
     display: flex;
     justify-content: flex-end;
     gap: var(--space-2);
+    padding: var(--space-4) var(--space-6);
+    border-top: 1px solid var(--border-subtle);
+    background: inherit;
   }
 
   @keyframes spin {
     to { transform: rotate(360deg); }
+  }
+
+  @media (max-width: 560px) {
+    .update-dialog {
+      --ui-dialog-gutter: var(--space-3);
+    }
+
+    .body {
+      padding: var(--space-5) var(--space-4);
+    }
+
+    .actions {
+      padding-right: var(--space-4);
+      padding-left: var(--space-4);
+    }
   }
 </style>

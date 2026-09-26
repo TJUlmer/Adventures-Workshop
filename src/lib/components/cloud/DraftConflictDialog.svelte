@@ -61,92 +61,94 @@
 
 <dialog
   bind:this={dialog}
-  class="conflict-dialog"
+  class="conflict-dialog ui-dialog-viewport"
   aria-labelledby="draft-conflict-title"
   oncancel={(event) => event.preventDefault()}
 >
   {#if conflict}
-    <div class="inner">
-      <header class="head">
-        <span class="warning-icon"><Icon name="rotate" size={18} /></span>
-        <div>
-          <span class="eyebrow">Cloud save paused</span>
-          <h2 id="draft-conflict-title">Two versions need your choice</h2>
-          <p>
-            This set changed in another browser after this device last downloaded it. Neither
-            complete version has been overwritten.
-          </p>
-        </div>
-      </header>
+    <div class="inner ui-dialog-frame">
+      <div class="body ui-dialog-scroll">
+        <header class="head">
+          <span class="warning-icon"><Icon name="rotate" size={18} /></span>
+          <div>
+            <span class="eyebrow">Cloud save paused</span>
+            <h2 id="draft-conflict-title">Two versions need your choice</h2>
+            <p>
+              This set changed in another browser after this device last downloaded it. Neither
+              complete version has been overwritten.
+            </p>
+          </div>
+        </header>
 
-      <div class="versions" aria-label="Conflicting versions">
-        <section>
-          <span class="version-label">This device</span>
-          <strong>{set.name || 'Untitled Adventure'}</strong>
-          <span>{set.characters.length} characters · {set.cards.length} cards</span>
-          <span>Edited {formatDate(set.meta.updatedAt)}</span>
-          <span class="revision">Based on online revision {conflict.baseRevision ?? 'unknown'}</span>
-        </section>
-        <section>
-          <span class="version-label">Private cloud</span>
-          <strong>Online version</strong>
-          <span>Safely preserved in your account</span>
-          <span class="revision">Revision {conflict.remoteRevision ?? 'unknown'}</span>
-        </section>
+        <div class="versions" aria-label="Conflicting versions">
+          <section>
+            <span class="version-label">This device</span>
+            <strong>{set.name || 'Untitled Adventure'}</strong>
+            <span>{set.characters.length} characters · {set.cards.length} cards</span>
+            <span>Edited {formatDate(set.meta.updatedAt)}</span>
+            <span class="revision">Based on online revision {conflict.baseRevision ?? 'unknown'}</span>
+          </section>
+          <section>
+            <span class="version-label">Private cloud</span>
+            <strong>Online version</strong>
+            <span>Safely preserved in your account</span>
+            <span class="revision">Revision {conflict.remoteRevision ?? 'unknown'}</span>
+          </section>
+        </div>
+
+        {#if workshop.conflictResolutionError}
+          <p class="error" role="alert">{workshop.conflictResolutionError}</p>
+        {/if}
+
+        {#if confirming}
+          <section class="confirmation" aria-live="polite">
+            <div>
+              <h3>{confirmationTitle(confirming)}</h3>
+              <p>{confirmationText(confirming)}</p>
+            </div>
+            <div class="confirmation-actions">
+              <Button
+                variant="ghost"
+                disabled={workshop.conflictResolutionBusy}
+                onclick={() => (confirming = null)}
+              >Cancel</Button>
+              <Button
+                variant={confirming === 'cloud' || confirming === 'local' ? 'danger' : 'primary'}
+                disabled={workshop.conflictResolutionBusy}
+                onclick={() => void resolve(confirming as Choice)}
+              >
+                {workshop.conflictResolutionBusy ? 'Working…' : 'Confirm choice'}
+              </Button>
+            </div>
+          </section>
+        {:else}
+          <div class="choices">
+            <button type="button" onclick={() => (confirming = 'cloud')}>
+              <span class="choice-icon"><Icon name="download" size={17} /></span>
+              <span>
+                <strong>Use cloud version</strong>
+                <small>Replace this device’s pending changes with the complete online set.</small>
+              </span>
+            </button>
+            <button type="button" onclick={() => (confirming = 'local')}>
+              <span class="choice-icon"><Icon name="upload" size={17} /></span>
+              <span>
+                <strong>Keep this device’s version</strong>
+                <small>Save this complete set over the known online revision.</small>
+              </span>
+            </button>
+            <button type="button" onclick={() => (confirming = 'both')}>
+              <span class="choice-icon"><Icon name="copy" size={17} /></span>
+              <span>
+                <strong>Save my changes as a separate copy</strong>
+                <small>Preserve this device’s complete version, then reopen the online original.</small>
+              </span>
+            </button>
+          </div>
+        {/if}
       </div>
 
-      {#if workshop.conflictResolutionError}
-        <p class="error" role="alert">{workshop.conflictResolutionError}</p>
-      {/if}
-
-      {#if confirming}
-        <section class="confirmation" aria-live="polite">
-          <div>
-            <h3>{confirmationTitle(confirming)}</h3>
-            <p>{confirmationText(confirming)}</p>
-          </div>
-          <div class="confirmation-actions">
-            <Button
-              variant="ghost"
-              disabled={workshop.conflictResolutionBusy}
-              onclick={() => (confirming = null)}
-            >Cancel</Button>
-            <Button
-              variant={confirming === 'cloud' || confirming === 'local' ? 'danger' : 'primary'}
-              disabled={workshop.conflictResolutionBusy}
-              onclick={() => void resolve(confirming as Choice)}
-            >
-              {workshop.conflictResolutionBusy ? 'Working…' : 'Confirm choice'}
-            </Button>
-          </div>
-        </section>
-      {:else}
-        <div class="choices">
-          <button type="button" onclick={() => (confirming = 'cloud')}>
-            <span class="choice-icon"><Icon name="download" size={17} /></span>
-            <span>
-              <strong>Use cloud version</strong>
-              <small>Replace this device’s pending changes with the complete online set.</small>
-            </span>
-          </button>
-          <button type="button" onclick={() => (confirming = 'local')}>
-            <span class="choice-icon"><Icon name="upload" size={17} /></span>
-            <span>
-              <strong>Keep this device’s version</strong>
-              <small>Save this complete set over the known online revision.</small>
-            </span>
-          </button>
-          <button type="button" onclick={() => (confirming = 'both')}>
-            <span class="choice-icon"><Icon name="copy" size={17} /></span>
-            <span>
-              <strong>Save my changes as a separate copy</strong>
-              <small>Preserve this device’s complete version, then reopen the online original.</small>
-            </span>
-          </button>
-        </div>
-      {/if}
-
-      <footer>
+      <footer class="ui-dialog-actions">
         <span>Autosave remains stopped until you choose.</span>
         <Button
           variant="ghost"
@@ -160,10 +162,8 @@
 
 <style>
   .conflict-dialog {
-    width: min(720px, calc(100vw - var(--space-6) * 2));
-    max-height: calc(100vh - var(--space-6) * 2);
-    padding: 0;
-    overflow: auto;
+    --ui-dialog-inline-size: 720px;
+
     border: 1px solid var(--border-default);
     border-radius: var(--radius-lg);
     background: var(--surface-overlay);
@@ -176,6 +176,10 @@
   }
 
   .inner {
+    background: inherit;
+  }
+
+  .body {
     display: flex;
     flex-direction: column;
     gap: var(--space-5);
@@ -354,15 +358,25 @@
     align-items: center;
     justify-content: space-between;
     gap: var(--space-3);
-    padding-top: var(--space-3);
+    padding: var(--space-4) var(--space-6);
     border-top: 1px solid var(--border-subtle);
+    background: inherit;
     font-size: var(--text-xs);
     color: var(--text-muted);
   }
 
   @media (max-width: 600px) {
-    .inner {
-      padding: var(--space-5);
+    .conflict-dialog {
+      --ui-dialog-gutter: var(--space-3);
+    }
+
+    .body {
+      padding: var(--space-5) var(--space-4);
+    }
+
+    footer {
+      padding-right: var(--space-4);
+      padding-left: var(--space-4);
     }
 
     .versions {

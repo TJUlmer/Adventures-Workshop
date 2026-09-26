@@ -81,9 +81,14 @@
   />
 {/snippet}
 
-<dialog bind:this={dialog} class="selector" aria-labelledby="export-selector-title" onclose={() => onclose()}>
-  <div class="inner">
-    <header class="head">
+<dialog
+  bind:this={dialog}
+  class="selector ui-dialog-viewport"
+  aria-labelledby="export-selector-title"
+  onclose={() => onclose()}
+>
+  <div class="inner ui-dialog-frame">
+    <header class="head ui-dialog-header">
       <h2 class="title" id="export-selector-title">Customize what's included</h2>
       <p class="lede">
         {#if projectFileUsesSelection}
@@ -95,7 +100,7 @@
       </p>
     </header>
 
-    <div class="body scroll-y">
+    <div class="body ui-dialog-scroll">
       {#each characterGroups as entry (entry.character.id)}
         <section class="group">
           <h3 class="group-title">{characterLabel(entry.character)}</h3>
@@ -192,7 +197,7 @@
       {/if}
     </div>
 
-    <footer class="foot">
+    <footer class="foot ui-dialog-actions">
       <Button variant="ghost" onclick={() => onchange(defaultExportSelection())}>
         Reset
       </Button>
@@ -203,13 +208,13 @@
 
 <style>
   .selector {
-    padding: 0;
+    --ui-dialog-inline-size: 520px;
+    --ui-dialog-block-cap: 720px;
+
     border: 1px solid var(--border-default);
     border-radius: var(--radius-lg, 12px);
     background: var(--surface-raised);
     color: var(--text-default);
-    width: min(520px, calc(100vw - var(--space-6) * 2));
-    max-height: min(720px, calc(100vh - var(--space-6) * 2));
   }
 
   .selector::backdrop {
@@ -217,10 +222,7 @@
   }
 
   .inner {
-    display: flex;
-    flex-direction: column;
-    min-height: 0;
-    max-height: min(720px, calc(100vh - var(--space-6) * 2));
+    background: inherit;
   }
 
   .head {
@@ -273,5 +275,19 @@
     justify-content: space-between;
     padding: var(--space-4) var(--space-6);
     border-top: 1px solid var(--border-subtle);
+    background: inherit;
+  }
+
+  @media (max-width: 520px) {
+    .selector {
+      --ui-dialog-gutter: var(--space-3);
+    }
+
+    .head,
+    .body,
+    .foot {
+      padding-right: var(--space-4);
+      padding-left: var(--space-4);
+    }
   }
 </style>

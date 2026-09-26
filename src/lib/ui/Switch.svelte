@@ -26,7 +26,9 @@
     {disabled}
     onclick={() => onchange(!checked)}
   >
-    <span class="knob"></span>
+    <span class="track" aria-hidden="true">
+      <span class="knob"></span>
+    </span>
   </button>
 </label>
 
@@ -65,14 +67,33 @@
     flex: none;
     width: 32px;
     height: 18px;
+    display: grid;
+    place-items: center;
+    border-radius: var(--radius-full);
+  }
+
+  .track {
+    display: block;
+    width: 32px;
+    height: 18px;
     padding: 2px;
     border-radius: var(--radius-full);
     background: var(--grey-750);
-    transition: background-color var(--duration-fast) var(--ease-out);
+    transition:
+      background-color var(--duration-fast) var(--ease-out),
+      transform var(--duration-instant) var(--ease-out);
   }
 
-  .switch.on {
+  .switch.on .track {
     background: var(--accent);
+  }
+
+  .switch:active:not(:disabled) .track {
+    transform: scale(0.96);
+  }
+
+  .switch.on:active:not(:disabled) .track {
+    background: var(--accent-press);
   }
 
   .knob {
@@ -86,5 +107,12 @@
 
   .switch.on .knob {
     translate: 14px 0;
+  }
+
+  @media (any-pointer: coarse) {
+    .switch {
+      width: var(--touch-target);
+      height: var(--touch-target);
+    }
   }
 </style>

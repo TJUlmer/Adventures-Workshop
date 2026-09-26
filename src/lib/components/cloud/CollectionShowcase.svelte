@@ -1604,6 +1604,12 @@
     }
   }
 
+  @media (max-width: 760px) {
+    .set-filter select {
+      font-size: var(--text-md);
+    }
+  }
+
   @media (max-width: 700px) {
     .showcase-hero {
       min-height: 34rem;

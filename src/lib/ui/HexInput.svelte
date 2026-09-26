@@ -106,4 +106,21 @@
     outline: none;
     color: var(--hex-color-focus, var(--text-primary));
   }
+
+  .hex:focus-visible {
+    border-radius: var(--radius-xs);
+    box-shadow: 0 0 0 3px var(--accent-soft);
+  }
+
+  @media (any-pointer: coarse) {
+    .hex {
+      min-height: var(--touch-target);
+    }
+  }
+
+  @media (max-width: 760px) {
+    .hex {
+      font-size: var(--text-md);
+    }
+  }
 </style>

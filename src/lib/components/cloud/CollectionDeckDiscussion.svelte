@@ -746,4 +746,10 @@
     white-space: nowrap;
     border: 0;
   }
+
+  @media (max-width: 760px) {
+    textarea {
+      font-size: var(--text-md);
+    }
+  }
 </style>

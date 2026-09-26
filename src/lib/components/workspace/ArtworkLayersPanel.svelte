@@ -11,7 +11,7 @@
   import { BLEED } from '$lib/renderer/geometry';
   import { cardArtworkLayerView } from '$lib/state/card-artwork-layer-view.svelte';
   import { workshop } from '$lib/state/workshop.svelte';
-  import { Button, Icon } from '$lib/ui';
+  import { Button, ConfirmAction, Icon } from '$lib/ui';
   import ArtworkPanel from './ArtworkPanel.svelte';
 
   interface Props {
@@ -19,7 +19,6 @@
   }
 
   let { card }: Props = $props();
-  let confirmingRemoval = $state<CardArtworkLayerId | null>(null);
 
   const FIXED_LAYER_META: Record<CardFixedLayer, { title: string; description: string }> = {
     'outer-frame': {
@@ -72,23 +71,12 @@
   $effect(() => {
     if (selectedId && card.artworkLayers.some((layer) => layer.id === selectedId)) return;
     cardArtworkLayerView.select(card.id, card.artworkLayers[0]?.id ?? null);
-    confirmingRemoval = null;
   });
 
   onDestroy(() => cardArtworkLayerView.clear(card.id));
 
   function addLayer(): void {
     cardArtworkLayerView.select(card.id, workshop.addCardArtworkLayer(card.id));
-    confirmingRemoval = null;
-  }
-
-  function removeLayer(layerId: CardArtworkLayerId): void {
-    if (confirmingRemoval !== layerId) {
-      confirmingRemoval = layerId;
-      return;
-    }
-    workshop.removeCardArtworkLayer(card.id, layerId);
-    confirmingRemoval = null;
   }
 
   function canMove(layerId: CardCompositeLayerId, direction: -1 | 1): boolean {
@@ -134,10 +122,7 @@
       type="button"
       class="layer-select"
       aria-pressed={layer.id === selectedId}
-      onclick={() => {
-        cardArtworkLayerView.select(card.id, layer.id);
-        confirmingRemoval = null;
-      }}
+      onclick={() => cardArtworkLayerView.select(card.id, layer.id)}
     >
       <span class="thumb" class:empty={!layer.artwork.source}>
         {#if layer.artwork.source}
@@ -154,9 +139,12 @@
 
     <div class="layer-actions">
       {@render moveActions(layer.id)}
-      <Button size="sm" variant="danger" onclick={() => removeLayer(layer.id)}>
-        {confirmingRemoval === layer.id ? 'Confirm remove' : 'Remove'}
-      </Button>
+      <ConfirmAction
+        size="sm"
+        label={`Remove artwork layer ${index + 1}`}
+        confirmText="Confirm remove"
+        onconfirm={() => workshop.removeCardArtworkLayer(card.id, layer.id)}
+      >Remove</ConfirmAction>
     </div>
   </div>
 {/snippet}
@@ -335,7 +323,7 @@
   .layer-actions {
     display: flex;
     align-items: center;
-    gap: var(--space-1);
+    gap: var(--space-2);
   }
 
   .selected-controls {

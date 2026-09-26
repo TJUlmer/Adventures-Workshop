@@ -2,3 +2,4 @@
 @import './card-fonts.css';
 @import './base.css';
 @import './utilities.css';
+@import '../lib/ui/dialog.css';

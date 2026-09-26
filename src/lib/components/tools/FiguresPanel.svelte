@@ -61,6 +61,7 @@
   import {
     Button,
     ColorInput,
+    ConfirmAction,
     EmptyState,
     Icon,
     NumberInput,
@@ -797,7 +798,14 @@
             <input bind:this={boxSkinInput} class="sr-only" type="file" accept="image/png,image/jpeg,.png,.jpg,.jpeg" onchange={pickBoxSkin} />
             <Button size="sm" onclick={() => boxSkinInput?.click()}>{set.box.skin ? 'Replace skin' : 'Attach skin'}</Button>
             {#if set.box.skin}
-              <Button size="sm" onclick={() => workshop.setBoxSkin(null)}>Remove skin</Button>
+              <ConfirmAction
+                label="Remove box skin"
+                confirmText="Confirm remove"
+                size="sm"
+                onconfirm={() => workshop.setBoxSkin(null)}
+              >
+                Remove skin
+              </ConfirmAction>
             {/if}
           </div>
           {#if set.box.skin}
@@ -834,9 +842,15 @@
               </label>
               <span class="rulebook-size">{(book.size / 1024 / 1024).toFixed(1)} MB</span>
               <span class="rulebook-links"><RulebookLinks {book} /></span>
-              <button type="button" class="ghost remove" aria-label="Remove {book.name}" onclick={() => workshop.removeRulebook(book.id)}>
+              <ConfirmAction
+                label="Remove {book.name}"
+                variant="ghost"
+                size="sm"
+                iconOnly
+                onconfirm={() => workshop.removeRulebook(book.id)}
+              >
                 <Icon name="trash" size={13} />
-              </button>
+              </ConfirmAction>
             </li>
           {/each}
         </ul>
@@ -957,19 +971,19 @@
                   >
                     <Icon name="upload" size={12} />
                   </button>
-                  <button
-                    type="button"
-                    class="ghost"
-                    title="Remove image"
-                    aria-label="Remove image"
-                    onclick={() =>
+                  <ConfirmAction
+                    label="Remove {imageLabel(figure)}"
+                    variant="ghost"
+                    size="sm"
+                    iconOnly
+                    onconfirm={() =>
                       workshop.editFigure(figure.id, (f) => {
                         f.reference.source = null;
                         f.reference.label = '';
                       })}
                   >
                     <Icon name="minus" size={12} />
-                  </button>
+                  </ConfirmAction>
                 {:else}
                   <button
                     type="button"
@@ -994,15 +1008,15 @@
                   {#if figure.model}
                     <span class="source-value" title={figure.model.name}>{figure.model.name}</span>
                     <span class="model-size numeric">{formatSize(figure.model.size)}</span>
-                    <button
-                      type="button"
-                      class="ghost"
-                      title="Remove model"
-                      aria-label="Remove model"
-                      onclick={() => workshop.editFigure(figure.id, (f) => (f.model = null))}
+                    <ConfirmAction
+                      label="Remove 3D model from {figureLabel(figure)}"
+                      variant="ghost"
+                      size="sm"
+                      iconOnly
+                      onconfirm={() => workshop.editFigure(figure.id, (f) => (f.model = null))}
                     >
                       <Icon name="minus" size={12} />
-                    </button>
+                    </ConfirmAction>
                   {:else}
                     <button
                       type="button"
@@ -1025,15 +1039,15 @@
                   {#if figure.ttsSave}
                     <span class="source-value" title={figure.ttsSave.name}>{figure.ttsSave.name}</span>
                     <span class="model-size numeric">{formatSize(figure.ttsSave.size)}</span>
-                    <button
-                      type="button"
-                      class="ghost"
-                      title="Remove the Tabletop Simulator object"
-                      aria-label="Remove Tabletop Simulator object"
-                      onclick={() => removeTts(figure.id)}
+                    <ConfirmAction
+                      label="Remove Tabletop Simulator object from {figureLabel(figure)}"
+                      variant="ghost"
+                      size="sm"
+                      iconOnly
+                      onconfirm={() => removeTts(figure.id)}
                     >
                       <Icon name="minus" size={12} />
-                    </button>
+                    </ConfirmAction>
                   {:else}
                     <button type="button" class="ghost wide" onclick={() => ttsInputs[figure.id]?.click()}>
                       <Icon name="upload" size={12} />
@@ -1420,15 +1434,15 @@
             {/if}
           </div>
 
-          <button
-            type="button"
-            class="ghost remove"
-            title="Remove {figureLabel(figure)}"
-            aria-label="Remove component"
-            onclick={() => removeFigure(figure)}
+          <ConfirmAction
+            label="Remove {figureLabel(figure)}"
+            variant="ghost"
+            size="sm"
+            iconOnly
+            onconfirm={() => removeFigure(figure)}
           >
             <Icon name="trash" size={13} />
-          </button>
+          </ConfirmAction>
 
           {#if figure.ttsSave}
             {@const save = tts[figure.id]}
@@ -2012,11 +2026,16 @@
     color: var(--text-primary);
   }
 
-  .remove {
-    height: 26px;
+  @media (any-pointer: coarse) {
+    .source {
+      height: auto;
+      min-height: calc(var(--touch-target) + 2px);
+    }
+
+    .ghost {
+      min-width: var(--touch-target);
+      min-height: var(--touch-target);
+    }
   }
 
-  .remove:hover {
-    color: var(--danger);
-  }
 </style>

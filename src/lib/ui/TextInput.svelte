@@ -48,4 +48,20 @@
     font-size: var(--text-lg);
     letter-spacing: var(--tracking-tight);
   }
+
+  @media (any-pointer: coarse) {
+    .input {
+      min-height: var(--touch-target);
+    }
+  }
+
+  @media (max-width: 760px) {
+    .input {
+      font-size: var(--text-md);
+    }
+
+    .prominent {
+      font-size: var(--text-lg);
+    }
+  }
 </style>

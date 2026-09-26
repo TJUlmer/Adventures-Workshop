@@ -53,6 +53,7 @@
 <style>
   .segmented {
     display: flex;
+    max-width: 100%;
     gap: 2px;
     padding: 2px;
     border-radius: var(--radius-md);
@@ -74,6 +75,8 @@
     font-weight: var(--weight-medium);
     color: var(--text-tertiary);
     white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
     transition:
       background-color var(--duration-fast) var(--ease-out),
       color var(--duration-fast) var(--ease-out);
@@ -82,6 +85,15 @@
   .segment:hover:not(:disabled):not(.selected) {
     background: var(--surface-hover);
     color: var(--text-secondary);
+  }
+
+  .segment:active:not(:disabled) {
+    background: var(--surface-active);
+    color: var(--text-primary);
+  }
+
+  .segment:focus-visible {
+    outline-offset: -2px;
   }
 
   .segment:disabled {
@@ -102,5 +114,27 @@
     height: 6px;
     border-radius: var(--radius-full);
     flex: none;
+  }
+
+  @media (any-pointer: coarse) {
+    .segment {
+      min-width: var(--touch-target);
+      min-height: var(--touch-target);
+    }
+  }
+
+  @media (max-width: 760px) {
+    .segmented {
+      justify-content: flex-start;
+      overflow-x: auto;
+      overflow-y: hidden;
+      overscroll-behavior-inline: contain;
+    }
+
+    .segment {
+      flex: 1 0 auto;
+      overflow: visible;
+      text-overflow: clip;
+    }
   }
 </style>

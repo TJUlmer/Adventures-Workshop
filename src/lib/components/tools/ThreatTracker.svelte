@@ -6,7 +6,7 @@
    * clicking a space selects it, and its effect text edits below, so the thing
    * being changed and the thing being looked at are never separated.
    */
-  import { mount, onDestroy, tick, unmount } from 'svelte';
+  import { mount, tick, unmount } from 'svelte';
   import type { Fill } from '$lib/cards/style';
   import { solid } from '$lib/cards/style';
   import { characterLabel } from '$lib/characters/factory';
@@ -38,6 +38,7 @@
   import {
     Button,
     ColorInput,
+    ConfirmAction,
     EmptyState,
     FillEditor,
     Icon,
@@ -58,28 +59,6 @@
   const selected = $derived(track.steps.find((step) => step.id === selectedId) ?? null);
   const canAdd = $derived(canAddThreatStep(track));
   const canAddSlot = $derived(canAddThreatSlot(track));
-  let armedSlotId = $state<ThreatSlotId | null>(null);
-  let slotDisarmTimer: ReturnType<typeof setTimeout> | null = null;
-
-  function disarmSlotDelete(): void {
-    if (slotDisarmTimer) clearTimeout(slotDisarmTimer);
-    slotDisarmTimer = null;
-    armedSlotId = null;
-  }
-
-  onDestroy(disarmSlotDelete);
-
-  /** A slot has no undo, so match the sidebar card rows' two-click delete. */
-  function requestSlotDelete(id: ThreatSlotId): void {
-    if (armedSlotId === id) {
-      disarmSlotDelete();
-      workshop.removeThreatSlot(id);
-      return;
-    }
-    disarmSlotDelete();
-    armedSlotId = id;
-    slotDisarmTimer = setTimeout(disarmSlotDelete, 3000);
-  }
 
   const villainOptions = $derived([
     { value: '', label: 'Not assigned' },
@@ -710,21 +689,17 @@
                 oninput={(event) =>
                   workshop.editThreat(() => (slot.note = event.currentTarget.value))}
               />
-              <Button
+              <ConfirmAction
                 size="sm"
-                variant={armedSlotId === slot.id ? 'danger' : 'ghost'}
+                variant="ghost"
+                armedVariant="danger"
                 iconOnly
-                title={armedSlotId === slot.id ? 'Click again to delete' : `Delete slot ${index + 1}`}
-                aria-label={armedSlotId === slot.id
-                  ? `Delete slot ${index + 1} — click again to confirm`
-                  : `Delete slot ${index + 1}`}
-                onclick={() => requestSlotDelete(slot.id)}
-                onblur={() => {
-                  if (armedSlotId === slot.id) disarmSlotDelete();
-                }}
+                label={`Delete slot ${index + 1}`}
+                confirmLabel={`Delete slot ${index + 1} — activate again to confirm`}
+                onconfirm={() => workshop.removeThreatSlot(slot.id)}
               >
                 <Icon name="trash" size={13} />
-              </Button>
+              </ConfirmAction>
             </div>
           {/each}
         {/if}

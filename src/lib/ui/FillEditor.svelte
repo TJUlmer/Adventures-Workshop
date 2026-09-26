@@ -60,6 +60,7 @@
         type="button"
         class="mode"
         class:on={isGradient}
+        aria-pressed={isGradient}
         title={isGradient ? 'Switch to a solid colour' : 'Switch to a gradient'}
         onclick={() => patch({ kind: isGradient ? 'solid' : 'gradient' })}
       >
@@ -94,6 +95,7 @@
           aria-label="{label} colour"
           oninput={(event) => patch({ color: event.currentTarget.value })}
         />
+        <span class="chip-face" aria-hidden="true"></span>
       </span>
       <HexInput
         value={value.color}
@@ -111,6 +113,7 @@
             aria-label="{label} second colour"
             oninput={(event) => patch({ color2: event.currentTarget.value })}
           />
+          <span class="chip-face" aria-hidden="true"></span>
         </span>
         <HexInput
           value={value.color2}
@@ -140,6 +143,7 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
+    min-width: 0;
     gap: var(--space-2);
   }
 
@@ -151,6 +155,8 @@
   .head-actions {
     display: flex;
     align-items: center;
+    justify-content: flex-end;
+    min-width: 0;
     gap: var(--space-2);
   }
 
@@ -168,6 +174,12 @@
   .mode:hover {
     color: var(--text-secondary);
     border-color: var(--border-strong);
+  }
+
+  .mode:active {
+    color: var(--text-primary);
+    border-color: var(--border-strong);
+    background: var(--surface-active);
   }
 
   .mode.on {
@@ -192,6 +204,11 @@
 
   .reset:hover {
     background: var(--surface-hover);
+    color: var(--text-primary);
+  }
+
+  .reset:active {
+    background: var(--surface-active);
     color: var(--text-primary);
   }
 
@@ -227,12 +244,11 @@
 
   .chip {
     position: relative;
+    display: grid;
+    place-items: center;
     width: 16px;
     height: 16px;
     flex: none;
-    border-radius: var(--radius-xs);
-    box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.2);
-    overflow: hidden;
   }
 
   .chip input {
@@ -240,6 +256,28 @@
     inset: 0;
     opacity: 0;
     cursor: pointer;
+  }
+
+  .chip-face {
+    width: 16px;
+    height: 16px;
+    border-radius: var(--radius-xs);
+    background: inherit;
+    box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.2);
+    pointer-events: none;
+    transition:
+      box-shadow var(--duration-fast) var(--ease-out),
+      transform var(--duration-instant) var(--ease-out);
+  }
+
+  .chip:focus-within .chip-face {
+    box-shadow:
+      inset 0 0 0 1px rgb(255 255 255 / 0.2),
+      0 0 0 3px var(--accent-soft);
+  }
+
+  .chip:active .chip-face {
+    transform: scale(0.94);
   }
 
   /*
@@ -252,5 +290,42 @@
   /* The dial closes the row, so it takes the slack rather than the stops. */
   .body :global(.angle) {
     margin-left: auto;
+  }
+
+  @media (any-pointer: coarse) {
+    .mode,
+    .reset,
+    .chip {
+      min-width: var(--touch-target);
+      min-height: var(--touch-target);
+    }
+
+    .body {
+      height: auto;
+      min-height: calc(var(--touch-target) + 2px);
+      padding-block: var(--space-1);
+      flex-wrap: wrap;
+    }
+  }
+
+  @media (max-width: 760px) {
+    .head,
+    .head-actions,
+    .body {
+      flex-wrap: wrap;
+    }
+
+    .body {
+      height: auto;
+      padding-block: var(--space-1);
+    }
+
+    .stop {
+      flex: 1 1 8rem;
+    }
+
+    .body :global(.angle) {
+      margin-left: 0;
+    }
   }
 </style>

@@ -723,6 +723,12 @@
     color: var(--danger);
   }
 
+  @media (max-width: 760px) {
+    .link {
+      font-size: var(--text-md);
+    }
+  }
+
   @media (max-width: 520px) {
     .preview-heading {
       flex-direction: column;
