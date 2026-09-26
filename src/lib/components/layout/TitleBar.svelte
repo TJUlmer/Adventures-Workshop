@@ -123,6 +123,7 @@
     align-items: center;
     justify-content: space-between;
     gap: var(--space-4);
+    min-width: 0;
     height: 100%;
     padding-inline: var(--space-4);
   }
@@ -131,6 +132,8 @@
     display: inline-flex;
     align-items: center;
     gap: var(--space-2);
+    flex: 1 1 auto;
+    min-width: 0;
     max-width: 42ch;
     height: 26px;
     padding-inline: var(--space-3);
@@ -160,6 +163,7 @@
     display: flex;
     align-items: center;
     justify-content: flex-end;
+    flex: none;
     gap: var(--space-2);
   }
 

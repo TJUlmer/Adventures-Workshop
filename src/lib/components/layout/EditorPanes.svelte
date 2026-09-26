@@ -7,7 +7,8 @@
    * three-pane arrangement is exactly what it was, because for the work it does
    * — picking a card, editing it, watching it change — it was right.
    */
-  import { onMount, type Snippet } from 'svelte';
+  import { onMount, tick, type Snippet } from 'svelte';
+  import { workshop } from '$lib/state/workshop.svelte';
 
   interface Props {
     sidebar: Snippet;
@@ -23,9 +24,29 @@
   const MIN_WORKSPACE_WIDTH = 360;
   const DIVIDER_WIDTH = 8;
   const STORAGE_KEY = 'unmatched-labs.preview-width';
+  const PHONE_MAX_WIDTH = 760;
+  const TABLET_MAX_WIDTH = 1180;
+
+  type LayoutMode = 'phone' | 'tablet' | 'desktop';
+  type ActivePane = 'contents' | 'edit' | 'preview';
+
+  function modeForWidth(width: number): LayoutMode {
+    if (width <= PHONE_MAX_WIDTH) return 'phone';
+    if (width <= TABLET_MAX_WIDTH) return 'tablet';
+    return 'desktop';
+  }
+
+  function initialMode(): LayoutMode {
+    return typeof window === 'undefined' ? 'desktop' : modeForWidth(window.innerWidth);
+  }
 
   let panes = $state<HTMLDivElement | null>(null);
   let sidebarPane = $state<HTMLElement | null>(null);
+  let workspacePane = $state<HTMLElement | null>(null);
+  let layoutMode = $state<LayoutMode>(initialMode());
+  // This is view state, not document state. Re-entering Cards deliberately
+  // starts on Edit so the current desktop behaviour remains the default.
+  let activePane = $state<ActivePane>('edit');
   let previewWidth = $state(DEFAULT_PREVIEW_WIDTH);
   let resizeDrag = $state<{
     pointerId: number;
@@ -35,10 +56,10 @@
 
   function maximumPreviewWidth(): number {
     if (!panes || !sidebarPane) return MAX_PREVIEW_WIDTH;
-    // Below this breakpoint CSS hides the preview entirely. Do not shrink a
-    // remembered desktop preference merely because the window is temporarily
-    // narrow enough that the pane is not on screen.
-    if (panes.clientWidth <= 1180) return MAX_PREVIEW_WIDTH;
+    // Below this breakpoint the resizable desktop preview becomes a selectable
+    // surface. Do not shrink a remembered desktop preference merely because
+    // the window is temporarily too narrow to show the divider.
+    if (panes.clientWidth <= TABLET_MAX_WIDTH) return MAX_PREVIEW_WIDTH;
     return Math.max(
       MIN_PREVIEW_WIDTH,
       Math.min(
@@ -98,6 +119,48 @@
     event.preventDefault();
   }
 
+  function paneIsVisible(pane: ActivePane): boolean {
+    if (layoutMode === 'desktop') return true;
+    if (layoutMode === 'tablet') {
+      if (pane === 'contents') return true;
+      return pane === (activePane === 'preview' ? 'preview' : 'edit');
+    }
+    return pane === activePane;
+  }
+
+  function choosePane(pane: ActivePane): void {
+    activePane = pane;
+  }
+
+  function recoverFocusAfterResize(): void {
+    const focused = document.activeElement;
+    if (!(focused instanceof HTMLElement) || !panes?.contains(focused)) return;
+    const hiddenPane = focused.closest<HTMLElement>('[data-workspace-pane]');
+    if (!hiddenPane || hiddenPane.getAttribute('aria-hidden') !== 'true') return;
+    panes
+      .querySelector<HTMLButtonElement>('.pane-switcher [aria-pressed="true"]')
+      ?.focus({ preventScroll: true });
+  }
+
+  /*
+   * A selection made in Contents is an instruction to edit that entity. The
+   * store assigns a fresh selection object even when the same row is picked
+   * again, so identity is the event signal and no pane state leaks into the
+   * document or browser history.
+   */
+  let observedSelection = workshop.selection;
+  $effect(() => {
+    const selection = workshop.selection;
+    if (selection === observedSelection) return;
+    observedSelection = selection;
+    if (selection.target === 'set') return;
+
+    activePane = 'edit';
+    if (layoutMode !== 'desktop') {
+      void tick().then(() => workspacePane?.focus({ preventScroll: true }));
+    }
+  });
+
   onMount(() => {
     try {
       const stored = Number(window.localStorage.getItem(STORAGE_KEY));
@@ -107,6 +170,11 @@
     }
 
     const observer = new ResizeObserver(() => {
+      const nextMode = modeForWidth(panes?.clientWidth ?? window.innerWidth);
+      if (nextMode !== layoutMode) {
+        layoutMode = nextMode;
+        void tick().then(recoverFocusAfterResize);
+      }
       previewWidth = clampPreviewWidth(previewWidth);
     });
     if (panes) observer.observe(panes);
@@ -114,9 +182,35 @@
   });
 </script>
 
-<div class="panes" bind:this={panes} style:--preview-width="{previewWidth}px">
-  <aside class="sidebar" aria-label="Set contents" bind:this={sidebarPane}>{@render sidebar()}</aside>
-  <main class="workspace" aria-label="Editor">{@render workspace()}</main>
+<div
+  class="panes"
+  bind:this={panes}
+  data-layout={layoutMode}
+  style:--preview-width="{previewWidth}px"
+>
+  <aside
+    class="sidebar"
+    class:pane-hidden={!paneIsVisible('contents')}
+    aria-label="Set contents"
+    aria-hidden={paneIsVisible('contents') ? undefined : 'true'}
+    inert={!paneIsVisible('contents')}
+    data-workspace-pane="contents"
+    bind:this={sidebarPane}
+  >
+    {@render sidebar()}
+  </aside>
+  <main
+    class="workspace"
+    class:pane-hidden={!paneIsVisible('edit')}
+    aria-label="Editor"
+    aria-hidden={paneIsVisible('edit') ? undefined : 'true'}
+    inert={!paneIsVisible('edit')}
+    data-workspace-pane="edit"
+    tabindex="-1"
+    bind:this={workspacePane}
+  >
+    {@render workspace()}
+  </main>
   <div
     class="preview-divider"
     class:dragging={resizeDrag !== null}
@@ -136,7 +230,38 @@
     onkeydown={resizeWithKeyboard}
     ondblclick={() => setPreviewWidth(DEFAULT_PREVIEW_WIDTH)}
   ></div>
-  <aside class="preview" aria-label="Card preview">{@render preview()}</aside>
+  <aside
+    class="preview"
+    class:pane-hidden={!paneIsVisible('preview')}
+    aria-label="Card preview"
+    aria-hidden={paneIsVisible('preview') ? undefined : 'true'}
+    inert={!paneIsVisible('preview')}
+    data-workspace-pane="preview"
+  >
+    {@render preview()}
+  </aside>
+
+  {#if layoutMode !== 'desktop'}
+    <nav class="pane-switcher" aria-label="Cards workspace views">
+      {#if layoutMode === 'phone'}
+        <button
+          type="button"
+          aria-pressed={activePane === 'contents'}
+          onclick={() => choosePane('contents')}
+        >Contents</button>
+      {/if}
+      <button
+        type="button"
+        aria-pressed={layoutMode === 'tablet' ? activePane !== 'preview' : activePane === 'edit'}
+        onclick={() => choosePane('edit')}
+      >Edit</button>
+      <button
+        type="button"
+        aria-pressed={activePane === 'preview'}
+        onclick={() => choosePane('preview')}
+      >Preview</button>
+    </nav>
+  {/if}
 </div>
 
 <style>
@@ -201,15 +326,84 @@
     outline: none;
   }
 
-  /* Below this width the preview pane stops earning its keep. */
-  @media (max-width: 1180px) {
-    .panes {
-      grid-template-columns: var(--sidebar-width) minmax(0, 1fr);
-    }
+  .pane-hidden {
+    display: none;
+  }
 
-    .preview-divider,
-    .preview {
-      display: none;
-    }
+  .pane-switcher {
+    display: flex;
+    gap: var(--space-1);
+    min-width: 0;
+    padding: var(--space-1) var(--space-2) max(var(--space-1), env(safe-area-inset-bottom));
+    border-top: 1px solid var(--border-subtle);
+    background: var(--surface-sunken);
+  }
+
+  .pane-switcher button {
+    flex: 1 1 0;
+    min-width: 0;
+    min-height: 44px;
+    padding-inline: var(--space-2);
+    border-radius: var(--radius-sm);
+    font-size: var(--text-sm);
+    font-weight: var(--weight-medium);
+    color: var(--text-tertiary);
+    transition:
+      background-color var(--duration-fast) var(--ease-out),
+      color var(--duration-fast) var(--ease-out);
+  }
+
+  .pane-switcher button:hover {
+    background: var(--surface-hover);
+    color: var(--text-secondary);
+  }
+
+  .pane-switcher button[aria-pressed='true'] {
+    background: var(--surface-raised);
+    color: var(--text-primary);
+    box-shadow: inset 0 0 0 1px var(--border-default), var(--shadow-xs);
+  }
+
+  .panes[data-layout='tablet'] {
+    grid-template-columns: var(--sidebar-width) minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr) auto;
+  }
+
+  .panes[data-layout='tablet'] .sidebar {
+    grid-column: 1;
+    grid-row: 1 / 3;
+  }
+
+  .panes[data-layout='tablet'] .workspace,
+  .panes[data-layout='tablet'] .preview {
+    grid-column: 2;
+    grid-row: 1;
+  }
+
+  .panes[data-layout='tablet'] .pane-switcher {
+    grid-column: 2;
+    grid-row: 2;
+  }
+
+  .panes[data-layout='tablet'] .preview-divider,
+  .panes[data-layout='phone'] .preview-divider {
+    display: none;
+  }
+
+  .panes[data-layout='phone'] {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr) auto;
+  }
+
+  .panes[data-layout='phone'] .sidebar,
+  .panes[data-layout='phone'] .workspace,
+  .panes[data-layout='phone'] .preview {
+    grid-column: 1;
+    grid-row: 1;
+  }
+
+  .panes[data-layout='phone'] .pane-switcher {
+    grid-column: 1;
+    grid-row: 2;
   }
 </style>

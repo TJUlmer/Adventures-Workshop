@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Load mobile UI baseline fixture</title>
+    <style>
+      :root { color-scheme: light dark; font-family: system-ui, sans-serif; }
+      body { max-width: 42rem; margin: 3rem auto; padding: 0 1rem; }
+      button { min-height: 44px; padding: 0 1rem; }
+      pre { padding: 1rem; border: 1px solid currentColor; border-radius: .5rem; white-space: pre-wrap; }
+    </style>
+  </head>
+  <body>
+    <h1>Load the mobile UI baseline fixture</h1>
+    <p>
+      This developer tool writes the fixed fixture to this origin’s IndexedDB only. Use the isolated
+      baseline origin, never an author’s normal dev origin.
+    </p>
+    <button id="load-fixture" type="button">Load fixed fixture</button>
+    <pre id="status" aria-live="polite">Waiting.</pre>
+    <script type="module" src="./load.js"></script>
+  </body>
+</html>

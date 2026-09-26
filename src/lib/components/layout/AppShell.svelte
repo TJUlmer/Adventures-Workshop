@@ -38,8 +38,13 @@
 <style>
   .shell {
     display: grid;
+    /* An implicit grid column uses its children's min-content width. At 320px
+       the title controls made that column 347px wide even though SetNav owns
+       its own horizontal scrolling, so the document itself overflowed. */
+    grid-template-columns: minmax(0, 1fr);
     grid-template-rows: var(--titlebar-height) minmax(0, 1fr) auto;
     height: 100%;
+    min-width: 0;
     background: var(--surface-canvas);
   }
 

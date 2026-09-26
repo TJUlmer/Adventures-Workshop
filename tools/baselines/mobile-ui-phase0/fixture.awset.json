@@ -1,0 +1,3129 @@
+{
+  "format": "adventures-workshop-set",
+  "schemaVersion": 71,
+  "exportedAt": "2026-09-26T12:00:00.000Z",
+  "set": {
+    "id": "set_mobile_ui_baseline",
+    "schemaVersion": 71,
+    "kind": "adventure",
+    "singleHero": false,
+    "name": "Mobile UI Baseline",
+    "subtitle": "Phase 0 interaction and rendered-output fixture",
+    "meta": {
+      "author": "Unmatched Labs",
+      "description": "Deterministic, offline fixture for mobile UI baselines.",
+      "createdAt": "2026-09-26T12:00:00.000Z",
+      "updatedAt": "2026-09-26T12:00:00.000Z"
+    },
+    "style": {},
+    "characters": [
+      {
+        "id": "char_baseline_hero",
+        "name": "Mariner",
+        "subtitle": "The Tidebound",
+        "role": "hero",
+        "attackType": "ranged",
+        "health": 15,
+        "move": 3,
+        "figureCount": 1,
+        "abilities": [
+          {
+            "name": "Read the Current",
+            "text": "After you manoeuvre, you may move one opposing fighter 1 space.",
+            "kind": "passive"
+          }
+        ],
+        "artwork": {
+          "source": "data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22800%22%20height%3D%221000%22%20viewBox%3D%220%200%20800%201000%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22g%22%20x2%3D%221%22%20y2%3D%221%22%3E%3Cstop%20stop-color%3D%22%23152a47%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%230c6b78%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%22800%22%20height%3D%221000%22%20fill%3D%22url(%23g)%22%2F%3E%3Ccircle%20cx%3D%22610%22%20cy%3D%22260%22%20r%3D%22145%22%20fill%3D%22%23f6eada%22%20opacity%3D%22.28%22%2F%3E%3Cpath%20d%3D%22M0%20790L260%20520l150%20140%20180-240%20210%20230v350H0z%22%20fill%3D%22%23f6eada%22%20opacity%3D%22.22%22%2F%3E%3Ctext%20x%3D%2252%22%20y%3D%22914%22%20fill%3D%22%23f6eada%22%20font-family%3D%22sans-serif%22%20font-size%3D%2258%22%20font-weight%3D%22700%22%3EHERO%3C%2Ftext%3E%3C%2Fsvg%3E",
+          "label": "char_baseline_hero.svg",
+          "crop": {
+            "x": 0,
+            "y": 0,
+            "width": 1,
+            "height": 1
+          },
+          "transform": {
+            "scale": 1,
+            "stretchX": 1,
+            "stretchY": 1,
+            "offsetX": 0,
+            "offsetY": 0,
+            "rotation": 0,
+            "flipX": false
+          },
+          "adjustments": {
+            "brightness": 1,
+            "contrast": 1,
+            "saturation": 1,
+            "hue": 0,
+            "blur": 0,
+            "grayscale": 0,
+            "sepia": 0,
+            "opacity": 1
+          },
+          "effects": {
+            "mask": "none",
+            "maskStrength": 0.6,
+            "vignette": 0
+          }
+        },
+        "cardback": {
+          "background": {
+            "kind": "solid",
+            "color": "#f4f1e4",
+            "color2": "#f4f1e4",
+            "angle": 180
+          },
+          "ink": "#6f6a55",
+          "artwork": {
+            "source": "data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22800%22%20height%3D%221000%22%20viewBox%3D%220%200%20800%201000%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22g%22%20x2%3D%221%22%20y2%3D%221%22%3E%3Cstop%20stop-color%3D%22%23152a47%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%230c6b78%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%22800%22%20height%3D%221000%22%20fill%3D%22url(%23g)%22%2F%3E%3Ccircle%20cx%3D%22610%22%20cy%3D%22260%22%20r%3D%22145%22%20fill%3D%22%23f6eada%22%20opacity%3D%22.28%22%2F%3E%3Cpath%20d%3D%22M0%20790L260%20520l150%20140%20180-240%20210%20230v350H0z%22%20fill%3D%22%23f6eada%22%20opacity%3D%22.22%22%2F%3E%3Ctext%20x%3D%2252%22%20y%3D%22914%22%20fill%3D%22%23f6eada%22%20font-family%3D%22sans-serif%22%20font-size%3D%2258%22%20font-weight%3D%22700%22%3EHERO%3C%2Ftext%3E%3C%2Fsvg%3E",
+            "label": "char_baseline_hero-back.svg",
+            "crop": {
+              "x": 0,
+              "y": 0,
+              "width": 1,
+              "height": 1
+            },
+            "transform": {
+              "scale": 1,
+              "stretchX": 1,
+              "stretchY": 1,
+              "offsetX": 0,
+              "offsetY": 0,
+              "rotation": 0,
+              "flipX": false
+            },
+            "adjustments": {
+              "brightness": 1,
+              "contrast": 1,
+              "saturation": 1,
+              "hue": 0,
+              "blur": 0,
+              "grayscale": 0,
+              "sepia": 0,
+              "opacity": 1
+            },
+            "effects": {
+              "mask": "none",
+              "maskStrength": 0.6,
+              "vignette": 0
+            }
+          },
+          "replacement": {
+            "source": null,
+            "label": "",
+            "crop": {
+              "x": 0,
+              "y": 0,
+              "width": 1,
+              "height": 1
+            },
+            "transform": {
+              "scale": 1,
+              "stretchX": 1,
+              "stretchY": 1,
+              "offsetX": 0,
+              "offsetY": 0,
+              "rotation": 0,
+              "flipX": false
+            },
+            "adjustments": {
+              "brightness": 1,
+              "contrast": 1,
+              "saturation": 1,
+              "hue": 0,
+              "blur": 0,
+              "grayscale": 0,
+              "sepia": 0,
+              "opacity": 1
+            },
+            "effects": {
+              "mask": "none",
+              "maskStrength": 0.6,
+              "vignette": 0
+            }
+          },
+          "useReplacement": false,
+          "label": "HERO",
+          "frame": {
+            "kind": "solid",
+            "color": "#f6eada",
+            "color2": "#f6eada",
+            "angle": 180
+          }
+        },
+        "sidekick": {
+          "enabled": true,
+          "name": "Beacon",
+          "subtitle": "First Mate",
+          "attackType": "melee",
+          "multiple": false,
+          "health": 6,
+          "count": 1
+        },
+        "quote": {
+          "text": "",
+          "attribution": ""
+        },
+        "additionalCards": [],
+        "printedName": "",
+        "characterCard": {
+          "border": {
+            "kind": "solid",
+            "color": "#f3e3da",
+            "color2": "#f3e3da",
+            "angle": 180
+          },
+          "healthBadge": {
+            "kind": "solid",
+            "color": "#293992",
+            "color2": "#293992",
+            "angle": 180
+          },
+          "healthBadgeAccent": {
+            "kind": "solid",
+            "color": "#f9f6ee",
+            "color2": "#f9f6ee",
+            "angle": 180
+          },
+          "healthInk": {
+            "kind": "solid",
+            "color": "#ffffff",
+            "color2": "#ffffff",
+            "angle": 180
+          },
+          "sidekickDisc": {
+            "kind": "solid",
+            "color": "#858585",
+            "color2": "#858585",
+            "angle": 180
+          },
+          "quoteInk": {
+            "kind": "solid",
+            "color": "#f6eada",
+            "color2": "#f6eada",
+            "angle": 180
+          },
+          "quoteScale": 1,
+          "abilityInk": {
+            "kind": "solid",
+            "color": "#000000",
+            "color2": "#000000",
+            "angle": 180
+          },
+          "abilityScale": 1,
+          "moveInk": {
+            "kind": "solid",
+            "color": "#000000",
+            "color2": "#000000",
+            "angle": 180
+          },
+          "hero": {
+            "fill": {
+              "kind": "solid",
+              "color": "#001722",
+              "color2": "#001722",
+              "angle": 180
+            },
+            "artwork": {
+              "source": "data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22800%22%20height%3D%221000%22%20viewBox%3D%220%200%20800%201000%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22g%22%20x2%3D%221%22%20y2%3D%221%22%3E%3Cstop%20stop-color%3D%22%23152a47%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%230c6b78%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%22800%22%20height%3D%221000%22%20fill%3D%22url(%23g)%22%2F%3E%3Ccircle%20cx%3D%22610%22%20cy%3D%22260%22%20r%3D%22145%22%20fill%3D%22%23f6eada%22%20opacity%3D%22.28%22%2F%3E%3Cpath%20d%3D%22M0%20790L260%20520l150%20140%20180-240%20210%20230v350H0z%22%20fill%3D%22%23f6eada%22%20opacity%3D%22.22%22%2F%3E%3Ctext%20x%3D%2252%22%20y%3D%22914%22%20fill%3D%22%23f6eada%22%20font-family%3D%22sans-serif%22%20font-size%3D%2258%22%20font-weight%3D%22700%22%3EHERO%3C%2Ftext%3E%3C%2Fsvg%3E",
+              "label": "hero-band.svg",
+              "crop": {
+                "x": 0,
+                "y": 0,
+                "width": 1,
+                "height": 1
+              },
+              "transform": {
+                "scale": 1,
+                "stretchX": 1,
+                "stretchY": 1,
+                "offsetX": 0,
+                "offsetY": 0,
+                "rotation": 0,
+                "flipX": false
+              },
+              "adjustments": {
+                "brightness": 1,
+                "contrast": 1,
+                "saturation": 1,
+                "hue": 0,
+                "blur": 0,
+                "grayscale": 0,
+                "sepia": 0,
+                "opacity": 1
+              },
+              "effects": {
+                "mask": "none",
+                "maskStrength": 0.6,
+                "vignette": 0
+              }
+            },
+            "labelInk": {
+              "kind": "solid",
+              "color": "#ffffff",
+              "color2": "#ffffff",
+              "angle": 180
+            }
+          },
+          "ability": {
+            "fill": {
+              "kind": "solid",
+              "color": "#cfa058",
+              "color2": "#cfa058",
+              "angle": 180
+            },
+            "artwork": {
+              "source": null,
+              "label": "",
+              "crop": {
+                "x": 0,
+                "y": 0,
+                "width": 1,
+                "height": 1
+              },
+              "transform": {
+                "scale": 1,
+                "stretchX": 1,
+                "stretchY": 1,
+                "offsetX": 0,
+                "offsetY": 0,
+                "rotation": 0,
+                "flipX": false
+              },
+              "adjustments": {
+                "brightness": 1,
+                "contrast": 1,
+                "saturation": 1,
+                "hue": 0,
+                "blur": 0,
+                "grayscale": 0,
+                "sepia": 0,
+                "opacity": 1
+              },
+              "effects": {
+                "mask": "none",
+                "maskStrength": 0.6,
+                "vignette": 0
+              }
+            },
+            "labelInk": {
+              "kind": "solid",
+              "color": "#000000",
+              "color2": "#000000",
+              "angle": 180
+            }
+          },
+          "sidekick": {
+            "fill": {
+              "kind": "solid",
+              "color": "#001722",
+              "color2": "#001722",
+              "angle": 180
+            },
+            "artwork": {
+              "source": "data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22800%22%20height%3D%221000%22%20viewBox%3D%220%200%20800%201000%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22g%22%20x2%3D%221%22%20y2%3D%221%22%3E%3Cstop%20stop-color%3D%22%2370284e%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%23db725a%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%22800%22%20height%3D%221000%22%20fill%3D%22url(%23g)%22%2F%3E%3Ccircle%20cx%3D%22610%22%20cy%3D%22260%22%20r%3D%22145%22%20fill%3D%22%23ffffff%22%20opacity%3D%22.28%22%2F%3E%3Cpath%20d%3D%22M0%20790L260%20520l150%20140%20180-240%20210%20230v350H0z%22%20fill%3D%22%23ffffff%22%20opacity%3D%22.22%22%2F%3E%3Ctext%20x%3D%2252%22%20y%3D%22914%22%20fill%3D%22%23ffffff%22%20font-family%3D%22sans-serif%22%20font-size%3D%2258%22%20font-weight%3D%22700%22%3ES%3C%2Ftext%3E%3C%2Fsvg%3E",
+              "label": "sidekick-band.svg",
+              "crop": {
+                "x": 0,
+                "y": 0,
+                "width": 1,
+                "height": 1
+              },
+              "transform": {
+                "scale": 1,
+                "stretchX": 1,
+                "stretchY": 1,
+                "offsetX": 0,
+                "offsetY": 0,
+                "rotation": 0,
+                "flipX": false
+              },
+              "adjustments": {
+                "brightness": 1,
+                "contrast": 1,
+                "saturation": 1,
+                "hue": 0,
+                "blur": 0,
+                "grayscale": 0,
+                "sepia": 0,
+                "opacity": 1
+              },
+              "effects": {
+                "mask": "none",
+                "maskStrength": 0.6,
+                "vignette": 0
+              }
+            },
+            "labelInk": {
+              "kind": "solid",
+              "color": "#ffffff",
+              "color2": "#ffffff",
+              "angle": 180
+            }
+          },
+          "replacement": {
+            "source": null,
+            "label": "",
+            "crop": {
+              "x": 0,
+              "y": 0,
+              "width": 1,
+              "height": 1
+            },
+            "transform": {
+              "scale": 1,
+              "stretchX": 1,
+              "stretchY": 1,
+              "offsetX": 0,
+              "offsetY": 0,
+              "rotation": 0,
+              "flipX": false
+            },
+            "adjustments": {
+              "brightness": 1,
+              "contrast": 1,
+              "saturation": 1,
+              "hue": 0,
+              "blur": 0,
+              "grayscale": 0,
+              "sepia": 0,
+              "opacity": 1
+            },
+            "effects": {
+              "mask": "none",
+              "maskStrength": 0.6,
+              "vignette": 0
+            }
+          },
+          "useReplacement": false
+        },
+        "style": {},
+        "notes": "Phase 0 hero fixture.",
+        "createdAt": "2026-09-26T12:00:00.000Z",
+        "updatedAt": "2026-09-26T12:00:00.000Z"
+      },
+      {
+        "id": "char_baseline_villain",
+        "name": "The Glass Regent",
+        "subtitle": "Sovereign of the Shoals",
+        "role": "villain",
+        "attackType": "melee",
+        "health": 19,
+        "move": 2,
+        "figureCount": 1,
+        "abilities": [],
+        "artwork": {
+          "source": "data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22800%22%20height%3D%221000%22%20viewBox%3D%220%200%20800%201000%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22g%22%20x2%3D%221%22%20y2%3D%221%22%3E%3Cstop%20stop-color%3D%22%2331172f%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%238a2438%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%22800%22%20height%3D%221000%22%20fill%3D%22url(%23g)%22%2F%3E%3Ccircle%20cx%3D%22610%22%20cy%3D%22260%22%20r%3D%22145%22%20fill%3D%22%23f6eada%22%20opacity%3D%22.28%22%2F%3E%3Cpath%20d%3D%22M0%20790L260%20520l150%20140%20180-240%20210%20230v350H0z%22%20fill%3D%22%23f6eada%22%20opacity%3D%22.22%22%2F%3E%3Ctext%20x%3D%2252%22%20y%3D%22914%22%20fill%3D%22%23f6eada%22%20font-family%3D%22sans-serif%22%20font-size%3D%2258%22%20font-weight%3D%22700%22%3EVILLAIN%3C%2Ftext%3E%3C%2Fsvg%3E",
+          "label": "char_baseline_villain.svg",
+          "crop": {
+            "x": 0,
+            "y": 0,
+            "width": 1,
+            "height": 1
+          },
+          "transform": {
+            "scale": 1,
+            "stretchX": 1,
+            "stretchY": 1,
+            "offsetX": 0,
+            "offsetY": 0,
+            "rotation": 0,
+            "flipX": false
+          },
+          "adjustments": {
+            "brightness": 1,
+            "contrast": 1,
+            "saturation": 1,
+            "hue": 0,
+            "blur": 0,
+            "grayscale": 0,
+            "sepia": 0,
+            "opacity": 1
+          },
+          "effects": {
+            "mask": "none",
+            "maskStrength": 0.6,
+            "vignette": 0
+          }
+        },
+        "cardback": {
+          "background": {
+            "kind": "solid",
+            "color": "#f4f1e4",
+            "color2": "#f4f1e4",
+            "angle": 180
+          },
+          "ink": "#6f6a55",
+          "artwork": {
+            "source": "data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22800%22%20height%3D%221000%22%20viewBox%3D%220%200%20800%201000%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22g%22%20x2%3D%221%22%20y2%3D%221%22%3E%3Cstop%20stop-color%3D%22%2331172f%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%238a2438%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%22800%22%20height%3D%221000%22%20fill%3D%22url(%23g)%22%2F%3E%3Ccircle%20cx%3D%22610%22%20cy%3D%22260%22%20r%3D%22145%22%20fill%3D%22%23f6eada%22%20opacity%3D%22.28%22%2F%3E%3Cpath%20d%3D%22M0%20790L260%20520l150%20140%20180-240%20210%20230v350H0z%22%20fill%3D%22%23f6eada%22%20opacity%3D%22.22%22%2F%3E%3Ctext%20x%3D%2252%22%20y%3D%22914%22%20fill%3D%22%23f6eada%22%20font-family%3D%22sans-serif%22%20font-size%3D%2258%22%20font-weight%3D%22700%22%3EVILLAIN%3C%2Ftext%3E%3C%2Fsvg%3E",
+            "label": "char_baseline_villain-back.svg",
+            "crop": {
+              "x": 0,
+              "y": 0,
+              "width": 1,
+              "height": 1
+            },
+            "transform": {
+              "scale": 1,
+              "stretchX": 1,
+              "stretchY": 1,
+              "offsetX": 0,
+              "offsetY": 0,
+              "rotation": 0,
+              "flipX": false
+            },
+            "adjustments": {
+              "brightness": 1,
+              "contrast": 1,
+              "saturation": 1,
+              "hue": 0,
+              "blur": 0,
+              "grayscale": 0,
+              "sepia": 0,
+              "opacity": 1
+            },
+            "effects": {
+              "mask": "none",
+              "maskStrength": 0.6,
+              "vignette": 0
+            }
+          },
+          "replacement": {
+            "source": null,
+            "label": "",
+            "crop": {
+              "x": 0,
+              "y": 0,
+              "width": 1,
+              "height": 1
+            },
+            "transform": {
+              "scale": 1,
+              "stretchX": 1,
+              "stretchY": 1,
+              "offsetX": 0,
+              "offsetY": 0,
+              "rotation": 0,
+              "flipX": false
+            },
+            "adjustments": {
+              "brightness": 1,
+              "contrast": 1,
+              "saturation": 1,
+              "hue": 0,
+              "blur": 0,
+              "grayscale": 0,
+              "sepia": 0,
+              "opacity": 1
+            },
+            "effects": {
+              "mask": "none",
+              "maskStrength": 0.6,
+              "vignette": 0
+            }
+          },
+          "useReplacement": false,
+          "label": "VILLAIN",
+          "frame": {
+            "kind": "solid",
+            "color": "#ebe8d5",
+            "color2": "#ebe8d5",
+            "angle": 180
+          }
+        },
+        "sidekick": {
+          "enabled": false,
+          "name": "",
+          "subtitle": "",
+          "attackType": "melee",
+          "multiple": false,
+          "health": 7,
+          "count": 3
+        },
+        "quote": {
+          "text": "",
+          "attribution": ""
+        },
+        "additionalCards": [],
+        "printedName": "",
+        "characterCard": {
+          "border": {
+            "kind": "solid",
+            "color": "#f3e3da",
+            "color2": "#f3e3da",
+            "angle": 180
+          },
+          "healthBadge": {
+            "kind": "solid",
+            "color": "#293992",
+            "color2": "#293992",
+            "angle": 180
+          },
+          "healthBadgeAccent": {
+            "kind": "solid",
+            "color": "#f9f6ee",
+            "color2": "#f9f6ee",
+            "angle": 180
+          },
+          "healthInk": {
+            "kind": "solid",
+            "color": "#ffffff",
+            "color2": "#ffffff",
+            "angle": 180
+          },
+          "sidekickDisc": {
+            "kind": "solid",
+            "color": "#858585",
+            "color2": "#858585",
+            "angle": 180
+          },
+          "quoteInk": {
+            "kind": "solid",
+            "color": "#f6eada",
+            "color2": "#f6eada",
+            "angle": 180
+          },
+          "quoteScale": 1,
+          "abilityInk": {
+            "kind": "solid",
+            "color": "#000000",
+            "color2": "#000000",
+            "angle": 180
+          },
+          "abilityScale": 1,
+          "moveInk": {
+            "kind": "solid",
+            "color": "#000000",
+            "color2": "#000000",
+            "angle": 180
+          },
+          "hero": {
+            "fill": {
+              "kind": "solid",
+              "color": "#001722",
+              "color2": "#001722",
+              "angle": 180
+            },
+            "artwork": {
+              "source": null,
+              "label": "",
+              "crop": {
+                "x": 0,
+                "y": 0,
+                "width": 1,
+                "height": 1
+              },
+              "transform": {
+                "scale": 1,
+                "stretchX": 1,
+                "stretchY": 1,
+                "offsetX": 0,
+                "offsetY": 0,
+                "rotation": 0,
+                "flipX": false
+              },
+              "adjustments": {
+                "brightness": 1,
+                "contrast": 1,
+                "saturation": 1,
+                "hue": 0,
+                "blur": 0,
+                "grayscale": 0,
+                "sepia": 0,
+                "opacity": 1
+              },
+              "effects": {
+                "mask": "none",
+                "maskStrength": 0.6,
+                "vignette": 0
+              }
+            },
+            "labelInk": {
+              "kind": "solid",
+              "color": "#ffffff",
+              "color2": "#ffffff",
+              "angle": 180
+            }
+          },
+          "ability": {
+            "fill": {
+              "kind": "solid",
+              "color": "#cfa058",
+              "color2": "#cfa058",
+              "angle": 180
+            },
+            "artwork": {
+              "source": null,
+              "label": "",
+              "crop": {
+                "x": 0,
+                "y": 0,
+                "width": 1,
+                "height": 1
+              },
+              "transform": {
+                "scale": 1,
+                "stretchX": 1,
+                "stretchY": 1,
+                "offsetX": 0,
+                "offsetY": 0,
+                "rotation": 0,
+                "flipX": false
+              },
+              "adjustments": {
+                "brightness": 1,
+                "contrast": 1,
+                "saturation": 1,
+                "hue": 0,
+                "blur": 0,
+                "grayscale": 0,
+                "sepia": 0,
+                "opacity": 1
+              },
+              "effects": {
+                "mask": "none",
+                "maskStrength": 0.6,
+                "vignette": 0
+              }
+            },
+            "labelInk": {
+              "kind": "solid",
+              "color": "#000000",
+              "color2": "#000000",
+              "angle": 180
+            }
+          },
+          "sidekick": {
+            "fill": {
+              "kind": "solid",
+              "color": "#001722",
+              "color2": "#001722",
+              "angle": 180
+            },
+            "artwork": {
+              "source": null,
+              "label": "",
+              "crop": {
+                "x": 0,
+                "y": 0,
+                "width": 1,
+                "height": 1
+              },
+              "transform": {
+                "scale": 1,
+                "stretchX": 1,
+                "stretchY": 1,
+                "offsetX": 0,
+                "offsetY": 0,
+                "rotation": 0,
+                "flipX": false
+              },
+              "adjustments": {
+                "brightness": 1,
+                "contrast": 1,
+                "saturation": 1,
+                "hue": 0,
+                "blur": 0,
+                "grayscale": 0,
+                "sepia": 0,
+                "opacity": 1
+              },
+              "effects": {
+                "mask": "none",
+                "maskStrength": 0.6,
+                "vignette": 0
+              }
+            },
+            "labelInk": {
+              "kind": "solid",
+              "color": "#ffffff",
+              "color2": "#ffffff",
+              "angle": 180
+            }
+          },
+          "replacement": {
+            "source": null,
+            "label": "",
+            "crop": {
+              "x": 0,
+              "y": 0,
+              "width": 1,
+              "height": 1
+            },
+            "transform": {
+              "scale": 1,
+              "stretchX": 1,
+              "stretchY": 1,
+              "offsetX": 0,
+              "offsetY": 0,
+              "rotation": 0,
+              "flipX": false
+            },
+            "adjustments": {
+              "brightness": 1,
+              "contrast": 1,
+              "saturation": 1,
+              "hue": 0,
+              "blur": 0,
+              "grayscale": 0,
+              "sepia": 0,
+              "opacity": 1
+            },
+            "effects": {
+              "mask": "none",
+              "maskStrength": 0.6,
+              "vignette": 0
+            }
+          },
+          "useReplacement": false
+        },
+        "style": {},
+        "notes": "Phase 0 villain fixture.",
+        "createdAt": "2026-09-26T12:00:00.000Z",
+        "updatedAt": "2026-09-26T12:00:00.000Z"
+      },
+      {
+        "id": "char_baseline_minion",
+        "name": "Lantern Guard",
+        "subtitle": "Keepers of the Gate",
+        "role": "minion",
+        "attackType": "melee",
+        "health": 5,
+        "move": 2,
+        "figureCount": 3,
+        "abilities": [],
+        "artwork": {
+          "source": "data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22800%22%20height%3D%221000%22%20viewBox%3D%220%200%20800%201000%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22g%22%20x2%3D%221%22%20y2%3D%221%22%3E%3Cstop%20stop-color%3D%22%23302819%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%2398752a%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%22800%22%20height%3D%221000%22%20fill%3D%22url(%23g)%22%2F%3E%3Ccircle%20cx%3D%22610%22%20cy%3D%22260%22%20r%3D%22145%22%20fill%3D%22%23f6eada%22%20opacity%3D%22.28%22%2F%3E%3Cpath%20d%3D%22M0%20790L260%20520l150%20140%20180-240%20210%20230v350H0z%22%20fill%3D%22%23f6eada%22%20opacity%3D%22.22%22%2F%3E%3Ctext%20x%3D%2252%22%20y%3D%22914%22%20fill%3D%22%23f6eada%22%20font-family%3D%22sans-serif%22%20font-size%3D%2258%22%20font-weight%3D%22700%22%3EMINION%3C%2Ftext%3E%3C%2Fsvg%3E",
+          "label": "char_baseline_minion.svg",
+          "crop": {
+            "x": 0,
+            "y": 0,
+            "width": 1,
+            "height": 1
+          },
+          "transform": {
+            "scale": 1,
+            "stretchX": 1,
+            "stretchY": 1,
+            "offsetX": 0,
+            "offsetY": 0,
+            "rotation": 0,
+            "flipX": false
+          },
+          "adjustments": {
+            "brightness": 1,
+            "contrast": 1,
+            "saturation": 1,
+            "hue": 0,
+            "blur": 0,
+            "grayscale": 0,
+            "sepia": 0,
+            "opacity": 1
+          },
+          "effects": {
+            "mask": "none",
+            "maskStrength": 0.6,
+            "vignette": 0
+          }
+        },
+        "cardback": {
+          "background": {
+            "kind": "solid",
+            "color": "#f4f1e4",
+            "color2": "#f4f1e4",
+            "angle": 180
+          },
+          "ink": "#6f6a55",
+          "artwork": {
+            "source": "data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22800%22%20height%3D%221000%22%20viewBox%3D%220%200%20800%201000%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22g%22%20x2%3D%221%22%20y2%3D%221%22%3E%3Cstop%20stop-color%3D%22%23302819%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%2398752a%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%22800%22%20height%3D%221000%22%20fill%3D%22url(%23g)%22%2F%3E%3Ccircle%20cx%3D%22610%22%20cy%3D%22260%22%20r%3D%22145%22%20fill%3D%22%23f6eada%22%20opacity%3D%22.28%22%2F%3E%3Cpath%20d%3D%22M0%20790L260%20520l150%20140%20180-240%20210%20230v350H0z%22%20fill%3D%22%23f6eada%22%20opacity%3D%22.22%22%2F%3E%3Ctext%20x%3D%2252%22%20y%3D%22914%22%20fill%3D%22%23f6eada%22%20font-family%3D%22sans-serif%22%20font-size%3D%2258%22%20font-weight%3D%22700%22%3EMINION%3C%2Ftext%3E%3C%2Fsvg%3E",
+            "label": "char_baseline_minion-back.svg",
+            "crop": {
+              "x": 0,
+              "y": 0,
+              "width": 1,
+              "height": 1
+            },
+            "transform": {
+              "scale": 1,
+              "stretchX": 1,
+              "stretchY": 1,
+              "offsetX": 0,
+              "offsetY": 0,
+              "rotation": 0,
+              "flipX": false
+            },
+            "adjustments": {
+              "brightness": 1,
+              "contrast": 1,
+              "saturation": 1,
+              "hue": 0,
+              "blur": 0,
+              "grayscale": 0,
+              "sepia": 0,
+              "opacity": 1
+            },
+            "effects": {
+              "mask": "none",
+              "maskStrength": 0.6,
+              "vignette": 0
+            }
+          },
+          "replacement": {
+            "source": null,
+            "label": "",
+            "crop": {
+              "x": 0,
+              "y": 0,
+              "width": 1,
+              "height": 1
+            },
+            "transform": {
+              "scale": 1,
+              "stretchX": 1,
+              "stretchY": 1,
+              "offsetX": 0,
+              "offsetY": 0,
+              "rotation": 0,
+              "flipX": false
+            },
+            "adjustments": {
+              "brightness": 1,
+              "contrast": 1,
+              "saturation": 1,
+              "hue": 0,
+              "blur": 0,
+              "grayscale": 0,
+              "sepia": 0,
+              "opacity": 1
+            },
+            "effects": {
+              "mask": "none",
+              "maskStrength": 0.6,
+              "vignette": 0
+            }
+          },
+          "useReplacement": false,
+          "label": "MINION",
+          "frame": {
+            "kind": "solid",
+            "color": "#ebe8d5",
+            "color2": "#ebe8d5",
+            "angle": 180
+          }
+        },
+        "sidekick": {
+          "enabled": false,
+          "name": "",
+          "subtitle": "",
+          "attackType": "melee",
+          "multiple": false,
+          "health": 7,
+          "count": 3
+        },
+        "quote": {
+          "text": "",
+          "attribution": ""
+        },
+        "additionalCards": [],
+        "printedName": "",
+        "characterCard": {
+          "border": {
+            "kind": "solid",
+            "color": "#f3e3da",
+            "color2": "#f3e3da",
+            "angle": 180
+          },
+          "healthBadge": {
+            "kind": "solid",
+            "color": "#293992",
+            "color2": "#293992",
+            "angle": 180
+          },
+          "healthBadgeAccent": {
+            "kind": "solid",
+            "color": "#f9f6ee",
+            "color2": "#f9f6ee",
+            "angle": 180
+          },
+          "healthInk": {
+            "kind": "solid",
+            "color": "#ffffff",
+            "color2": "#ffffff",
+            "angle": 180
+          },
+          "sidekickDisc": {
+            "kind": "solid",
+            "color": "#858585",
+            "color2": "#858585",
+            "angle": 180
+          },
+          "quoteInk": {
+            "kind": "solid",
+            "color": "#f6eada",
+            "color2": "#f6eada",
+            "angle": 180
+          },
+          "quoteScale": 1,
+          "abilityInk": {
+            "kind": "solid",
+            "color": "#000000",
+            "color2": "#000000",
+            "angle": 180
+          },
+          "abilityScale": 1,
+          "moveInk": {
+            "kind": "solid",
+            "color": "#000000",
+            "color2": "#000000",
+            "angle": 180
+          },
+          "hero": {
+            "fill": {
+              "kind": "solid",
+              "color": "#001722",
+              "color2": "#001722",
+              "angle": 180
+            },
+            "artwork": {
+              "source": null,
+              "label": "",
+              "crop": {
+                "x": 0,
+                "y": 0,
+                "width": 1,
+                "height": 1
+              },
+              "transform": {
+                "scale": 1,
+                "stretchX": 1,
+                "stretchY": 1,
+                "offsetX": 0,
+                "offsetY": 0,
+                "rotation": 0,
+                "flipX": false
+              },
+              "adjustments": {
+                "brightness": 1,
+                "contrast": 1,
+                "saturation": 1,
+                "hue": 0,
+                "blur": 0,
+                "grayscale": 0,
+                "sepia": 0,
+                "opacity": 1
+              },
+              "effects": {
+                "mask": "none",
+                "maskStrength": 0.6,
+                "vignette": 0
+              }
+            },
+            "labelInk": {
+              "kind": "solid",
+              "color": "#ffffff",
+              "color2": "#ffffff",
+              "angle": 180
+            }
+          },
+          "ability": {
+            "fill": {
+              "kind": "solid",
+              "color": "#cfa058",
+              "color2": "#cfa058",
+              "angle": 180
+            },
+            "artwork": {
+              "source": null,
+              "label": "",
+              "crop": {
+                "x": 0,
+                "y": 0,
+                "width": 1,
+                "height": 1
+              },
+              "transform": {
+                "scale": 1,
+                "stretchX": 1,
+                "stretchY": 1,
+                "offsetX": 0,
+                "offsetY": 0,
+                "rotation": 0,
+                "flipX": false
+              },
+              "adjustments": {
+                "brightness": 1,
+                "contrast": 1,
+                "saturation": 1,
+                "hue": 0,
+                "blur": 0,
+                "grayscale": 0,
+                "sepia": 0,
+                "opacity": 1
+              },
+              "effects": {
+                "mask": "none",
+                "maskStrength": 0.6,
+                "vignette": 0
+              }
+            },
+            "labelInk": {
+              "kind": "solid",
+              "color": "#000000",
+              "color2": "#000000",
+              "angle": 180
+            }
+          },
+          "sidekick": {
+            "fill": {
+              "kind": "solid",
+              "color": "#001722",
+              "color2": "#001722",
+              "angle": 180
+            },
+            "artwork": {
+              "source": null,
+              "label": "",
+              "crop": {
+                "x": 0,
+                "y": 0,
+                "width": 1,
+                "height": 1
+              },
+              "transform": {
+                "scale": 1,
+                "stretchX": 1,
+                "stretchY": 1,
+                "offsetX": 0,
+                "offsetY": 0,
+                "rotation": 0,
+                "flipX": false
+              },
+              "adjustments": {
+                "brightness": 1,
+                "contrast": 1,
+                "saturation": 1,
+                "hue": 0,
+                "blur": 0,
+                "grayscale": 0,
+                "sepia": 0,
+                "opacity": 1
+              },
+              "effects": {
+                "mask": "none",
+                "maskStrength": 0.6,
+                "vignette": 0
+              }
+            },
+            "labelInk": {
+              "kind": "solid",
+              "color": "#ffffff",
+              "color2": "#ffffff",
+              "angle": 180
+            }
+          },
+          "replacement": {
+            "source": null,
+            "label": "",
+            "crop": {
+              "x": 0,
+              "y": 0,
+              "width": 1,
+              "height": 1
+            },
+            "transform": {
+              "scale": 1,
+              "stretchX": 1,
+              "stretchY": 1,
+              "offsetX": 0,
+              "offsetY": 0,
+              "rotation": 0,
+              "flipX": false
+            },
+            "adjustments": {
+              "brightness": 1,
+              "contrast": 1,
+              "saturation": 1,
+              "hue": 0,
+              "blur": 0,
+              "grayscale": 0,
+              "sepia": 0,
+              "opacity": 1
+            },
+            "effects": {
+              "mask": "none",
+              "maskStrength": 0.6,
+              "vignette": 0
+            }
+          },
+          "useReplacement": false
+        },
+        "style": {},
+        "notes": "Phase 0 minion fixture.",
+        "createdAt": "2026-09-26T12:00:00.000Z",
+        "updatedAt": "2026-09-26T12:00:00.000Z"
+      }
+    ],
+    "decks": [
+      {
+        "id": "deck_baseline_hero",
+        "name": "Mariner action deck",
+        "kind": "action",
+        "ownerId": "char_baseline_hero",
+        "notes": "",
+        "createdAt": "2026-09-26T12:00:00.000Z",
+        "updatedAt": "2026-09-26T12:00:00.000Z"
+      },
+      {
+        "id": "deck_baseline_villain",
+        "name": "Glass Regent action deck",
+        "kind": "action",
+        "ownerId": "char_baseline_villain",
+        "notes": "",
+        "createdAt": "2026-09-26T12:00:00.000Z",
+        "updatedAt": "2026-09-26T12:00:00.000Z"
+      },
+      {
+        "id": "deck_baseline_minion",
+        "name": "Lantern Guard action deck",
+        "kind": "action",
+        "ownerId": "char_baseline_minion",
+        "notes": "",
+        "createdAt": "2026-09-26T12:00:00.000Z",
+        "updatedAt": "2026-09-26T12:00:00.000Z"
+      },
+      {
+        "id": "deck_baseline_initiative",
+        "name": "Initiative",
+        "kind": "initiative",
+        "ownerId": null,
+        "notes": "",
+        "createdAt": "2026-09-26T12:00:00.000Z",
+        "updatedAt": "2026-09-26T12:00:00.000Z"
+      },
+      {
+        "id": "deck_baseline_rules",
+        "name": "Rules and reference",
+        "kind": "rules",
+        "ownerId": null,
+        "notes": "",
+        "createdAt": "2026-09-26T12:00:00.000Z",
+        "updatedAt": "2026-09-26T12:00:00.000Z"
+      },
+      {
+        "id": "deck_baseline_event",
+        "name": "Tide events",
+        "kind": "event",
+        "ownerId": null,
+        "notes": "",
+        "createdAt": "2026-09-26T12:00:00.000Z",
+        "updatedAt": "2026-09-26T12:00:00.000Z"
+      }
+    ],
+    "cards": [
+      {
+        "id": "card_baseline_hero_attack",
+        "name": "",
+        "deckId": "deck_baseline_hero",
+        "quantity": 2,
+        "artwork": {
+          "source": "data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22800%22%20height%3D%221000%22%20viewBox%3D%220%200%20800%201000%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22g%22%20x2%3D%221%22%20y2%3D%221%22%3E%3Cstop%20stop-color%3D%22%23152a47%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%230c6b78%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%22800%22%20height%3D%221000%22%20fill%3D%22url(%23g)%22%2F%3E%3Ccircle%20cx%3D%22610%22%20cy%3D%22260%22%20r%3D%22145%22%20fill%3D%22%23f6eada%22%20opacity%3D%22.28%22%2F%3E%3Cpath%20d%3D%22M0%20790L260%20520l150%20140%20180-240%20210%20230v350H0z%22%20fill%3D%22%23f6eada%22%20opacity%3D%22.22%22%2F%3E%3Ctext%20x%3D%2252%22%20y%3D%22914%22%20fill%3D%22%23f6eada%22%20font-family%3D%22sans-serif%22%20font-size%3D%2258%22%20font-weight%3D%22700%22%3EHERO%3C%2Ftext%3E%3C%2Fsvg%3E",
+          "label": "card_baseline_hero_attack.svg",
+          "crop": {
+            "x": 0,
+            "y": 0,
+            "width": 1,
+            "height": 1
+          },
+          "transform": {
+            "scale": 1,
+            "stretchX": 1,
+            "stretchY": 1,
+            "offsetX": 0,
+            "offsetY": 0,
+            "rotation": 0,
+            "flipX": false
+          },
+          "adjustments": {
+            "brightness": 1,
+            "contrast": 1,
+            "saturation": 1,
+            "hue": 0,
+            "blur": 0,
+            "grayscale": 0,
+            "sepia": 0,
+            "opacity": 1
+          },
+          "effects": {
+            "mask": "none",
+            "maskStrength": 0.6,
+            "vignette": 0
+          }
+        },
+        "replacement": {
+          "source": null,
+          "label": "",
+          "crop": {
+            "x": 0,
+            "y": 0,
+            "width": 1,
+            "height": 1
+          },
+          "transform": {
+            "scale": 1,
+            "stretchX": 1,
+            "stretchY": 1,
+            "offsetX": 0,
+            "offsetY": 0,
+            "rotation": 0,
+            "flipX": false
+          },
+          "adjustments": {
+            "brightness": 1,
+            "contrast": 1,
+            "saturation": 1,
+            "hue": 0,
+            "blur": 0,
+            "grayscale": 0,
+            "sepia": 0,
+            "opacity": 1
+          },
+          "effects": {
+            "mask": "none",
+            "maskStrength": 0.6,
+            "vignette": 0
+          }
+        },
+        "useReplacement": false,
+        "style": {},
+        "notes": "",
+        "createdAt": "2026-09-26T12:00:00.000Z",
+        "updatedAt": "2026-09-26T12:00:00.000Z",
+        "type": "action",
+        "artworkLayers": [],
+        "layerOrder": [
+          "main-artwork",
+          "card-content",
+          "name-ribbon",
+          "outer-frame"
+        ],
+        "title": "Breakwater",
+        "attack": 2,
+        "defense": 2,
+        "boost": 2,
+        "boostSymbol": "",
+        "ability": {
+          "plain": "",
+          "immediately": "Move the opposing fighter up to 2 spaces. {{custom:symbol_baseline_spark}}",
+          "duringCombat": "",
+          "afterCombat": "If you won the combat, draw 1 card.",
+          "bonusAbilities": [
+            {
+              "text": "",
+              "icon": "",
+              "showDivider": false,
+              "ink": null,
+              "textSize": null,
+              "iconSize": null
+            }
+          ]
+        },
+        "symbol": "attack",
+        "symbolValue": 4,
+        "owner": "hero",
+        "split": false,
+        "defenseAbility": {
+          "plain": "",
+          "immediately": "",
+          "duringCombat": "",
+          "afterCombat": "",
+          "bonusAbilities": [
+            {
+              "text": "",
+              "icon": "",
+              "showDivider": false,
+              "ink": null,
+              "textSize": null,
+              "iconSize": null
+            }
+          ]
+        },
+        "showRibbonSymbol": true,
+        "ribbonSymbol": "{{ranged}}",
+        "showBoostEffect": false,
+        "boostEffect": "",
+        "showBonusAttack": false,
+        "bonusAttackTitle": "",
+        "bonusAttackValue": 2,
+        "bonusAttackAbility": "",
+        "showTuckEffect": false,
+        "tuckEffect": "",
+        "tuckEffectOrientation": "bottom",
+        "showCornerBadge": false,
+        "cornerBadge": ""
+      },
+      {
+        "id": "card_baseline_hero_split",
+        "name": "",
+        "deckId": "deck_baseline_hero",
+        "quantity": 1,
+        "artwork": {
+          "source": "data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22800%22%20height%3D%221000%22%20viewBox%3D%220%200%20800%201000%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22g%22%20x2%3D%221%22%20y2%3D%221%22%3E%3Cstop%20stop-color%3D%22%23173329%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%23123f52%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%22800%22%20height%3D%221000%22%20fill%3D%22url(%23g)%22%2F%3E%3Ccircle%20cx%3D%22610%22%20cy%3D%22260%22%20r%3D%22145%22%20fill%3D%22%23d6d0aa%22%20opacity%3D%22.28%22%2F%3E%3Cpath%20d%3D%22M0%20790L260%20520l150%20140%20180-240%20210%20230v350H0z%22%20fill%3D%22%23d6d0aa%22%20opacity%3D%22.22%22%2F%3E%3Ctext%20x%3D%2252%22%20y%3D%22914%22%20fill%3D%22%23d6d0aa%22%20font-family%3D%22sans-serif%22%20font-size%3D%2258%22%20font-weight%3D%22700%22%3EBOARD%3C%2Ftext%3E%3C%2Fsvg%3E",
+          "label": "card_baseline_hero_split.svg",
+          "crop": {
+            "x": 0,
+            "y": 0,
+            "width": 1,
+            "height": 1
+          },
+          "transform": {
+            "scale": 1,
+            "stretchX": 1,
+            "stretchY": 1,
+            "offsetX": 0,
+            "offsetY": 0,
+            "rotation": 0,
+            "flipX": false
+          },
+          "adjustments": {
+            "brightness": 1,
+            "contrast": 1,
+            "saturation": 1,
+            "hue": 0,
+            "blur": 0,
+            "grayscale": 0,
+            "sepia": 0,
+            "opacity": 1
+          },
+          "effects": {
+            "mask": "none",
+            "maskStrength": 0.6,
+            "vignette": 0
+          }
+        },
+        "replacement": {
+          "source": null,
+          "label": "",
+          "crop": {
+            "x": 0,
+            "y": 0,
+            "width": 1,
+            "height": 1
+          },
+          "transform": {
+            "scale": 1,
+            "stretchX": 1,
+            "stretchY": 1,
+            "offsetX": 0,
+            "offsetY": 0,
+            "rotation": 0,
+            "flipX": false
+          },
+          "adjustments": {
+            "brightness": 1,
+            "contrast": 1,
+            "saturation": 1,
+            "hue": 0,
+            "blur": 0,
+            "grayscale": 0,
+            "sepia": 0,
+            "opacity": 1
+          },
+          "effects": {
+            "mask": "none",
+            "maskStrength": 0.6,
+            "vignette": 0
+          }
+        },
+        "useReplacement": false,
+        "style": {},
+        "notes": "",
+        "createdAt": "2026-09-26T12:00:00.000Z",
+        "updatedAt": "2026-09-26T12:00:00.000Z",
+        "type": "action",
+        "artworkLayers": [],
+        "layerOrder": [
+          "main-artwork",
+          "card-content",
+          "name-ribbon",
+          "outer-frame"
+        ],
+        "title": "Turn the Tide",
+        "attack": 3,
+        "defense": 2,
+        "boost": 1,
+        "boostSymbol": "",
+        "ability": {
+          "plain": "",
+          "immediately": "",
+          "duringCombat": "Add 1 to this card’s value for each adjacent fighter.",
+          "afterCombat": "",
+          "bonusAbilities": [
+            {
+              "text": "",
+              "icon": "",
+              "showDivider": false,
+              "ink": null,
+              "textSize": null,
+              "iconSize": null
+            }
+          ]
+        },
+        "symbol": "versatile",
+        "symbolValue": 3,
+        "owner": "hero",
+        "split": true,
+        "defenseAbility": {
+          "plain": "",
+          "immediately": "",
+          "duringCombat": "",
+          "afterCombat": "You may place Mariner in any adjacent space.",
+          "bonusAbilities": [
+            {
+              "text": "",
+              "icon": "",
+              "showDivider": false,
+              "ink": null,
+              "textSize": null,
+              "iconSize": null
+            }
+          ]
+        },
+        "showRibbonSymbol": false,
+        "ribbonSymbol": "",
+        "showBoostEffect": false,
+        "boostEffect": "",
+        "showBonusAttack": false,
+        "bonusAttackTitle": "",
+        "bonusAttackValue": 2,
+        "bonusAttackAbility": "",
+        "showTuckEffect": true,
+        "tuckEffect": "+1 move while tucked",
+        "tuckEffectOrientation": "bottom",
+        "showCornerBadge": false,
+        "cornerBadge": ""
+      },
+      {
+        "id": "card_baseline_villain_action",
+        "name": "",
+        "deckId": "deck_baseline_villain",
+        "quantity": 3,
+        "artwork": {
+          "source": "data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22800%22%20height%3D%221000%22%20viewBox%3D%220%200%20800%201000%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22g%22%20x2%3D%221%22%20y2%3D%221%22%3E%3Cstop%20stop-color%3D%22%2331172f%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%238a2438%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%22800%22%20height%3D%221000%22%20fill%3D%22url(%23g)%22%2F%3E%3Ccircle%20cx%3D%22610%22%20cy%3D%22260%22%20r%3D%22145%22%20fill%3D%22%23f6eada%22%20opacity%3D%22.28%22%2F%3E%3Cpath%20d%3D%22M0%20790L260%20520l150%20140%20180-240%20210%20230v350H0z%22%20fill%3D%22%23f6eada%22%20opacity%3D%22.22%22%2F%3E%3Ctext%20x%3D%2252%22%20y%3D%22914%22%20fill%3D%22%23f6eada%22%20font-family%3D%22sans-serif%22%20font-size%3D%2258%22%20font-weight%3D%22700%22%3EVILLAIN%3C%2Ftext%3E%3C%2Fsvg%3E",
+          "label": "card_baseline_villain_action.svg",
+          "crop": {
+            "x": 0,
+            "y": 0,
+            "width": 1,
+            "height": 1
+          },
+          "transform": {
+            "scale": 1,
+            "stretchX": 1,
+            "stretchY": 1,
+            "offsetX": 0,
+            "offsetY": 0,
+            "rotation": 0,
+            "flipX": false
+          },
+          "adjustments": {
+            "brightness": 1,
+            "contrast": 1,
+            "saturation": 1,
+            "hue": 0,
+            "blur": 0,
+            "grayscale": 0,
+            "sepia": 0,
+            "opacity": 1
+          },
+          "effects": {
+            "mask": "none",
+            "maskStrength": 0.6,
+            "vignette": 0
+          }
+        },
+        "replacement": {
+          "source": null,
+          "label": "",
+          "crop": {
+            "x": 0,
+            "y": 0,
+            "width": 1,
+            "height": 1
+          },
+          "transform": {
+            "scale": 1,
+            "stretchX": 1,
+            "stretchY": 1,
+            "offsetX": 0,
+            "offsetY": 0,
+            "rotation": 0,
+            "flipX": false
+          },
+          "adjustments": {
+            "brightness": 1,
+            "contrast": 1,
+            "saturation": 1,
+            "hue": 0,
+            "blur": 0,
+            "grayscale": 0,
+            "sepia": 0,
+            "opacity": 1
+          },
+          "effects": {
+            "mask": "none",
+            "maskStrength": 0.6,
+            "vignette": 0
+          }
+        },
+        "useReplacement": false,
+        "style": {},
+        "notes": "",
+        "createdAt": "2026-09-26T12:00:00.000Z",
+        "updatedAt": "2026-09-26T12:00:00.000Z",
+        "type": "action",
+        "artworkLayers": [],
+        "layerOrder": [
+          "main-artwork",
+          "card-content",
+          "name-ribbon",
+          "outer-frame"
+        ],
+        "title": "Fractured Command",
+        "attack": 4,
+        "defense": 1,
+        "boost": 2,
+        "boostSymbol": "",
+        "ability": {
+          "plain": "Choose a Lantern Guard. Move it up to 3 spaces.",
+          "immediately": "",
+          "duringCombat": "",
+          "afterCombat": "",
+          "bonusAbilities": [
+            {
+              "text": "",
+              "icon": "",
+              "showDivider": false,
+              "ink": null,
+              "textSize": null,
+              "iconSize": null
+            }
+          ]
+        },
+        "symbol": null,
+        "symbolValue": null,
+        "owner": "hero",
+        "split": false,
+        "defenseAbility": {
+          "plain": "",
+          "immediately": "",
+          "duringCombat": "",
+          "afterCombat": "",
+          "bonusAbilities": [
+            {
+              "text": "",
+              "icon": "",
+              "showDivider": false,
+              "ink": null,
+              "textSize": null,
+              "iconSize": null
+            }
+          ]
+        },
+        "showRibbonSymbol": false,
+        "ribbonSymbol": "",
+        "showBoostEffect": false,
+        "boostEffect": "",
+        "showBonusAttack": false,
+        "bonusAttackTitle": "",
+        "bonusAttackValue": 2,
+        "bonusAttackAbility": "",
+        "showTuckEffect": false,
+        "tuckEffect": "",
+        "tuckEffectOrientation": "bottom",
+        "showCornerBadge": true,
+        "cornerBadge": "I"
+      },
+      {
+        "id": "card_baseline_minion_action",
+        "name": "",
+        "deckId": "deck_baseline_minion",
+        "quantity": 3,
+        "artwork": {
+          "source": "data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22800%22%20height%3D%221000%22%20viewBox%3D%220%200%20800%201000%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22g%22%20x2%3D%221%22%20y2%3D%221%22%3E%3Cstop%20stop-color%3D%22%23302819%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%2398752a%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%22800%22%20height%3D%221000%22%20fill%3D%22url(%23g)%22%2F%3E%3Ccircle%20cx%3D%22610%22%20cy%3D%22260%22%20r%3D%22145%22%20fill%3D%22%23f6eada%22%20opacity%3D%22.28%22%2F%3E%3Cpath%20d%3D%22M0%20790L260%20520l150%20140%20180-240%20210%20230v350H0z%22%20fill%3D%22%23f6eada%22%20opacity%3D%22.22%22%2F%3E%3Ctext%20x%3D%2252%22%20y%3D%22914%22%20fill%3D%22%23f6eada%22%20font-family%3D%22sans-serif%22%20font-size%3D%2258%22%20font-weight%3D%22700%22%3EMINION%3C%2Ftext%3E%3C%2Fsvg%3E",
+          "label": "card_baseline_minion_action.svg",
+          "crop": {
+            "x": 0,
+            "y": 0,
+            "width": 1,
+            "height": 1
+          },
+          "transform": {
+            "scale": 1,
+            "stretchX": 1,
+            "stretchY": 1,
+            "offsetX": 0,
+            "offsetY": 0,
+            "rotation": 0,
+            "flipX": false
+          },
+          "adjustments": {
+            "brightness": 1,
+            "contrast": 1,
+            "saturation": 1,
+            "hue": 0,
+            "blur": 0,
+            "grayscale": 0,
+            "sepia": 0,
+            "opacity": 1
+          },
+          "effects": {
+            "mask": "none",
+            "maskStrength": 0.6,
+            "vignette": 0
+          }
+        },
+        "replacement": {
+          "source": null,
+          "label": "",
+          "crop": {
+            "x": 0,
+            "y": 0,
+            "width": 1,
+            "height": 1
+          },
+          "transform": {
+            "scale": 1,
+            "stretchX": 1,
+            "stretchY": 1,
+            "offsetX": 0,
+            "offsetY": 0,
+            "rotation": 0,
+            "flipX": false
+          },
+          "adjustments": {
+            "brightness": 1,
+            "contrast": 1,
+            "saturation": 1,
+            "hue": 0,
+            "blur": 0,
+            "grayscale": 0,
+            "sepia": 0,
+            "opacity": 1
+          },
+          "effects": {
+            "mask": "none",
+            "maskStrength": 0.6,
+            "vignette": 0
+          }
+        },
+        "useReplacement": false,
+        "style": {},
+        "notes": "",
+        "createdAt": "2026-09-26T12:00:00.000Z",
+        "updatedAt": "2026-09-26T12:00:00.000Z",
+        "type": "action",
+        "artworkLayers": [],
+        "layerOrder": [
+          "main-artwork",
+          "card-content",
+          "name-ribbon",
+          "outer-frame"
+        ],
+        "title": "Hold the Line",
+        "attack": 2,
+        "defense": 3,
+        "boost": 1,
+        "boostSymbol": "",
+        "ability": {
+          "plain": "",
+          "immediately": "",
+          "duringCombat": "",
+          "afterCombat": "If the Lantern Guard is adjacent to another Guard, recover 1 health.",
+          "bonusAbilities": [
+            {
+              "text": "",
+              "icon": "",
+              "showDivider": false,
+              "ink": null,
+              "textSize": null,
+              "iconSize": null
+            }
+          ]
+        },
+        "symbol": null,
+        "symbolValue": null,
+        "owner": "hero",
+        "split": false,
+        "defenseAbility": {
+          "plain": "",
+          "immediately": "",
+          "duringCombat": "",
+          "afterCombat": "",
+          "bonusAbilities": [
+            {
+              "text": "",
+              "icon": "",
+              "showDivider": false,
+              "ink": null,
+              "textSize": null,
+              "iconSize": null
+            }
+          ]
+        },
+        "showRibbonSymbol": false,
+        "ribbonSymbol": "",
+        "showBoostEffect": false,
+        "boostEffect": "",
+        "showBonusAttack": false,
+        "bonusAttackTitle": "",
+        "bonusAttackValue": 2,
+        "bonusAttackAbility": "",
+        "showTuckEffect": false,
+        "tuckEffect": "",
+        "tuckEffectOrientation": "bottom",
+        "showCornerBadge": false,
+        "cornerBadge": ""
+      },
+      {
+        "id": "card_baseline_initiative_villain",
+        "name": "",
+        "deckId": "deck_baseline_initiative",
+        "quantity": 1,
+        "artwork": {
+          "source": "data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22800%22%20height%3D%221000%22%20viewBox%3D%220%200%20800%201000%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22g%22%20x2%3D%221%22%20y2%3D%221%22%3E%3Cstop%20stop-color%3D%22%2331172f%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%238a2438%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%22800%22%20height%3D%221000%22%20fill%3D%22url(%23g)%22%2F%3E%3Ccircle%20cx%3D%22610%22%20cy%3D%22260%22%20r%3D%22145%22%20fill%3D%22%23f6eada%22%20opacity%3D%22.28%22%2F%3E%3Cpath%20d%3D%22M0%20790L260%20520l150%20140%20180-240%20210%20230v350H0z%22%20fill%3D%22%23f6eada%22%20opacity%3D%22.22%22%2F%3E%3Ctext%20x%3D%2252%22%20y%3D%22914%22%20fill%3D%22%23f6eada%22%20font-family%3D%22sans-serif%22%20font-size%3D%2258%22%20font-weight%3D%22700%22%3EVILLAIN%3C%2Ftext%3E%3C%2Fsvg%3E",
+          "label": "card_baseline_initiative_villain.svg",
+          "crop": {
+            "x": 0,
+            "y": 0,
+            "width": 1,
+            "height": 1
+          },
+          "transform": {
+            "scale": 1,
+            "stretchX": 1,
+            "stretchY": 1,
+            "offsetX": 0,
+            "offsetY": 0,
+            "rotation": 0,
+            "flipX": false
+          },
+          "adjustments": {
+            "brightness": 1,
+            "contrast": 1,
+            "saturation": 1,
+            "hue": 0,
+            "blur": 0,
+            "grayscale": 0,
+            "sepia": 0,
+            "opacity": 1
+          },
+          "effects": {
+            "mask": "none",
+            "maskStrength": 0.6,
+            "vignette": 0
+          }
+        },
+        "replacement": {
+          "source": null,
+          "label": "",
+          "crop": {
+            "x": 0,
+            "y": 0,
+            "width": 1,
+            "height": 1
+          },
+          "transform": {
+            "scale": 1,
+            "stretchX": 1,
+            "stretchY": 1,
+            "offsetX": 0,
+            "offsetY": 0,
+            "rotation": 0,
+            "flipX": false
+          },
+          "adjustments": {
+            "brightness": 1,
+            "contrast": 1,
+            "saturation": 1,
+            "hue": 0,
+            "blur": 0,
+            "grayscale": 0,
+            "sepia": 0,
+            "opacity": 1
+          },
+          "effects": {
+            "mask": "none",
+            "maskStrength": 0.6,
+            "vignette": 0
+          }
+        },
+        "useReplacement": false,
+        "style": {},
+        "notes": "",
+        "createdAt": "2026-09-26T12:00:00.000Z",
+        "updatedAt": "2026-09-26T12:00:00.000Z",
+        "type": "initiative",
+        "variant": "card",
+        "subject": "villain",
+        "characterId": "char_baseline_villain",
+        "subjectText": "The Glass Regent",
+        "moveValue": 3,
+        "rightNow": "Move toward the nearest hero, then attack.",
+        "endOfRound": "Advance the threat track by 1.",
+        "showMove": true,
+        "bands": {
+          "subject": {
+            "fill": {
+              "kind": "solid",
+              "color": "#3E454B",
+              "color2": "#3E454B",
+              "angle": 180
+            },
+            "ink": "#FFFFFF",
+            "artwork": {
+              "source": null,
+              "label": "",
+              "crop": {
+                "x": 0,
+                "y": 0,
+                "width": 1,
+                "height": 1
+              },
+              "transform": {
+                "scale": 1,
+                "stretchX": 1,
+                "stretchY": 1,
+                "offsetX": 0,
+                "offsetY": 0,
+                "rotation": 0,
+                "flipX": false
+              },
+              "adjustments": {
+                "brightness": 1,
+                "contrast": 1,
+                "saturation": 1,
+                "hue": 0,
+                "blur": 0,
+                "grayscale": 0,
+                "sepia": 0,
+                "opacity": 1
+              },
+              "effects": {
+                "mask": "none",
+                "maskStrength": 0.6,
+                "vignette": 0
+              }
+            },
+            "showArtwork": false
+          },
+          "rightNow": {
+            "fill": {
+              "kind": "solid",
+              "color": "#F7EBDB",
+              "color2": "#F7EBDB",
+              "angle": 180
+            },
+            "ink": "#1A1A1A",
+            "artwork": {
+              "source": null,
+              "label": "",
+              "crop": {
+                "x": 0,
+                "y": 0,
+                "width": 1,
+                "height": 1
+              },
+              "transform": {
+                "scale": 1,
+                "stretchX": 1,
+                "stretchY": 1,
+                "offsetX": 0,
+                "offsetY": 0,
+                "rotation": 0,
+                "flipX": false
+              },
+              "adjustments": {
+                "brightness": 1,
+                "contrast": 1,
+                "saturation": 1,
+                "hue": 0,
+                "blur": 0,
+                "grayscale": 0,
+                "sepia": 0,
+                "opacity": 1
+              },
+              "effects": {
+                "mask": "none",
+                "maskStrength": 0.6,
+                "vignette": 0
+              }
+            },
+            "showArtwork": false
+          },
+          "endOfRound": {
+            "fill": {
+              "kind": "solid",
+              "color": "#3E454B",
+              "color2": "#3E454B",
+              "angle": 180
+            },
+            "ink": "#FFFFFF",
+            "artwork": {
+              "source": null,
+              "label": "",
+              "crop": {
+                "x": 0,
+                "y": 0,
+                "width": 1,
+                "height": 1
+              },
+              "transform": {
+                "scale": 1,
+                "stretchX": 1,
+                "stretchY": 1,
+                "offsetX": 0,
+                "offsetY": 0,
+                "rotation": 0,
+                "flipX": false
+              },
+              "adjustments": {
+                "brightness": 1,
+                "contrast": 1,
+                "saturation": 1,
+                "hue": 0,
+                "blur": 0,
+                "grayscale": 0,
+                "sepia": 0,
+                "opacity": 1
+              },
+              "effects": {
+                "mask": "none",
+                "maskStrength": 0.6,
+                "vignette": 0
+              }
+            },
+            "showArtwork": false
+          }
+        }
+      },
+      {
+        "id": "card_baseline_initiative_minion",
+        "name": "",
+        "deckId": "deck_baseline_initiative",
+        "quantity": 1,
+        "artwork": {
+          "source": "data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22800%22%20height%3D%221000%22%20viewBox%3D%220%200%20800%201000%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22g%22%20x2%3D%221%22%20y2%3D%221%22%3E%3Cstop%20stop-color%3D%22%23302819%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%2398752a%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%22800%22%20height%3D%221000%22%20fill%3D%22url(%23g)%22%2F%3E%3Ccircle%20cx%3D%22610%22%20cy%3D%22260%22%20r%3D%22145%22%20fill%3D%22%23f6eada%22%20opacity%3D%22.28%22%2F%3E%3Cpath%20d%3D%22M0%20790L260%20520l150%20140%20180-240%20210%20230v350H0z%22%20fill%3D%22%23f6eada%22%20opacity%3D%22.22%22%2F%3E%3Ctext%20x%3D%2252%22%20y%3D%22914%22%20fill%3D%22%23f6eada%22%20font-family%3D%22sans-serif%22%20font-size%3D%2258%22%20font-weight%3D%22700%22%3EMINION%3C%2Ftext%3E%3C%2Fsvg%3E",
+          "label": "card_baseline_initiative_minion.svg",
+          "crop": {
+            "x": 0,
+            "y": 0,
+            "width": 1,
+            "height": 1
+          },
+          "transform": {
+            "scale": 1,
+            "stretchX": 1,
+            "stretchY": 1,
+            "offsetX": 0,
+            "offsetY": 0,
+            "rotation": 0,
+            "flipX": false
+          },
+          "adjustments": {
+            "brightness": 1,
+            "contrast": 1,
+            "saturation": 1,
+            "hue": 0,
+            "blur": 0,
+            "grayscale": 0,
+            "sepia": 0,
+            "opacity": 1
+          },
+          "effects": {
+            "mask": "none",
+            "maskStrength": 0.6,
+            "vignette": 0
+          }
+        },
+        "replacement": {
+          "source": null,
+          "label": "",
+          "crop": {
+            "x": 0,
+            "y": 0,
+            "width": 1,
+            "height": 1
+          },
+          "transform": {
+            "scale": 1,
+            "stretchX": 1,
+            "stretchY": 1,
+            "offsetX": 0,
+            "offsetY": 0,
+            "rotation": 0,
+            "flipX": false
+          },
+          "adjustments": {
+            "brightness": 1,
+            "contrast": 1,
+            "saturation": 1,
+            "hue": 0,
+            "blur": 0,
+            "grayscale": 0,
+            "sepia": 0,
+            "opacity": 1
+          },
+          "effects": {
+            "mask": "none",
+            "maskStrength": 0.6,
+            "vignette": 0
+          }
+        },
+        "useReplacement": false,
+        "style": {},
+        "notes": "",
+        "createdAt": "2026-09-26T12:00:00.000Z",
+        "updatedAt": "2026-09-26T12:00:00.000Z",
+        "type": "initiative",
+        "variant": "effect",
+        "subject": "minion",
+        "characterId": "char_baseline_minion",
+        "subjectText": "Relight the Beacon",
+        "moveValue": 3,
+        "rightNow": "Place one defeated Lantern Guard adjacent to the Regent.",
+        "endOfRound": "Each hero adjacent to a Guard takes 1 damage.",
+        "showMove": false,
+        "bands": {
+          "subject": {
+            "fill": {
+              "kind": "solid",
+              "color": "#3E454B",
+              "color2": "#3E454B",
+              "angle": 180
+            },
+            "ink": "#FFFFFF",
+            "artwork": {
+              "source": null,
+              "label": "",
+              "crop": {
+                "x": 0,
+                "y": 0,
+                "width": 1,
+                "height": 1
+              },
+              "transform": {
+                "scale": 1,
+                "stretchX": 1,
+                "stretchY": 1,
+                "offsetX": 0,
+                "offsetY": 0,
+                "rotation": 0,
+                "flipX": false
+              },
+              "adjustments": {
+                "brightness": 1,
+                "contrast": 1,
+                "saturation": 1,
+                "hue": 0,
+                "blur": 0,
+                "grayscale": 0,
+                "sepia": 0,
+                "opacity": 1
+              },
+              "effects": {
+                "mask": "none",
+                "maskStrength": 0.6,
+                "vignette": 0
+              }
+            },
+            "showArtwork": false
+          },
+          "rightNow": {
+            "fill": {
+              "kind": "solid",
+              "color": "#F7EBDB",
+              "color2": "#F7EBDB",
+              "angle": 180
+            },
+            "ink": "#1A1A1A",
+            "artwork": {
+              "source": null,
+              "label": "",
+              "crop": {
+                "x": 0,
+                "y": 0,
+                "width": 1,
+                "height": 1
+              },
+              "transform": {
+                "scale": 1,
+                "stretchX": 1,
+                "stretchY": 1,
+                "offsetX": 0,
+                "offsetY": 0,
+                "rotation": 0,
+                "flipX": false
+              },
+              "adjustments": {
+                "brightness": 1,
+                "contrast": 1,
+                "saturation": 1,
+                "hue": 0,
+                "blur": 0,
+                "grayscale": 0,
+                "sepia": 0,
+                "opacity": 1
+              },
+              "effects": {
+                "mask": "none",
+                "maskStrength": 0.6,
+                "vignette": 0
+              }
+            },
+            "showArtwork": false
+          },
+          "endOfRound": {
+            "fill": {
+              "kind": "solid",
+              "color": "#3E454B",
+              "color2": "#3E454B",
+              "angle": 180
+            },
+            "ink": "#FFFFFF",
+            "artwork": {
+              "source": null,
+              "label": "",
+              "crop": {
+                "x": 0,
+                "y": 0,
+                "width": 1,
+                "height": 1
+              },
+              "transform": {
+                "scale": 1,
+                "stretchX": 1,
+                "stretchY": 1,
+                "offsetX": 0,
+                "offsetY": 0,
+                "rotation": 0,
+                "flipX": false
+              },
+              "adjustments": {
+                "brightness": 1,
+                "contrast": 1,
+                "saturation": 1,
+                "hue": 0,
+                "blur": 0,
+                "grayscale": 0,
+                "sepia": 0,
+                "opacity": 1
+              },
+              "effects": {
+                "mask": "none",
+                "maskStrength": 0.6,
+                "vignette": 0
+              }
+            },
+            "showArtwork": false
+          }
+        }
+      },
+      {
+        "id": "card_baseline_rules_portrait",
+        "name": "Setup",
+        "deckId": "deck_baseline_rules",
+        "quantity": 1,
+        "artwork": {
+          "source": "data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22800%22%20height%3D%221000%22%20viewBox%3D%220%200%20800%201000%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22g%22%20x2%3D%221%22%20y2%3D%221%22%3E%3Cstop%20stop-color%3D%22%23173329%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%23123f52%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%22800%22%20height%3D%221000%22%20fill%3D%22url(%23g)%22%2F%3E%3Ccircle%20cx%3D%22610%22%20cy%3D%22260%22%20r%3D%22145%22%20fill%3D%22%23d6d0aa%22%20opacity%3D%22.28%22%2F%3E%3Cpath%20d%3D%22M0%20790L260%20520l150%20140%20180-240%20210%20230v350H0z%22%20fill%3D%22%23d6d0aa%22%20opacity%3D%22.22%22%2F%3E%3Ctext%20x%3D%2252%22%20y%3D%22914%22%20fill%3D%22%23d6d0aa%22%20font-family%3D%22sans-serif%22%20font-size%3D%2258%22%20font-weight%3D%22700%22%3EBOARD%3C%2Ftext%3E%3C%2Fsvg%3E",
+          "label": "card_baseline_rules_portrait.svg",
+          "crop": {
+            "x": 0,
+            "y": 0,
+            "width": 1,
+            "height": 1
+          },
+          "transform": {
+            "scale": 1,
+            "stretchX": 1,
+            "stretchY": 1,
+            "offsetX": 0,
+            "offsetY": 0,
+            "rotation": 0,
+            "flipX": false
+          },
+          "adjustments": {
+            "brightness": 1,
+            "contrast": 1,
+            "saturation": 1,
+            "hue": 0,
+            "blur": 0,
+            "grayscale": 0,
+            "sepia": 0,
+            "opacity": 1
+          },
+          "effects": {
+            "mask": "none",
+            "maskStrength": 0.6,
+            "vignette": 0
+          }
+        },
+        "replacement": {
+          "source": null,
+          "label": "",
+          "crop": {
+            "x": 0,
+            "y": 0,
+            "width": 1,
+            "height": 1
+          },
+          "transform": {
+            "scale": 1,
+            "stretchX": 1,
+            "stretchY": 1,
+            "offsetX": 0,
+            "offsetY": 0,
+            "rotation": 0,
+            "flipX": false
+          },
+          "adjustments": {
+            "brightness": 1,
+            "contrast": 1,
+            "saturation": 1,
+            "hue": 0,
+            "blur": 0,
+            "grayscale": 0,
+            "sepia": 0,
+            "opacity": 1
+          },
+          "effects": {
+            "mask": "none",
+            "maskStrength": 0.6,
+            "vignette": 0
+          }
+        },
+        "useReplacement": false,
+        "style": {},
+        "notes": "",
+        "createdAt": "2026-09-26T12:00:00.000Z",
+        "updatedAt": "2026-09-26T12:00:00.000Z",
+        "type": "rules",
+        "heading": "Setup",
+        "headingAlign": "left",
+        "body": "<p><strong>Place the Regent</strong> on space A. Each hero starts on a numbered space.</p><p>Keep the tide marker nearby.</p>",
+        "landscape": false
+      },
+      {
+        "id": "card_baseline_rules_landscape",
+        "name": "Tide Reference",
+        "deckId": "deck_baseline_rules",
+        "quantity": 1,
+        "artwork": {
+          "source": "data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22800%22%20height%3D%221000%22%20viewBox%3D%220%200%20800%201000%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22g%22%20x2%3D%221%22%20y2%3D%221%22%3E%3Cstop%20stop-color%3D%22%23152a47%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%230c6b78%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%22800%22%20height%3D%221000%22%20fill%3D%22url(%23g)%22%2F%3E%3Ccircle%20cx%3D%22610%22%20cy%3D%22260%22%20r%3D%22145%22%20fill%3D%22%23f6eada%22%20opacity%3D%22.28%22%2F%3E%3Cpath%20d%3D%22M0%20790L260%20520l150%20140%20180-240%20210%20230v350H0z%22%20fill%3D%22%23f6eada%22%20opacity%3D%22.22%22%2F%3E%3Ctext%20x%3D%2252%22%20y%3D%22914%22%20fill%3D%22%23f6eada%22%20font-family%3D%22sans-serif%22%20font-size%3D%2258%22%20font-weight%3D%22700%22%3EHERO%3C%2Ftext%3E%3C%2Fsvg%3E",
+          "label": "card_baseline_rules_landscape.svg",
+          "crop": {
+            "x": 0,
+            "y": 0,
+            "width": 1,
+            "height": 1
+          },
+          "transform": {
+            "scale": 1,
+            "stretchX": 1,
+            "stretchY": 1,
+            "offsetX": 0,
+            "offsetY": 0,
+            "rotation": 0,
+            "flipX": false
+          },
+          "adjustments": {
+            "brightness": 1,
+            "contrast": 1,
+            "saturation": 1,
+            "hue": 0,
+            "blur": 0,
+            "grayscale": 0,
+            "sepia": 0,
+            "opacity": 1
+          },
+          "effects": {
+            "mask": "none",
+            "maskStrength": 0.6,
+            "vignette": 0
+          }
+        },
+        "replacement": {
+          "source": null,
+          "label": "",
+          "crop": {
+            "x": 0,
+            "y": 0,
+            "width": 1,
+            "height": 1
+          },
+          "transform": {
+            "scale": 1,
+            "stretchX": 1,
+            "stretchY": 1,
+            "offsetX": 0,
+            "offsetY": 0,
+            "rotation": 0,
+            "flipX": false
+          },
+          "adjustments": {
+            "brightness": 1,
+            "contrast": 1,
+            "saturation": 1,
+            "hue": 0,
+            "blur": 0,
+            "grayscale": 0,
+            "sepia": 0,
+            "opacity": 1
+          },
+          "effects": {
+            "mask": "none",
+            "maskStrength": 0.6,
+            "vignette": 0
+          }
+        },
+        "useReplacement": false,
+        "style": {},
+        "notes": "",
+        "createdAt": "2026-09-26T12:00:00.000Z",
+        "updatedAt": "2026-09-26T12:00:00.000Z",
+        "type": "rules",
+        "heading": "Tide Reference",
+        "headingAlign": "center",
+        "body": "<p style=\"text-align:center\"><strong>Low tide:</strong> blue paths are open.</p><p style=\"text-align:center\"><strong>High tide:</strong> advance threat.</p>",
+        "landscape": true
+      },
+      {
+        "id": "card_baseline_event",
+        "name": "Sudden Squall",
+        "deckId": "deck_baseline_event",
+        "quantity": 1,
+        "artwork": {
+          "source": "data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22800%22%20height%3D%221000%22%20viewBox%3D%220%200%20800%201000%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22g%22%20x2%3D%221%22%20y2%3D%221%22%3E%3Cstop%20stop-color%3D%22%23173329%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%23123f52%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%22800%22%20height%3D%221000%22%20fill%3D%22url(%23g)%22%2F%3E%3Ccircle%20cx%3D%22610%22%20cy%3D%22260%22%20r%3D%22145%22%20fill%3D%22%23d6d0aa%22%20opacity%3D%22.28%22%2F%3E%3Cpath%20d%3D%22M0%20790L260%20520l150%20140%20180-240%20210%20230v350H0z%22%20fill%3D%22%23d6d0aa%22%20opacity%3D%22.22%22%2F%3E%3Ctext%20x%3D%2252%22%20y%3D%22914%22%20fill%3D%22%23d6d0aa%22%20font-family%3D%22sans-serif%22%20font-size%3D%2258%22%20font-weight%3D%22700%22%3EBOARD%3C%2Ftext%3E%3C%2Fsvg%3E",
+          "label": "card_baseline_event.svg",
+          "crop": {
+            "x": 0,
+            "y": 0,
+            "width": 1,
+            "height": 1
+          },
+          "transform": {
+            "scale": 1,
+            "stretchX": 1,
+            "stretchY": 1,
+            "offsetX": 0,
+            "offsetY": 0,
+            "rotation": 0,
+            "flipX": false
+          },
+          "adjustments": {
+            "brightness": 1,
+            "contrast": 1,
+            "saturation": 1,
+            "hue": 0,
+            "blur": 0,
+            "grayscale": 0,
+            "sepia": 0,
+            "opacity": 1
+          },
+          "effects": {
+            "mask": "none",
+            "maskStrength": 0.6,
+            "vignette": 0
+          }
+        },
+        "replacement": {
+          "source": null,
+          "label": "",
+          "crop": {
+            "x": 0,
+            "y": 0,
+            "width": 1,
+            "height": 1
+          },
+          "transform": {
+            "scale": 1,
+            "stretchX": 1,
+            "stretchY": 1,
+            "offsetX": 0,
+            "offsetY": 0,
+            "rotation": 0,
+            "flipX": false
+          },
+          "adjustments": {
+            "brightness": 1,
+            "contrast": 1,
+            "saturation": 1,
+            "hue": 0,
+            "blur": 0,
+            "grayscale": 0,
+            "sepia": 0,
+            "opacity": 1
+          },
+          "effects": {
+            "mask": "none",
+            "maskStrength": 0.6,
+            "vignette": 0
+          }
+        },
+        "useReplacement": false,
+        "style": {},
+        "notes": "",
+        "createdAt": "2026-09-26T12:00:00.000Z",
+        "updatedAt": "2026-09-26T12:00:00.000Z",
+        "type": "event",
+        "heading": "Sudden Squall",
+        "body": "<p>Move every fighter on a blue space to the nearest connected space.</p>",
+        "backHeading": {
+          "offsetX": 3,
+          "offsetY": -2,
+          "rotation": -5
+        },
+        "backReplacement": {
+          "source": null,
+          "label": "",
+          "crop": {
+            "x": 0,
+            "y": 0,
+            "width": 1,
+            "height": 1
+          },
+          "transform": {
+            "scale": 1,
+            "stretchX": 1,
+            "stretchY": 1,
+            "offsetX": 0,
+            "offsetY": 0,
+            "rotation": 0,
+            "flipX": false
+          },
+          "adjustments": {
+            "brightness": 1,
+            "contrast": 1,
+            "saturation": 1,
+            "hue": 0,
+            "blur": 0,
+            "grayscale": 0,
+            "sepia": 0,
+            "opacity": 1
+          },
+          "effects": {
+            "mask": "none",
+            "maskStrength": 0.6,
+            "vignette": 0
+          }
+        },
+        "useBackReplacement": false
+      }
+    ],
+    "threat": {
+      "enabled": true,
+      "villainId": "char_baseline_villain",
+      "subtitle": "The Shattered Causeway",
+      "steps": [
+        {
+          "id": "threat_step_1",
+          "value": 1,
+          "effect": "",
+          "fill": null,
+          "stroke": null,
+          "bannerFill": null,
+          "numberColor": null
+        },
+        {
+          "id": "threat_step_2",
+          "value": 2,
+          "effect": "",
+          "fill": null,
+          "stroke": null,
+          "bannerFill": null,
+          "numberColor": null
+        },
+        {
+          "id": "threat_step_3",
+          "value": 3,
+          "effect": "Spawn a Lantern Guard.",
+          "fill": null,
+          "stroke": null,
+          "bannerFill": null,
+          "numberColor": null
+        },
+        {
+          "id": "threat_step_4",
+          "value": 4,
+          "effect": "",
+          "fill": null,
+          "stroke": null,
+          "bannerFill": null,
+          "numberColor": null
+        },
+        {
+          "id": "threat_step_5",
+          "value": 4,
+          "effect": "",
+          "fill": null,
+          "stroke": null,
+          "bannerFill": null,
+          "numberColor": null
+        },
+        {
+          "id": "threat_step_6",
+          "value": 5,
+          "effect": "",
+          "fill": null,
+          "stroke": null,
+          "bannerFill": null,
+          "numberColor": null
+        },
+        {
+          "id": "threat_step_7",
+          "value": 5,
+          "effect": "",
+          "fill": null,
+          "stroke": null,
+          "bannerFill": null,
+          "numberColor": null
+        }
+      ],
+      "finalLabel": "The sea wall breaks",
+      "finalEffect": "The heroes lose immediately.",
+      "slots": [
+        {
+          "id": "threat_slot_1",
+          "label": "Tide",
+          "note": "Starts low"
+        },
+        {
+          "id": "threat_slot_2",
+          "label": "Gate",
+          "note": "Closed"
+        },
+        {
+          "id": "threat_slot_3",
+          "label": "Reserve",
+          "note": "3 Guards"
+        }
+      ],
+      "winLabel": "",
+      "notes": [
+        {
+          "id": "threat_note_high_tide",
+          "text": "HIGH TIDE",
+          "x": 0.79,
+          "y": 0.14,
+          "size": 1.4,
+          "rotation": -6,
+          "color": "#e7e9f3"
+        }
+      ],
+      "logo": {
+        "source": "data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22800%22%20height%3D%221000%22%20viewBox%3D%220%200%20800%201000%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22g%22%20x2%3D%221%22%20y2%3D%221%22%3E%3Cstop%20stop-color%3D%22%2370284e%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%23db725a%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%22800%22%20height%3D%221000%22%20fill%3D%22url(%23g)%22%2F%3E%3Ccircle%20cx%3D%22610%22%20cy%3D%22260%22%20r%3D%22145%22%20fill%3D%22%23ffffff%22%20opacity%3D%22.28%22%2F%3E%3Cpath%20d%3D%22M0%20790L260%20520l150%20140%20180-240%20210%20230v350H0z%22%20fill%3D%22%23ffffff%22%20opacity%3D%22.22%22%2F%3E%3Ctext%20x%3D%2252%22%20y%3D%22914%22%20fill%3D%22%23ffffff%22%20font-family%3D%22sans-serif%22%20font-size%3D%2258%22%20font-weight%3D%22700%22%3ES%3C%2Ftext%3E%3C%2Fsvg%3E",
+        "label": "threat-logo.svg",
+        "crop": {
+          "x": 0,
+          "y": 0,
+          "width": 1,
+          "height": 1
+        },
+        "transform": {
+          "scale": 1,
+          "stretchX": 1,
+          "stretchY": 1,
+          "offsetX": 0,
+          "offsetY": 0,
+          "rotation": 0,
+          "flipX": false
+        },
+        "adjustments": {
+          "brightness": 1,
+          "contrast": 1,
+          "saturation": 1,
+          "hue": 0,
+          "blur": 0,
+          "grayscale": 0,
+          "sepia": 0,
+          "opacity": 1
+        },
+        "effects": {
+          "mask": "none",
+          "maskStrength": 0.6,
+          "vignette": 0
+        }
+      },
+      "background": {
+        "source": "data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22800%22%20height%3D%221000%22%20viewBox%3D%220%200%20800%201000%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22g%22%20x2%3D%221%22%20y2%3D%221%22%3E%3Cstop%20stop-color%3D%22%2331172f%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%238a2438%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%22800%22%20height%3D%221000%22%20fill%3D%22url(%23g)%22%2F%3E%3Ccircle%20cx%3D%22610%22%20cy%3D%22260%22%20r%3D%22145%22%20fill%3D%22%23f6eada%22%20opacity%3D%22.28%22%2F%3E%3Cpath%20d%3D%22M0%20790L260%20520l150%20140%20180-240%20210%20230v350H0z%22%20fill%3D%22%23f6eada%22%20opacity%3D%22.22%22%2F%3E%3Ctext%20x%3D%2252%22%20y%3D%22914%22%20fill%3D%22%23f6eada%22%20font-family%3D%22sans-serif%22%20font-size%3D%2258%22%20font-weight%3D%22700%22%3EVILLAIN%3C%2Ftext%3E%3C%2Fsvg%3E",
+        "label": "threat-background.svg",
+        "crop": {
+          "x": 0,
+          "y": 0,
+          "width": 1,
+          "height": 1
+        },
+        "transform": {
+          "scale": 1,
+          "stretchX": 1,
+          "stretchY": 1,
+          "offsetX": 0,
+          "offsetY": 0,
+          "rotation": 0,
+          "flipX": false
+        },
+        "adjustments": {
+          "brightness": 1,
+          "contrast": 1,
+          "saturation": 1,
+          "hue": 0,
+          "blur": 0,
+          "grayscale": 0,
+          "sepia": 0,
+          "opacity": 1
+        },
+        "effects": {
+          "mask": "none",
+          "maskStrength": 0.6,
+          "vignette": 0
+        }
+      },
+      "replacement": {
+        "source": null,
+        "label": "",
+        "crop": {
+          "x": 0,
+          "y": 0,
+          "width": 1,
+          "height": 1
+        },
+        "transform": {
+          "scale": 1,
+          "stretchX": 1,
+          "stretchY": 1,
+          "offsetX": 0,
+          "offsetY": 0,
+          "rotation": 0,
+          "flipX": false
+        },
+        "adjustments": {
+          "brightness": 1,
+          "contrast": 1,
+          "saturation": 1,
+          "hue": 0,
+          "blur": 0,
+          "grayscale": 0,
+          "sepia": 0,
+          "opacity": 1
+        },
+        "effects": {
+          "mask": "none",
+          "maskStrength": 0.6,
+          "vignette": 0
+        }
+      },
+      "useReplacement": false,
+      "rules": "Advance after resolving a Villain Effect card.",
+      "accent": "#e01b24",
+      "spaceStroke": "#0b0c11"
+    },
+    "maps": [
+      {
+        "id": "map_baseline_causeway",
+        "enabled": true,
+        "name": "The Shattered Causeway",
+        "showSpacesAndPaths": true,
+        "showLabel": true,
+        "labelCorner": "bottom-right",
+        "size": "large",
+        "aspect": 1.4473916887709992,
+        "artwork": {
+          "source": "data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22800%22%20height%3D%221000%22%20viewBox%3D%220%200%20800%201000%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22g%22%20x2%3D%221%22%20y2%3D%221%22%3E%3Cstop%20stop-color%3D%22%23173329%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%23123f52%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%22800%22%20height%3D%221000%22%20fill%3D%22url(%23g)%22%2F%3E%3Ccircle%20cx%3D%22610%22%20cy%3D%22260%22%20r%3D%22145%22%20fill%3D%22%23d6d0aa%22%20opacity%3D%22.28%22%2F%3E%3Cpath%20d%3D%22M0%20790L260%20520l150%20140%20180-240%20210%20230v350H0z%22%20fill%3D%22%23d6d0aa%22%20opacity%3D%22.22%22%2F%3E%3Ctext%20x%3D%2252%22%20y%3D%22914%22%20fill%3D%22%23d6d0aa%22%20font-family%3D%22sans-serif%22%20font-size%3D%2258%22%20font-weight%3D%22700%22%3EBOARD%3C%2Ftext%3E%3C%2Fsvg%3E",
+          "label": "baseline-map.svg",
+          "crop": {
+            "x": 0,
+            "y": 0,
+            "width": 1,
+            "height": 1
+          },
+          "transform": {
+            "scale": 1,
+            "stretchX": 1,
+            "stretchY": 1,
+            "offsetX": 0,
+            "offsetY": 0,
+            "rotation": 0,
+            "flipX": false
+          },
+          "adjustments": {
+            "brightness": 1,
+            "contrast": 1,
+            "saturation": 1,
+            "hue": 0,
+            "blur": 0,
+            "grayscale": 0,
+            "sepia": 0,
+            "opacity": 1
+          },
+          "effects": {
+            "mask": "none",
+            "maskStrength": 0.6,
+            "vignette": 0
+          }
+        },
+        "background": {
+          "kind": "solid",
+          "color": "#2c2a26",
+          "color2": "#2c2a26",
+          "angle": 180
+        },
+        "spaceDiameter": 0.0757,
+        "autoLargeFighter": false,
+        "spaceOpacity": 0.88,
+        "spaceStroke": "#101010",
+        "pathColor": "#1b1b18",
+        "oneWayColor": "#fa5c13",
+        "startInk": "#f5f2ec",
+        "palette": [
+          "#3b8290",
+          "#b78939",
+          "#7b405f"
+        ],
+        "spaces": [
+          {
+            "id": "space_baseline_a",
+            "x": 0.16,
+            "y": 0.17,
+            "zones": [
+              {
+                "kind": "solid",
+                "color": "#3b8290",
+                "color2": "#3b8290",
+                "angle": 180
+              }
+            ],
+            "stroke": null,
+            "label": "A",
+            "start": 1,
+            "startSide": "top",
+            "rotation": 0,
+            "secretPassage": null,
+            "notes": ""
+          },
+          {
+            "id": "space_baseline_b",
+            "x": 0.36,
+            "y": 0.31,
+            "zones": [
+              {
+                "kind": "solid",
+                "color": "#b78939",
+                "color2": "#b78939",
+                "angle": 180
+              },
+              {
+                "kind": "solid",
+                "color": "#3b8290",
+                "color2": "#3b8290",
+                "angle": 180
+              }
+            ],
+            "stroke": null,
+            "label": "B",
+            "start": null,
+            "startSide": "top",
+            "rotation": 35,
+            "secretPassage": null,
+            "notes": ""
+          },
+          {
+            "id": "space_baseline_c",
+            "x": 0.61,
+            "y": 0.18,
+            "zones": [
+              {
+                "kind": "solid",
+                "color": "#7b405f",
+                "color2": "#7b405f",
+                "angle": 180
+              }
+            ],
+            "stroke": null,
+            "label": "C",
+            "start": 2,
+            "startSide": "top",
+            "rotation": 0,
+            "secretPassage": null,
+            "notes": ""
+          },
+          {
+            "id": "space_baseline_d",
+            "x": 0.78,
+            "y": 0.43,
+            "zones": [
+              {
+                "kind": "solid",
+                "color": "#3b8290",
+                "color2": "#3b8290",
+                "angle": 180
+              }
+            ],
+            "stroke": null,
+            "label": "D",
+            "start": null,
+            "startSide": "top",
+            "rotation": 0,
+            "secretPassage": {
+              "angle": 45,
+              "curve": 0.28,
+              "fade": 0.45,
+              "color": "#c6ccee",
+              "symbolId": "symbol_baseline_spark"
+            },
+            "notes": ""
+          },
+          {
+            "id": "space_baseline_e",
+            "x": 0.48,
+            "y": 0.53,
+            "zones": [
+              {
+                "kind": "solid",
+                "color": "#b78939",
+                "color2": "#b78939",
+                "angle": 180
+              }
+            ],
+            "stroke": null,
+            "label": "E",
+            "start": null,
+            "startSide": "top",
+            "rotation": 0,
+            "secretPassage": null,
+            "notes": ""
+          }
+        ],
+        "paths": [
+          {
+            "id": "map_path_1",
+            "from": "space_baseline_a",
+            "to": "space_baseline_b",
+            "curve": 0.18,
+            "oneWay": false,
+            "modifier": false,
+            "largeFighter": false
+          },
+          {
+            "id": "map_path_2",
+            "from": "space_baseline_b",
+            "to": "space_baseline_c",
+            "curve": -0.16,
+            "oneWay": true,
+            "modifier": true,
+            "largeFighter": false
+          },
+          {
+            "id": "map_path_3",
+            "from": "space_baseline_c",
+            "to": "space_baseline_d",
+            "curve": 0,
+            "oneWay": false,
+            "modifier": false,
+            "largeFighter": false
+          },
+          {
+            "id": "map_path_4",
+            "from": "space_baseline_b",
+            "to": "space_baseline_e",
+            "curve": 0.1,
+            "oneWay": false,
+            "modifier": true,
+            "largeFighter": false
+          },
+          {
+            "id": "map_path_5",
+            "from": "space_baseline_e",
+            "to": "space_baseline_d",
+            "curve": -0.12,
+            "oneWay": false,
+            "modifier": false,
+            "largeFighter": false
+          }
+        ],
+        "notes": [
+          {
+            "id": "map_note_flooded",
+            "text": "FLOODED AT HIGH TIDE",
+            "x": 0.25,
+            "y": 0.55,
+            "size": 2.2,
+            "rotation": -4,
+            "color": "#f5f2ec"
+          }
+        ],
+        "environment": [
+          {
+            "id": "map_env_beacon",
+            "source": "data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22800%22%20height%3D%221000%22%20viewBox%3D%220%200%20800%201000%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22g%22%20x2%3D%221%22%20y2%3D%221%22%3E%3Cstop%20stop-color%3D%22%2370284e%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%23db725a%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%22800%22%20height%3D%221000%22%20fill%3D%22url(%23g)%22%2F%3E%3Ccircle%20cx%3D%22610%22%20cy%3D%22260%22%20r%3D%22145%22%20fill%3D%22%23ffffff%22%20opacity%3D%22.28%22%2F%3E%3Cpath%20d%3D%22M0%20790L260%20520l150%20140%20180-240%20210%20230v350H0z%22%20fill%3D%22%23ffffff%22%20opacity%3D%22.22%22%2F%3E%3Ctext%20x%3D%2252%22%20y%3D%22914%22%20fill%3D%22%23ffffff%22%20font-family%3D%22sans-serif%22%20font-size%3D%2258%22%20font-weight%3D%22700%22%3ES%3C%2Ftext%3E%3C%2Fsvg%3E",
+            "label": "Beacon flare",
+            "x": 0.67,
+            "y": 0.43,
+            "width": 0.11,
+            "aspect": 1,
+            "rotation": 0,
+            "opacity": 0.72
+          }
+        ],
+        "zoneStyles": []
+      }
+    ],
+    "figures": [
+      {
+        "id": "figure_baseline_token",
+        "name": "Lantern Guard token",
+        "kind": "token",
+        "characterId": "char_baseline_minion",
+        "quantity": 3,
+        "reference": {
+          "source": "data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22800%22%20height%3D%221000%22%20viewBox%3D%220%200%20800%201000%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22g%22%20x2%3D%221%22%20y2%3D%221%22%3E%3Cstop%20stop-color%3D%22%23302819%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%2398752a%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%22800%22%20height%3D%221000%22%20fill%3D%22url(%23g)%22%2F%3E%3Ccircle%20cx%3D%22610%22%20cy%3D%22260%22%20r%3D%22145%22%20fill%3D%22%23f6eada%22%20opacity%3D%22.28%22%2F%3E%3Cpath%20d%3D%22M0%20790L260%20520l150%20140%20180-240%20210%20230v350H0z%22%20fill%3D%22%23f6eada%22%20opacity%3D%22.22%22%2F%3E%3Ctext%20x%3D%2252%22%20y%3D%22914%22%20fill%3D%22%23f6eada%22%20font-family%3D%22sans-serif%22%20font-size%3D%2258%22%20font-weight%3D%22700%22%3EMINION%3C%2Ftext%3E%3C%2Fsvg%3E",
+          "label": "lantern-guard-token.svg",
+          "crop": {
+            "x": 0,
+            "y": 0,
+            "width": 1,
+            "height": 1
+          },
+          "transform": {
+            "scale": 1,
+            "stretchX": 1,
+            "stretchY": 1,
+            "offsetX": 0,
+            "offsetY": 0,
+            "rotation": 0,
+            "flipX": false
+          },
+          "adjustments": {
+            "brightness": 1,
+            "contrast": 1,
+            "saturation": 1,
+            "hue": 0,
+            "blur": 0,
+            "grayscale": 0,
+            "sepia": 0,
+            "opacity": 1
+          },
+          "effects": {
+            "mask": "none",
+            "maskStrength": 0.6,
+            "vignette": 0
+          }
+        },
+        "model": null,
+        "ttsSave": null,
+        "token": {
+          "enabled": true,
+          "shape": "polygon",
+          "sides": 6,
+          "diameterMm": 28,
+          "lengthMm": 32,
+          "thicknessMm": 2,
+          "rimColor": "#1a1a1a",
+          "twoSided": false,
+          "outline": null,
+          "outlineDetail": 1.5
+        },
+        "dialRange": {
+          "min": 0,
+          "max": 20
+        },
+        "notes": "",
+        "createdAt": "2026-09-26T12:00:00.000Z",
+        "updatedAt": "2026-09-26T12:00:00.000Z"
+      }
+    ],
+    "rulebooks": [],
+    "box": {
+      "enabled": false,
+      "skin": null
+    },
+    "customSymbols": [
+      {
+        "id": "symbol_baseline_spark",
+        "name": "spark",
+        "source": "data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22800%22%20height%3D%221000%22%20viewBox%3D%220%200%20800%201000%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22g%22%20x2%3D%221%22%20y2%3D%221%22%3E%3Cstop%20stop-color%3D%22%2370284e%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%23db725a%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%22800%22%20height%3D%221000%22%20fill%3D%22url(%23g)%22%2F%3E%3Ccircle%20cx%3D%22610%22%20cy%3D%22260%22%20r%3D%22145%22%20fill%3D%22%23ffffff%22%20opacity%3D%22.28%22%2F%3E%3Cpath%20d%3D%22M0%20790L260%20520l150%20140%20180-240%20210%20230v350H0z%22%20fill%3D%22%23ffffff%22%20opacity%3D%22.22%22%2F%3E%3Ctext%20x%3D%2252%22%20y%3D%22914%22%20fill%3D%22%23ffffff%22%20font-family%3D%22sans-serif%22%20font-size%3D%2258%22%20font-weight%3D%22700%22%3ES%3C%2Ftext%3E%3C%2Fsvg%3E",
+        "createdAt": "2026-09-26T12:00:00.000Z",
+        "updatedAt": "2026-09-26T12:00:00.000Z"
+      }
+    ],
+    "boxArt": {
+      "source": null,
+      "label": "",
+      "crop": {
+        "x": 0,
+        "y": 0,
+        "width": 1,
+        "height": 1
+      },
+      "transform": {
+        "scale": 1,
+        "stretchX": 1,
+        "stretchY": 1,
+        "offsetX": 0,
+        "offsetY": 0,
+        "rotation": 0,
+        "flipX": false
+      },
+      "adjustments": {
+        "brightness": 1,
+        "contrast": 1,
+        "saturation": 1,
+        "hue": 0,
+        "blur": 0,
+        "grayscale": 0,
+        "sepia": 0,
+        "opacity": 1
+      },
+      "effects": {
+        "mask": "none",
+        "maskStrength": 0.6,
+        "vignette": 0
+      }
+    },
+    "initiativeBack": {
+      "source": "data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22800%22%20height%3D%221000%22%20viewBox%3D%220%200%20800%201000%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22g%22%20x2%3D%221%22%20y2%3D%221%22%3E%3Cstop%20stop-color%3D%22%23173329%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%23123f52%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%22800%22%20height%3D%221000%22%20fill%3D%22url(%23g)%22%2F%3E%3Ccircle%20cx%3D%22610%22%20cy%3D%22260%22%20r%3D%22145%22%20fill%3D%22%23d6d0aa%22%20opacity%3D%22.28%22%2F%3E%3Cpath%20d%3D%22M0%20790L260%20520l150%20140%20180-240%20210%20230v350H0z%22%20fill%3D%22%23d6d0aa%22%20opacity%3D%22.22%22%2F%3E%3Ctext%20x%3D%2252%22%20y%3D%22914%22%20fill%3D%22%23d6d0aa%22%20font-family%3D%22sans-serif%22%20font-size%3D%2258%22%20font-weight%3D%22700%22%3EBOARD%3C%2Ftext%3E%3C%2Fsvg%3E",
+      "label": "initiative-back.svg",
+      "crop": {
+        "x": 0,
+        "y": 0,
+        "width": 1,
+        "height": 1
+      },
+      "transform": {
+        "scale": 1,
+        "stretchX": 1,
+        "stretchY": 1,
+        "offsetX": 0,
+        "offsetY": 0,
+        "rotation": 0,
+        "flipX": false
+      },
+      "adjustments": {
+        "brightness": 1,
+        "contrast": 1,
+        "saturation": 1,
+        "hue": 0,
+        "blur": 0,
+        "grayscale": 0,
+        "sepia": 0,
+        "opacity": 1
+      },
+      "effects": {
+        "mask": "none",
+        "maskStrength": 0.6,
+        "vignette": 0
+      }
+    },
+    "useInitiativeBack": true,
+    "origin": null
+  }
+}

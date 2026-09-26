@@ -1,0 +1,161 @@
+{
+  "version": 1,
+  "status": "captured",
+  "source": {
+    "commit": "b554a445d572debf8db41f41db3f38042f34c6c2",
+    "dirty": true,
+    "note": "The manifest fingerprints the exact Phase 0 source files because the worktree also contained unrelated local changes.",
+    "fixture": "tools/baselines/mobile-ui-phase0/fixture.awset.json",
+    "fixtureBytes": 102102,
+    "fixtureSha256": "18eff6bc24c93f592d85731aa8b693cd2ea3ef10366c4bb397dea521da1d3240"
+  },
+  "environment": {
+    "origin": "http://127.0.0.1:5174",
+    "platform": "Windows",
+    "browser": "Codex in-app browser (Chromium engine version unavailable)",
+    "theme": "light",
+    "browserZoom": 1,
+    "captureScale": 1,
+    "pointer": "fine",
+    "desktopPreviewWidth": 424,
+    "selection": {
+      "setId": "set_mobile_ui_baseline",
+      "cardId": "card_baseline_hero_attack",
+      "cardName": "Breakwater",
+      "section": "Content"
+    }
+  },
+  "screenshots": [
+    {
+      "id": "cards-desktop",
+      "view": "cards-content",
+      "viewport": [1440, 900],
+      "file": "tools/baselines/mobile-ui-phase0/screenshots/cards-1440x900-light.png",
+      "rawFile": "exports/guides-raw/mobile-ui-phase0/cards-1440x900-light.png",
+      "bytes": 294093,
+      "sha256": "383f8af39ab12b1d1fc10a2c8a082e90f5460553f19f20fbd94ccc6a80222654",
+      "pixelSha256": "3259ad27930e54c90e5be3d1599b95a751e2acd43f5ee386e22357edb874bd41",
+      "status": "captured"
+    },
+    {
+      "id": "cards-tablet",
+      "view": "cards-content",
+      "viewport": [1024, 768],
+      "file": "tools/baselines/mobile-ui-phase0/screenshots/cards-1024x768-light.png",
+      "rawFile": "exports/guides-raw/mobile-ui-phase0/cards-1024x768-light.png",
+      "bytes": 126164,
+      "sha256": "e8b1334d28676f96935c191dd213623d3fa395ac16a7076297381e8e588e0b2c",
+      "pixelSha256": "5e58162c0e042d8720492b9d7116199f02c749b13863512062880a419e7fdf50",
+      "status": "captured"
+    },
+    {
+      "id": "cards-phone",
+      "view": "cards-content",
+      "viewport": [390, 844],
+      "file": "tools/baselines/mobile-ui-phase0/screenshots/cards-390x844-light.png",
+      "rawFile": "exports/guides-raw/mobile-ui-phase0/cards-390x844-light.png",
+      "bytes": 63152,
+      "sha256": "454f6bff35e0b00d695ddcf0d127709433bc9901452c18413d1a0f12b16f259c",
+      "pixelSha256": "d21e364b4e45843e9978bed34a2028726af149ad43c8a3eaddda1ac38944ec64",
+      "status": "captured"
+    },
+    {
+      "id": "cards-phone-stress",
+      "view": "cards-content",
+      "viewport": [320, 568],
+      "file": "tools/baselines/mobile-ui-phase0/screenshots/cards-320x568-light.png",
+      "rawFile": "exports/guides-raw/mobile-ui-phase0/cards-320x568-light.png",
+      "bytes": 45559,
+      "sha256": "a2e3bd8c73651f81ce0bae5cf1fccafd359a8c145cafa621bd6c59d3754d8761",
+      "pixelSha256": "f885f11af0f349138d0b83889a0426151df2b74752fa128c693cefbbc1694f18",
+      "status": "captured"
+    }
+  ],
+  "representativeExports": [
+    {
+      "id": "action-trim",
+      "archive": "exports/mobile-ui-baseline/cards-trim.zip",
+      "entry": "Heroes/mariner-breakwater.png",
+      "dimensions": [1478, 2065],
+      "pixelSha256": "705da59951fc7c91d0e196b30cc74d707129a70765b108cddc5240ea6abb2885"
+    },
+    {
+      "id": "action-bleed",
+      "archive": "exports/mobile-ui-baseline/cards-bleed.zip",
+      "entry": "Heroes/mariner-breakwater.png",
+      "dimensions": [1632, 2222],
+      "pixelSha256": "9b34020589148b2cd43960228fa2e00442ab163febde4cba2a7b55296c3206ce"
+    },
+    {
+      "id": "hero-character-trim",
+      "archive": "exports/mobile-ui-baseline/cards-trim.zip",
+      "entry": "Heroes/mariner-character-card.png",
+      "dimensions": [1478, 2065],
+      "pixelSha256": "f3d760edb4b6297148c0773b90e569c9cb72dacf1167147212310a78b6438239"
+    },
+    {
+      "id": "rules-portrait-trim",
+      "archive": "exports/mobile-ui-baseline/cards-trim.zip",
+      "entry": "Rule cards/setup.png",
+      "dimensions": [1478, 2065],
+      "pixelSha256": "c940958fd800a1ff7ff1f1901d81527eab163771de22ac607151cc365765505d"
+    },
+    {
+      "id": "rules-landscape-trim",
+      "archive": "exports/mobile-ui-baseline/cards-trim.zip",
+      "entry": "Rule cards/tide-reference.png",
+      "dimensions": [2064, 1478],
+      "pixelSha256": "45e9f4f3a66c5b8ea8f01ec681ba67ec168dd404d678db3ffd29d18b63054ed2"
+    },
+    {
+      "id": "initiative-trim",
+      "archive": "exports/mobile-ui-baseline/cards-trim.zip",
+      "entry": "Initiative cards/villain.png",
+      "dimensions": [1326, 2020],
+      "pixelSha256": "31c9d67a4b59a413bff92f25a0d7bb33633d6b8158eb60af9a908d9d815cef5b"
+    },
+    {
+      "id": "event-front-trim",
+      "archive": "exports/mobile-ui-baseline/cards-trim.zip",
+      "entry": "Event cards/sudden-squall.png",
+      "dimensions": [2033, 1335],
+      "pixelSha256": "03b7cc5725a252dd98ad0019743432c9f462d5eb80b073d0198862667c50f15e"
+    },
+    {
+      "id": "nonhero-deck-back",
+      "archive": "exports/mobile-ui-baseline/cards-trim.zip",
+      "entry": "Villain and minions/the-glass-regent-deck-back.png",
+      "dimensions": [373, 520],
+      "pixelSha256": "3ef6b080375d810ec78749073f8aa440a39ece97391a44e191c7d99fb46cca4b"
+    },
+    {
+      "id": "threat",
+      "file": "exports/mobile-ui-baseline/threat.png",
+      "dimensions": [1637, 232],
+      "pixelSha256": "cae4b2c5f8d8fbf4d81d188ead964e96f65b2506ee1846c7b72ea93549abe1a3"
+    },
+    {
+      "id": "map-large",
+      "file": "exports/mobile-ui-baseline/map.png",
+      "dimensions": [1637, 1131],
+      "pixelSha256": "d5f0fadaa888152c247354a30802afb4d6466c915d50fa5908c974d86332262d"
+    }
+  ],
+  "tabletopSimulator": {
+    "directory": "exports/mobile-ui-baseline-tts",
+    "fileCount": 20,
+    "warningCount": 0
+  },
+  "verification": {
+    "manifest": "tools/baselines/mobile-ui-phase0/evidence-manifest.json",
+    "sameEnvironment": "passed after a repeated complete render run using dimensions and decoded PNG pixels",
+    "crossEnvironment": "passed with --geometry-only",
+    "note": "Encoded PNG container bytes varied between runs, while decoded pixel hashes were identical."
+  },
+  "normalization": {
+    "ignoredFields": ["exportedAt", "Date", "local file URLs", "ZIP entry timestamps"],
+    "crossEnvironmentGate": ["dimensions", "content", "geometry"],
+    "sameEnvironmentGate": ["decoded PNG pixels", "dimensions", "normalised structured content"],
+    "informationalOnly": ["raw PNG SHA-256", "raw ZIP SHA-256"]
+  }
+}

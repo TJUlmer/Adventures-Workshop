@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, viewport-fit=cover"
+    />
+    <meta name="color-scheme" content="light dark" />
+    <title>Mobile interaction contract</title>
+  </head>
+  <body>
+    <main class="probe">
+      <header class="intro">
+        <p class="eyebrow">Phase 0 prototype</p>
+        <h1>Gesture ownership</h1>
+        <p>
+          Navigate leaves scrolling and browser zoom alone. Adjust gives one pointer to the artwork
+          until the gesture commits or is cancelled.
+        </p>
+      </header>
+
+      <section class="mode-panel" aria-labelledby="mode-heading">
+        <div>
+          <h2 id="mode-heading">Mode</h2>
+          <p id="mode-explanation">Swipe across the artwork: the page should scroll.</p>
+        </div>
+        <div class="modes" role="group" aria-label="Interaction mode">
+          <button id="navigate-mode" type="button" aria-pressed="true">Navigate</button>
+          <button id="adjust-mode" type="button" aria-pressed="false">Adjust</button>
+        </div>
+      </section>
+
+      <p class="lead-in">
+        This space deliberately begins below the controls so a vertical gesture has somewhere visible
+        to move the page.
+      </p>
+
+      <section id="surface" class="surface" aria-label="Artwork gesture prototype">
+        <div class="surface-grid" aria-hidden="true"></div>
+        <button id="artwork" class="artwork" type="button" aria-label="Prototype artwork">
+          <span>Artwork</span>
+          <small>Drag only in Adjust</small>
+        </button>
+      </section>
+
+      <section class="readout" aria-live="polite">
+        <div>
+          <span>State</span>
+          <strong id="session-state">Navigate — browser owns gestures</strong>
+        </div>
+        <button id="cancel-session" type="button" disabled>Cancel active gesture</button>
+      </section>
+
+      <section class="events" aria-labelledby="events-heading">
+        <h2 id="events-heading">Latest lifecycle events</h2>
+        <ol id="event-log">
+          <li>Ready.</li>
+        </ol>
+      </section>
+
+      <section class="lifecycle" aria-labelledby="lifecycle-heading">
+        <div>
+          <h2 id="lifecycle-heading">Deterministic lifecycle checks</h2>
+          <p>
+            Synthetic pointer events exercise the shared helper without changing the artwork above.
+            Physical-device interruption checks still remain a release gate.
+          </p>
+        </div>
+        <button id="run-lifecycle-checks" type="button">Run checks</button>
+        <strong id="lifecycle-summary" aria-live="polite">Not run</strong>
+        <ol id="lifecycle-results"></ol>
+      </section>
+
+      <p class="tail">
+        More content after the surface proves that Navigate can scroll past it instead of becoming a
+        dead end.
+      </p>
+    </main>
+
+    <script type="module" src="./mobile-interaction-contract.ts"></script>
+  </body>
+</html>
