@@ -3,10 +3,14 @@
   import type { Card, CombatSymbol } from '$lib/cards/types';
   import { CARD_TYPE_META, initiativeHeading } from '$lib/cards/types';
   import { characterLabel } from '$lib/characters/factory';
+  import { deckLabel } from '$lib/decks/factory';
+  import type { Deck, DeckId } from '$lib/decks/types';
+  import { deckOwner } from '$lib/sets/queries';
   import { cardDrag, sideOf } from '$lib/state/card-drag.svelte';
   import { isCardSelected } from '$lib/state/selection';
   import { workshop } from '$lib/state/workshop.svelte';
   import { ConfirmAction, Icon } from '$lib/ui';
+  import { tick } from 'svelte';
 
   interface Props {
     card: Card;
@@ -20,11 +24,94 @@
   const selected = $derived(isCardSelected(workshop.selection, card.id));
   const unnamed = $derived(cardLabel(card).startsWith('Untitled'));
 
+  let host = $state<HTMLDivElement | null>(null);
   let row = $state<HTMLDivElement | null>(null);
+  let moveTrigger = $state<HTMLButtonElement | null>(null);
+  let actionsOpen = $state(false);
+  const moveTriggerId = $derived(`card-move-${card.id}`);
 
   const dragging = $derived(cardDrag.sourceId === card.id);
   const dropBefore = $derived(cardDrag.overId === card.id && cardDrag.side === 'before');
   const dropAfter = $derived(cardDrag.overId === card.id && cardDrag.side === 'after');
+
+  const cardsInDeck = $derived(
+    workshop.adventure.cards.filter(
+      (entry) =>
+        entry.deckId === card.deckId &&
+        (card.type !== 'initiative' ||
+          (entry.type === 'initiative' && entry.variant === card.variant))
+    )
+  );
+  const cardIndex = $derived(cardsInDeck.findIndex((entry) => entry.id === card.id));
+  const previousCard = $derived(cardIndex > 0 ? (cardsInDeck[cardIndex - 1] ?? null) : null);
+  const nextCard = $derived(
+    cardIndex >= 0 && cardIndex < cardsInDeck.length - 1
+      ? (cardsInDeck[cardIndex + 1] ?? null)
+      : null
+  );
+
+  const compatibleDecks = $derived(
+    workshop.adventure.decks.filter((deck) => {
+      if (card.type === 'action') return deck.kind === 'action' || deck.kind === 'special';
+      return deck.kind === card.type;
+    })
+  );
+
+  function destinationLabel(deck: Deck): string {
+    const owner = deckOwner(workshop.adventure, deck);
+    return owner ? `${deckLabel(deck)} · ${characterLabel(owner)}` : deckLabel(deck);
+  }
+
+  async function closeActions(restoreFocus = false): Promise<void> {
+    actionsOpen = false;
+    if (!restoreFocus) return;
+
+    // The action that was focused is about to unmount. Return keyboard users
+    // to the persistent trigger after the row has settled in its new place.
+    // A deck transfer remounts the whole CardRow under another branch, so the
+    // stable DOM id is the fallback when this instance's binding is gone.
+    await tick();
+    const trigger = document.getElementById(moveTriggerId) ?? moveTrigger;
+    if (trigger instanceof HTMLButtonElement) trigger.focus();
+  }
+
+  function moveEarlier(): void {
+    if (!previousCard) return;
+    workshop.reorderCard(card.id, previousCard.id, 'before');
+    void closeActions(true);
+  }
+
+  function moveLater(): void {
+    if (!nextCard) return;
+    workshop.reorderCard(card.id, nextCard.id, 'after');
+    void closeActions(true);
+  }
+
+  function moveToDeck(event: Event & { currentTarget: HTMLSelectElement }): void {
+    const deckId = event.currentTarget.value as DeckId;
+    if (deckId !== card.deckId) workshop.reorderCardIntoDeck(card.id, deckId);
+    void closeActions(true);
+  }
+
+  $effect(() => {
+    if (!actionsOpen) return;
+
+    const onPointerDown = (event: PointerEvent) => {
+      if (host && !host.contains(event.target as Node)) void closeActions();
+    };
+    const onKeydown = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+      event.preventDefault();
+      void closeActions(true);
+    };
+
+    document.addEventListener('pointerdown', onPointerDown);
+    document.addEventListener('keydown', onKeydown);
+    return () => {
+      document.removeEventListener('pointerdown', onPointerDown);
+      document.removeEventListener('keydown', onKeydown);
+    };
+  });
 
   function onDragStart(event: DragEvent): void {
     cardDrag.start(card.id);
@@ -107,46 +194,87 @@
   });
 </script>
 
-<div
-  bind:this={row}
-  class="row"
-  class:selected
-  class:dragging
-  class:drop-before={dropBefore}
-  class:drop-after={dropAfter}
-  style:--depth={depth}
-  draggable="true"
-  ondragstart={onDragStart}
-  ondragover={onDragOver}
-  ondragleave={() => cardDrag.leave(card.id)}
-  ondrop={onDrop}
-  ondragend={() => cardDrag.end()}
-  role="listitem"
->
-  <button type="button" class="main" onclick={() => workshop.selectCard(card.id)}>
-    <span class="dot" style:background="var({meta.colorVar})"></span>
-    <span class="name" class:unnamed>{cardLabel(card)}</span>
-    {#if trailing}<span class="trailing numeric">{trailing}</span>{/if}
-    {#if card.quantity > 1}<span class="qty numeric">×{card.quantity}</span>{/if}
-  </button>
-
-  <!-- Nothing in the app brings a deleted card back, so this stays a
-       two-activation action even in the compact sidebar row. -->
-  <ConfirmAction
-    class="remove"
-    size="sm"
-    variant="ghost"
-    armedVariant="ghost"
-    iconOnly
-    label="Delete card"
-    confirmLabel="Delete card — activate again to confirm"
-    onconfirm={() => workshop.removeCard(card.id)}
+<div bind:this={host} class="entry" style:--depth={depth} role="listitem">
+  <div
+    bind:this={row}
+    class="row"
+    class:selected
+    class:dragging
+    class:drop-before={dropBefore}
+    class:drop-after={dropAfter}
+    draggable="true"
+    ondragstart={onDragStart}
+    ondragover={onDragOver}
+    ondragleave={() => cardDrag.leave(card.id)}
+    ondrop={onDrop}
+    ondragend={() => cardDrag.end()}
+    role="presentation"
   >
-    <Icon name="trash" size={12} />
-  </ConfirmAction>
+    <button type="button" class="main" onclick={() => workshop.selectCard(card.id)}>
+      <span class="dot" style:background="var({meta.colorVar})"></span>
+      <span class="name" class:unnamed>{cardLabel(card)}</span>
+      {#if trailing}<span class="trailing numeric">{trailing}</span>{/if}
+      {#if card.quantity > 1}<span class="qty numeric">×{card.quantity}</span>{/if}
+    </button>
+
+    <button
+      bind:this={moveTrigger}
+      id={moveTriggerId}
+      type="button"
+      class="move"
+      aria-label="Move or reorder {cardLabel(card)}"
+      aria-expanded={actionsOpen}
+      onclick={() => (actionsOpen = !actionsOpen)}
+    >
+      <Icon name="move" size={12} />
+    </button>
+
+    <!-- Nothing in the app brings a deleted card back, so this stays a
+         two-activation action even in the compact sidebar row. -->
+    <ConfirmAction
+      class="remove"
+      size="sm"
+      variant="ghost"
+      armedVariant="ghost"
+      iconOnly
+      label="Delete card"
+      confirmLabel="Delete card — activate again to confirm"
+      onconfirm={() => workshop.removeCard(card.id)}
+    >
+      <Icon name="trash" size={12} />
+    </ConfirmAction>
+  </div>
+
+  {#if actionsOpen}
+    <div class="move-panel" role="group" aria-label="Move and reorder {cardLabel(card)}">
+      <button type="button" class="move-action" disabled={!previousCard} onclick={moveEarlier}>
+        <span class="direction earlier"><Icon name="chevronRight" size={12} /></span>
+        Earlier
+      </button>
+      <button type="button" class="move-action" disabled={!nextCard} onclick={moveLater}>
+        <span class="direction later"><Icon name="chevronRight" size={12} /></span>
+        Later
+      </button>
+
+      {#if compatibleDecks.length > 1}
+        <label class="deck-move">
+          <span>Move to deck</span>
+          <select value={card.deckId} onchange={moveToDeck}>
+            {#each compatibleDecks as deck (deck.id)}
+              <option value={deck.id}>{destinationLabel(deck)}</option>
+            {/each}
+          </select>
+        </label>
+      {/if}
+    </div>
+  {/if}
 </div>
 
 <style>
+  .entry {
+    min-width: 0;
+  }
+
   .row {
     position: relative;
     display: flex;
@@ -263,6 +391,33 @@
       color var(--duration-fast) var(--ease-out);
   }
 
+  .move {
+    display: grid;
+    place-items: center;
+    width: 22px;
+    height: 26px;
+    flex: none;
+    border-radius: var(--radius-xs);
+    color: var(--text-muted);
+    opacity: 0;
+    transition:
+      opacity var(--duration-fast) var(--ease-out),
+      color var(--duration-fast) var(--ease-out),
+      background-color var(--duration-fast) var(--ease-out);
+  }
+
+  .row:hover .move,
+  .move:focus-visible,
+  .move[aria-expanded='true'] {
+    opacity: 1;
+  }
+
+  .move:hover,
+  .move[aria-expanded='true'] {
+    color: var(--text-primary);
+    background: var(--surface-hover);
+  }
+
   .row:hover > :global(.remove),
   .row > :global(.remove:focus-visible) {
     opacity: 1;
@@ -280,9 +435,97 @@
     background: color-mix(in oklab, var(--danger) 18%, transparent);
   }
 
-  @media (any-pointer: coarse) {
+  .move-panel {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--space-2);
+    margin: var(--space-1) var(--space-1) var(--space-2);
+    margin-left: calc(var(--space-2) + var(--depth) * var(--space-3));
+    padding: var(--space-2);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-sm);
+    background: var(--surface-inset);
+  }
+
+  .move-action {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-2);
+    min-width: 0;
+    min-height: 32px;
+    padding-inline: var(--space-2);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-xs);
+    background: var(--surface-raised);
+    font-size: var(--text-xs);
+    color: var(--text-secondary);
+  }
+
+  .move-action:hover:not(:disabled) {
+    border-color: var(--border-default);
+    color: var(--text-primary);
+  }
+
+  .move-action:disabled {
+    opacity: 0.4;
+  }
+
+  .direction {
+    display: grid;
+    place-items: center;
+  }
+
+  .direction.earlier {
+    rotate: -90deg;
+  }
+
+  .direction.later {
+    rotate: 90deg;
+  }
+
+  .deck-move {
+    grid-column: 1 / -1;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    min-width: 0;
+    font-size: var(--text-2xs);
+    color: var(--text-muted);
+  }
+
+  .deck-move select {
+    width: 100%;
+    min-width: 0;
+    height: 32px;
+    padding-inline: var(--space-2);
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-xs);
+    background: var(--surface-raised);
+    color: var(--text-secondary);
+    font-size: var(--text-xs);
+  }
+
+  @media (hover: none), (any-pointer: coarse) {
+    .row {
+      gap: 0;
+      min-height: var(--touch-target);
+    }
+
+    .main {
+      height: var(--touch-target);
+    }
+
+    .move,
     .row > :global(.remove) {
+      width: var(--touch-target);
+      height: var(--touch-target);
       opacity: 1;
+    }
+
+    .move-action,
+    .deck-move select {
+      min-height: var(--touch-target);
     }
   }
 </style>

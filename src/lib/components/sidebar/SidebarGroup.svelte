@@ -148,4 +148,15 @@
     gap: 1px;
     padding-inline: var(--space-2);
   }
+
+  @media (hover: none), (any-pointer: coarse) {
+    .toggle {
+      min-height: var(--touch-target);
+      height: auto;
+    }
+
+    .actions {
+      opacity: 1;
+    }
+  }
 </style>

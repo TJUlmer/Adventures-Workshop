@@ -6,7 +6,7 @@
   import { DECK_KIND_META } from '$lib/decks/types';
   import { cardDrag } from '$lib/state/card-drag.svelte';
   import { workshop } from '$lib/state/workshop.svelte';
-  import Icon from '$lib/ui/Icon.svelte';
+  import { ConfirmAction, Icon } from '$lib/ui';
 
   interface Props {
     deck: Deck;
@@ -107,31 +107,21 @@
     <Icon name="plus" size={12} />
   </button>
 
-  <!--
-    Empty decks only, and that is the whole of the control rather than a
-    disabled state on a fuller one.
-
-    Picking a character in `RulesCardContent`'s "Belongs to" creates a deck for
-    them (`workshop.setCardOwner` → `ensureOwnedDeck`), so changing one's mind
-    used to strand an empty rules or event deck in the tree with no way to
-    remove it — the sidebar has only ever offered "add card", and
-    `CharacterEditor`'s own trash button lists a character's *action* decks.
-    An empty deck can be removed without asking, because there is nothing in it
-    to lose; a deck with cards in it is a different act, and this app has no
-    undo and no confirm dialogs anywhere (deleting a *set* is soft precisely
-    because an author lost work to a one-click delete once). Deleting its cards
-    first is the deliberate path, and it is already there.
-  -->
+  <!-- Empty decks can still carry a name, owner, and notes, so they use the
+       same deliberate two-activation delete model as cards and characters. -->
   {#if cardCount === 0}
-    <button
-      type="button"
+    <ConfirmAction
       class="remove"
-      aria-label="Delete empty {deckLabel(deck)}"
-      title="Delete this empty deck"
-      onclick={() => workshop.removeDeck(deck.id)}
+      size="sm"
+      variant="ghost"
+      armedVariant="ghost"
+      iconOnly
+      label="Delete empty {deckLabel(deck)}"
+      confirmLabel="Delete empty {deckLabel(deck)} — activate again to confirm"
+      onconfirm={() => workshop.removeDeck(deck.id)}
     >
       <Icon name="trash" size={12} />
-    </button>
+    </ConfirmAction>
   {/if}
 </div>
 
@@ -235,8 +225,8 @@
 
   .row:hover .add,
   .add:focus-visible,
-  .row:hover .remove,
-  .remove:focus-visible {
+  .row:hover > :global(.remove),
+  .row > :global(.remove:focus-visible) {
     opacity: 1;
   }
 
@@ -244,7 +234,7 @@
     color: var(--text-primary);
   }
 
-  .remove {
+  .row > :global(.remove) {
     display: grid;
     place-items: center;
     width: 20px;
@@ -258,13 +248,39 @@
       color var(--duration-fast) var(--ease-out);
   }
 
-  .remove:hover {
+  .row > :global(.remove:hover) {
     color: var(--danger);
+  }
+
+  .row > :global(.remove[data-confirm-armed='true']) {
+    opacity: 1;
+    color: var(--danger);
+    background: color-mix(in oklab, var(--danger) 18%, transparent);
   }
 
   @media (max-width: 760px) {
     .owner-select {
       font-size: var(--text-md);
+    }
+  }
+
+  @media (hover: none), (any-pointer: coarse) {
+    .row {
+      min-height: var(--touch-target);
+      height: auto;
+      padding-right: 0;
+    }
+
+    .owner-select {
+      min-width: 0;
+      min-height: var(--touch-target);
+    }
+
+    .add,
+    .row > :global(.remove) {
+      width: var(--touch-target);
+      height: var(--touch-target);
+      opacity: 1;
     }
   }
 </style>

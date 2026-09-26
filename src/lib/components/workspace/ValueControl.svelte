@@ -266,7 +266,7 @@
     outline: none;
   }
 
-  @media (any-pointer: coarse) {
+  @media (hover: none), (any-pointer: coarse) {
     .step,
     .number {
       min-width: var(--touch-target);

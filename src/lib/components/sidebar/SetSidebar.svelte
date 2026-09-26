@@ -417,4 +417,20 @@
     height: 30px;
     border: 1px dashed var(--border-default);
   }
+
+  @media (hover: none), (any-pointer: coarse) {
+    .head,
+    .subhead,
+    .add-row,
+    .prompt {
+      min-height: var(--touch-target);
+      height: auto;
+    }
+
+    .group-action,
+    .subhead-add {
+      width: var(--touch-target);
+      height: var(--touch-target);
+    }
+  }
 </style>

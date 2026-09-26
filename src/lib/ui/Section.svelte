@@ -118,4 +118,26 @@
       grid-template-columns: minmax(0, 1fr);
     }
   }
+
+  @container workspace (max-width: 430px) {
+    .head,
+    .head.prominent {
+      display: flex;
+      flex-direction: column;
+      align-items: stretch;
+      gap: var(--space-2);
+    }
+
+    .head.prominent .titles {
+      align-items: flex-start;
+      text-align: left;
+    }
+
+    .actions,
+    .head.prominent .actions {
+      flex-wrap: wrap;
+      justify-content: flex-end;
+      align-self: stretch;
+    }
+  }
 </style>

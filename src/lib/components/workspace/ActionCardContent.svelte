@@ -913,4 +913,11 @@
       grid-column: auto;
     }
   }
+
+  @media (hover: none), (any-pointer: coarse) {
+    .icon-choice {
+      min-height: var(--touch-target);
+      height: auto;
+    }
+  }
 </style>

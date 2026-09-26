@@ -202,8 +202,24 @@
     color: var(--danger);
   }
 
-  @media (any-pointer: coarse) {
+  @media (hover: none), (any-pointer: coarse) {
+    .row {
+      gap: 0;
+      min-height: var(--touch-target);
+    }
+
+    .twist {
+      width: var(--touch-target);
+      height: var(--touch-target);
+    }
+
+    .main {
+      height: var(--touch-target);
+    }
+
     .row > :global(.remove) {
+      width: var(--touch-target);
+      height: var(--touch-target);
       opacity: 1;
     }
   }

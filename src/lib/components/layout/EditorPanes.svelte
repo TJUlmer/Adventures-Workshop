@@ -459,5 +459,19 @@
 
   .panes[data-layout='phone'] .workspace {
     --workspace-inline-padding: var(--space-4);
+    /* The editor header and tabs used to sit outside the only scroller. On a
+       short phone they could leave less than one control's height for the
+       form, so the whole pane owns vertical scrolling in phone mode. */
+    overflow-y: auto;
+    overscroll-behavior-y: contain;
+  }
+
+  @media (max-height: 500px) {
+    .workspace {
+      /* A rotated phone enters tablet mode by width, but it needs the same
+         full-pane scroll owner as portrait to keep the form usable. */
+      overflow-y: auto;
+      overscroll-behavior-y: contain;
+    }
   }
 </style>

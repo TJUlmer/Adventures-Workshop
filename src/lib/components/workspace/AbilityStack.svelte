@@ -386,4 +386,21 @@
       grid-template-columns: minmax(0, 1fr);
     }
   }
+
+  @media (hover: none), (any-pointer: coarse) {
+    .remove-bonus,
+    .add-bonus,
+    .icon-choice {
+      min-height: var(--touch-target);
+    }
+
+    .remove-bonus,
+    .add-bonus {
+      padding-inline: var(--space-2);
+    }
+
+    .icon-choice {
+      height: auto;
+    }
+  }
 </style>

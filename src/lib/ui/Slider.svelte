@@ -310,7 +310,7 @@
     background: var(--grey-100);
   }
 
-  @media (any-pointer: coarse) {
+  @media (hover: none), (any-pointer: coarse) {
     .readout {
       min-width: var(--touch-target);
       min-height: var(--touch-target);
@@ -337,6 +337,25 @@
   @media (max-width: 760px) {
     .entry {
       font-size: var(--text-md);
+    }
+  }
+
+  @container workspace (max-width: 430px) {
+    .head {
+      align-items: flex-start;
+      flex-wrap: wrap;
+    }
+
+    .label {
+      min-width: 0;
+    }
+
+    .readout {
+      margin-left: auto;
+    }
+
+    .precision {
+      max-width: 100%;
     }
   }
 </style>

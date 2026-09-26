@@ -150,7 +150,7 @@
     width: 100%;
   }
 
-  @media (any-pointer: coarse) {
+  @media (hover: none), (any-pointer: coarse) {
     .btn {
       min-width: var(--touch-target);
       min-height: var(--touch-target);

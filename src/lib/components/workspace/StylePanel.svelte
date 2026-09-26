@@ -609,4 +609,11 @@
     border-color: var(--border-accent);
     background: var(--accent-soft);
   }
+
+  @media (hover: none), (any-pointer: coarse) {
+    .texture-option {
+      min-height: var(--touch-target);
+      height: auto;
+    }
+  }
 </style>

@@ -191,6 +191,7 @@
     right: 0;
     z-index: var(--z-dropdown);
     min-width: 208px;
+    max-width: calc(100vw - var(--space-4) * 2);
     padding: var(--space-1);
     border-radius: var(--radius-md);
     background: var(--surface-overlay);
@@ -244,5 +245,16 @@
   .item-hint {
     font-size: var(--text-2xs);
     color: var(--text-muted);
+  }
+
+  @media (hover: none), (any-pointer: coarse) {
+    .trigger {
+      width: var(--touch-target);
+      height: var(--touch-target);
+    }
+
+    .item {
+      min-height: var(--touch-target);
+    }
   }
 </style>

@@ -34,4 +34,31 @@
     min-height: 0;
     height: 100%;
   }
+
+  @media (max-width: 760px), (max-height: 500px) {
+    .workspace-inner {
+      /* EditorPanes becomes the scroll owner at phone widths and in short
+         landscape. Let the complete editor exceed it instead of shrinking
+         only the form body beneath permanent header rows. */
+      flex: none;
+      height: auto;
+      min-height: 100%;
+    }
+
+    .workspace-inner > :global(.body.scroll-y) {
+      flex: 0 0 auto;
+      min-height: auto;
+      overflow-y: visible;
+      overscroll-behavior-y: auto;
+    }
+
+    .workspace-inner > :global(.tabs) {
+      /* The identity header may scroll away, but switching editor sections
+         must remain reachable throughout a long form. */
+      position: sticky;
+      z-index: var(--z-sticky);
+      top: 0;
+      background: var(--surface-canvas);
+    }
+  }
 </style>

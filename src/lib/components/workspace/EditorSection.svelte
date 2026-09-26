@@ -98,4 +98,22 @@
       grid-template-columns: minmax(0, 1fr);
     }
   }
+
+  @container workspace (max-width: 430px) {
+    .head {
+      align-items: flex-start;
+      flex-wrap: wrap;
+      gap: var(--space-2);
+    }
+
+    .line {
+      margin-top: 0.55em;
+    }
+
+    .actions {
+      flex: 1 1 100%;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+  }
 </style>

@@ -158,7 +158,7 @@
     font-size: var(--text-2xs);
   }
 
-  @media (any-pointer: coarse) {
+  @media (hover: none), (any-pointer: coarse) {
     .tab {
       min-height: 44px;
     }

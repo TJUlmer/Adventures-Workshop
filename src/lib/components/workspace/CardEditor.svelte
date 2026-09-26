@@ -423,4 +423,17 @@
       padding-block: var(--space-2) var(--space-6);
     }
   }
+
+  @container workspace (max-width: 430px) {
+    .head {
+      flex-direction: column;
+      align-items: stretch;
+      gap: var(--space-3);
+    }
+
+    .actions {
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+  }
 </style>

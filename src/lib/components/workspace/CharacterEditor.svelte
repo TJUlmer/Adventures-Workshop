@@ -408,7 +408,7 @@
       <ConfirmAction
         variant="danger"
         size="sm"
-        label="Delete character and its decks"
+        label="Delete character"
         confirmText="Confirm delete"
         onconfirm={() => workshop.removeCharacter(character.id)}
       >

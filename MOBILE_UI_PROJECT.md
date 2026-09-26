@@ -306,19 +306,22 @@ and reachable without a mouse.
 
 ### Work
 
-- [ ] Replace hover-only row actions with visible coarse-pointer actions or a
+- [x] Replace hover-only row actions with visible coarse-pointer actions or a
   per-row overflow menu.
-- [ ] Increase hierarchy row and disclosure hit regions.
-- [ ] Add non-drag ways to reorder cards and move them between decks.
-- [ ] Preserve desktop drag-and-drop as an efficiency feature.
-- [ ] Keep the existing two-step destructive confirmation and apply it to
+- [x] Increase hierarchy row and disclosure hit regions.
+- [x] Add non-drag ways to reorder cards and move them between decks.
+- [x] Preserve desktop drag-and-drop as an efficiency feature.
+- [x] Keep the existing two-step destructive confirmation and apply it to
   editor-header delete actions that currently bypass it.
-- [ ] Make editor headers wrap or stack their actions.
-- [ ] Make character/card tabs horizontally scroll without widening the page.
-- [ ] Retain the existing container-query collapse behaviour in card and
+- [x] Make editor headers wrap or stack their actions.
+- [x] Make character/card tabs horizontally scroll without widening the page.
+- [x] Retain the existing container-query collapse behaviour in card and
   character panels.
-- [ ] Inspect every Content and Design section at 320–430px and repair only
+- [x] Inspect every Content and Design section at 320–430px and repair only
   measured overflow.
+- [x] Make the complete Edit pane the vertical scroll owner on phones and
+  short viewports, so the identity header can leave while editor tabs remain
+  sticky and reachable.
 - [ ] Check file upload and native picker flows with the software keyboard
   dismissed and open.
 
@@ -331,6 +334,7 @@ and reachable without a mouse.
 - `src/lib/components/sidebar/CardRow.svelte`
 - `src/lib/components/sidebar/AddMenu.svelte`
 - `src/lib/components/workspace/WorkspaceHeader.svelte`
+- `src/lib/components/workspace/Workspace.svelte`
 - `src/lib/components/workspace/CardEditor.svelte`
 - `src/lib/components/workspace/CharacterEditor.svelte`
 - `src/lib/components/workspace/SetEditor.svelte`
@@ -338,14 +342,16 @@ and reachable without a mouse.
 
 ### Exit criteria
 
-- [ ] Every add, collapse, rename, move, reorder, and delete action is
+- [x] Every add, collapse, rename, move, reorder, and delete action is
   discoverable on `(hover: none)`.
-- [ ] A card can be reordered and transferred without HTML drag-and-drop.
-- [ ] No ordinary action card Content or Design section overflows the page at
+- [x] A card can be reordered and transferred without HTML drag-and-drop.
+- [x] No ordinary action card Content or Design section overflows the page at
   320px.
-- [ ] Heroes with several character-card tabs can reach every tab.
+- [x] Heroes with several character-card tabs can reach every tab.
+- [x] At 320×568 and 844×390, the whole Edit pane scrolls; the identity header
+  can leave, tabs remain reachable, and pane switching preserves position.
 - [ ] Editor actions stay reachable while the software keyboard is open.
-- [ ] Destructive operations use the same confirmation model from the
+- [x] Destructive operations use the same confirmation model from the
   hierarchy and editor.
 
 ---

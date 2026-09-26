@@ -611,6 +611,10 @@
   }
 
   @container workspace (max-width: 480px) {
+    .grid {
+      grid-template-columns: minmax(0, 1fr);
+    }
+
     .edge-layout {
       flex-direction: column;
     }
@@ -675,5 +679,12 @@
 
   .mask-preview[data-mask='oval'] {
     background: radial-gradient(ellipse 60% 78% at center, var(--grey-300) 70%, transparent 82%);
+  }
+
+  @media (hover: none), (any-pointer: coarse) {
+    .mask-option {
+      min-height: var(--touch-target);
+      height: auto;
+    }
   }
 </style>

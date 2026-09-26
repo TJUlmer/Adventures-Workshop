@@ -96,7 +96,9 @@ correct fitted size on first reveal.
 
 At 844×390, the tablet layout retained Contents beside a scrolling editor.
 Compact banner, title, navigation, status, editor header, and tab rows left a
-74px visible editor body that scrolled normally rather than clipping the form.
+74px visible editor body. It scrolled rather than clipping, but physical review
+during Phase 3 correctly rejected that swipe window as too cramped. The Phase
+3 follow-up makes the complete 183px Edit pane the scroll owner instead.
 
 Phone pane switching preserved the editor subject and selection, its 2749px
 scroll position, Preview zoom at 200% with a 515px stage scroll position, and a
