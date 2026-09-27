@@ -30,6 +30,8 @@
      the middle of the widened range, so cards can grow as well as shrink. */
   let cardSize = $state(260);
   let saving = $state(false);
+  let mobilePane = $state<'review' | 'actions'>('review');
+  let fullScreen = $state(false);
 
   const savedLabel = $derived.by(() => {
     if (workshop.saveError) return workshop.saveError;
@@ -46,10 +48,21 @@
       saving = false;
     }
   }
+
+  function toggleFullScreen(): void {
+    if (!fullScreen) mobilePane = 'review';
+    fullScreen = !fullScreen;
+  }
+
+  function handleWindowKeydown(event: KeyboardEvent): void {
+    if (event.key === 'Escape' && fullScreen) fullScreen = false;
+  }
 </script>
 
-<div class="screen">
-  <main class="main">
+<svelte:window onkeydown={handleWindowKeydown} />
+
+<div class="screen" class:fullscreen={fullScreen}>
+  <main class="main" class:inactive={mobilePane !== 'review'}>
     <header class="overview-head">
       <div class="heading">
         <span class="eyebrow">Set tool</span>
@@ -89,6 +102,18 @@
             oninput={(event) => (cardSize = event.currentTarget.valueAsNumber)}
           />
         </label>
+
+        <button
+          type="button"
+          class="fullscreen-toggle"
+          class:active={fullScreen}
+          aria-pressed={fullScreen}
+          aria-label={fullScreen ? 'Exit full screen overview' : 'Open full screen overview'}
+          title={fullScreen ? 'Exit full screen' : 'Full screen'}
+          onclick={toggleFullScreen}
+        >
+          {fullScreen ? 'Exit full screen' : 'Full screen'}
+        </button>
       </div>
     </header>
 
@@ -101,7 +126,7 @@
     />
   </main>
 
-  <aside class="rail scroll-y">
+  <aside class="rail scroll-y" class:inactive={mobilePane !== 'actions'}>
     <section class="rail-panel save-panel">
       <span class="rail-kicker">Save</span>
       <div class="save-state" class:failed={Boolean(workshop.saveError)}>
@@ -123,6 +148,19 @@
       <ExportPanel {set} {onprint} bind:scope />
     </section>
   </aside>
+
+  <nav class="mobile-switch" aria-label="Overview views">
+    <button
+      type="button"
+      aria-pressed={mobilePane === 'review'}
+      onclick={() => (mobilePane = 'review')}
+    >Review</button>
+    <button
+      type="button"
+      aria-pressed={mobilePane === 'actions'}
+      onclick={() => (mobilePane = 'actions')}
+    >Save &amp; export</button>
+  </nav>
 </div>
 
 <style>
@@ -132,6 +170,23 @@
     height: 100%;
     min-height: 0;
     background: var(--surface-canvas);
+  }
+
+  /* Match the public shared-set viewer: this is an in-app viewing mode, not
+     the browser Fullscreen API, so it keeps the same Overview scroll root and
+     never introduces a permission prompt. */
+  .screen.fullscreen {
+    position: fixed;
+    z-index: var(--z-overlay);
+    inset: 0;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr);
+    background: var(--surface-sunken);
+  }
+
+  .screen.fullscreen .rail,
+  .screen.fullscreen .mobile-switch {
+    display: none;
   }
 
   .main {
@@ -209,6 +264,30 @@
     width: 112px;
   }
 
+  .fullscreen-toggle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 32px;
+    padding-inline: var(--space-3);
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-sm);
+    background: var(--surface-base);
+    color: var(--text-secondary);
+    font: inherit;
+    font-size: var(--text-xs);
+    font-weight: var(--weight-semibold);
+    white-space: nowrap;
+  }
+
+  .fullscreen-toggle:hover,
+  .fullscreen-toggle:focus-visible,
+  .fullscreen-toggle.active {
+    border-color: var(--border-strong);
+    background: var(--surface-selected);
+    color: var(--text-primary);
+  }
+
   .summary {
     display: flex;
     flex-wrap: wrap;
@@ -235,6 +314,7 @@
   }
 
   .rail {
+    min-width: 0;
     min-height: 0;
     padding: var(--space-5);
     border-left: 1px solid var(--border-default);
@@ -295,6 +375,10 @@
     background: var(--warning);
   }
 
+  .mobile-switch {
+    display: none;
+  }
+
   @media (max-width: 1500px) {
     .overview-head {
       align-items: flex-start;
@@ -322,6 +406,166 @@
   @media (max-width: 900px) {
     .screen {
       grid-template-columns: minmax(0, 1fr) min(640px, 50vw);
+    }
+  }
+
+  @media (max-width: 700px) {
+    .screen {
+      grid-template-columns: minmax(0, 1fr);
+      grid-template-rows: minmax(0, 1fr) auto;
+    }
+
+    .main,
+    .rail {
+      grid-column: 1;
+      grid-row: 1;
+    }
+
+    .main.inactive,
+    .rail.inactive {
+      /* Keep both panes mounted at their usable size. Overview's deferred
+         galleries observe its own `.page` scroller and must not be rebuilt at
+         zero width whenever the author visits Save & export. */
+      visibility: hidden;
+      pointer-events: none;
+    }
+
+    .overview-head {
+      gap: var(--space-2);
+      padding: var(--space-3) var(--space-4);
+    }
+
+    .heading {
+      display: flex;
+      align-items: baseline;
+      gap: var(--space-2);
+    }
+
+    .heading p {
+      display: none;
+    }
+
+    .summary {
+      width: 100%;
+      flex-wrap: nowrap;
+      justify-content: flex-start;
+      overflow-x: auto;
+      overscroll-behavior-inline: contain;
+    }
+
+    .summary span {
+      flex: none;
+    }
+
+    .review-controls {
+      width: 100%;
+      gap: var(--space-3);
+      flex-wrap: nowrap;
+      align-items: center;
+    }
+
+    .showing {
+      flex: 1 1 0;
+      min-width: 0;
+      align-items: center;
+    }
+
+    .showing > span,
+    .zoom > span {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
+    }
+
+    .zoom {
+      flex: none;
+      min-width: 0;
+    }
+
+    .zoom input {
+      min-width: 0;
+      width: clamp(72px, 25vw, 112px);
+    }
+
+    .fullscreen-toggle {
+      flex: none;
+      min-height: var(--touch-target);
+    }
+
+    .rail {
+      padding: var(--space-3);
+      border-left: 0;
+    }
+
+    .mobile-switch {
+      display: flex;
+      grid-column: 1;
+      grid-row: 2;
+      gap: var(--space-1);
+      min-width: 0;
+      padding: var(--space-1) var(--space-2);
+      border-top: 1px solid var(--border-subtle);
+      background: var(--surface-sunken);
+    }
+
+    .mobile-switch button {
+      flex: 1 1 0;
+      min-width: 0;
+      min-height: 44px;
+      padding-inline: var(--space-2);
+      border-radius: var(--radius-sm);
+      font-size: var(--text-sm);
+      font-weight: var(--weight-medium);
+      color: var(--text-tertiary);
+      transition:
+        background-color var(--duration-fast) var(--ease-out),
+        color var(--duration-fast) var(--ease-out);
+    }
+
+    .mobile-switch button:hover {
+      background: var(--surface-hover);
+      color: var(--text-secondary);
+    }
+
+    .mobile-switch button[aria-pressed='true'] {
+      background: var(--surface-raised);
+      color: var(--text-primary);
+      box-shadow: inset 0 0 0 1px var(--border-default), var(--shadow-xs);
+    }
+  }
+
+  @media (max-width: 700px) and (max-height: 500px) {
+    .overview-head {
+      display: grid;
+      grid-template-columns: auto minmax(0, 1fr);
+      align-items: center;
+      gap: var(--space-3);
+      padding: var(--space-2) var(--space-3);
+    }
+
+    .heading .eyebrow,
+    .summary {
+      display: none;
+    }
+
+    .heading h1 {
+      font-size: var(--text-lg);
+    }
+
+    .review-controls {
+      width: auto;
+      justify-self: stretch;
+      justify-content: flex-end;
+    }
+
+    .showing {
+      max-width: 210px;
     }
   }
 </style>

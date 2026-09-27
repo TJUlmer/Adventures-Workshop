@@ -63,6 +63,7 @@
   let useQuantities = $state(true);
   let backs = $state(false);
   let marks = $state(true);
+  let settingsOpen = $state(false);
 
   const paper = $derived(PAPERS[paperId]);
 
@@ -132,79 +133,105 @@
 
 <div class="screen">
   <header class="controls">
-    <div class="head">
-      <Button variant="ghost" onclick={back}>
-        <Icon name="chevronRight" size={13} />
-        Back to set
-      </Button>
-      <div class="titles">
-        <h1 class="title">Print sheets</h1>
-        <p class="summary">{summary}</p>
+    <div class="toolbar">
+      <div class="head">
+        <Button variant="ghost" onclick={back} aria-label="Back to set">
+          <Icon name="chevronRight" size={13} />
+          <span class="back-label">Back to set</span>
+        </Button>
+        <div class="titles">
+          <h1 class="title">Print sheets</h1>
+          <p class="summary">{summary}</p>
+        </div>
+      </div>
+
+      <div class="toolbar-actions">
+        <span class="settings-toggle">
+          <Button
+            variant="secondary"
+            aria-controls="print-settings"
+            aria-expanded={settingsOpen}
+            aria-label={plan.warnings.length > 0
+              ? `Print options, ${plan.warnings.length} ${plan.warnings.length === 1 ? 'warning' : 'warnings'}`
+              : 'Print options'}
+            onclick={() => (settingsOpen = !settingsOpen)}
+          >
+            <Icon name="settings" size={13} />
+            <span class="options-label">Options</span>
+            {#if plan.warnings.length > 0}
+              <span class="warning-count" aria-hidden="true">{plan.warnings.length}</span>
+            {/if}
+          </Button>
+        </span>
+
+        <Button variant="primary" disabled={plan.pages.length === 0} onclick={() => window.print()}>
+          <Icon name="printer" size={13} />
+          Print
+        </Button>
       </div>
     </div>
 
-    <div class="options">
-      <label class="option">
-        <span class="option-label">Paper</span>
-        <Select bind:value={paperId} options={paperOptions} />
-      </label>
+    <p class="mobile-scale-note">Use 100% scale and background graphics in the print dialogue.</p>
 
-      <label class="option">
-        <span class="option-label">Preview size</span>
-        <Select bind:value={zoom} options={ZOOMS} />
-      </label>
+    <div id="print-settings" class="settings-panel" class:open={settingsOpen}>
+      <div class="options">
+        <label class="option">
+          <span class="option-label">Paper</span>
+          <Select bind:value={paperId} options={paperOptions} />
+        </label>
 
-      <div class="switches">
-        <Switch
-          checked={printerFriendly}
-          label="Printer friendly"
-          hint="Black on white, no artwork"
-          onchange={(value) => (printerFriendly = value)}
-        />
-        <Switch
-          checked={useQuantities}
-          label="Print duplicates"
-          hint="One card per copy the set says exists"
-          onchange={(value) => (useQuantities = value)}
-        />
-        <Switch
-          checked={backs}
-          label="Card backs"
-          hint="A reverse sheet after each, for duplex"
-          onchange={(value) => (backs = value)}
-        />
-        <Switch
-          checked={marks}
-          label="Crop marks"
-          hint="Cutting guides in the margins"
-          onchange={(value) => (marks = value)}
-        />
+        <label class="option">
+          <span class="option-label">Preview size</span>
+          <Select bind:value={zoom} options={ZOOMS} />
+        </label>
+
+        <div class="switches">
+          <Switch
+            checked={printerFriendly}
+            label="Printer friendly"
+            hint="Black on white, no artwork"
+            onchange={(value) => (printerFriendly = value)}
+          />
+          <Switch
+            checked={useQuantities}
+            label="Print duplicates"
+            hint="One card per copy the set says exists"
+            onchange={(value) => (useQuantities = value)}
+          />
+          <Switch
+            checked={backs}
+            label="Card backs"
+            hint="A reverse sheet after each, for duplex"
+            onchange={(value) => (backs = value)}
+          />
+          <Switch
+            checked={marks}
+            label="Crop marks"
+            hint="Cutting guides in the margins"
+            onchange={(value) => (marks = value)}
+          />
+        </div>
       </div>
+
+      {#if plan.warnings.length > 0}
+        <ul class="warnings">
+          {#each plan.warnings as warning, index (index)}
+            <li>{warning}</li>
+          {/each}
+        </ul>
+      {/if}
+
+      <!--
+        The one thing worth saying before paper is spent. Every browser's print
+        dialogue can scale a sheet to fit, several do it by default, and a sheet
+        scaled by 4% produces cards that will not sleeve — which is not
+        discovered until after they are cut.
+      -->
+      <p class="scale-note">
+        In the print dialogue set <strong>Scale</strong> to 100% (not “Fit to page”) and turn
+        background graphics on. Every sheet carries a 100 mm rule to check against.
+      </p>
     </div>
-
-    {#if plan.warnings.length > 0}
-      <ul class="warnings">
-        {#each plan.warnings as warning, index (index)}
-          <li>{warning}</li>
-        {/each}
-      </ul>
-    {/if}
-
-    <!--
-      The one thing worth saying before paper is spent. Every browser's print
-      dialogue can scale a sheet to fit, several do it by default, and a sheet
-      scaled by 4% produces cards that will not sleeve — which is not
-      discovered until after they are cut.
-    -->
-    <p class="scale-note">
-      In the print dialogue set <strong>Scale</strong> to 100% (not “Fit to page”) and turn
-      background graphics on. Every sheet carries a 100 mm rule to check against.
-    </p>
-
-    <Button variant="primary" disabled={plan.pages.length === 0} onclick={() => window.print()}>
-      <Icon name="printer" size={13} />
-      Print
-    </Button>
   </header>
 
   <div class="sheets" bind:clientWidth={viewportWidth} bind:clientHeight={viewportHeight}>
@@ -259,10 +286,52 @@
     border-bottom: 1px solid var(--border-default);
   }
 
+  .toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-4);
+  }
+
   .head {
     display: flex;
     align-items: center;
     gap: var(--space-4);
+    min-width: 0;
+  }
+
+  .titles {
+    min-width: 0;
+  }
+
+  .toolbar-actions {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    flex: none;
+  }
+
+  .settings-toggle {
+    display: none;
+  }
+
+  .warning-count {
+    min-width: 1.25em;
+    padding-inline: var(--space-1);
+    border-radius: var(--radius-full);
+    background: var(--surface-active);
+    font-size: var(--text-xs);
+    line-height: 1.25;
+  }
+
+  .settings-panel {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+  }
+
+  .mobile-scale-note {
+    display: none;
   }
 
   .title {
@@ -274,6 +343,9 @@
     margin: 0;
     font-size: var(--text-xs);
     color: var(--text-muted);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .options {
@@ -340,6 +412,104 @@
     flex-direction: column;
     gap: var(--space-2);
     margin: 0;
+  }
+
+  @media screen and (max-width: 700px), screen and (max-height: 500px) {
+    .controls {
+      gap: 0;
+      padding: 0;
+    }
+
+    .toolbar {
+      min-height: var(--touch-target);
+      padding: var(--space-2) var(--space-3);
+    }
+
+    .head {
+      gap: var(--space-2);
+    }
+
+    .settings-toggle {
+      display: inline-flex;
+    }
+
+    .mobile-scale-note {
+      display: block;
+      margin: 0;
+      padding: 0 var(--space-3) var(--space-2);
+      font-size: var(--text-2xs);
+      line-height: var(--leading-normal);
+      color: var(--text-muted);
+    }
+
+    /*
+     * Keep the toolbar and a useful slice of the preview on screen even when
+     * a phone is sideways. The options own their scroll instead of growing the
+     * fixed controls band until the sheet viewport disappears.
+     */
+    .settings-panel {
+      display: none;
+      max-height: min(22rem, 45dvh);
+      overflow-y: auto;
+      overscroll-behavior: contain;
+      gap: var(--space-3);
+      padding: var(--space-3);
+      border-top: 1px solid var(--border-default);
+    }
+
+    .settings-panel.open {
+      display: flex;
+    }
+
+    .options {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: var(--space-3);
+    }
+
+    .option {
+      min-width: 0;
+    }
+
+    .switches {
+      grid-column: 1 / -1;
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: var(--space-3);
+    }
+
+    .sheets {
+      padding: var(--space-4);
+    }
+  }
+
+  @media screen and (max-width: 460px) {
+    .back-label,
+    .summary {
+      display: none;
+    }
+
+    .title {
+      font-size: var(--text-md);
+      white-space: nowrap;
+    }
+
+    .options,
+    .switches {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  }
+
+  @media screen and (max-height: 500px) {
+    .settings-panel {
+      max-height: 35dvh;
+    }
+  }
+
+  @media screen and (max-width: 350px) {
+    .options-label {
+      display: none;
+    }
   }
 
   @media print {

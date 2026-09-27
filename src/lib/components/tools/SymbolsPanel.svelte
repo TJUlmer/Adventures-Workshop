@@ -173,15 +173,17 @@
             {/if}
           </div>
 
-          <ConfirmAction
-            label="Remove {customSymbolLabel(symbol)}"
-            variant="ghost"
-            size="sm"
-            iconOnly
-            onconfirm={() => remove(symbol.id)}
-          >
-            <Icon name="trash" size={13} />
-          </ConfirmAction>
+          <div class="symbol-actions">
+            <ConfirmAction
+              label="Remove {customSymbolLabel(symbol)}"
+              variant="ghost"
+              size="sm"
+              iconOnly
+              onconfirm={() => remove(symbol.id)}
+            >
+              <Icon name="trash" size={13} />
+            </ConfirmAction>
+          </div>
         </li>
       {/each}
     </ul>
@@ -320,6 +322,60 @@
   .ghost:hover {
     background: var(--surface-hover);
     color: var(--text-primary);
+  }
+
+  @media (max-width: 760px) {
+    .page {
+      padding: var(--space-5) var(--space-4) var(--space-8);
+    }
+
+    .head {
+      align-items: flex-start;
+      flex-wrap: wrap;
+    }
+
+    .list {
+      max-width: none;
+    }
+
+    .symbol {
+      gap: var(--space-3);
+    }
+  }
+
+  @media (max-width: 520px) {
+    .page {
+      gap: var(--space-4);
+      padding: var(--space-4) var(--space-3) var(--space-7);
+    }
+
+    .head {
+      align-items: stretch;
+      flex-direction: column;
+      gap: var(--space-3);
+    }
+
+    .symbol {
+      grid-template-columns: 56px minmax(0, 1fr) auto;
+      align-items: start;
+      padding: var(--space-3);
+    }
+
+    .fields {
+      grid-column: 1 / -1;
+      grid-row: 2;
+    }
+
+    .symbol-actions {
+      grid-column: 3;
+      grid-row: 1;
+      align-self: center;
+    }
+
+    .ghost {
+      width: 100%;
+      min-height: var(--touch-target);
+    }
   }
 
   @media (any-pointer: coarse) {

@@ -1720,7 +1720,6 @@
   .box-skin .box-skin-title { margin-bottom: var(--space-1); font-weight: var(--weight-semibold); color: var(--text-primary); }
   .box-skin-actions { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-3); margin-block: var(--space-2); }
   .box-skin-actions .skin-link { margin-top: 0; }
-  @media (max-width: 640px) { .presentation-box { flex-wrap: wrap; } }
   .rulebooks {
     display: flex;
     flex-direction: column;
@@ -2093,7 +2092,111 @@
     color: var(--text-primary);
   }
 
-  @media (any-pointer: coarse) {
+  @media (max-width: 760px) {
+    .page {
+      padding-inline: var(--space-5);
+    }
+
+    .head {
+      flex-direction: column;
+      align-items: stretch;
+    }
+
+    .head-actions {
+      align-items: stretch;
+    }
+
+    .action-row {
+      flex-wrap: wrap;
+    }
+  }
+
+  @media (max-width: 640px) {
+    .presentation-box {
+      flex-direction: column;
+      padding: var(--space-4);
+    }
+
+    .presentation-box > :global(.btn) {
+      align-self: flex-start;
+    }
+
+    .rulebooks {
+      padding: var(--space-4);
+    }
+
+    .rulebook-heading {
+      flex-direction: column;
+      align-items: flex-start;
+    }
+
+    .rulebook-row .field {
+      flex-basis: 100%;
+    }
+
+    .rulebook-links {
+      flex-wrap: wrap;
+    }
+
+    /* The fixed thumbnail and remove target otherwise leave the form no usable width. */
+    .figure {
+      grid-template-columns: auto minmax(0, 1fr);
+      gap: var(--space-3);
+      padding: var(--space-3);
+    }
+
+    .thumb {
+      grid-column: 1;
+      grid-row: 1;
+    }
+
+    .fields {
+      grid-column: 1 / -1;
+      grid-row: 2;
+    }
+
+    .figure > :global(.btn) {
+      grid-column: 2;
+      grid-row: 1;
+      justify-self: end;
+    }
+
+    .row {
+      grid-template-columns: minmax(0, 1fr);
+      align-items: stretch;
+    }
+
+    .notes {
+      grid-template-columns: minmax(0, 1fr);
+    }
+
+    .source {
+      height: auto;
+      flex-wrap: wrap;
+      padding-block: var(--space-2);
+    }
+
+    .source-label {
+      flex: 1 0 100%;
+    }
+
+    .tts {
+      padding: var(--space-3);
+    }
+
+    .tts-head {
+      align-items: flex-start;
+      flex-wrap: wrap;
+    }
+
+    .tts-actions {
+      width: 100%;
+      margin-left: 0;
+      flex-wrap: wrap;
+    }
+  }
+
+  @media (hover: none), (any-pointer: coarse) {
     .source {
       height: auto;
       min-height: calc(var(--touch-target) + 2px);
@@ -2102,6 +2205,22 @@
     .ghost {
       min-width: var(--touch-target);
       min-height: var(--touch-target);
+    }
+
+    .rulebook-upload,
+    .skin-link,
+    .rulebook-links :global(a) {
+      min-height: var(--touch-target);
+    }
+
+    .rulebook-upload,
+    .rulebook-links :global(a) {
+      padding-inline: var(--space-2);
+    }
+
+    .rulebook-links :global(a) {
+      display: inline-flex;
+      align-items: center;
     }
   }
 

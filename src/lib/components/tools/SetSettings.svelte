@@ -299,6 +299,8 @@
     flex-direction: column;
     gap: var(--space-6);
     padding: var(--space-7) var(--space-8) var(--space-10);
+    container-name: workspace;
+    container-type: inline-size;
   }
 
   /*
@@ -504,6 +506,25 @@
   .error {
     font-size: var(--text-xs);
     color: var(--danger);
+  }
+
+  @media (max-width: 760px) {
+    .page {
+      gap: var(--space-5);
+      padding: var(--space-4) var(--space-4) var(--space-9);
+    }
+  }
+
+  @container workspace (max-width: 460px) {
+    .box-row {
+      grid-template-columns: auto minmax(0, 1fr);
+      align-items: start;
+    }
+
+    .box-row > :global(.btn) {
+      grid-column: 1 / -1;
+      width: 100%;
+    }
   }
 
 </style>

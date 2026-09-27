@@ -482,49 +482,49 @@ the public pages that already respond well.
 
 ### Set-level pages
 
-- [ ] Verify Overview, Analysis, Components, Symbols, and other conventional
+- [x] Verify Overview, Analysis, Components, Symbols, and other conventional
   set pages at phone and tablet widths.
-- [ ] Stack dense metric/control grids without changing derived analysis.
-- [ ] Give component/figure actions touch-sized controls.
-- [ ] Ensure inspectors and modals have one scroll owner and reachable footer
+- [x] Stack dense metric/control grids without changing derived analysis.
+- [x] Give component/figure actions touch-sized controls.
+- [x] Ensure inspectors and modals have one scroll owner and reachable footer
   actions.
-- [ ] Preserve all rendered component dimensions and exports.
+- [x] Preserve all rendered component dimensions and exports.
 
 ### Welcome, Home, Gallery, and profiles
 
-- [ ] Preserve the existing single-column Welcome/Home behaviour.
+- [x] Preserve the existing single-column Welcome/Home behaviour.
 - [ ] Make New Set and New Collection dialogs safe at short viewport heights
   and with the keyboard open.
-- [ ] Give Gallery a full-width search field, tappable content-type switch,
+- [x] Give Gallery a full-width search field, tappable content-type switch,
   and deliberate compact Filter/Sort layout.
-- [ ] Replace hover-only deck-back/character-card preview with an explicit
+- [x] Replace hover-only deck-back/character-card preview with an explicit
   touch behaviour.
-- [ ] Make favourite, creator, and parent-set actions comfortable targets.
-- [ ] Add a narrow creator-profile layout, including invitations.
+- [x] Make favourite, creator, and parent-set actions comfortable targets.
+- [x] Add a narrow creator-profile layout, including invitations.
 
 ### Shared sets and collections
 
-- [ ] Retain the existing shared-set 700px compact layout and action sheet.
-- [ ] Verify masthead, Explore toolbar, scope, zoom, jump links, comments,
+- [x] Retain the existing shared-set 700px compact layout and action sheet.
+- [x] Verify masthead, Explore toolbar, scope, zoom, jump links, comments,
   full screen, fork, and export in portrait and landscape.
-- [ ] Preserve lazy loading of published preview artwork.
-- [ ] Retain the collection showcase's existing 920, 700, and 430px layouts.
+- [x] Preserve lazy loading of published preview artwork.
+- [x] Retain the collection showcase's existing 920, 700, and 430px layouts.
 - [ ] Verify roster, difficulty, creator credits, member explorer, components,
   and Play or print on touch.
-- [ ] Repair remaining collection workspace rows that assume desktop width.
-- [ ] Keep project tabs independently scrollable with an obvious active tab.
+- [x] Repair remaining collection workspace rows that assume desktop width.
+- [x] Keep project tabs independently scrollable with an obvious active tab.
 - [ ] Verify contribution descriptions, timelines, discussions, ratings,
   Ready state, and publishing with the keyboard open.
 
 ### Account, export, and print
 
-- [ ] Keep the account menu within the dynamic viewport and scroll its
+- [x] Keep the account menu within the dynamic viewport and scroll its
   contents.
-- [ ] Standardize export selectors on the shared mobile dialog pattern.
-- [ ] Replace the phone Print control band with a compact toolbar and settings
+- [x] Standardize export selectors on the shared mobile dialog pattern.
+- [x] Replace the phone Print control band with a compact toolbar and settings
   sheet/accordion so a useful preview remains visible.
-- [ ] Verify Print in phone landscape.
-- [ ] Preserve print geometry, scale, selection semantics, and output.
+- [x] Verify Print in phone landscape.
+- [x] Preserve print geometry, scale, selection semantics, and output.
 
 ### Likely files
 
@@ -542,13 +542,13 @@ the public pages that already respond well.
 
 - [ ] A signed-out visitor can browse Gallery, open a shared set, inspect a
   collection, and reach print/export actions at 320px.
-- [ ] Gallery and collection previews have a discoverable touch equivalent
+- [x] Gallery and collection previews have a discoverable touch equivalent
   to desktop hover.
 - [ ] A signed-in collaborator can use contributions, timeline, discussions,
   difficulty, and publishing without clipping.
-- [ ] Print settings never reduce the preview to zero or an unusable height.
-- [ ] Public routes retain their current deep-link and lazy-loading behaviour.
-- [ ] Existing responsive public-page identity is refined, not redesigned.
+- [x] Print settings never reduce the preview to zero or an unusable height.
+- [x] Public routes retain their current deep-link and lazy-loading behaviour.
+- [x] Existing responsive public-page identity is refined, not redesigned.
 
 ---
 

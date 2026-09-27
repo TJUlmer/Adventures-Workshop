@@ -265,9 +265,16 @@
     font-size: var(--text-sm);
     color: var(--text-secondary);
   }
+
+  .invite select {
+    min-width: 0;
+    max-width: min(24rem, 100%);
+  }
+
   .invite-note {
     font-size: var(--text-sm);
     color: var(--text-secondary);
+    overflow-wrap: anywhere;
   }
 
   /* Owns its own scrolling — see the identical note in `GalleryScreen.svelte`. */
@@ -446,8 +453,64 @@
   }
 
   @media (max-width: 760px) {
+    .screen {
+      padding: var(--space-4);
+    }
+
+    .head {
+      align-items: flex-start;
+      margin-bottom: var(--space-4);
+    }
+
+    .invite {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      align-items: end;
+      gap: var(--space-2) var(--space-3);
+      padding-block: var(--space-4);
+    }
+
+    .invite-label,
+    .invite-note {
+      grid-column: 1 / -1;
+    }
+
     .invite select {
+      width: 100%;
+      max-width: none;
+      min-height: var(--touch-target);
       font-size: var(--text-md);
+    }
+  }
+
+  @media (max-width: 480px) {
+    .head {
+      flex-direction: column;
+    }
+
+    .who {
+      width: 100%;
+    }
+
+    .head :global(.btn) {
+      align-self: stretch;
+    }
+
+    .invite {
+      grid-template-columns: minmax(0, 1fr);
+    }
+
+    .invite-label,
+    .invite-note {
+      grid-column: 1;
+    }
+
+    .invite :global(.btn) {
+      width: 100%;
+    }
+
+    .grid {
+      grid-template-columns: minmax(0, 1fr);
     }
   }
 </style>

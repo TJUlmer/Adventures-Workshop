@@ -182,12 +182,14 @@
   }
 
   .group-title {
+    min-width: 0;
     margin: 0;
     color: var(--text-tertiary);
     font-size: var(--text-2xs);
     font-weight: var(--weight-semibold);
     letter-spacing: var(--tracking-caps);
     text-transform: uppercase;
+    overflow-wrap: anywhere;
   }
 
   .group-head span {
@@ -237,6 +239,18 @@
     .foot {
       align-items: flex-start;
       flex-direction: column;
+    }
+
+    .group-head {
+      align-items: flex-start;
+      flex-direction: column;
+      gap: var(--space-1);
+    }
+
+    .group-head span {
+      max-width: 100%;
+      white-space: normal;
+      overflow-wrap: anywhere;
     }
   }
 </style>

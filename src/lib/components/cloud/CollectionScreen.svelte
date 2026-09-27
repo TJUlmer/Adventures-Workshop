@@ -4022,5 +4022,71 @@
     .export-choices button {
       min-height: 0;
     }
+
+    .link-row {
+      grid-template-columns: minmax(0, 1fr);
+      align-items: stretch;
+    }
+
+    .link-row .claims {
+      grid-column: 1;
+      padding-left: 0;
+    }
+
+    .label-input {
+      width: 100%;
+      min-width: 0;
+    }
+
+    .organizers li,
+    .rows li {
+      align-items: flex-start;
+      flex-direction: column;
+    }
+
+    .organizers .who {
+      width: 100%;
+      min-width: 0;
+    }
+
+    .row-actions {
+      width: 100%;
+      flex-wrap: wrap;
+    }
+
+    .invite-row {
+      align-items: stretch;
+      flex-direction: column;
+    }
+
+    .invite-row .btn {
+      width: 100%;
+    }
+
+    .ready-check {
+      align-items: flex-start;
+      padding: var(--space-3);
+    }
+  }
+
+  @media (any-pointer: coarse) {
+    .difficulty-options button {
+      min-width: var(--touch-target);
+      min-height: var(--touch-target);
+    }
+
+    .difficulty-options button.clear-rating {
+      min-height: var(--touch-target);
+      margin-left: 0;
+      padding-inline: var(--space-2);
+    }
+
+    .manage-tabs button,
+    .link-row .btn,
+    .row-actions .btn,
+    .organizers .btn,
+    .invite-row .btn {
+      min-height: var(--touch-target);
+    }
   }
 </style>

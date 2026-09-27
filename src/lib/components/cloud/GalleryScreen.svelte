@@ -131,17 +131,28 @@
    * — perhaps 60KB — and a page of thirty heroes eagerly loading thirty of
    * them would cost more than the entire rest of the gallery to show something
    * nobody has looked at. So the `<img>` is not rendered until its tile has
-   * been hovered or focused once, and stays rendered afterwards so a second
-   * hover is instant rather than re-fetching.
+   * been hovered, focused or explicitly previewed on touch, and stays rendered
+   * afterwards so a second look is instant rather than re-fetching.
    *
    * Reassigned rather than mutated: `$state` does not proxy a `Set`, so
    * `.add()` on it would change the set without telling anything to re-render.
    */
   let peeked = $state(new Set<string>());
+  let touchPeeks = $state(new Set<string>());
 
   function peek(characterId: string): void {
     if (peeked.has(characterId)) return;
     peeked = new Set(peeked).add(characterId);
+  }
+
+  function toggleTouchPeek(key: string, characterId: string): void {
+    const next = new Set(touchPeeks);
+    if (next.has(key)) next.delete(key);
+    else {
+      next.add(key);
+      peek(characterId);
+    }
+    touchPeeks = next;
   }
 
   const MODES = [
@@ -529,12 +540,14 @@
     <p class="message">Sharing is not set up in this build.</p>
   {:else}
     <div class="controls">
-      <SegmentedControl
-        bind:value={mode}
-        segments={MODES}
-        label="Browse"
-        onchange={(selected) => (navigation.galleryMode = selected)}
-      />
+      <div class="browse-control">
+        <SegmentedControl
+          bind:value={mode}
+          segments={MODES}
+          label="Browse"
+          onchange={(selected) => (navigation.galleryMode = selected)}
+        />
+      </div>
 
       <!--
         Search, filter, sort and favourites are hidden for collections rather
@@ -712,7 +725,16 @@
                 </span>
               </button>
 
-              <div class="tile-actions">
+              <div class="tile-actions set-actions">
+                <button
+                  type="button"
+                  class="creator-action"
+                  aria-label={`View ${set.author?.display_name || 'this creator'}’s profile`}
+                  onclick={() => navigation.openAuthor(set.owner_id)}
+                >
+                  <Icon name="user" size={14} />
+                  <span>Creator</span>
+                </button>
                 <button
                   type="button"
                   class="tile-action"
@@ -751,6 +773,7 @@
     {:else}
       <ul class="grid">
         {#each characters as character (character.set_id + character.character_id)}
+          {@const peekKey = `${character.set_id}:${character.character_id}`}
           {@const parent = parentOf(character)}
           {@const target = {
             kind: 'character' as const,
@@ -770,6 +793,7 @@
                 type="button"
                 class="tile"
                 class:has-card={!!character.card_url}
+                class:touch-peeked={touchPeeks.has(peekKey)}
                 onpointerenter={() => peek(character.character_id)}
                 onfocusin={() => peek(character.character_id)}
                 onclick={() =>
@@ -816,7 +840,7 @@
                     does and buys nothing. `preload` on hover is not available
                     for an already-rendered element, so the honest trade is
                     made in `characterCardSrc`: only rendered once the tile has
-                    been hovered at least once, which is what keeps a gallery
+                    been asked for at least once, which is what keeps a gallery
                     of thirty heroes from fetching thirty full cards nobody
                     asked to see.
                   -->
@@ -824,13 +848,9 @@
                     <img class="card-peek" src={character.card_url} alt="" />
                   {/if}
 
-                  <!--
-                    Says the card is there before anyone has hovered to find
-                    out. A hover-only affordance nobody knows about is a
-                    feature nobody uses, and it also gives touch — which has
-                    no hover at all — something to read instead of a swap it
-                    will never see.
-                  -->
+                  <!-- The passive cue is for mouse and keyboard. Touch gets a
+                       real sibling button below, since nesting it in this
+                       button would be invalid and make either action unreliable. -->
                   {#if character.card_url}
                     <span class="peek-hint">
                       <Icon name="card" size={11} />
@@ -872,7 +892,30 @@
                 </span>
               </button>
 
+              {#if character.card_url}
+                <button
+                  type="button"
+                  class="touch-peek"
+                  class:active={touchPeeks.has(peekKey)}
+                  aria-pressed={touchPeeks.has(peekKey)}
+                  aria-label={`Card preview for ${character.name}`}
+                  onclick={() => toggleTouchPeek(peekKey, character.character_id)}
+                >
+                  <Icon name="card" size={14} />
+                  Card preview
+                </button>
+              {/if}
+
               <div class="tile-actions character-actions">
+                <button
+                  type="button"
+                  class="creator-action"
+                  aria-label="View this character’s creator profile"
+                  onclick={() => navigation.openAuthor(character.owner_id)}
+                >
+                  <Icon name="user" size={14} />
+                  <span>Creator</span>
+                </button>
                 <span class="listing-engagement" title="Engagement on the listing this opens">
                   <Icon name="thumbUp" size={13} />
                   <span class="numeric">{character.like_count ?? 0}</span>
@@ -977,6 +1020,10 @@
     flex-wrap: wrap;
   }
 
+  .browse-control {
+    min-width: 0;
+  }
+
   .favourites-filter {
     display: flex;
     align-items: center;
@@ -1053,6 +1100,7 @@
    * and the grid rows stay level. `height: 100%` on the tile does the rest.
    */
   .tile-wrap {
+    position: relative;
     display: flex;
     flex-direction: column;
     height: 100%;
@@ -1116,7 +1164,8 @@
   }
 
   .tile:hover .cover img.card-peek,
-  .tile:focus-visible .cover img.card-peek {
+  .tile:focus-visible .cover img.card-peek,
+  .tile.touch-peeked .cover img.card-peek {
     opacity: 1;
   }
 
@@ -1141,8 +1190,13 @@
 
   /* Out of the way once the card it advertises is actually showing. */
   .tile:hover .peek-hint,
-  .tile:focus-visible .peek-hint {
+  .tile:focus-visible .peek-hint,
+  .tile.touch-peeked .peek-hint {
     opacity: 0;
+  }
+
+  .touch-peek {
+    display: none;
   }
 
   @media (prefers-reduced-motion: reduce) {
@@ -1252,6 +1306,7 @@
   .tile-actions {
     display: flex;
     align-items: center;
+    flex-wrap: wrap;
     gap: var(--space-1);
     min-height: 34px;
     margin-top: 2px;
@@ -1263,6 +1318,7 @@
   }
 
   .tile-action,
+  .creator-action,
   .comment-count,
   .listing-engagement {
     display: inline-flex;
@@ -1339,9 +1395,138 @@
     margin-top: var(--space-5);
   }
 
+  .creator-action {
+    flex: 1 1 4rem;
+    min-width: 0;
+    min-height: 26px;
+    padding: 0 var(--space-2);
+    border: 0;
+    border-radius: var(--radius-sm);
+    background: transparent;
+    color: inherit;
+    cursor: pointer;
+  }
+
+  .creator-action span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .creator-action:hover {
+    background: var(--surface-selected);
+    color: var(--text-default);
+  }
+
   @media (max-width: 760px) {
+    .screen {
+      padding: var(--space-4);
+    }
+
+    .controls {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      align-items: stretch;
+      gap: var(--space-3);
+    }
+
+    .browse-control,
+    .favourites-filter,
+    .search {
+      grid-column: 1 / -1;
+      width: 100%;
+    }
+
+    .browse-control :global(.segmented) {
+      width: 100%;
+    }
+
+    .search,
+    .favourites-filter {
+      min-width: 0;
+      min-height: var(--touch-target);
+    }
+
+    .filter {
+      min-width: 0;
+    }
+
     .search {
       font-size: var(--text-md);
+    }
+
+    .tile-actions {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto auto;
+      gap: var(--space-1);
+      padding: var(--space-2);
+    }
+
+    .tile-action,
+    .creator-action,
+    .comment-count,
+    .listing-engagement,
+    .parent-link {
+      min-height: var(--touch-target);
+    }
+
+    .favourite {
+      grid-column: 1 / -1;
+      justify-content: center;
+      margin-left: 0;
+    }
+
+    .character-actions .listing-engagement {
+      grid-column: 2 / 4;
+    }
+  }
+
+  @media (hover: none), (any-pointer: coarse) {
+    .favourites-filter,
+    .tile-action,
+    .creator-action,
+    .parent-link {
+      min-height: var(--touch-target);
+    }
+
+    .touch-peek {
+      position: absolute;
+      z-index: 1;
+      top: var(--space-2);
+      right: var(--space-2);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: var(--space-2);
+      min-height: var(--touch-target);
+      padding-inline: var(--space-3);
+      border: 1px solid var(--border-strong);
+      border-radius: var(--radius-full);
+      background: var(--surface-overlay);
+      color: var(--text-default);
+      font-size: var(--text-xs);
+      box-shadow: var(--shadow-sm);
+    }
+
+    .touch-peek.active {
+      background: var(--surface-selected);
+      border-color: var(--accent);
+    }
+
+    .peek-hint {
+      display: none;
+    }
+  }
+
+  @media (max-width: 390px) {
+    .controls {
+      grid-template-columns: minmax(0, 1fr);
+    }
+
+    .browse-control,
+    .favourites-filter,
+    .search {
+      grid-column: 1;
     }
   }
 </style>

@@ -503,9 +503,11 @@
   }
 
   .who {
+    min-width: 0;
     margin: 0;
     font-size: var(--text-xs);
     color: var(--text-tertiary);
+    overflow-wrap: anywhere;
   }
 
   .name-review {
@@ -538,6 +540,7 @@
     font-size: var(--text-2xs);
     line-height: var(--leading-normal);
     color: var(--text-muted);
+    overflow-wrap: anywhere;
   }
 
   .draft-rollout,

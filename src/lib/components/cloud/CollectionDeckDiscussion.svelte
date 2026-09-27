@@ -748,8 +748,51 @@
   }
 
   @media (max-width: 760px) {
+    .discussion {
+      gap: var(--space-4);
+      padding: var(--space-4);
+    }
+
+    .discussion-heading {
+      flex-direction: column;
+      gap: var(--space-3);
+    }
+
+    .discussion-tools {
+      width: 100%;
+      justify-items: start;
+    }
+
+    .privacy {
+      max-width: none;
+      text-align: left;
+    }
+
+    .thread-toggle,
+    .thread-body {
+      padding: var(--space-3);
+    }
+
+    .comment-actions,
+    .form-actions,
+    .form-footer {
+      flex-wrap: wrap;
+    }
+
     textarea {
       font-size: var(--text-md);
+    }
+  }
+
+  @media (any-pointer: coarse) {
+    .thread-toggle,
+    .button,
+    .text-button {
+      min-height: var(--touch-target);
+    }
+
+    .text-button {
+      padding-inline: var(--space-2);
     }
   }
 </style>

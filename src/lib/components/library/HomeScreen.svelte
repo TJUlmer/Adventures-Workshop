@@ -299,7 +299,7 @@
 
   /**
    * A hero's own printed character card, photographed the first time its
-   * tile is hovered or focused — same gate as `GalleryScreen`'s own `peek`,
+   * tile is hovered, focused or explicitly previewed on touch — the same gate as `GalleryScreen`'s own `peek`,
    * for the same reason: rendering every set's card stage the moment the
    * shelf appears would cost far more than the rest of the page, for
    * previews most of which nobody will ever hover. Stays cached afterwards,
@@ -309,6 +309,7 @@
    * base64 overhead costs nothing worth avoiding it for.
    */
   let cardPeeks = $state<Map<SetId, string>>(new Map());
+  let touchCardPeeks = $state(new Set<SetId>());
   const peeksRequested = new Set<SetId>();
 
   function blobToDataUrl(blob: Blob): Promise<string> {
@@ -330,6 +331,16 @@
     const rendered = await renderCharacterCards(set);
     const first = rendered.values().next().value;
     if (first) cardPeeks = new Map(cardPeeks).set(entry.id, await blobToDataUrl(first));
+  }
+
+  function toggleTouchCardPeek(entry: DraftLibraryEntry): void {
+    const next = new Set(touchCardPeeks);
+    if (next.has(entry.id)) next.delete(entry.id);
+    else {
+      next.add(entry.id);
+      void peekCard(entry);
+    }
+    touchCardPeeks = next;
   }
 
   /**
@@ -1120,7 +1131,7 @@
 </script>
 
 {#snippet setCard(entry: DraftLibraryEntry)}
-  <li class="card">
+  <li class="card" class:peek-active={touchCardPeeks.has(entry.id)}>
     <button
       type="button"
       class="open"
@@ -1134,7 +1145,7 @@
         {/if}
 
         <!--
-          A hero's character card, cross-faded over the cover on hover — same
+          A hero's character card, cross-faded over the cover on hover or an explicit touch preview — same
           technique as the gallery's own character tiles (`GalleryScreen`),
           and the same reason: two pictures of the same set at the same size,
           so swapping them in place reads as turning it over rather than a
@@ -1219,6 +1230,23 @@
         </span>
       </span>
     </button>
+
+    {#if entry.cached && entry.characters.some((character) => character.role === 'hero')}
+      <!-- A separate control keeps a touch preview from also opening the set.
+           The render still starts only after this button, hover or focus asks
+           for it, exactly as it did before touch gained an explicit path. -->
+      <button
+        type="button"
+        class="touch-card-peek"
+        class:active={touchCardPeeks.has(entry.id)}
+        aria-pressed={touchCardPeeks.has(entry.id)}
+        aria-label={`Card preview for ${entry.name || 'this set'}`}
+        onclick={() => toggleTouchCardPeek(entry)}
+      >
+        <Icon name="card" size={14} />
+        Card preview
+      </button>
+    {/if}
 
     <!--
       Overlaid on the card's own top-right corner rather than a dedicated
@@ -3228,8 +3256,13 @@
   }
 
   .open:hover .thumb img.card-peek,
-  .open:focus-visible .thumb img.card-peek {
+  .open:focus-visible .thumb img.card-peek,
+  .card.peek-active .thumb img.card-peek {
     opacity: 1;
+  }
+
+  .touch-card-peek {
+    display: none;
   }
 
   /*
@@ -3389,6 +3422,29 @@
 
   .ghost.danger:hover {
     color: var(--danger);
+  }
+
+  @media (hover: none), (any-pointer: coarse) {
+    .touch-card-peek {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: var(--space-2);
+      min-height: var(--touch-target);
+      margin: 0 var(--space-4) var(--space-3);
+      padding-inline: var(--space-3);
+      border: 1px solid var(--border-default);
+      border-radius: var(--radius-sm);
+      background: var(--surface-raised);
+      color: var(--text-secondary);
+      font-size: var(--text-xs);
+    }
+
+    .touch-card-peek.active {
+      border-color: var(--accent);
+      background: var(--surface-selected);
+      color: var(--text-default);
+    }
   }
 
   /* A character tile: a row rather than the set tile's stack, since there is

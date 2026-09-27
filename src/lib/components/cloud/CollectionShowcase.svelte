@@ -88,10 +88,11 @@
   let choseMode = false;
   /**
    * Character cards are full published previews, so fetch one only after its
-   * roster tile has actually been hovered or focused. Keep it mounted after
-   * that first look so returning to the tile swaps immediately.
+   * roster tile has been hovered, focused or explicitly previewed on touch.
+   * Keep it mounted after that first look so returning to the tile swaps immediately.
    */
   let peekedCharacters = $state(new Set<string>());
+  let touchPeekedCharacters = $state(new Set<string>());
 
   const title = $derived(collection.name.trim() || 'Untitled collection');
   const tileById = $derived.by(() => new Map(tiles.map((tile) => [tile.set_id, tile])));
@@ -189,6 +190,16 @@
   function peekCharacter(key: string): void {
     if (peekedCharacters.has(key)) return;
     peekedCharacters = new Set(peekedCharacters).add(key);
+  }
+
+  function toggleTouchPeek(key: string): void {
+    const next = new Set(touchPeekedCharacters);
+    if (next.has(key)) next.delete(key);
+    else {
+      next.add(key);
+      peekCharacter(key);
+    }
+    touchPeekedCharacters = next;
   }
 
   function tileImage(tile: CollectionTile): string {
@@ -452,6 +463,7 @@
                     type="button"
                     class="character-visual"
                     class:has-card={!!character.image_url && !!character.card_url}
+                    class:touch-peeked={touchPeekedCharacters.has(key)}
                     style:aspect-ratio={CARD_ASPECT}
                     style:--trim-scale={TRIM_SCALE_TALL}
                     style:background={tint(key)}
@@ -490,6 +502,22 @@
                         : 'Explore cards & components'}
                     </span>
                   </button>
+                  {#if character.image_url && character.card_url}
+                    <!-- Kept beside the explore button so touch can swap the
+                         image without also following the set link. Rendering
+                         remains gated by the first explicit preview request. -->
+                    <button
+                      type="button"
+                      class="touch-peek"
+                      class:active={touchPeekedCharacters.has(key)}
+                      aria-pressed={touchPeekedCharacters.has(key)}
+                      aria-label={`Card preview for ${character.character_name || 'this character'}`}
+                      onclick={() => toggleTouchPeek(key)}
+                    >
+                      <Icon name="card" size={14} />
+                      Card preview
+                    </button>
+                  {/if}
                   <div class="character-copy">
                     <div class="character-name-row">
                       <h3>{character.character_name || 'Untitled character'}</h3>
@@ -1089,6 +1117,7 @@
   }
 
   .character-tile {
+    position: relative;
     display: flex;
     flex-direction: column;
     height: 100%;
@@ -1150,7 +1179,8 @@
   }
 
   .character-visual:hover img.card-peek,
-  .character-visual:focus-visible img.card-peek {
+  .character-visual:focus-visible img.card-peek,
+  .character-visual.touch-peeked img.card-peek {
     opacity: 1;
   }
 
@@ -1186,8 +1216,13 @@
   }
 
   .character-visual:hover .peek-hint,
-  .character-visual:focus-visible .peek-hint {
+  .character-visual:focus-visible .peek-hint,
+  .character-visual.touch-peeked .peek-hint {
     opacity: 0;
+  }
+
+  .touch-peek {
+    display: none;
   }
 
   .inspect-cue {
@@ -1205,6 +1240,36 @@
     .character-visual img.card-peek,
     .peek-hint {
       transition: none;
+    }
+  }
+
+  @media (hover: none), (any-pointer: coarse) {
+    .touch-peek {
+      position: absolute;
+      z-index: 1;
+      top: var(--space-2);
+      left: var(--space-2);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: var(--space-2);
+      min-height: var(--touch-target);
+      padding-inline: var(--space-3);
+      border: 1px solid var(--border-strong);
+      border-radius: var(--radius-full);
+      background: var(--surface-overlay);
+      color: var(--text-default);
+      font-size: var(--text-xs);
+      box-shadow: var(--shadow-sm);
+    }
+
+    .touch-peek.active {
+      border-color: var(--accent);
+      background: var(--surface-selected);
+    }
+
+    .peek-hint {
+      display: none;
     }
   }
 

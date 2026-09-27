@@ -626,4 +626,48 @@
     flex-wrap: wrap;
     gap: var(--space-2);
   }
+
+  @media (max-width: 600px) {
+    .page {
+      gap: var(--space-4);
+      padding: var(--space-4) var(--space-4) var(--space-9);
+    }
+
+    .head {
+      align-items: flex-start;
+      flex-direction: column;
+    }
+
+    .head :global(.btn) {
+      align-self: stretch;
+    }
+
+    .entry {
+      padding: var(--space-3);
+    }
+
+    .entry-head {
+      align-items: flex-start;
+      flex-wrap: wrap;
+    }
+
+    .entry-label {
+      flex-basis: calc(100% - var(--touch-target));
+    }
+
+    .compare {
+      gap: var(--space-3);
+    }
+
+    .card {
+      width: min(190px, 100%);
+    }
+  }
+
+  @media (any-pointer: coarse) {
+    .entry-head input {
+      width: var(--space-7);
+      height: var(--space-7);
+    }
+  }
 </style>
