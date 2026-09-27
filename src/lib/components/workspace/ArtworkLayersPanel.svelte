@@ -347,4 +347,10 @@
       grid-template-columns: 40px minmax(0, 1fr);
     }
   }
+
+  @media (hover: none), (any-pointer: coarse) {
+    .layer-select {
+      min-height: var(--touch-target);
+    }
+  }
 </style>

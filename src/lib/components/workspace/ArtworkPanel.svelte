@@ -7,11 +7,24 @@
    * Every control writes through a store command, because this panel is shared
    * between the card and character editors.
    */
+  import { onDestroy } from 'svelte';
   import { fillCss } from '$lib/cards/style';
   import type { CardTheme } from '$lib/cards/style';
   import { hasArtwork } from '$lib/core/artwork';
+  import type { ArtTransform } from '$lib/core/artwork';
   import { readArtworkFile } from '$lib/core/image-import';
+  import {
+    ARTWORK_TRANSFORM_LIMITS,
+    clampArtworkOffset,
+    snapshotArtworkTransform
+  } from '$lib/interaction/artwork-transform';
+  import { startPointerSession } from '$lib/interaction/pointer-session';
+  import type { PointerSession } from '$lib/interaction/pointer-session';
   import { CardArt } from '$lib/renderer';
+  import {
+    artworkAdjustmentKey,
+    artworkAdjustmentView
+  } from '$lib/state/artwork-adjustment-view.svelte';
   import type { EntityRef, StyleTarget } from '$lib/state/workshop.svelte';
   import { workshop } from '$lib/state/workshop.svelte';
   import { Button, FillEditor, Icon, Slider, Switch } from '$lib/ui';
@@ -64,6 +77,7 @@
 
   const artwork = $derived(workshop.artworkFor(target));
   const attached = $derived(artwork ? hasArtwork(artwork) : false);
+  const adjusting = $derived(artworkAdjustmentView.active(target));
 
   const MASKS = [
     { value: 'none', label: 'None' },
@@ -102,57 +116,88 @@
    * preview pixels is `dx / (boxWidth / crop.width)` of offset, however the
    * picture is currently zoomed or turned.
    */
-  let dragging = $state(false);
-  let drag: {
-    pointerId: number;
-    startX: number;
-    startY: number;
-    startOffsetX: number;
-    startOffsetY: number;
+  interface InlineDragSnapshot {
+    target: EntityRef;
+    transform: ArtTransform;
     boxWidth: number;
     boxHeight: number;
-  } | null = null;
+    cropWidth: number;
+    cropHeight: number;
+  }
 
-  function clampOffset(value: number): number {
-    return Math.min(1, Math.max(-1, value));
+  let pointerSession: PointerSession | null = null;
+  let dragging = $state(false);
+  let trackedTargetKey: string | null = null;
+
+  $effect(() => {
+    const nextKey = artworkAdjustmentKey(target);
+    if (trackedTargetKey && trackedTargetKey !== nextKey) {
+      pointerSession?.cancel('mode-change');
+      artworkAdjustmentView.endKey(trackedTargetKey);
+    }
+    trackedTargetKey = nextKey;
+  });
+
+  $effect(() => {
+    if (adjusting && attached) return;
+    pointerSession?.cancel('mode-change');
+    if (!attached) artworkAdjustmentView.end(target);
+  });
+
+  onDestroy(() => {
+    pointerSession?.dispose();
+    if (trackedTargetKey) artworkAdjustmentView.endKey(trackedTargetKey);
+  });
+
+  function setAdjusting(next: boolean): void {
+    if (next) artworkAdjustmentView.begin(target);
+    else {
+      pointerSession?.cancel('mode-change');
+      artworkAdjustmentView.end(target);
+    }
   }
 
   function startDrag(event: PointerEvent): void {
-    if (!artwork || event.button !== 0) return;
+    if (!adjusting || !artwork) return;
+    event.preventDefault();
+    pointerSession?.cancel('superseded');
     const box = event.currentTarget as HTMLElement;
     const rect = box.getBoundingClientRect();
-    box.setPointerCapture(event.pointerId);
-    drag = {
-      pointerId: event.pointerId,
-      startX: event.clientX,
-      startY: event.clientY,
-      startOffsetX: artwork.transform.offsetX,
-      startOffsetY: artwork.transform.offsetY,
+    const snapshot: InlineDragSnapshot = {
+      target,
+      transform: snapshotArtworkTransform(artwork.transform),
       boxWidth: rect.width,
-      boxHeight: rect.height
+      boxHeight: rect.height,
+      cropWidth: resizeMode === 'crop' ? artwork.crop.width : 1,
+      cropHeight: resizeMode === 'crop' ? artwork.crop.height : 1
     };
-    dragging = true;
-  }
-
-  function moveDrag(event: PointerEvent): void {
-    if (!drag || event.pointerId !== drag.pointerId || !artwork) return;
-    const offsetX = clampOffset(
-      drag.startOffsetX +
-        ((event.clientX - drag.startX) * (resizeMode === 'crop' ? artwork.crop.width : 1)) /
-          drag.boxWidth
-    );
-    const offsetY = clampOffset(
-      drag.startOffsetY +
-        ((event.clientY - drag.startY) * (resizeMode === 'crop' ? artwork.crop.height : 1)) /
-          drag.boxHeight
-    );
-    workshop.setTransform(target, { offsetX, offsetY });
-  }
-
-  function endDrag(event: PointerEvent): void {
-    if (drag?.pointerId !== event.pointerId) return;
-    drag = null;
-    dragging = false;
+    pointerSession = startPointerSession(event, {
+      snapshot,
+      onMove: (movement, _moveEvent, start) => {
+        dragging = true;
+        workshop.setTransform(start.target, {
+          offsetX: clampArtworkOffset(
+            start.transform.offsetX + (movement.deltaX * start.cropWidth) / start.boxWidth
+          ),
+          offsetY: clampArtworkOffset(
+            start.transform.offsetY + (movement.deltaY * start.cropHeight) / start.boxHeight
+          )
+        });
+      },
+      onCommit: () => {
+        pointerSession = null;
+        dragging = false;
+      },
+      onCancel: (_reason, movement, start) => {
+        if (movement.activated) workshop.setTransform(start.target, start.transform);
+        pointerSession = null;
+        dragging = false;
+      },
+      onTap: () => {
+        pointerSession = null;
+        dragging = false;
+      }
+    });
   }
 </script>
 
@@ -201,6 +246,11 @@
 {#if attached && artwork}
   <EditorSection title="Placement">
     {#snippet actions()}
+      <Button
+        size="sm"
+        variant={adjusting ? 'primary' : 'secondary'}
+        onclick={() => setAdjusting(!adjusting)}
+      >{adjusting ? 'Done' : 'Adjust artwork'}</Button>
       <Button size="sm" variant="ghost" onclick={() => workshop.resetArtwork(target, 'transform')}>
         Reset
       </Button>
@@ -209,13 +259,13 @@
     <div
       class="drag-preview"
       class:dragging
+      class:adjusting
       style:aspect-ratio={aspect}
-      role="application"
-      aria-label="Drag to reposition the artwork"
+      role={adjusting ? 'application' : undefined}
+      aria-label={adjusting
+        ? 'Artwork adjustment surface. Drag with one finger to reposition the artwork.'
+        : 'Artwork preview. Choose Adjust artwork to reposition it.'}
       onpointerdown={startDrag}
-      onpointermove={moveDrag}
-      onpointerup={endDrag}
-      onpointercancel={endDrag}
     >
       <CardArt
         {artwork}
@@ -223,18 +273,20 @@
         {fit}
         useCrop={resizeMode === 'crop'}
       />
-      <div class="drag-hint">
-        <Icon name="move" size={13} />
-        Drag to reposition
-      </div>
+      {#if adjusting}
+        <div class="drag-hint">
+          <Icon name="move" size={13} />
+          Drag to reposition · Done when finished
+        </div>
+      {/if}
     </div>
 
     <div class="grid">
       <Slider
         label="Scale"
         value={artwork.transform.scale}
-        min={0.2}
-        max={4}
+        min={ARTWORK_TRANSFORM_LIMITS.scale.min}
+        max={ARTWORK_TRANSFORM_LIMITS.scale.max}
         step={0.01}
         neutral={1}
         format={pct}
@@ -246,8 +298,8 @@
       <Slider
         label="Rotation"
         value={artwork.transform.rotation}
-        min={-180}
-        max={180}
+        min={ARTWORK_TRANSFORM_LIMITS.rotation.min}
+        max={ARTWORK_TRANSFORM_LIMITS.rotation.max}
         step={1}
         neutral={0}
         format={(value) => `${value}°`}
@@ -258,8 +310,8 @@
       <Slider
         label="Horizontal"
         value={artwork.transform.offsetX}
-        min={-1}
-        max={1}
+        min={ARTWORK_TRANSFORM_LIMITS.offset.min}
+        max={ARTWORK_TRANSFORM_LIMITS.offset.max}
         step={0.005}
         neutral={0}
         format={signed}
@@ -271,8 +323,8 @@
       <Slider
         label="Vertical"
         value={artwork.transform.offsetY}
-        min={-1}
-        max={1}
+        min={ARTWORK_TRANSFORM_LIMITS.offset.min}
+        max={ARTWORK_TRANSFORM_LIMITS.offset.max}
         step={0.005}
         neutral={0}
         format={signed}
@@ -285,8 +337,8 @@
         <Slider
           label="Width"
           value={artwork.transform.stretchX}
-          min={0.1}
-          max={4}
+          min={ARTWORK_TRANSFORM_LIMITS.stretch.min}
+          max={ARTWORK_TRANSFORM_LIMITS.stretch.max}
           step={0.01}
           neutral={1}
           format={pct}
@@ -298,8 +350,8 @@
         <Slider
           label="Height"
           value={artwork.transform.stretchY}
-          min={0.1}
-          max={4}
+          min={ARTWORK_TRANSFORM_LIMITS.stretch.min}
+          max={ARTWORK_TRANSFORM_LIMITS.stretch.max}
           step={0.01}
           neutral={1}
           format={pct}
@@ -564,9 +616,15 @@
     overflow: hidden;
     border-radius: var(--radius-sm);
     border: 1px solid var(--border-default);
+    touch-action: auto;
+    cursor: default;
+    user-select: none;
+  }
+
+  .drag-preview.adjusting {
+    border-color: var(--border-accent);
     touch-action: none;
     cursor: grab;
-    user-select: none;
   }
 
   .drag-preview.dragging {
@@ -590,8 +648,7 @@
     transition: opacity var(--duration-fast) var(--ease-out);
   }
 
-  .drag-preview:hover .drag-hint,
-  .drag-preview.dragging .drag-hint {
+  .drag-preview.adjusting .drag-hint {
     opacity: 1;
   }
 

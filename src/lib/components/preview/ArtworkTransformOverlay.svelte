@@ -1,6 +1,17 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onDestroy, onMount } from 'svelte';
   import type { CardArtworkLayer, CardId } from '$lib/cards/types';
+  import type { ArtTransform } from '$lib/core/artwork';
+  import {
+    clampArtworkOffset,
+    clampArtworkScale,
+    clampArtworkStretch,
+    normalizeArtworkRotation,
+    snapshotArtworkTransform
+  } from '$lib/interaction/artwork-transform';
+  import { startPointerSession } from '$lib/interaction/pointer-session';
+  import type { PointerSession, PointerSessionMovement } from '$lib/interaction/pointer-session';
+  import type { EntityRef } from '$lib/state/workshop.svelte';
   import { workshop } from '$lib/state/workshop.svelte';
 
   interface Props {
@@ -15,50 +26,40 @@
     height: number;
   }
 
-  type Interaction =
+  type InteractionSnapshot = (
     | {
         kind: 'drag';
-        pointerId: number;
-        startX: number;
-        startY: number;
-        offsetX: number;
-        offsetY: number;
       }
     | {
         kind: 'scale';
-        pointerId: number;
         centerX: number;
         centerY: number;
         distance: number;
-        scale: number;
       }
     | {
         kind: 'stretch-x' | 'stretch-y';
-        pointerId: number;
-        startX: number;
-        startY: number;
         direction: -1 | 1;
         size: number;
-        stretch: number;
         rotation: number;
-        offsetX: number;
-        offsetY: number;
       }
     | {
         kind: 'rotate';
-        pointerId: number;
         centerX: number;
         centerY: number;
         angle: number;
-        rotation: number;
-      };
+      }
+  ) & {
+    target: EntityRef;
+    transform: ArtTransform;
+  };
 
   let { cardId, layer }: Props = $props();
   let surface = $state<HTMLDivElement | null>(null);
   let plateBox = $state<Box>({ left: 0, top: 0, width: 1, height: 1 });
   let sourceWidth = $state(1);
   let sourceHeight = $state(1);
-  let interaction = $state<Interaction | null>(null);
+  let manipulating = $state(false);
+  let pointerSession: PointerSession | null = null;
 
   const target = $derived({ entity: 'cardArtworkLayer' as const, id: cardId, layerId: layer.id });
 
@@ -108,96 +109,94 @@
     return () => observer.disconnect();
   });
 
-  function capture(event: PointerEvent): void {
-    (event.currentTarget as HTMLElement).setPointerCapture(event.pointerId);
+  onDestroy(() => pointerSession?.dispose());
+
+  function beginInteraction(event: PointerEvent, snapshot: InteractionSnapshot): void {
     event.preventDefault();
     event.stopPropagation();
+    pointerSession?.cancel('superseded');
+    pointerSession = startPointerSession<InteractionSnapshot>(event, {
+      snapshot,
+      onMove: (movement, _moveEvent, start) => {
+        manipulating = true;
+        applyInteraction(start, movement);
+      },
+      onCommit: () => {
+        pointerSession = null;
+        manipulating = false;
+      },
+      onCancel: (_reason, movement, start) => {
+        if (movement.activated) workshop.setTransform(start.target, start.transform);
+        pointerSession = null;
+        manipulating = false;
+      },
+      onTap: () => {
+        pointerSession = null;
+        manipulating = false;
+      }
+    });
   }
 
   function beginDrag(event: PointerEvent): void {
-    if (event.button !== 0) return;
-    capture(event);
-    interaction = {
+    beginInteraction(event, {
       kind: 'drag',
-      pointerId: event.pointerId,
-      startX: event.clientX,
-      startY: event.clientY,
-      offsetX: layer.artwork.transform.offsetX,
-      offsetY: layer.artwork.transform.offsetY
-    };
+      target,
+      transform: snapshotArtworkTransform(layer.artwork.transform)
+    });
   }
 
   function beginScale(event: PointerEvent): void {
-    if (event.button !== 0 || !surface) return;
-    capture(event);
+    if (!surface) return;
     const rect = surface.getBoundingClientRect();
     const centerX = rect.left + bounds.centerX;
     const centerY = rect.top + bounds.centerY;
-    interaction = {
+    beginInteraction(event, {
       kind: 'scale',
-      pointerId: event.pointerId,
+      target,
       centerX,
       centerY,
       distance: Math.max(1, Math.hypot(event.clientX - centerX, event.clientY - centerY)),
-      scale: layer.artwork.transform.scale
-    };
+      transform: snapshotArtworkTransform(layer.artwork.transform)
+    });
   }
 
   function beginStretch(event: PointerEvent, axis: 'x' | 'y', direction: -1 | 1): void {
-    if (event.button !== 0) return;
-    capture(event);
-    interaction = {
+    beginInteraction(event, {
       kind: axis === 'x' ? 'stretch-x' : 'stretch-y',
-      pointerId: event.pointerId,
-      startX: event.clientX,
-      startY: event.clientY,
+      target,
       direction,
       size: axis === 'x' ? bounds.width : bounds.height,
-      stretch:
-        axis === 'x' ? layer.artwork.transform.stretchX : layer.artwork.transform.stretchY,
       rotation: (bounds.rotation * Math.PI) / 180,
-      offsetX: layer.artwork.transform.offsetX,
-      offsetY: layer.artwork.transform.offsetY
-    };
+      transform: snapshotArtworkTransform(layer.artwork.transform)
+    });
   }
 
   function beginRotate(event: PointerEvent): void {
-    if (event.button !== 0 || !surface) return;
-    capture(event);
+    if (!surface) return;
     const rect = surface.getBoundingClientRect();
     const centerX = rect.left + bounds.centerX;
     const centerY = rect.top + bounds.centerY;
-    interaction = {
+    beginInteraction(event, {
       kind: 'rotate',
-      pointerId: event.pointerId,
+      target,
       centerX,
       centerY,
       angle: Math.atan2(event.clientY - centerY, event.clientX - centerX),
-      rotation: layer.artwork.transform.rotation
-    };
+      transform: snapshotArtworkTransform(layer.artwork.transform)
+    });
   }
 
-  function clamp(value: number, min: number, max: number): number {
-    return Math.min(max, Math.max(min, value));
-  }
-
-  function normalizedDegrees(value: number): number {
-    return ((value + 180) % 360 + 360) % 360 - 180;
-  }
-
-  function move(event: PointerEvent): void {
-    if (!interaction || interaction.pointerId !== event.pointerId) return;
+  function applyInteraction(
+    interaction: Readonly<InteractionSnapshot>,
+    movement: PointerSessionMovement
+  ): void {
     if (interaction.kind === 'drag') {
-      workshop.setTransform(target, {
-        offsetX: clamp(
-          interaction.offsetX + (event.clientX - interaction.startX) / plateBox.width,
-          -1,
-          1
+      workshop.setTransform(interaction.target, {
+        offsetX: clampArtworkOffset(
+          interaction.transform.offsetX + movement.deltaX / plateBox.width
         ),
-        offsetY: clamp(
-          interaction.offsetY + (event.clientY - interaction.startY) / plateBox.height,
-          -1,
-          1
+        offsetY: clampArtworkOffset(
+          interaction.transform.offsetY + movement.deltaY / plateBox.height
         )
       });
       return;
@@ -205,28 +204,34 @@
 
     if (interaction.kind === 'scale') {
       const distance = Math.hypot(
-        event.clientX - interaction.centerX,
-        event.clientY - interaction.centerY
+        movement.clientX - interaction.centerX,
+        movement.clientY - interaction.centerY
       );
-      workshop.setTransform(target, {
-        scale: clamp(interaction.scale * (distance / interaction.distance), 0.2, 4)
+      workshop.setTransform(interaction.target, {
+        scale: clampArtworkScale(
+          interaction.transform.scale * (distance / interaction.distance)
+        )
       });
       return;
     }
 
     if (interaction.kind === 'stretch-x' || interaction.kind === 'stretch-y') {
-      const dx = event.clientX - interaction.startX;
-      const dy = event.clientY - interaction.startY;
       const localDelta =
         interaction.kind === 'stretch-x'
-          ? dx * Math.cos(interaction.rotation) + dy * Math.sin(interaction.rotation)
-          : -dx * Math.sin(interaction.rotation) + dy * Math.cos(interaction.rotation);
+          ? movement.deltaX * Math.cos(interaction.rotation) +
+            movement.deltaY * Math.sin(interaction.rotation)
+          : -movement.deltaX * Math.sin(interaction.rotation) +
+            movement.deltaY * Math.cos(interaction.rotation);
       const ratio = Math.max(
         0.025,
         (interaction.size + localDelta * interaction.direction) / interaction.size
       );
-      const value = clamp(interaction.stretch * ratio, 0.1, 4);
-      const sizeDelta = interaction.size * (value / interaction.stretch - 1);
+      const originalStretch =
+        interaction.kind === 'stretch-x'
+          ? interaction.transform.stretchX
+          : interaction.transform.stretchY;
+      const value = clampArtworkStretch(originalStretch * ratio);
+      const sizeDelta = interaction.size * (value / originalStretch - 1);
       /*
        * An edge handle behaves like a physical bounding box: its opposite
        * edge stays put. Half the size change therefore also moves the centre,
@@ -243,17 +248,25 @@
           ? centerShift * Math.sin(interaction.rotation)
           : centerShift * Math.cos(interaction.rotation);
       workshop.setTransform(
-        target,
+        interaction.target,
         interaction.kind === 'stretch-x'
           ? {
               stretchX: value,
-              offsetX: clamp(interaction.offsetX + shiftX / plateBox.width, -1, 1),
-              offsetY: clamp(interaction.offsetY + shiftY / plateBox.height, -1, 1)
+              offsetX: clampArtworkOffset(
+                interaction.transform.offsetX + shiftX / plateBox.width
+              ),
+              offsetY: clampArtworkOffset(
+                interaction.transform.offsetY + shiftY / plateBox.height
+              )
             }
           : {
               stretchY: value,
-              offsetX: clamp(interaction.offsetX + shiftX / plateBox.width, -1, 1),
-              offsetY: clamp(interaction.offsetY + shiftY / plateBox.height, -1, 1)
+              offsetX: clampArtworkOffset(
+                interaction.transform.offsetX + shiftX / plateBox.width
+              ),
+              offsetY: clampArtworkOffset(
+                interaction.transform.offsetY + shiftY / plateBox.height
+              )
             }
       );
       return;
@@ -261,17 +274,12 @@
 
     if (interaction.kind !== 'rotate') return;
     const angle = Math.atan2(
-      event.clientY - interaction.centerY,
-      event.clientX - interaction.centerX
+      movement.clientY - interaction.centerY,
+      movement.clientX - interaction.centerX
     );
-    const delta = normalizedDegrees(((angle - interaction.angle) * 180) / Math.PI);
-    const rotation = normalizedDegrees(interaction.rotation + delta);
-    workshop.setTransform(target, { rotation: Math.round(rotation) });
-  }
-
-  function end(event: PointerEvent): void {
-    if (!interaction || interaction.pointerId !== event.pointerId) return;
-    interaction = null;
+    const delta = normalizeArtworkRotation(((angle - interaction.angle) * 180) / Math.PI);
+    const rotation = normalizeArtworkRotation(interaction.transform.rotation + delta);
+    workshop.setTransform(interaction.target, { rotation: Math.round(rotation) });
   }
 
   function nudge(event: KeyboardEvent): void {
@@ -279,13 +287,13 @@
     const transform = layer.artwork.transform;
     const patch =
       event.key === 'ArrowLeft'
-        ? { offsetX: clamp(transform.offsetX - distance, -1, 1) }
+        ? { offsetX: clampArtworkOffset(transform.offsetX - distance) }
         : event.key === 'ArrowRight'
-          ? { offsetX: clamp(transform.offsetX + distance, -1, 1) }
+          ? { offsetX: clampArtworkOffset(transform.offsetX + distance) }
           : event.key === 'ArrowUp'
-            ? { offsetY: clamp(transform.offsetY - distance, -1, 1) }
+            ? { offsetY: clampArtworkOffset(transform.offsetY - distance) }
             : event.key === 'ArrowDown'
-              ? { offsetY: clamp(transform.offsetY + distance, -1, 1) }
+              ? { offsetY: clampArtworkOffset(transform.offsetY + distance) }
               : null;
     if (!patch) return;
     event.preventDefault();
@@ -305,9 +313,6 @@
     class="transform-surface"
     bind:this={surface}
     role="presentation"
-    onpointermove={move}
-    onpointerup={end}
-    onpointercancel={end}
   >
     <img
       class="source-probe"
@@ -318,14 +323,14 @@
 
     <div
       class="bounds"
-      class:active={interaction !== null}
+      class:active={manipulating}
       style:left="{bounds.centerX}px"
       style:top="{bounds.centerY}px"
       style:width="{bounds.width}px"
       style:height="{bounds.height}px"
       style:transform="translate(-50%, -50%) rotate({bounds.rotation}deg)"
       role="button"
-      aria-label="Selected artwork layer. Drag to move, use the handles to resize or rotate, or use the arrow keys to nudge."
+      aria-label="Adjusting selected artwork. Drag to move, use the handles to resize or rotate, or use the arrow keys to nudge."
       tabindex="0"
       onpointerdown={beginDrag}
       onkeydown={nudge}
@@ -512,5 +517,37 @@
 
   .handle.rotate:active {
     cursor: grabbing;
+  }
+
+  @media (hover: none), (any-pointer: coarse) {
+    /* The button owns a finger-sized target while its pseudo-element keeps
+       the selection mark visually precise. */
+    .handle {
+      width: var(--touch-target);
+      height: var(--touch-target);
+      border: 0;
+      border-radius: 0;
+      background: transparent;
+      box-shadow: none;
+    }
+
+    .handle::after {
+      content: '';
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      box-sizing: border-box;
+      width: 11px;
+      height: 11px;
+      border: 2px solid var(--surface-raised);
+      border-radius: 2px;
+      background: var(--accent);
+      box-shadow: var(--shadow-sm);
+      translate: -50% -50%;
+    }
+
+    .handle.rotate::after {
+      border-radius: var(--radius-full);
+    }
   }
 </style>

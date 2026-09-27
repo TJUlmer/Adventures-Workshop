@@ -410,41 +410,52 @@ adjust without turning the page into a scroll trap.
 
 ### Work
 
-- [ ] Fit the selected card to phone width by default.
-- [ ] Keep zoom, bleed, export, and preview tools reachable.
-- [ ] Support the existing zoom range through 200%.
-- [ ] Allow panning/scrolling when a zoomed preview exceeds the viewport.
-- [ ] Add an explicit **Adjust artwork** mode with a visible Done action.
-- [ ] Move artwork with one finger only while Adjust mode is active.
-- [ ] Give resize/rotation handles at least 44px hit regions without making
+- [x] Fit the selected card to phone width by default.
+- [x] Keep zoom, bleed, export, and preview tools reachable.
+- [x] Support the existing zoom range through 200%.
+- [x] Allow panning/scrolling when a zoomed preview exceeds the viewport.
+- [x] Add an explicit **Adjust artwork** mode with a visible Done action.
+- [x] Move artwork with one finger only while Adjust mode is active.
+- [x] Give resize/rotation handles at least 44px hit regions without making
   their visual marks oversized.
-- [ ] Preserve opposite-edge anchoring for edge resizing.
-- [ ] Keep typed values, nudges, sliders, and Reset as a complete precision
+- [x] Preserve opposite-edge anchoring for edge resizing.
+- [x] Keep typed values, nudges, sliders, and Reset as a complete precision
   fallback.
-- [ ] Make layer selection and ordering available without drag-and-drop.
-- [ ] Use the same pointer lifecycle and transform constraints in the inline
+- [x] Make layer selection and ordering available without drag-and-drop.
+- [x] Use the same pointer lifecycle and transform constraints in the inline
   artwork panel and right-preview overlay.
-- [ ] Treat pinch-to-scale as a follow-up unless handles and numeric controls
+- [x] Treat pinch-to-scale as a follow-up unless handles and numeric controls
   prove inadequate.
 
 ### Likely files
 
 - `src/lib/components/preview/PreviewPanel.svelte`
 - `src/lib/components/preview/ArtworkTransformOverlay.svelte`
-- Artwork panels under `src/lib/components/workspace/`
-- `src/lib/ui/Slider.svelte`
+- `src/lib/components/workspace/ArtworkPanel.svelte`
+- `src/lib/components/workspace/ArtworkLayersPanel.svelte`
+- `src/lib/components/layout/EditorPanes.svelte`
+- `src/lib/interaction/pointer-session.ts`
+- `src/lib/interaction/artwork-transform.ts`
+- `src/lib/state/artwork-adjustment-view.svelte.ts`
 
 ### Exit criteria
 
 - [ ] Swiping over artwork scrolls normally outside Adjust mode.
-- [ ] Entering Adjust makes gesture ownership unambiguous.
-- [ ] Leaving Adjust immediately restores normal scrolling.
+- [x] Entering Adjust makes gesture ownership unambiguous.
+- [x] Leaving Adjust immediately restores normal scrolling.
 - [ ] Move, uniform scale, width/height stretch, rotation, Reset, and precise
   entry all work with touch.
 - [ ] No transform requires aiming at the current small visual handle.
 - [ ] A cancellation or orientation change leaves one coherent transform.
 - [ ] Fixed and custom artwork layers can be ordered using touch.
-- [ ] The `.plate` DOM and exported PNG remain unchanged.
+- [x] The `.plate` DOM and exported PNG remain unchanged.
+
+Automated Chromium checks at 390×844 and 1440×900 cover fitted preview width,
+two-axis overflow through 200%, Adjust/Done ownership, every transform type,
+opposite-edge anchoring, precision fallbacks, layer ordering, desktop layout,
+and an unchanged `.plate` signature. The physical touch criteria above remain
+open for real swipe arbitration, 44px coarse-pointer targets, cancellation,
+orientation changes, and iOS/Android export comparison.
 
 ### Mobile authoring MVP gate
 

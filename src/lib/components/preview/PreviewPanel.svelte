@@ -3,6 +3,7 @@
    * The live card. This panel is the point of the app, so it carries as little
    * chrome as it can get away with: a bleed toggle, the cut line, and zoom.
    */
+  import { onDestroy, tick } from 'svelte';
   import { createCard } from '$lib/cards/factory';
   import { resolveCardTheme } from '$lib/cards/theme';
   import { CARD_TYPE_META } from '$lib/cards/types';
@@ -15,6 +16,10 @@
   import { CardRenderer } from '$lib/renderer';
   import type { CardFormat } from '$lib/renderer/geometry';
   import { BLEED_MM, CARD_FORMATS, trimBox } from '$lib/renderer/geometry';
+  import {
+    artworkAdjustmentKey,
+    artworkAdjustmentView
+  } from '$lib/state/artwork-adjustment-view.svelte';
   import { cardArtworkLayerView } from '$lib/state/card-artwork-layer-view.svelte';
   import { characterEditorView } from '$lib/state/character-editor-view.svelte';
   import { findDeck, initiativeSubjectForCard } from '$lib/sets/queries';
@@ -96,6 +101,44 @@
       card.artworkLayers.find((layer) => layer.id === cardArtworkLayerView.layerId) ?? null
     );
   });
+  const selectedArtworkTarget = $derived(
+    card?.type === 'action' && selectedArtworkLayer
+      ? {
+          entity: 'cardArtworkLayer' as const,
+          id: card.id,
+          layerId: selectedArtworkLayer.id
+        }
+      : null
+  );
+  const artworkAdjusting = $derived(
+    selectedArtworkTarget ? artworkAdjustmentView.active(selectedArtworkTarget) : false
+  );
+
+  let trackedArtworkTargetKey: string | null = null;
+
+  $effect(() => {
+    const nextKey = selectedArtworkTarget ? artworkAdjustmentKey(selectedArtworkTarget) : null;
+    if (trackedArtworkTargetKey && trackedArtworkTargetKey !== nextKey) {
+      artworkAdjustmentView.endKey(trackedArtworkTargetKey);
+    }
+    trackedArtworkTargetKey = nextKey;
+    if (selectedArtworkTarget && !selectedArtworkLayer?.artwork.source) {
+      artworkAdjustmentView.end(selectedArtworkTarget);
+    }
+  });
+
+  onDestroy(() => {
+    if (trackedArtworkTargetKey) artworkAdjustmentView.endKey(trackedArtworkTargetKey);
+  });
+
+  function toggleArtworkAdjustment(): void {
+    if (!selectedArtworkTarget || !selectedArtworkLayer?.artwork.source) return;
+    if (artworkAdjustmentView.active(selectedArtworkTarget)) {
+      artworkAdjustmentView.end(selectedArtworkTarget);
+    } else {
+      artworkAdjustmentView.begin(selectedArtworkTarget);
+    }
+  }
 
   /**
    * A stand-in action card, so the figure's style controls have something to
@@ -210,6 +253,12 @@
       exporting = null;
     }
   }
+
+  async function fitPreview(): Promise<void> {
+    zoom = 1;
+    await tick();
+    stage?.scrollTo({ left: 0, top: 0 });
+  }
 </script>
 
 {#snippet exportButtons()}
@@ -237,6 +286,21 @@
     <span class="eyebrow">Preview</span>
 
     <div class="tools">
+      {#if selectedArtworkLayer}
+        <button
+          type="button"
+          class="tool label adjust"
+          class:on={artworkAdjusting}
+          aria-pressed={artworkAdjusting}
+          disabled={!selectedArtworkLayer.artwork.source}
+          title={selectedArtworkLayer.artwork.source
+            ? artworkAdjusting
+              ? 'Finish adjusting artwork'
+              : 'Move, resize, or rotate the selected artwork layer'
+            : 'Attach an image before adjusting this layer'}
+          onclick={toggleArtworkAdjustment}
+        >{artworkAdjusting ? 'Done' : 'Adjust artwork'}</button>
+      {/if}
       <button
         type="button"
         class="tool label"
@@ -256,6 +320,7 @@
         class:on={showGuides}
         class:disabled={!bleeding}
         title="Show the cut line"
+        aria-label={showGuides ? 'Hide cut line' : 'Show cut line'}
         aria-pressed={showGuides}
         disabled={!bleeding}
         onclick={() => (showGuides = !showGuides)}
@@ -310,7 +375,7 @@
             options={{ showBleed: bleeding, showGuides: showGuides && bleeding }}
             customSymbols={workshop.adventure.customSymbols}
           />
-          {#if card?.type === 'action' && selectedArtworkLayer}
+          {#if card?.type === 'action' && selectedArtworkLayer && artworkAdjusting}
             <ArtworkTransformOverlay cardId={card.id} layer={selectedArtworkLayer} />
           {/if}
         </div>
@@ -455,7 +520,14 @@
       aria-label="Preview size"
       oninput={(event) => (zoom = event.currentTarget.valueAsNumber)}
     />
-    <span class="zoom-value numeric">{Math.round(zoom * 100)}%</span>
+    <button
+      type="button"
+      class="zoom-value numeric"
+      class:fit={Math.abs(zoom - 1) < 0.001}
+      aria-label="Fit preview to pane"
+      title="Fit preview to pane"
+      onclick={() => void fitPreview()}
+    >{Math.round(zoom * 100)}%</button>
   </div>
 </div>
 
@@ -472,14 +544,18 @@
     align-items: center;
     justify-content: space-between;
     gap: var(--space-2);
-    height: 34px;
+    min-height: 34px;
     padding-inline: var(--space-4) var(--space-3);
     border-bottom: 1px solid var(--border-subtle);
   }
 
   .tools {
     display: flex;
+    min-width: 0;
     gap: 2px;
+    overflow-x: auto;
+    overscroll-behavior-inline: contain;
+    scrollbar-width: none;
   }
 
   .tool {
@@ -510,6 +586,10 @@
     font-size: var(--text-2xs);
   }
 
+  .tool.adjust {
+    flex: none;
+  }
+
   .tool:disabled {
     opacity: 0.35;
     cursor: default;
@@ -529,6 +609,7 @@
     gap: var(--space-5);
     padding: var(--space-6) var(--space-5);
     overflow-x: auto;
+    overscroll-behavior-inline: contain;
   }
 
   .card-slot {
@@ -669,6 +750,70 @@
   .zoom-value {
     font-size: var(--text-2xs);
     min-width: 4ch;
+    min-height: 22px;
+    padding-inline: var(--space-1);
+    border-radius: var(--radius-xs);
     text-align: right;
+  }
+
+  .zoom-value:hover,
+  .zoom-value:focus-visible {
+    background: var(--surface-hover);
+    color: var(--text-secondary);
+  }
+
+  .zoom-value.fit {
+    color: var(--text-secondary);
+  }
+
+  @media (max-width: 760px) {
+    .stage {
+      /* Keep the full coarse-pointer handles inside the scrollport. The
+         rotation target sits 24px above the artwork, so it needs more room
+         than the edge and corner targets. */
+      padding: var(--space-9) var(--space-6) var(--space-6);
+    }
+
+    /* At 100% the selected card consumes the available phone width. Zooming
+       multiplies that fitted width, after which the stage owns both axes. */
+    .card-slot {
+      max-width: calc((100dvw - 2 * var(--space-6)) * var(--zoom));
+    }
+  }
+
+  @media (hover: none), (any-pointer: coarse) {
+    .head {
+      min-height: calc(var(--touch-target) + 2 * var(--space-1));
+      padding-block: var(--space-1);
+    }
+
+    .tool {
+      min-width: var(--touch-target);
+      min-height: var(--touch-target);
+    }
+
+    .zoom {
+      min-height: calc(var(--touch-target) + 2 * var(--space-1));
+    }
+
+    .zoom-range {
+      height: var(--touch-target);
+    }
+
+    .zoom-range::-webkit-slider-thumb {
+      width: 16px;
+      height: 16px;
+      margin-top: -7px;
+    }
+
+    .zoom-range::-moz-range-thumb {
+      width: 16px;
+      height: 16px;
+    }
+
+    .zoom-value {
+      min-width: var(--touch-target);
+      min-height: var(--touch-target);
+    }
   }
 </style>

@@ -6,8 +6,9 @@
    * This used to be the whole application; it is now one page of a set. The
    * three-pane arrangement is exactly what it was, because for the work it does
    * — picking a card, editing it, watching it change — it was right.
-   */
+  */
   import { onMount, tick, type Snippet } from 'svelte';
+  import { artworkAdjustmentView } from '$lib/state/artwork-adjustment-view.svelte';
   import { workshop } from '$lib/state/workshop.svelte';
 
   interface Props {
@@ -132,6 +133,7 @@
   }
 
   function choosePane(pane: ActivePane): void {
+    if (pane !== activePane) artworkAdjustmentView.end();
     activePane = pane;
   }
 
@@ -165,6 +167,7 @@
     const cameFromContents =
       activePane === 'contents' || Boolean(sidebarPane?.contains(document.activeElement));
     const shouldFocusEditor = selection.target === 'set' || cameFromContents;
+    artworkAdjustmentView.end();
     activePane = 'edit';
     if (layoutMode !== 'desktop' && shouldFocusEditor) {
       void tick().then(() => workspacePane?.focus({ preventScroll: true }));
@@ -183,6 +186,7 @@
       const nextMode = modeForWidth(panes?.clientWidth ?? window.innerWidth);
       if (nextMode !== layoutMode) {
         const dividerWasFocused = document.activeElement === previewDivider;
+        artworkAdjustmentView.end();
         layoutMode = nextMode;
         void tick().then(() => recoverFocusAfterResize(dividerWasFocused));
       }
