@@ -10,7 +10,9 @@
    * The header is the card's identity and its two destructive-ish actions,
    * nothing else — the preview panel is where the eye should go.
    */
+  import { tick } from 'svelte';
   import { cardLabel } from '$lib/cards/factory';
+  import { CARD_EDIT_MARKERS } from '$lib/cards/edit-targets';
   import type { CardTheme } from '$lib/cards/style';
   import type { StyleOrigin } from '$lib/cards/theme';
   import {
@@ -30,6 +32,7 @@
   import { hasArtwork } from '$lib/core/artwork';
   import { ART_WINDOW, HERO_ART_WINDOW_HEIGHT } from '$lib/renderer/geometry';
   import { characterForCard, resolveStyleForCard, styleOriginForCard } from '$lib/sets/queries';
+  import { cardEditorView } from '$lib/state/card-editor-view.svelte';
   import { workshop } from '$lib/state/workshop.svelte';
   import { Button, ConfirmAction, Field, FillEditor, Icon, Section, Select, Tabs } from '$lib/ui';
   import ActionCardContent from './ActionCardContent.svelte';
@@ -70,6 +73,8 @@
   );
 
   let tab = $state<Tab>('content');
+  let body = $state<HTMLDivElement | null>(null);
+  let handledTargetRevision = 0;
   let borderBreaksVisible = $state(false);
   let borderBreaksCardId = $state<CardId | null>(null);
 
@@ -78,6 +83,28 @@
     if (nextId === borderBreaksCardId) return;
     borderBreaksCardId = nextId;
     borderBreaksVisible = false;
+  });
+
+  /*
+   * Phase 0 proves one complete fallback path. Phase 1 extends the same typed
+   * request and stable target attributes to every supported field.
+   */
+  $effect(() => {
+    const request = cardEditorView.request;
+    if (!request || request.revision === handledTargetRevision) return;
+    if (request.address.cardId !== card?.id) return;
+    handledTargetRevision = request.revision;
+    if (request.address.region !== 'title' || request.address.field !== 'title') return;
+
+    tab = 'content';
+    void tick().then(() => {
+      if (workshop.selectedCard?.id !== request.address.cardId) return;
+      const target = body?.querySelector<HTMLElement>(
+        `[data-card-editor-target="${CARD_EDIT_MARKERS.title}"]`
+      );
+      target?.scrollIntoView({ block: 'center', inline: 'nearest' });
+      target?.focus({ preventScroll: true });
+    });
   });
 
   /**
@@ -170,7 +197,7 @@
     <Tabs bind:value={tab} {tabs} label="Card editor sections" />
   </div>
 
-  <div class="body scroll-y">
+  <div class="body scroll-y" bind:this={body}>
     {#if tab === 'content'}
       {#if card.type === 'action'}
         <ActionCardContent {card} />

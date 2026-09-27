@@ -23,6 +23,7 @@
   import { workshop } from '$lib/state/workshop.svelte';
   import { Button, EmptyState, Icon } from '$lib/ui';
   import ArtworkTransformOverlay from './ArtworkTransformOverlay.svelte';
+  import PreviewFieldOverlay from './PreviewFieldOverlay.svelte';
 
   let showBleed = $state(false);
   let showGuides = $state(false);
@@ -369,6 +370,18 @@
             options={{ showBleed: bleeding, showGuides: showGuides && bleeding }}
             customSymbols={workshop.adventure.customSymbols}
           />
+          {#if card?.type === 'action'}
+            <PreviewFieldOverlay
+              cardId={card.id}
+              {zoom}
+              showBleed={bleeding}
+              {showGuides}
+              disabled={Boolean(
+                selectedMainArtwork ||
+                  (selectedArtworkTarget && artworkAdjustmentView.active(selectedArtworkTarget))
+              )}
+            />
+          {/if}
           {#if card?.type === 'action' && selectedMainArtwork && selectedMainArtworkTarget}
             <ArtworkTransformOverlay
               target={selectedMainArtworkTarget}

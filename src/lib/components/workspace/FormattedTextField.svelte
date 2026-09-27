@@ -27,6 +27,8 @@
     onremove?: () => void;
     onchange: (value: string) => void;
     customSymbols?: CustomSymbol[];
+    /** Stable destination for preview-to-editor navigation. */
+    editorTarget?: string;
   }
 
   let {
@@ -39,7 +41,8 @@
     preserveWhitespace = false,
     onremove,
     onchange,
-    customSymbols = []
+    customSymbols = [],
+    editorTarget
   }: Props = $props();
 
   function hasIntentionalWhitespace(html: string): boolean {
@@ -186,6 +189,7 @@
     tabindex="0"
     aria-label={label}
     aria-multiline={multiline}
+    data-card-editor-target={editorTarget}
     data-placeholder={placeholder}
     spellcheck={multiline}
     style:min-height={multiline ? `${rows * 20 + 18}px` : undefined}

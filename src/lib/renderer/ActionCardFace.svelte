@@ -26,6 +26,7 @@
   import { primaryCardName, resolvedHeroName } from '$lib/characters/factory';
   import type { Character } from '$lib/characters/types';
   import type { CustomSymbol } from '$lib/symbols/types';
+  import { CARD_EDIT_MARKERS } from '$lib/cards/edit-targets';
   import { actionTextIsEmpty, renderActionText } from '$lib/text/action-text';
   import { parseAbilityText } from '$lib/text/tokens';
   import AbilityText from './AbilityText.svelte';
@@ -763,6 +764,7 @@
     -->
     <div
       class="title"
+      data-card-edit-target={CARD_EDIT_MARKERS.title}
       class:boost-aware={card.boost !== null && card.showBoostEffect}
       style:margin-left={pu(TITLE.x - BODY_PANEL.x)}
       style:width={card.boost !== null && card.showBoostEffect ? 'max-content' : pu(TITLE.width)}

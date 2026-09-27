@@ -1,0 +1,465 @@
+{
+  "format": "unmatched-labs-mobile-ui-baseline-evidence",
+  "version": 1,
+  "generatedAt": "2026-09-27T21:23:43.829Z",
+  "platform": "win32-x64",
+  "node": "v25.2.1",
+  "roots": [
+    "exports/direct-preview-phase0/fixture.awset.json",
+    "exports/direct-preview-phase0/cards-trim.zip",
+    "exports/direct-preview-phase0/cards-bleed.zip",
+    "exports/direct-preview-phase0/run.json",
+    "tools/baselines/direct-preview-editing-phase0/screenshots",
+    "tools/baselines/direct-preview-editing-phase0/interaction-evidence.json"
+  ],
+  "files": [
+    {
+      "path": "exports/direct-preview-phase0/cards-bleed.zip",
+      "bytes": 13698631,
+      "sha256": "341c9b3966a160c2872c3ab57ccbbcf4e7e5c689e862cfa64f051b9d58b43fec",
+      "comparison": "stored-entries",
+      "containerNote": "Raw ZIP hash includes per-run DOS timestamps and is informational.",
+      "entries": [
+        {
+          "path": "Heroes/mariner-breakwater.png",
+          "bytes": 1094171,
+          "sha256": "a88c9e33fa507a6a3ccecc7e6a706630def6c77015fa176d6aa1ed41729c1340",
+          "dimensions": {
+            "width": 1632,
+            "height": 2222
+          },
+          "pixelSha256": "2d53ef597dee4de7f5310692d898ca1d09714f1f3460ce1ab38605ef2dea5ddd"
+        },
+        {
+          "path": "Heroes/mariner-turn-the-tide.png",
+          "bytes": 811705,
+          "sha256": "6f9b680e823fae1ea3588ee39337e2ddbef3213935d297344b329be07651024d",
+          "dimensions": {
+            "width": 1632,
+            "height": 2222
+          },
+          "pixelSha256": "c9716a101de4b8e4418fb76cfb8c3a920f0b084e2d9186ca38bceb5243d73716"
+        },
+        {
+          "path": "Heroes/mariner-second-wind.png",
+          "bytes": 934075,
+          "sha256": "f251d1edd3525bf0e43eac0829726d938ca53aa3ed16b2bfc1aad1a35488b68e",
+          "dimensions": {
+            "width": 1632,
+            "height": 2222
+          },
+          "pixelSha256": "077e7620220f8d674d269628e7a0e08c0aedf00f077709a6df5a3dcf78a5e232"
+        },
+        {
+          "path": "Heroes/mariner-deck-back.png",
+          "bytes": 2324782,
+          "sha256": "49daba543e903f9937c0e38de8aaf6aa846268e2ee457516e25c443b68be55c7",
+          "dimensions": {
+            "width": 1632,
+            "height": 2222
+          },
+          "pixelSha256": "1be7cac3159c1ed9e3805294a046be17b7495f8a6b4ecab151755f34a0c77ebc"
+        },
+        {
+          "path": "Heroes/mariner-character-card.png",
+          "bytes": 1166262,
+          "sha256": "b4f692f4238014186fd4b25f6edfb08a21cdf0306356e3486ebbc33fdb685812",
+          "dimensions": {
+            "width": 1632,
+            "height": 2222
+          },
+          "pixelSha256": "e10e4982dc5698dc745efc5c8f218521f9e39e04667e76795196177b2554f089"
+        },
+        {
+          "path": "Villain and minions/the-glass-regent-fractured-command.png",
+          "bytes": 1015064,
+          "sha256": "89c36e16589c31a9a60864ed5203e6be3cea8ce958e48797d3cba513d066db06",
+          "dimensions": {
+            "width": 1632,
+            "height": 2222
+          },
+          "pixelSha256": "28729aecbdeda7681f39962b62550dba5ed0e5a19f260800929b5a70a43f5239"
+        },
+        {
+          "path": "Villain and minions/the-glass-regent-baked-into-the-image.png",
+          "bytes": 2321832,
+          "sha256": "416fc43a530fee4a26f7f011617d546e4fd9dd3e091dd882d515272f1dd1d281",
+          "dimensions": {
+            "width": 1632,
+            "height": 2222
+          },
+          "pixelSha256": "8facb59c1a19f263ec5b12999ea134dc61211016173cbfe213b37113ce740e0b"
+        },
+        {
+          "path": "Villain and minions/the-glass-regent-deck-back.png",
+          "bytes": 186241,
+          "sha256": "82ad456da1de2e2fad34634bee008129c9749a8f8fe77b2e86aba444919d8b93",
+          "dimensions": {
+            "width": 373,
+            "height": 520
+          },
+          "pixelSha256": "4d5ae6bf5a0fbb1ad0ed15864b654d4cb03e0924861ee58d5a20c82b10cbdcae"
+        },
+        {
+          "path": "Villain and minions/lantern-guard-hold-the-line.png",
+          "bytes": 1180934,
+          "sha256": "9f1737bc05689e1afde006c74030fd60a0310721e985e039884b292557ea2c27",
+          "dimensions": {
+            "width": 1632,
+            "height": 2222
+          },
+          "pixelSha256": "e17a4f26fb3beccddd553e8224fd11f66c09919e39f92f96f7110e2700583baf"
+        },
+        {
+          "path": "Villain and minions/lantern-guard-signal-the-guard.png",
+          "bytes": 1197631,
+          "sha256": "f08b7902b77e4b9c9a58753c0f3a7a6036c02b9b1a80853b072c78a907c38eda",
+          "dimensions": {
+            "width": 1632,
+            "height": 2222
+          },
+          "pixelSha256": "0cf7872675c2d0229fa13370006130bbb69970ea6c98903ed1f1741c9878a69c"
+        },
+        {
+          "path": "Villain and minions/lantern-guard-deck-back.png",
+          "bytes": 201098,
+          "sha256": "60947c6fad1e3efbecb1e12598d20facb8c6b29fdbce3a9ced7ea70eacfe31a1",
+          "dimensions": {
+            "width": 373,
+            "height": 520
+          },
+          "pixelSha256": "6e770fbba244b844fbbe0d18878c317c365f8ac330a8ad03dd6140562c918b2b"
+        },
+        {
+          "path": "Initiative cards/villain.png",
+          "bytes": 172229,
+          "sha256": "19f997494654b7af352fbf3dcd75ab8682ab6f7e2f616bdad7321db10802b908",
+          "dimensions": {
+            "width": 1524,
+            "height": 2232
+          },
+          "pixelSha256": "9a5007366013f4fa35b1ab31d4c9d181fb2a009c7d9cdf294fc8d2f70aa9710f"
+        },
+        {
+          "path": "Initiative cards/minion-effect.png",
+          "bytes": 173602,
+          "sha256": "0e69eb248a91df75674393b68ba920f78e73bb3350fa28f95308d12f0010a671",
+          "dimensions": {
+            "width": 1524,
+            "height": 2232
+          },
+          "pixelSha256": "2ad3363ab5005c5ffc44a13683502113ee3533b7e114a9dcae74ea340134390f"
+        },
+        {
+          "path": "Rule cards/setup.png",
+          "bytes": 126999,
+          "sha256": "76cd73ece4b3bc84325391d5910faadaf5a4fb585915bf8e89c6b9d78a69b569",
+          "dimensions": {
+            "width": 1632,
+            "height": 2218
+          },
+          "pixelSha256": "fe516167bca7650caddc7a4c79caa8ca6014c1dd1cd81e89d2162ab74e231984"
+        },
+        {
+          "path": "Rule cards/tide-reference.png",
+          "bytes": 113093,
+          "sha256": "2547f004b5416595ac2797c7162fffe190a02518f6df03ecf8aca3b67a4ae1b7",
+          "dimensions": {
+            "width": 2218,
+            "height": 1632
+          },
+          "pixelSha256": "c87a4102aecd5b3de961a4ebc87f7872c78fe135c291d76f8092b26c737ebbc6"
+        },
+        {
+          "path": "Event cards/sudden-squall.png",
+          "bytes": 227497,
+          "sha256": "8159bf9a286344610e6f9c783b0862ebd95f3a3b4dc30e95e55ed6e70263c7ce",
+          "dimensions": {
+            "width": 2232,
+            "height": 1524
+          },
+          "pixelSha256": "371e7283590a0c58e2502c676bea0d842ddedde31725fdc364c12f91f309d104"
+        },
+        {
+          "path": "Event cards/sudden-squall-back.png",
+          "bytes": 168532,
+          "sha256": "cf6816c29a6d42e12a381f836c181213f25cf86b910fd65ee0430365a4650177",
+          "dimensions": {
+            "width": 2232,
+            "height": 1524
+          },
+          "pixelSha256": "079e4d08c6247c76094fc70f7b29bd1dab163e36afe5c4e560b71783d9925363"
+        },
+        {
+          "path": "Threat track/direct-preview-editing-phase-0-threat-track.png",
+          "bytes": 278281,
+          "sha256": "0b82c0d8978896cd7a74bd51860b696af5f50bf13e7c062fc5f6aea8fafb3a8d",
+          "dimensions": {
+            "width": 1637,
+            "height": 232
+          },
+          "pixelSha256": "4ad788aedfccc715d4bb98398911d06c48d92f2e83ccdb7d774f177e46751d0f"
+        },
+        {
+          "path": "Components/lantern-guard-token.png",
+          "bytes": 534,
+          "sha256": "1c0d0377f32c40f778ec6fb935a58790694a0d11993ff123ab5b1a47260eb9fc"
+        },
+        {
+          "path": "README.txt",
+          "bytes": 1025,
+          "sha256": "6ff3d52ee6a9cd7f01c765f8d307d73935a6650d4917a554f3980ed34966dfc1",
+          "normalizedSha256": "6ff3d52ee6a9cd7f01c765f8d307d73935a6650d4917a554f3980ed34966dfc1",
+          "geometryNormalizedSha256": "6ff3d52ee6a9cd7f01c765f8d307d73935a6650d4917a554f3980ed34966dfc1"
+        }
+      ]
+    },
+    {
+      "path": "exports/direct-preview-phase0/cards-trim.zip",
+      "bytes": 12806643,
+      "sha256": "5ea4779e691f417bd2125e7417076d3fef7fef145db4daca3c646d510c1c87e5",
+      "comparison": "stored-entries",
+      "containerNote": "Raw ZIP hash includes per-run DOS timestamps and is informational.",
+      "entries": [
+        {
+          "path": "Heroes/mariner-breakwater.png",
+          "bytes": 1083700,
+          "sha256": "ab53431595821603e8350aec73cb330eb95791dfe74855e9550ad1f924b98744",
+          "dimensions": {
+            "width": 1478,
+            "height": 2065
+          },
+          "pixelSha256": "bdb4de6bee24a7cc6bd8755872ece8381fb63937e646d4a7502c8c8b5d31620f"
+        },
+        {
+          "path": "Heroes/mariner-turn-the-tide.png",
+          "bytes": 807404,
+          "sha256": "c7590967a5efa0206090a063e68b92c56e1485ae36c8afffa680b8621853c927",
+          "dimensions": {
+            "width": 1478,
+            "height": 2065
+          },
+          "pixelSha256": "2327e690183f919d4da9ac6e87b6c1eb4580f0b74f6c94f922edc1bde42c4e5c"
+        },
+        {
+          "path": "Heroes/mariner-second-wind.png",
+          "bytes": 925481,
+          "sha256": "8d97b15d9b98dc534213a3985d6dba0c06819f74e449667bfd67279ecfead253",
+          "dimensions": {
+            "width": 1478,
+            "height": 2065
+          },
+          "pixelSha256": "aa5740d172ce26939886bac3925f13b624cf230f8f37eca98f56f6db1cf63542"
+        },
+        {
+          "path": "Heroes/mariner-deck-back.png",
+          "bytes": 1954032,
+          "sha256": "703571f1fa9717097bd5fa999c7929caec6778aa76cd62f3106230c44cbff8de",
+          "dimensions": {
+            "width": 1478,
+            "height": 2065
+          },
+          "pixelSha256": "214b1d8c5879ddd844dac9e99ec02f114cc1c9f2f54473f19087e903dbc390ad"
+        },
+        {
+          "path": "Heroes/mariner-character-card.png",
+          "bytes": 1159633,
+          "sha256": "7d27fbceee9949494f75e72bec014f35641be6e350fb1ed00b9e09fa25e85c5c",
+          "dimensions": {
+            "width": 1478,
+            "height": 2065
+          },
+          "pixelSha256": "17879826dbb1bb3a9248d6fc00ac46fd6c64b8f704cd72cc12dfacdcb9718ab0"
+        },
+        {
+          "path": "Villain and minions/the-glass-regent-fractured-command.png",
+          "bytes": 1002911,
+          "sha256": "88eae1e078a5d5e6162219077785bf037ac3a752f2e6b78c7697878632f95ac8",
+          "dimensions": {
+            "width": 1478,
+            "height": 2065
+          },
+          "pixelSha256": "f3d2f350fcafedaee630d2b904ac71027b6818582f5e2c90df063597fe45f239"
+        },
+        {
+          "path": "Villain and minions/the-glass-regent-baked-into-the-image.png",
+          "bytes": 1946955,
+          "sha256": "7c6e5659318287d1616334bae63c6a205f3e6fb653968ae7876a25eeae38d58c",
+          "dimensions": {
+            "width": 1478,
+            "height": 2065
+          },
+          "pixelSha256": "8bfa4c57fa760081d9d8a46c474732307c11309b9358e9645f254d33ac4cbfc1"
+        },
+        {
+          "path": "Villain and minions/the-glass-regent-deck-back.png",
+          "bytes": 186241,
+          "sha256": "82ad456da1de2e2fad34634bee008129c9749a8f8fe77b2e86aba444919d8b93",
+          "dimensions": {
+            "width": 373,
+            "height": 520
+          },
+          "pixelSha256": "4d5ae6bf5a0fbb1ad0ed15864b654d4cb03e0924861ee58d5a20c82b10cbdcae"
+        },
+        {
+          "path": "Villain and minions/lantern-guard-hold-the-line.png",
+          "bytes": 1168201,
+          "sha256": "ce73d66f3c2e4aa030ab32e9257efa327f25ed6adab4bb3c6b480569b7fd67ad",
+          "dimensions": {
+            "width": 1478,
+            "height": 2065
+          },
+          "pixelSha256": "5324d5ff126ee27898ce4a21712b453381d5abdd4005848e5a52fe13ee7dfae0"
+        },
+        {
+          "path": "Villain and minions/lantern-guard-signal-the-guard.png",
+          "bytes": 1187313,
+          "sha256": "b14ab074e29760530d7935ff90c5dfde1cd6adca069929d0cfd69f546c8dd9bc",
+          "dimensions": {
+            "width": 1478,
+            "height": 2065
+          },
+          "pixelSha256": "e2050d2ccece306efb01b1bef4edf5f99cf373664b8d8bbf7e764ad67c9c61e2"
+        },
+        {
+          "path": "Villain and minions/lantern-guard-deck-back.png",
+          "bytes": 201098,
+          "sha256": "60947c6fad1e3efbecb1e12598d20facb8c6b29fdbce3a9ced7ea70eacfe31a1",
+          "dimensions": {
+            "width": 373,
+            "height": 520
+          },
+          "pixelSha256": "6e770fbba244b844fbbe0d18878c317c365f8ac330a8ad03dd6140562c918b2b"
+        },
+        {
+          "path": "Initiative cards/villain.png",
+          "bytes": 157027,
+          "sha256": "8b9bf0f9764ca52a1535a5574b9832481e1cb97b6311155dcc12ab879b057e79",
+          "dimensions": {
+            "width": 1326,
+            "height": 2020
+          },
+          "pixelSha256": "8bea1fb20b403e012928f27fcaf924e009642156349c0f135b94814f6efb6225"
+        },
+        {
+          "path": "Initiative cards/minion-effect.png",
+          "bytes": 162622,
+          "sha256": "14d108793992c3aac0cf2bd93d10fb910afeb0e23f77d267f9297f307487af63",
+          "dimensions": {
+            "width": 1326,
+            "height": 2020
+          },
+          "pixelSha256": "3bdb4347f92c86063c8a210e764479045309d42dbaf714e973f67c9e133954cf"
+        },
+        {
+          "path": "Rule cards/setup.png",
+          "bytes": 115882,
+          "sha256": "1c6b0ca1947338083a06c8e0a14b0b3c5a718cc2e0f16c9ea739e3f1f34d9d1e",
+          "dimensions": {
+            "width": 1478,
+            "height": 2065
+          },
+          "pixelSha256": "7625630dfa47ac5a9af3405be506efb65b60aa0a4f512c4493a40a6edd021422"
+        },
+        {
+          "path": "Rule cards/tide-reference.png",
+          "bytes": 101844,
+          "sha256": "c4506b67eb767b848632c3001d45fd9d0946a0a78c4a9e182bb4110a8fc1145f",
+          "dimensions": {
+            "width": 2064,
+            "height": 1478
+          },
+          "pixelSha256": "fb397e465331ca85d1301f3a934f5d186493e42015bade7d85e73acc8f0fdd0b"
+        },
+        {
+          "path": "Event cards/sudden-squall.png",
+          "bytes": 211161,
+          "sha256": "e134abc127003fba43d855cad610415dcbe232667fb464abd1a79a1647c51137",
+          "dimensions": {
+            "width": 2033,
+            "height": 1335
+          },
+          "pixelSha256": "2051807623dc3e8467a1c2fe7ef25a783afcaec2e5a21808bd5ad7f75355a219"
+        },
+        {
+          "path": "Event cards/sudden-squall-back.png",
+          "bytes": 152283,
+          "sha256": "bbcd777853ecd030c3a1176a3229948b69ec16825eb34f199501e734662c5dca",
+          "dimensions": {
+            "width": 2033,
+            "height": 1335
+          },
+          "pixelSha256": "3ee391121b67d08899fe12f317af3f6e8cb9e9fc2949ac3c8c63bfab060a3319"
+        },
+        {
+          "path": "Threat track/direct-preview-editing-phase-0-threat-track.png",
+          "bytes": 278281,
+          "sha256": "0b82c0d8978896cd7a74bd51860b696af5f50bf13e7c062fc5f6aea8fafb3a8d",
+          "dimensions": {
+            "width": 1637,
+            "height": 232
+          },
+          "pixelSha256": "4ad788aedfccc715d4bb98398911d06c48d92f2e83ccdb7d774f177e46751d0f"
+        },
+        {
+          "path": "Components/lantern-guard-token.png",
+          "bytes": 534,
+          "sha256": "1c0d0377f32c40f778ec6fb935a58790694a0d11993ff123ab5b1a47260eb9fc"
+        },
+        {
+          "path": "README.txt",
+          "bytes": 996,
+          "sha256": "68e32bb452dbed79ba99b2a042297df6ee71ef6522e29256bee2f2451edd432e",
+          "normalizedSha256": "68e32bb452dbed79ba99b2a042297df6ee71ef6522e29256bee2f2451edd432e",
+          "geometryNormalizedSha256": "68e32bb452dbed79ba99b2a042297df6ee71ef6522e29256bee2f2451edd432e"
+        }
+      ]
+    },
+    {
+      "path": "exports/direct-preview-phase0/fixture.awset.json",
+      "bytes": 116963,
+      "sha256": "74a4a45f6ed2ea0026383a99b5bbb5f63ff1fc7d3bd04c60a1ba9f66d94e0fe1",
+      "normalizedSha256": "008ac83f12fdab482a3a64757951abf43972a2d0dcc09e30354cb7513aeb4dda",
+      "geometryNormalizedSha256": "008ac83f12fdab482a3a64757951abf43972a2d0dcc09e30354cb7513aeb4dda",
+      "comparison": "normalized-sha256"
+    },
+    {
+      "path": "exports/direct-preview-phase0/run.json",
+      "bytes": 622,
+      "sha256": "cbe82be0d708d78c56610b209c146ac6474b2462a6a647ed7534737d1a63d1d4",
+      "normalizedSha256": "934a14da549d9ce8676b44a2e957b6a90c87c20cff223484daf8dd9fd34bb996",
+      "geometryNormalizedSha256": "934a14da549d9ce8676b44a2e957b6a90c87c20cff223484daf8dd9fd34bb996",
+      "comparison": "normalized-sha256"
+    },
+    {
+      "path": "tools/baselines/direct-preview-editing-phase0/interaction-evidence.json",
+      "bytes": 1525,
+      "sha256": "27f352ec401fa8a79016a3548e27d10ec93df00eec56406161370bc2bea296be",
+      "normalizedSha256": "b0e38dac1ceb030b06418cf45a74aab243d88b299981436a22dd73d8a16eba95",
+      "geometryNormalizedSha256": "b0e38dac1ceb030b06418cf45a74aab243d88b299981436a22dd73d8a16eba95",
+      "comparison": "normalized-sha256"
+    },
+    {
+      "path": "tools/baselines/direct-preview-editing-phase0/screenshots/direct-preview-fallback-320x568-light.png",
+      "bytes": 44128,
+      "sha256": "3d8ed058d07e5cd739f0c8709abbf9f5643882cdcd533af103caeb3716117061",
+      "dimensions": {
+        "width": 320,
+        "height": 568
+      },
+      "pixelSha256": "2c5c9fc38cabb88d363730514c833070923dc9202e2626ad9a598dfc8f39acf0",
+      "comparison": "dimensions-and-pixels"
+    },
+    {
+      "path": "tools/baselines/direct-preview-editing-phase0/screenshots/direct-preview-prototype-1440x900-light.png",
+      "bytes": 187689,
+      "sha256": "74d254d6c400a08cdd428c7d4c38564e71ae88a1007179441983cdde138d95eb",
+      "dimensions": {
+        "width": 1440,
+        "height": 900
+      },
+      "pixelSha256": "63fe7f84b8cca70c0c2347fe2c30ea07fa25ce104845c90e84031b88a6825f2f",
+      "comparison": "dimensions-and-pixels"
+    }
+  ]
+}

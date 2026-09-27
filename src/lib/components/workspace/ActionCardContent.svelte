@@ -30,6 +30,7 @@
   import { characterForCard, deckOwner, resolveStyleForCard, styleOriginForCard } from '$lib/sets/queries';
   import { customSymbolLabel } from '$lib/symbols/types';
   import { customSymbolToken, symbolToken } from '$lib/text/tokens';
+  import { CARD_EDIT_MARKERS } from '$lib/cards/edit-targets';
   import { workshop } from '$lib/state/workshop.svelte';
   import {
     Button,
@@ -190,6 +191,7 @@
       multiline={false}
       onchange={(title) => edit((target) => (target.title = title))}
       customSymbols={workshop.adventure.customSymbols}
+      editorTarget={CARD_EDIT_MARKERS.title}
     />
 
     <Field label="Name override">
@@ -216,6 +218,7 @@
       multiline={false}
       onchange={(title) => edit((target) => (target.title = title))}
       customSymbols={workshop.adventure.customSymbols}
+      editorTarget={CARD_EDIT_MARKERS.title}
     />
   {/if}
 

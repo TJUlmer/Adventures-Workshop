@@ -1,6 +1,6 @@
 # Unmatched Labs Direct Preview Editing Project
 
-**Status:** Planned; ready for Phase 0
+**Status:** Phase 0 implemented; awaiting hosted-preview review
 **Last updated:** 27 September 2026
 **Scope:** Desktop-first editing of selected action-card fields from the live
 right-hand preview, with a safe centre-editor fallback on narrow layouts
@@ -46,8 +46,9 @@ When this project is complete:
   presenting overlapping or unusably small controls.
 - Card PNGs, print output, Tabletop Simulator output, and all read-only card
   renderings remain unchanged.
-- Every phase is checked in a hosted preview deployment before it is promoted
-  to `main`.
+- Every phase is committed separately and checked in the cumulative hosted
+  preview branch. Nothing is promoted to `main` until all phases have been
+  reviewed and explicitly approved together.
 
 ## Non-goals
 
@@ -131,11 +132,14 @@ default:
   focus to the editor's own toolbar does not.
 - Selecting another editable field commits the valid current draft before
   opening the next field.
-- Export is unavailable while a draft is unresolved, or first commits the
-  valid draft through one explicit, deterministic path. Phase 0 will choose
-  and document one of these behaviours.
+- Export is unavailable while a draft is unresolved. The author must commit
+  or cancel the draft before exporting, so export never makes a hidden write.
 - If the card is deleted, replaced, or no longer matches the request's
   `cardId`, the stale session closes without writing to another card.
+
+Phase 0 confirmed that direct targets do not require a separate **Edit text**
+mode. Artwork adjustment commits a valid draft or cancels an invalid one
+before it takes pointer ownership.
 
 ### Preview-to-editor navigation is shared UI state
 
@@ -228,8 +232,9 @@ proves the target and rich-text systems.
   existing behaviour.
 - `npm run check` and `npm run build` pass before a phase is considered ready
   for hosted-preview review.
-- Each phase is committed and pushed to the preview branch, accepted in the
-  hosted preview, and only then promoted to `main`.
+- Each phase is committed and pushed to the cumulative preview branch and
+  accepted there before the next phase begins. Only the complete, reviewed
+  multi-phase result is promoted to `main`.
 
 ---
 
@@ -267,28 +272,28 @@ does not yet need to save the title.
 
 ### Work
 
-- [ ] Define the typed field-address contract, including `cardId`, logical
+- [x] Define the typed field-address contract, including `cardId`, logical
   region, field, and optional original Bonus index.
-- [ ] Record the supported, navigation-only, and deferred field matrix in
+- [x] Record the supported, navigation-only, and deferred field matrix in
   code-facing terms.
-- [ ] Confirm that targets are normally available without a separate
+- [x] Confirm that targets are normally available without a separate
   **Edit text** mode; retain a mode only if prototype evidence shows that
   ordinary preview navigation becomes ambiguous.
-- [ ] Define the edit-session state machine: inactive, targeting, editing,
+- [x] Define the edit-session state machine: inactive, targeting, editing,
   committing, cancelling, and invalidated.
-- [ ] Confirm Enter, multiline, blur, Escape, export, card-switch, and
+- [x] Confirm Enter, multiline, blur, Escape, export, card-switch, and
   artwork-adjustment behaviour.
-- [ ] Add or prototype one inert title marker and one sibling overlay target.
-- [ ] Verify target alignment at fitted width, minimum preview width, 100%,
+- [x] Add or prototype one inert title marker and one sibling overlay target.
+- [x] Verify target alignment at fitted width, minimum preview width, 100%,
   and 200% zoom, with bleed and guides both on and off.
-- [ ] Verify pointer activation, keyboard focus/activation, focus return, and
+- [x] Verify pointer activation, keyboard focus/activation, focus return, and
   the narrow-layout centre-editor fallback.
-- [ ] Capture representative action-card screenshots, `.plate` signatures,
+- [x] Capture representative action-card screenshots, `.plate` structure,
   export dimensions, and PNG fingerprints for later comparison.
-- [ ] Include fixtures for ordinary hero, split hero, villain/minion,
+- [x] Include fixtures for ordinary hero, split hero, villain/minion,
   formatted ability text, only Bonus ability 2 populated, custom boost symbol,
   and whole-face replacement.
-- [ ] Document that no stored field or schema change is proposed.
+- [x] Document that no stored field or schema change is proposed.
 
 ### Likely files
 
@@ -300,14 +305,15 @@ does not yet need to save the title.
 
 ### Exit criteria
 
-- [ ] The field-address and edit-session contracts have no unresolved state
+- [x] The field-address and edit-session contracts have no unresolved state
   transition.
-- [ ] The title target stays aligned across the supported preview geometry.
-- [ ] Pointer and keyboard users can discover and activate the prototype.
-- [ ] A narrow or overlapping target falls back to the centre editor.
-- [ ] No editor control or visual state enters `.plate`.
-- [ ] Unchanged export dimensions and decoded pixels match the baseline.
-- [ ] `npm run check` and `npm run build` pass.
+- [x] The title target stays aligned across the supported preview geometry.
+- [x] Pointer and keyboard users can discover and activate the prototype.
+- [x] A narrow or overlapping target falls back to the centre editor.
+- [x] No editor control or visual state enters `.plate`.
+- [x] Export dimensions and decoded-pixel fingerprints are recorded as the
+  Phase 0 baseline for comparisons in later phases.
+- [x] `npm run check` and `npm run build` pass.
 - [ ] The Phase 0 commit is pushed and accepted in the hosted preview before
   work proceeds to Phase 1.
 
@@ -616,7 +622,8 @@ been approved in the hosted preview before production promotion.
   production build, including direct shared/deep links.
 - [ ] Record remaining limitations in this plan and user-facing copy where
   necessary.
-- [ ] Promote the accepted commit to `main` and verify the production URL.
+- [ ] After every phase is accepted, promote the cumulative preview branch to
+  `main` and verify the production URL.
 
 ### Exit criteria
 
@@ -695,12 +702,14 @@ Each phase follows the same promotion path:
    phase's end-to-end authoring path.
 6. Present both a plain-language summary and a technical log for review.
 7. Fix preview-only findings on the same branch and repeat the checks.
-8. Promote the accepted commit to `main` only after explicit approval.
-9. Verify the production deployment before beginning the next phase.
+8. Keep the accepted phase on the cumulative preview branch and begin the
+   next phase only after explicit approval.
+9. After all phases are accepted, promote the cumulative branch to `main`
+   once and verify the production deployment.
 
-This workflow makes the hosted production build—not only the development
-server—the approval surface, while preserving a known-good `main` between
-phases.
+This workflow makes the hosted preview build—not only the development
+server—the approval surface, while preserving a known-good `main` until the
+entire project is ready.
 
 ## Recommended delivery order
 
