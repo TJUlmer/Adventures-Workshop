@@ -17,6 +17,8 @@
     max?: number;
     /** Value used the first time the control is switched on. */
     defaultValue?: number;
+    /** Stable destination for preview-to-editor navigation. */
+    editorTarget?: string;
     onchange: (value: number | null) => void;
   }
 
@@ -27,6 +29,7 @@
     min = 0,
     max = 20,
     defaultValue = 1,
+    editorTarget,
     onchange
   }: Props = $props();
 
@@ -110,6 +113,7 @@
         {max}
         {value}
         aria-label={label}
+        data-card-editor-target={editorTarget}
         onwheel={onWheel}
         onkeydown={onKey}
         oninput={(event) => {

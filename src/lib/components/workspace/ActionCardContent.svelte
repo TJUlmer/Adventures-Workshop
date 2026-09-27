@@ -166,6 +166,9 @@
         type="button"
         class="icon-choice"
         class:active={card.boostSymbol === customSymbolToken(symbol.id)}
+        data-card-editor-target={card.boostSymbol === customSymbolToken(symbol.id)
+          ? CARD_EDIT_MARKERS.boostSymbol
+          : undefined}
         onclick={() => edit((target) => (target.boostSymbol = customSymbolToken(symbol.id)))}
       >
         <img src={symbol.source} alt="" />
@@ -197,6 +200,7 @@
     <Field label="Name override">
       <TextInput
         value={card.name}
+        data-card-editor-target={CARD_EDIT_MARKERS.ownerName}
         placeholder="Leave blank to use the selected character’s name"
         oninput={(event) => edit((target) => (target.name = event.currentTarget.value))}
       />
@@ -205,6 +209,7 @@
     <Field label="Name on the ribbon">
       <TextInput
         value={card.name}
+        data-card-editor-target={CARD_EDIT_MARKERS.ownerName}
         placeholder="Villain name"
         prominent
         oninput={(event) => edit((target) => (target.name = event.currentTarget.value))}
@@ -302,6 +307,7 @@
           <div class="value-slot">
             <ValueControl
               label="Value"
+              editorTarget={CARD_EDIT_MARKERS.symbolValue}
               symbol={CARD_SYMBOLS[card.symbol ?? 'attack']}
               value={card.symbolValue}
               defaultValue={2}
@@ -316,6 +322,7 @@
           <ValueControl
             label="Boost"
             value={card.boost}
+            editorTarget={CARD_EDIT_MARKERS.boost}
             defaultValue={1}
             min={1}
             max={9}
@@ -337,6 +344,7 @@
     {#if !card.split}
       <AbilityStack
         title="Ability"
+        sourceRegion="primary-ability"
         ability={card.ability}
         onchange={(patch) => edit((target) => Object.assign(target.ability, patch))}
         resolved={resolvedTheme}
@@ -372,6 +380,7 @@
       <div class="values">
         <ValueControl
           label="Attack"
+          editorTarget={CARD_EDIT_MARKERS.attack}
           symbol={CARD_SYMBOLS.attack}
           value={card.attack}
           defaultValue={2}
@@ -379,6 +388,7 @@
         />
         <ValueControl
           label="Defense"
+          editorTarget={CARD_EDIT_MARKERS.defense}
           symbol={CARD_SYMBOLS.defense}
           value={card.defense}
           defaultValue={2}
@@ -388,6 +398,7 @@
           {@render boostSymbolPicker()}
           <ValueControl
             label="Boost"
+            editorTarget={CARD_EDIT_MARKERS.boost}
             value={card.boost}
             defaultValue={1}
             min={1}
@@ -405,6 +416,7 @@
       -->
       <AbilityStack
         title="Attack side"
+        sourceRegion="primary-ability"
         symbol={CARD_SYMBOLS.attack}
         hint="Printed above the floating separator."
         ability={card.ability}
@@ -415,6 +427,7 @@
       />
       <AbilityStack
         title="Defense side"
+        sourceRegion="defense-ability"
         symbol={CARD_SYMBOLS.defense}
         hint="Printed below it. The separator moves up as this side fills."
         ability={card.defenseAbility}
@@ -426,6 +439,7 @@
     {:else}
       <AbilityStack
         title="Ability"
+        sourceRegion="primary-ability"
         ability={card.ability}
         onchange={(patch) => edit((target) => Object.assign(target.ability, patch))}
         resolved={resolvedTheme}
@@ -461,6 +475,7 @@
           <div class="split-values">
             <ValueControl
               label="Attack"
+              editorTarget={CARD_EDIT_MARKERS.attack}
               symbol={CARD_SYMBOLS.attack}
               value={card.attack}
               defaultValue={2}
@@ -468,6 +483,7 @@
             />
             <ValueControl
               label="Defense"
+              editorTarget={CARD_EDIT_MARKERS.defense}
               symbol={CARD_SYMBOLS.defense}
               value={card.defense}
               defaultValue={2}
@@ -478,6 +494,7 @@
 
         <AbilityStack
           title="Attack side"
+          sourceRegion="primary-ability"
           symbol={CARD_SYMBOLS.attack}
           hint={hasSeparateDefenseAbility
             ? 'Printed above the floating separator.'
@@ -490,6 +507,7 @@
         />
         <AbilityStack
           title="Defense side"
+          sourceRegion="defense-ability"
           symbol={CARD_SYMBOLS.defense}
           hint={hasSeparateDefenseAbility
             ? 'Printed below the floating separator.'

@@ -14,28 +14,27 @@ export type AbilityParagraphField =
  * primary and defence copy cannot alias, and a visible Bonus paragraph carries
  * its original array index even when an earlier entry is empty and filtered out.
  */
-export type CardEditAddress =
-  | { cardId: CardId; region: 'title'; field: 'title' }
-  | { cardId: CardId; region: 'ribbon'; field: 'symbolValue' | 'ownerName' }
-  | { cardId: CardId; region: 'combat'; field: 'attack' | 'defense' }
-  | { cardId: CardId; region: 'boost'; field: 'boost' | 'boostSymbol' }
+export type CardEditLocation =
+  | { region: 'title'; field: 'title' }
+  | { region: 'ribbon'; field: 'symbolValue' | 'ownerName' }
+  | { region: 'combat'; field: 'attack' | 'defense' }
+  | { region: 'boost'; field: 'boost' | 'boostSymbol' }
   | {
-      cardId: CardId;
       region: AbilitySourceRegion;
       field: AbilityParagraphField;
     }
   | {
-      cardId: CardId;
       region: AbilitySourceRegion;
       field: 'bonus';
       bonusIndex: number;
     }
   | {
-      cardId: CardId;
       region: 'advanced';
       field: 'bonusAttack' | 'boostEffect' | 'tuckEffect' | 'cornerBadge';
     }
-  | { cardId: CardId; region: 'replacement'; field: 'wholeFace' };
+  | { region: 'replacement'; field: 'wholeFace' };
+
+export type CardEditAddress = CardEditLocation & { cardId: CardId };
 
 export type PreviewFieldBehaviour = 'direct' | 'navigate' | 'none';
 
@@ -134,8 +133,85 @@ export const DIRECT_PREVIEW_FIELD_CONTRACT = [
 ] as const satisfies readonly PreviewFieldContract[];
 
 export const CARD_EDIT_MARKERS = {
-  title: 'title:title'
+  title: 'title:title',
+  ownerName: 'ribbon:ownerName',
+  symbolValue: 'ribbon:symbolValue',
+  attack: 'combat:attack',
+  defense: 'combat:defense',
+  boost: 'boost:boost',
+  boostSymbol: 'boost:boostSymbol'
 } as const;
+
+export function cardEditTarget(location: CardEditLocation): string {
+  if (location.field === 'bonus') {
+    return `${location.region}:bonus:${location.bonusIndex}`;
+  }
+  return `${location.region}:${location.field}`;
+}
+
+export function cardEditAddressFromTarget(
+  cardId: CardId,
+  target: string
+): CardEditAddress | null {
+  switch (target) {
+    case CARD_EDIT_MARKERS.title:
+      return { cardId, region: 'title', field: 'title' };
+    case CARD_EDIT_MARKERS.ownerName:
+      return { cardId, region: 'ribbon', field: 'ownerName' };
+    case CARD_EDIT_MARKERS.symbolValue:
+      return { cardId, region: 'ribbon', field: 'symbolValue' };
+    case CARD_EDIT_MARKERS.attack:
+      return { cardId, region: 'combat', field: 'attack' };
+    case CARD_EDIT_MARKERS.defense:
+      return { cardId, region: 'combat', field: 'defense' };
+    case CARD_EDIT_MARKERS.boost:
+      return { cardId, region: 'boost', field: 'boost' };
+    case CARD_EDIT_MARKERS.boostSymbol:
+      return { cardId, region: 'boost', field: 'boostSymbol' };
+  }
+
+  const match = /^(primary-ability|defense-ability):(plain|immediately|duringCombat|afterCombat|bonus)(?::(\d+))?$/.exec(
+    target
+  );
+  if (!match) return null;
+
+  const region = match[1] as AbilitySourceRegion;
+  const field = match[2] as AbilityParagraphField | 'bonus';
+  if (field !== 'bonus') return { cardId, region, field };
+
+  const bonusIndex = Number(match[3]);
+  if (!Number.isSafeInteger(bonusIndex) || bonusIndex < 0) return null;
+  return { cardId, region, field: 'bonus', bonusIndex };
+}
+
+export function cardEditTargetForAddress(address: CardEditAddress): string {
+  return cardEditTarget(address);
+}
+
+export function cardEditAddressLabel(address: CardEditAddress): string {
+  switch (address.region) {
+    case 'title':
+      return 'card title';
+    case 'ribbon':
+      return address.field === 'symbolValue' ? 'combat value' : 'name on the ribbon';
+    case 'combat':
+      return address.field === 'attack' ? 'attack value' : 'defence value';
+    case 'boost':
+      return address.field === 'boost' ? 'boost value' : 'boost symbol';
+    case 'primary-ability':
+    case 'defense-ability': {
+      const side = address.region === 'defense-ability' ? 'defence-side ' : '';
+      if (address.field === 'bonus') return `${side}Bonus ability ${address.bonusIndex + 1}`;
+      if (address.field === 'plain') return `${side}ability text`;
+      if (address.field === 'duringCombat') return `${side}During Combat text`;
+      return `${side}${address.field === 'immediately' ? 'Immediately' : 'After Combat'} text`;
+    }
+    case 'advanced':
+      return address.field;
+    case 'replacement':
+      return 'replacement image';
+  }
+}
 
 export type PreviewEditValue = string | number | null;
 export type PreviewEditInvalidationReason =

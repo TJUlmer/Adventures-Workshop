@@ -8,6 +8,7 @@
    * unaffected either way.
    */
   import { CARD_SYMBOLS, CARD_SYMBOL_LABELS } from '$lib/renderer/assets';
+  import { cardEditTarget, type AbilitySourceRegion } from '$lib/cards/edit-targets';
   import type { CardTheme } from '$lib/cards/style';
   import {
     ABILITY_TIMING_LABELS,
@@ -36,6 +37,8 @@
     originFor: (key: keyof CardTheme) => string;
     /** Author-uploaded glyphs, offered in every block's symbol palette. */
     customSymbols?: CustomSymbol[];
+    /** Distinguishes the primary and split-defence document paths. */
+    sourceRegion: AbilitySourceRegion;
   }
 
   let {
@@ -46,7 +49,8 @@
     onchange,
     resolved,
     originFor,
-    customSymbols = []
+    customSymbols = [],
+    sourceRegion
   }: Props = $props();
 
   const SYMBOL_NAMES = TRADITIONAL_COMBAT_SYMBOLS;
@@ -83,6 +87,7 @@
           placeholder="Plain ability text, printed with no label…"
           onchange={(value) => onchange({ plain: value })}
           {customSymbols}
+          editorTarget={cardEditTarget({ region: sourceRegion, field: 'plain' })}
         />
       </div>
     </div>
@@ -101,6 +106,7 @@
       placeholder="Plain ability text, printed with no label…"
       onchange={(value) => onchange({ plain: value })}
       {customSymbols}
+      editorTarget={cardEditTarget({ region: sourceRegion, field: 'plain' })}
     />
   {/if}
 
@@ -114,6 +120,7 @@
         placeholder="What happens {ABILITY_TIMING_LABELS[timing].toLowerCase()}…"
         onchange={(value) => onchange({ [timing]: value })}
         {customSymbols}
+        editorTarget={cardEditTarget({ region: sourceRegion, field: timing })}
       />
     {/each}
   </div>
@@ -152,6 +159,11 @@
           placeholder="An extra ability, printed below After Combat…"
           onchange={(text) => updateBonus(index, { text })}
           {customSymbols}
+          editorTarget={cardEditTarget({
+            region: sourceRegion,
+            field: 'bonus',
+            bonusIndex: index
+          })}
         />
 
         <!-- A block decoration rather than an insert-at-caret symbol. -->

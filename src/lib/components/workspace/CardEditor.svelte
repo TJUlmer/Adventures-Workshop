@@ -12,7 +12,7 @@
    */
   import { tick } from 'svelte';
   import { cardLabel } from '$lib/cards/factory';
-  import { CARD_EDIT_MARKERS } from '$lib/cards/edit-targets';
+  import { cardEditTargetForAddress } from '$lib/cards/edit-targets';
   import type { CardTheme } from '$lib/cards/style';
   import type { StyleOrigin } from '$lib/cards/theme';
   import {
@@ -85,22 +85,21 @@
     borderBreaksVisible = false;
   });
 
-  /*
-   * Phase 0 proves one complete fallback path. Phase 1 extends the same typed
-   * request and stable target attributes to every supported field.
-   */
+  /* Every preview request resolves through the same typed marker on the existing control. */
   $effect(() => {
     const request = cardEditorView.request;
     if (!request || request.revision === handledTargetRevision) return;
     if (request.address.cardId !== card?.id) return;
     handledTargetRevision = request.revision;
-    if (request.address.region !== 'title' || request.address.field !== 'title') return;
 
     tab = 'content';
-    void tick().then(() => {
+    void tick().then(async () => {
+      await tick();
       if (workshop.selectedCard?.id !== request.address.cardId) return;
+      if (cardEditorView.request?.revision !== request.revision) return;
+      const marker = cardEditTargetForAddress(request.address);
       const target = body?.querySelector<HTMLElement>(
-        `[data-card-editor-target="${CARD_EDIT_MARKERS.title}"]`
+        `[data-card-editor-target="${marker}"]`
       );
       target?.scrollIntoView({ block: 'center', inline: 'nearest' });
       target?.focus({ preventScroll: true });

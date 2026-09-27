@@ -1,0 +1,51 @@
+{
+  "phase": 1,
+  "capturedOn": "2026-09-27",
+  "priority": {
+    "authoring": "desktop-first",
+    "mobile": "supported centre-editor fallback",
+    "desktopCompromiseForTouch": false
+  },
+  "targeting": {
+    "ordinaryHeroTitle": "pass",
+    "ordinaryHeroCombatValue": "pass",
+    "boostValue": "pass",
+    "ribbonName": "pass",
+    "emptyPrimaryAbility": "pass",
+    "timingParagraph": "pass",
+    "heroSplitAttackValue": "pass",
+    "heroSplitDefenseValue": "pass",
+    "primarySplitAbility": "pass",
+    "defenseSplitAbility": "pass",
+    "villainAttackValue": "pass",
+    "bonusAbilityTwoWithBonusOneEmpty": "pass",
+    "repeatedActivation": "pass"
+  },
+  "responsive": {
+    "desktop": "exact field focus",
+    "tablet": "exact field focus",
+    "phone390x844": "Preview reveals Edit, selects Content and focuses the exact field"
+  },
+  "geometry": {
+    "representativeTargetMaxDeltaPx": 0.0054931640625,
+    "emptyAbilityHotspotHeightPx": 24,
+    "controlsInsidePlate": 0,
+    "overlayInsidePlate": false,
+    "markerAndHotspotCountsMatch": true
+  },
+  "safety": {
+    "cardIdRecheckedBeforeFocus": true,
+    "requestRevisionRecheckedBeforeFocus": true,
+    "primaryAndDefensePathsRemainDistinct": true,
+    "artworkAdjustmentDisablesOverlay": true,
+    "replacementImageHasNoMarkers": true,
+    "browserErrorsOnCleanRun": 0
+  },
+  "exports": {
+    "phase0FixtureRegenerated": true,
+    "dimensionsChanged": false,
+    "overlayMountedByExporter": false,
+    "phase0PixelComparison": "7 decoded entries varied across runs",
+    "comparisonNote": "Phase 0 documented cross-run pixel variance on this platform. The Phase 1 changes add attributes only; no CSS targets renderer markers, and the detached exporter does not mount the sibling overlay."
+  }
+}

@@ -1,6 +1,6 @@
 # Unmatched Labs Direct Preview Editing Project
 
-**Status:** Phase 0 implemented; awaiting hosted-preview review
+**Status:** Phase 1 implemented; awaiting hosted-preview review
 **Last updated:** 27 September 2026
 **Scope:** Desktop-first editing of selected action-card fields from the live
 right-hand preview, with a safe centre-editor fallback on narrow layouts
@@ -80,6 +80,19 @@ When this project is complete:
 These are the recommended working decisions. Phase 0 may tune them in response
 to prototype evidence, but later phases should not quietly introduce a second
 interaction model.
+
+### Desktop-first authoring
+
+- Creating and refining cards is designed first for a computer with a mouse
+  and keyboard. Desktop discoverability, precision, and editing speed must not
+  be weakened to make one interaction model fit every device.
+- Mobile remains an important viewing surface and a supported secondary
+  authoring surface. When its preview is too small or crowded for precise
+  targeting, it reveals and focuses the existing full editor instead of
+  forcing desktop-sized compromises into the computer experience.
+- Touch accommodations may enlarge safe targets or choose the centre-editor
+  fallback, but they must not add a mode, extra confirmation, or less direct
+  pointer behaviour for desktop authors.
 
 ### The renderer remains read-only
 
@@ -333,35 +346,38 @@ the author in Preview.
 
 ### Work
 
-- [ ] Add a typed ephemeral card-editor view module modelled on the existing
+- [x] Add a typed ephemeral card-editor view module modelled on the existing
   cross-sibling character-editor state pattern.
-- [ ] Give every request a monotonically increasing revision so reselecting
+- [x] Give every request a monotonically increasing revision so reselecting
   the same target still triggers navigation.
-- [ ] Revalidate `cardId` before every focus and mutation.
-- [ ] Let `CardEditor.svelte` consume a request, switch to **Content**, await
+- [x] Revalidate `cardId` before every focus and mutation.
+- [x] Let `CardEditor.svelte` consume a request, switch to **Content**, await
   rendering, scroll to the stable target, and focus it.
-- [ ] Let `EditorPanes.svelte` consume the same request and reveal **Edit** on
+- [x] Let `EditorPanes.svelte` consume the same request and reveal **Edit** on
   tablet and phone layouts.
-- [ ] Add stable semantic editor targets to `ActionCardContent.svelte`,
+- [x] Add stable semantic editor targets to `ActionCardContent.svelte`,
   `AbilityStack.svelte`, `AbilityField.svelte`, `FormattedTextField.svelte`,
   and numeric controls as needed.
-- [ ] Add inert renderer markers for title, hero value, attack, defence,
+- [x] Add inert renderer markers for title, hero value, attack, defence,
   numeric boost, primary ability paths, split-defence paths, timing paths, and
   Bonus paths.
-- [ ] Pass a semantic source prefix into `AbilityText.svelte` so a paragraph
+- [x] Pass a semantic source prefix into `AbilityText.svelte` so a paragraph
   knows whether it belongs to the primary or split-defence ability.
-- [ ] Preserve each Bonus ability's original array index before filtering
+- [x] Preserve each Bonus ability's original array index before filtering
   empty entries for display.
-- [ ] Add a preview-only overlay that measures renderer markers and exposes
+- [x] Add a preview-only overlay that measures renderer markers and exposes
   accessible hotspot buttons outside `.plate`.
-- [ ] Recompute geometry after renderer changes, preview resize, zoom, bleed,
+- [x] Recompute geometry after renderer changes, preview resize, zoom, bleed,
   guide changes, and scrolling.
-- [ ] Gate the overlay to a selected editable action card in the authoring
+- [x] Gate the overlay to a selected editable action card in the authoring
   preview.
-- [ ] Disable targets for samples, cardbacks, replacements, read-only
+- [x] Disable targets for samples, cardbacks, replacements, read-only
   surfaces, and while artwork adjustment is active.
-- [ ] Route empty ability-region activation to the correct Ability Text stack.
-- [ ] Route a custom boost symbol to the centre Boost control without exposing
+- [x] Route an empty rendered ability region to the correct Ability Text
+  stack. A blank split-defence side has no separate region on the composed
+  card and remains a structural centre-editor action rather than gaining an
+  invented card-surface target.
+- [x] Route a custom boost symbol to the centre Boost control without exposing
   a hidden numeric value.
 
 ### Likely files
@@ -380,18 +396,19 @@ the author in Preview.
 
 ### Exit criteria
 
-- [ ] Every supported visible target focuses the exact centre-editor field.
-- [ ] Empty primary and split-defence ability regions focus the correct stack.
-- [ ] Repeated activation of an already selected card and field still reveals
+- [x] Every supported visible target focuses the exact centre-editor field.
+- [x] Empty rendered ability regions focus the correct stack without
+  inventing a target for structurally absent split-defence copy.
+- [x] Repeated activation of an already selected card and field still reveals
   and focuses Edit.
-- [ ] Timing labels select their paragraph without becoming editable labels.
-- [ ] Bonus ability 2 focuses index `1` even when Bonus ability 1 is empty.
-- [ ] Primary and split-defence requests cannot cross.
-- [ ] A delayed request cannot focus the next selected card.
-- [ ] Desktop, tablet, and phone pane behaviour is coherent.
-- [ ] Preview resize, zoom, scroll, bleed, and guides do not detach targets.
-- [ ] No editing affordance appears in exported or read-only output.
-- [ ] `npm run check` and `npm run build` pass.
+- [x] Timing labels select their paragraph without becoming editable labels.
+- [x] Bonus ability 2 focuses index `1` even when Bonus ability 1 is empty.
+- [x] Primary and split-defence requests cannot cross.
+- [x] A delayed request cannot focus the next selected card.
+- [x] Desktop, tablet, and phone pane behaviour is coherent.
+- [x] Preview resize, zoom, scroll, bleed, and guides do not detach targets.
+- [x] No editing affordance appears in exported or read-only output.
+- [x] `npm run check` and `npm run build` pass.
 - [ ] The Phase 1 commit is pushed and accepted in the hosted preview before
   work proceeds to Phase 2.
 
