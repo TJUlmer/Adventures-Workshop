@@ -363,24 +363,26 @@ keyboard.
 
 ### Work
 
-- [ ] Store a cloned selection range whenever `selectionchange` reports a
+- [x] Store a cloned selection range whenever `selectionchange` reports a
   range inside the editor.
-- [ ] Restore the saved range before applying toolbar formatting if the
+- [x] Restore the saved range before applying toolbar formatting if the
   browser cleared it.
-- [ ] Move mouse-specific toolbar behaviour to pointer-safe handling.
-- [ ] Do not interfere with long-press selection handles or IME composition.
-- [ ] Use a horizontally scrolling toolbar or a compact primary row plus a
+- [x] Move mouse-specific toolbar behaviour to pointer-safe handling.
+- [x] Do not interfere with long-press selection handles or IME composition.
+- [x] Use a horizontally scrolling toolbar or a compact primary row plus a
   More panel.
-- [ ] Give formatting and symbol controls coarse-pointer hit areas.
-- [ ] Preserve the “Select text to resize” explanation.
-- [ ] Insert symbols at the last intended caret even if the keyboard briefly
+- [x] Give formatting and symbol controls coarse-pointer hit areas.
+- [x] Preserve the “Select text to resize” explanation.
+- [x] Insert symbols at the last intended caret even if the keyboard briefly
   closes.
 
 ### Likely files
 
 - `src/lib/ui/RichTextEditor.svelte`
-- `src/lib/ui/SymbolPalette.svelte`
-- Any shared rich-text selection helper introduced by the work
+- `src/lib/components/workspace/FormattedTextField.svelte`
+- `src/lib/components/workspace/AbilityField.svelte`
+- `src/lib/components/workspace/SymbolPalette.svelte`
+- `src/lib/ui/contenteditable-selection.ts`
 
 ### Exit criteria
 
@@ -391,7 +393,13 @@ On physical iOS Safari and Android Chrome, an author can:
 - [ ] Continue changing the same selection without unexpected collapse.
 - [ ] Insert built-in and custom symbols at the intended caret.
 - [ ] Close and reopen the keyboard without losing text or corrupting markup.
-- [ ] Use the same toolbar with keyboard and mouse on desktop.
+- [x] Use the same toolbar with keyboard and mouse on desktop.
+
+Automated Chromium checks at 390×844 and 1440×900 cover selection restoration,
+repeated formatting, toolbar scrolling, symbol order, and desktop mouse and
+keyboard activation. The physical iOS Safari and Android Chrome criteria above
+remain open for native long-press handles, software keyboards, colour pickers,
+and IME composition.
 
 ---
 

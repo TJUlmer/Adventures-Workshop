@@ -59,7 +59,9 @@ export function readTextSize(style: string | null | undefined): number | null {
   for (const declaration of declarations(style)) {
     const match = SIZE_DECLARATION.exec(declaration);
     if (!match) continue;
-    const percent = Number(match[1]) * 100;
+    // Decimal multipliers such as 1.1 otherwise surface as
+    // 110.00000000000001 in the editor's numeric control.
+    const percent = Number((Number(match[1]) * 100).toFixed(3));
     if (percent >= TEXT_SIZE.min && percent <= TEXT_SIZE.max) return percent;
   }
   return null;

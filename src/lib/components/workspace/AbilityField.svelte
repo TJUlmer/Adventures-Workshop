@@ -55,7 +55,10 @@
   // `untrack`: this seeds the field once and the effect below owns every
   // sync after it, the same deliberate one-time read `PreviewPanel` marks
   // the same way for its zoom.
-  let display = $state(untrack(() => toDisplayTokens(value, customSymbols)));
+  const initialDisplay = untrack(() => toDisplayTokens(value, customSymbols));
+  let display = $state(initialDisplay);
+  let savedSelectionStart = initialDisplay.length;
+  let savedSelectionEnd = initialDisplay.length;
 
   /*
    * Re-render only when `display` has stopped being a *view* of `value`.
@@ -74,9 +77,19 @@
   $effect(() => {
     const incoming = toDisplayTokens(value, customSymbols);
     untrack(() => {
-      if (toStoredTokens(display, customSymbols) !== value) display = incoming;
+      if (toStoredTokens(display, customSymbols) !== value) {
+        display = incoming;
+        savedSelectionStart = incoming.length;
+        savedSelectionEnd = incoming.length;
+      }
     });
   });
+
+  function rememberSelection(): void {
+    if (!field) return;
+    savedSelectionStart = field.selectionStart;
+    savedSelectionEnd = field.selectionEnd;
+  }
 
   function emit(next: string): void {
     display = next;
@@ -121,10 +134,12 @@
 
     const { text, caret } = insertToken(
       display,
-      element.selectionStart,
-      element.selectionEnd,
+      Math.min(savedSelectionStart, display.length),
+      Math.min(savedSelectionEnd, display.length),
       token
     );
+    savedSelectionStart = caret;
+    savedSelectionEnd = caret;
     emit(text);
 
     // Restore the caret after Svelte writes the new value back.
@@ -169,7 +184,15 @@
     {rows}
     {placeholder}
     aria-label={label}
-    oninput={(event) => emit(event.currentTarget.value)}
+    onfocus={rememberSelection}
+    onblur={rememberSelection}
+    onselect={rememberSelection}
+    onpointerup={rememberSelection}
+    onkeyup={rememberSelection}
+    oninput={(event) => {
+      emit(event.currentTarget.value);
+      rememberSelection();
+    }}
     onkeydown={handleKeydown}
   ></textarea>
 </div>
@@ -180,6 +203,7 @@
     display: flex;
     flex-direction: column;
     gap: var(--space-2);
+    min-width: 0;
   }
 
   .head {
@@ -187,10 +211,12 @@
     align-items: center;
     justify-content: space-between;
     gap: var(--space-3);
+    min-width: 0;
     min-height: 22px;
   }
 
   .label {
+    flex: none;
     font-size: var(--text-2xs);
     font-weight: var(--weight-semibold);
     letter-spacing: var(--tracking-caps);
@@ -200,7 +226,11 @@
 
   .tools {
     display: flex;
+    flex: 1 1 auto;
     align-items: center;
+    justify-content: flex-end;
+    min-width: 0;
+    overflow: hidden;
     gap: var(--space-2);
   }
 
@@ -218,6 +248,7 @@
   .remove {
     display: grid;
     place-items: center;
+    flex: none;
     width: 20px;
     height: 20px;
     border-radius: var(--radius-xs);

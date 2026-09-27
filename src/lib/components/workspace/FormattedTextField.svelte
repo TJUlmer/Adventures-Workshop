@@ -5,6 +5,14 @@
   import { actionTextIsEmpty, sanitizeActionText } from '$lib/text/action-text';
   import { toDisplayTokens, toStoredTokens } from '$lib/text/tokens';
   import { Icon } from '$lib/ui';
+  import {
+    installSelectionRange,
+    rangeAtEnd,
+    rangeFromOffsets,
+    rangeInside,
+    selectionOffsets,
+    selectionRangeInside
+  } from '$lib/ui/contenteditable-selection';
   import SymbolPalette from './SymbolPalette.svelte';
 
   interface Props {
@@ -49,6 +57,8 @@
 
   let editor = $state<HTMLDivElement | null>(null);
   let display = $state(untrack(() => toDisplayTokens(cleanValue(value), customSymbols)));
+  let composing = false;
+  let savedRange: Range | null = null;
 
   /*
    * The stored-token round trip distinguishes a local edit from a card switch,
@@ -60,79 +70,79 @@
     const element = editor;
     untrack(() => {
       if (toStoredTokens(display, customSymbols) !== value) display = incoming;
-      if (element && element.innerHTML !== display) element.innerHTML = display;
+      if (element && element.innerHTML !== display) {
+        element.innerHTML = display;
+        savedRange = null;
+      }
     });
   });
 
-  function offsetWithin(root: Node, container: Node, offset: number): number {
-    const range = document.createRange();
-    range.selectNodeContents(root);
-    range.setEnd(container, offset);
-    return range.toString().length;
+  function rememberedRange(): Range | null {
+    if (!editor || !savedRange || !rangeInside(editor, savedRange)) {
+      savedRange = null;
+      return null;
+    }
+    return savedRange.cloneRange();
   }
 
-  function pointAtOffset(root: Node, target: number): { node: Node; offset: number } {
-    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
-    let remaining = target;
-    let last: Text | null = null;
-    for (let node = walker.nextNode(); node; node = walker.nextNode()) {
-      const text = node as Text;
-      if (remaining <= text.data.length) return { node: text, offset: remaining };
-      remaining -= text.data.length;
-      last = text;
-    }
-    return last ? { node: last, offset: last.data.length } : { node: root, offset: 0 };
+  function restoreEditorSelection(fallbackToEnd = false): Range | null {
+    if (!editor) return null;
+    const live = selectionRangeInside(editor);
+    let range =
+      (document.activeElement === editor ? live : null) ?? rememberedRange() ?? live;
+    editor.focus({ preventScroll: true });
+    range ??= selectionRangeInside(editor);
+    range ??= fallbackToEnd ? rangeAtEnd(editor) : null;
+    if (!range) return null;
+    const installed = installSelectionRange(editor, range);
+    savedRange = installed?.cloneRange() ?? null;
+    return installed;
   }
 
   function commit(): void {
-    if (!editor) return;
+    if (!editor || composing) return;
+    const liveRange = selectionRangeInside(editor);
+    const range = liveRange ?? rememberedRange();
+    const preserved = range ? selectionOffsets(editor, range) : null;
     const clean = cleanValue(editor.innerHTML);
 
     if (clean !== editor.innerHTML) {
-      const selection = window.getSelection();
-      const range = selection && selection.rangeCount > 0 ? selection.getRangeAt(0) : null;
-      const preserved =
-        range && editor.contains(range.startContainer) && editor.contains(range.endContainer)
-          ? {
-              start: offsetWithin(editor, range.startContainer, range.startOffset),
-              end: offsetWithin(editor, range.endContainer, range.endOffset)
-            }
-          : null;
-
       editor.innerHTML = clean;
-      if (preserved && selection) {
-        const start = pointAtOffset(editor, preserved.start);
-        const end = pointAtOffset(editor, preserved.end);
-        const kept = document.createRange();
-        kept.setStart(start.node, start.offset);
-        kept.setEnd(end.node, end.offset);
-        selection.removeAllRanges();
-        selection.addRange(kept);
+      if (preserved) {
+        const kept = rangeFromOffsets(editor, preserved);
+        savedRange = kept.cloneRange();
+        if (liveRange) installSelectionRange(editor, kept);
       }
     }
 
+    const current = selectionRangeInside(editor);
+    if (current) savedRange = current.cloneRange();
     display = clean;
     onchange(toStoredTokens(clean, customSymbols));
   }
 
   function exec(command: 'bold' | 'italic'): void {
-    editor?.focus();
+    restoreEditorSelection();
     document.execCommand(command, false);
     commit();
   }
 
   function insert(token: string): void {
     if (!editor) return;
-    const selection = window.getSelection();
-    const range = selection && selection.rangeCount > 0 ? selection.getRangeAt(0) : null;
-    if (!range || !editor.contains(range.startContainer) || !editor.contains(range.endContainer)) {
-      editor.append(document.createTextNode(token));
-    } else {
-      editor.focus();
-      document.execCommand('insertText', false, token);
-    }
+    restoreEditorSelection(true);
+    document.execCommand('insertText', false, token);
     commit();
   }
+
+  $effect(() => {
+    const captureSelection = (): void => {
+      if (!editor) return;
+      const range = selectionRangeInside(editor);
+      if (range && document.activeElement === editor) savedRange = range.cloneRange();
+    };
+    document.addEventListener('selectionchange', captureSelection);
+    return () => document.removeEventListener('selectionchange', captureSelection);
+  });
 
   function handleKeydown(event: KeyboardEvent): void {
     if (event.key !== 'Enter' || event.isComposing) return;
@@ -179,7 +189,14 @@
     data-placeholder={placeholder}
     spellcheck={multiline}
     style:min-height={multiline ? `${rows * 20 + 18}px` : undefined}
-    oninput={commit}
+    oncompositionstart={() => (composing = true)}
+    oncompositionend={() => {
+      composing = false;
+      commit();
+    }}
+    oninput={() => {
+      if (!composing) commit();
+    }}
     onkeydown={handleKeydown}
     onpaste={handlePaste}
   ></div>
@@ -208,9 +225,10 @@
 
   .tools {
     flex: 1 1 auto;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
     justify-content: flex-end;
     min-width: 0;
+    overflow: hidden;
     margin-left: auto;
     gap: 1px;
   }
@@ -232,6 +250,7 @@
   .remove {
     display: grid;
     place-items: center;
+    flex: none;
     width: 20px;
     height: 22px;
     border-radius: var(--radius-xs);

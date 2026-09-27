@@ -27,6 +27,14 @@
     textSizeStyle
   } from '$lib/text/rich-text';
   import Icon from './Icon.svelte';
+  import {
+    installSelectionRange,
+    rangeAtEnd,
+    rangeFromOffsets,
+    rangeInside,
+    selectionOffsets,
+    selectionRangeInside
+  } from './contenteditable-selection';
 
   interface Props {
     value: string;
@@ -47,6 +55,8 @@
 
   let editor = $state<HTMLDivElement | null>(null);
   let focused = $state(false);
+  let composing = false;
+  let savedRange: Range | null = null;
 
   /**
    * Only write back into the DOM when the incoming value is not what the field
@@ -54,38 +64,55 @@
    */
   $effect(() => {
     const html = value;
-    if (editor && editor.innerHTML !== html) editor.innerHTML = html;
+    if (editor && editor.innerHTML !== html) {
+      editor.innerHTML = html;
+      savedRange = null;
+      resetSelectionFormatting();
+    }
   });
 
   const isEmpty = $derived(value.trim().length === 0);
 
-  /**
-   * A plain character count from the start of `root` to `(container, offset)`
-   * — `Range.toString()` already walks the DOM the same way a caret would, so
-   * this is simpler than hand-rolling the walk. Used to survive `commit()`'s
-   * own DOM rebuild below: node identity does not, since that rebuild throws
-   * every existing node away, but a character offset means the same thing
-   * before and after, because sanitising never changes the text itself.
-   */
-  function offsetWithin(root: Node, container: Node, offset: number): number {
-    const range = document.createRange();
-    range.selectNodeContents(root);
-    range.setEnd(container, offset);
-    return range.toString().length;
+  function rememberedRange(): Range | null {
+    if (!editor || !savedRange || !rangeInside(editor, savedRange)) {
+      savedRange = null;
+      return null;
+    }
+    return savedRange.cloneRange();
   }
 
-  /** The inverse of `offsetWithin`: the text-node/offset pair `target` characters in. */
-  function pointAtOffset(root: Node, target: number): { node: Node; offset: number } {
-    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
-    let remaining = target;
-    let last: Text | null = null;
-    for (let node = walker.nextNode(); node; node = walker.nextNode()) {
-      const text = node as Text;
-      if (remaining <= text.data.length) return { node: text, offset: remaining };
-      remaining -= text.data.length;
-      last = text;
-    }
-    return last ? { node: last, offset: last.data.length } : { node: root, offset: 0 };
+  function editorSelectionRange(fallbackToEnd = false): Range | null {
+    if (!editor) return null;
+    const live = selectionRangeInside(editor);
+    return (
+      (document.activeElement === editor ? live : null) ??
+      rememberedRange() ??
+      live ??
+      (fallbackToEnd ? rangeAtEnd(editor) : null)
+    );
+  }
+
+  function detachLiveSelectionFromToolbar(): void {
+    if (!editor || document.activeElement === editor || !selectionRangeInside(editor)) return;
+    window.getSelection()?.removeAllRanges();
+  }
+
+  /**
+   * Toolbar focus is allowed to move naturally on touch. The cloned editor
+   * range is installed afterwards, before the command runs, so mobile Safari
+   * cannot redirect formatting to whichever caret it kept after closing the
+   * keyboard. Native range/colour inputs can ask not to reclaim focus.
+   */
+  function restoreEditorSelection(focusEditor = true, fallbackToEnd = false): Range | null {
+    if (!editor) return null;
+    let range = editorSelectionRange();
+    if (focusEditor) editor.focus({ preventScroll: true });
+    range ??= selectionRangeInside(editor);
+    range ??= fallbackToEnd ? rangeAtEnd(editor) : null;
+    if (!range) return null;
+    const installed = installSelectionRange(editor, range);
+    savedRange = installed?.cloneRange() ?? null;
+    return installed;
   }
 
   /**
@@ -100,38 +127,33 @@
    * triggered it, including a browser-injected span (spellcheck, an
    * extension) this sanitiser was always going to strip anyway.
    */
-  function commit(): void {
-    if (!editor) return;
+  function commit(preferredRange: Range | null = null, restoreLiveSelection = true): void {
+    if (!editor || composing) return;
+    const liveRange = selectionRangeInside(editor);
+    const preferred =
+      preferredRange && rangeInside(editor, preferredRange) ? preferredRange.cloneRange() : null;
+    const range = preferred ?? liveRange ?? rememberedRange();
+    const preserved = range ? selectionOffsets(editor, range) : null;
     const clean = sanitizeRichText(editor.innerHTML);
     if (clean !== editor.innerHTML) {
-      const selection = window.getSelection();
-      const range =
-        selection && selection.rangeCount > 0 ? selection.getRangeAt(0) : null;
-      const preserved =
-        range && editor.contains(range.startContainer) && editor.contains(range.endContainer)
-          ? {
-              start: offsetWithin(editor, range.startContainer, range.startOffset),
-              end: offsetWithin(editor, range.endContainer, range.endOffset)
-            }
-          : null;
-
       editor.innerHTML = clean;
-
-      if (preserved && selection) {
-        const start = pointAtOffset(editor, preserved.start);
-        const end = pointAtOffset(editor, preserved.end);
-        const kept = document.createRange();
-        kept.setStart(start.node, start.offset);
-        kept.setEnd(end.node, end.offset);
-        selection.removeAllRanges();
-        selection.addRange(kept);
+      if (preserved) {
+        const kept = rangeFromOffsets(editor, preserved);
+        savedRange = kept.cloneRange();
+        if (restoreLiveSelection && liveRange) installSelectionRange(editor, kept);
       }
+    } else if (preferred) {
+      savedRange = preferred.cloneRange();
     }
+    const current = restoreLiveSelection ? selectionRangeInside(editor) : null;
+    if (current) savedRange = current.cloneRange();
+    const formattingRange = current ?? rememberedRange();
+    if (formattingRange) syncSelectionFormatting(formattingRange);
     onchange(clean);
   }
 
   function exec(command: string): void {
-    editor?.focus();
+    restoreEditorSelection(true);
     document.execCommand(command, false);
     commit();
   }
@@ -174,7 +196,7 @@
   const SYMBOL_NAMES = INSERTABLE_TEXT_SYMBOL_NAMES;
 
   function setBlock(tag: string): void {
-    editor?.focus();
+    restoreEditorSelection(true);
     document.execCommand('formatBlock', false, tag);
     commit();
   }
@@ -184,21 +206,20 @@
   let color = $state<string | null>(null);
   let hasTextSelection = $state(false);
 
+  function resetSelectionFormatting(): void {
+    size = TEXT_SIZE.normal;
+    color = null;
+    hasTextSelection = false;
+  }
+
   /** One walk up from the caret answers both, rather than one each. */
-  function syncSelectionFormatting(): void {
-    const selection = window.getSelection();
-    if (!editor || !selection || selection.rangeCount === 0) {
-      size = TEXT_SIZE.normal;
-      color = null;
-      hasTextSelection = false;
+  function syncSelectionFormatting(range: Range): void {
+    if (!editor || !rangeInside(editor, range)) {
+      resetSelectionFormatting();
       return;
     }
 
-    const range = selection.getRangeAt(0);
-    hasTextSelection =
-      !selection.isCollapsed &&
-      editor.contains(range.startContainer) &&
-      editor.contains(range.endContainer);
+    hasTextSelection = !range.collapsed;
     /*
      * A text-node caret's `startContainer` already *is* the node to read from,
      * but `applySize`/`applyColor` select the wrapping span with `selectNode`
@@ -210,18 +231,35 @@
      * if it had not applied. Index in only when `startContainer` is an
      * element and really does have a child there.
      */
-    let node: Node | null =
+    const indexedChild =
       range.startContainer.nodeType === Node.ELEMENT_NODE
-        ? (range.startContainer.childNodes[range.startOffset] ?? range.startContainer)
-        : range.startContainer;
+        ? (range.startContainer.childNodes[range.startOffset] ?? null)
+        : null;
+    let node: Node | null = indexedChild ?? range.startContainer;
     let foundSize: number | null = null;
     let foundColor: string | null = null;
-    while (node && node !== editor && (foundSize === null || foundColor === null)) {
-      if (node.nodeType === Node.ELEMENT_NODE) {
-        const style = (node as Element).getAttribute('style');
-        if (foundSize === null) foundSize = readTextSize(style);
-        if (foundColor === null) foundColor = readTextColor(style);
+
+    const readFormatting = (candidate: Node): void => {
+      if (candidate.nodeType !== Node.ELEMENT_NODE) return;
+      const style = (candidate as Element).getAttribute('style');
+      if (foundSize === null) foundSize = readTextSize(style);
+      if (foundColor === null) foundColor = readTextColor(style);
+    };
+
+    // `selectNode()` puts the range around a wrapper. Read down its first
+    // content branch as well as up through its ancestors so a coloured span
+    // wrapped around a sized run reports both values on the next adjustment.
+    if (indexedChild) {
+      const branch: Node[] = [];
+      for (let current: Node | null = indexedChild; current; current = current.firstChild) {
+        branch.push(current);
       }
+      for (const current of branch.reverse()) readFormatting(current);
+      node = indexedChild.parentNode;
+    }
+
+    while (node && node !== editor && (foundSize === null || foundColor === null)) {
+      readFormatting(node);
       node = node.parentNode;
     }
     size = foundSize ?? TEXT_SIZE.normal;
@@ -230,14 +268,27 @@
 
   /**
    * `selectionchange` is the only event that fires for every way a caret can
-   * move — keys, mouse, and the browser's own adjustments after an edit.
+   * move — keys, touch handles, mouse, and browser adjustments after an edit.
+   * A range outside this editor is deliberately ignored: tapping a toolbar
+   * control must not discard the last intentional editor selection.
    */
   $effect(() => {
-    if (!focused) return;
-    document.addEventListener('selectionchange', syncSelectionFormatting);
-    syncSelectionFormatting();
-    return () => document.removeEventListener('selectionchange', syncSelectionFormatting);
+    const captureSelection = (): void => {
+      if (!editor) return;
+      const range = selectionRangeInside(editor);
+      if (!range || document.activeElement !== editor) return;
+      savedRange = range.cloneRange();
+      syncSelectionFormatting(range);
+    };
+    document.addEventListener('selectionchange', captureSelection);
+    return () => document.removeEventListener('selectionchange', captureSelection);
   });
+
+  function preserveSelectionForPointer(event: PointerEvent): void {
+    // Mouse users expect toolbar clicks not to move focus. Touch and pen keep
+    // their native defaults so horizontal scrolling and selection handles work.
+    if (event.pointerType === 'mouse' && event.button === 0) event.preventDefault();
+  }
 
   function isMarkerSpan(el: Element): boolean {
     return [...el.classList].some(
@@ -245,44 +296,50 @@
     );
   }
 
+  function isInlineFormattingWrapper(el: Element): boolean {
+    return isMarkerSpan(el) || ['B', 'STRONG', 'I', 'EM', 'U', 'S'].includes(el.tagName);
+  }
+
   /**
-   * The outermost marker-span ancestor whose content starts exactly at
-   * `(node, offset)`, climbing through as many nested ancestors — marker or
-   * not — as sit at that same boundary, so a marker span two levels up from
-   * a `<b>` the boundary also happens to start at is still found. `null` if
-   * there is no such ancestor at all, or if `(node, offset)` is not even at
-   * the start of `node` itself.
+   * Find the outermost inline-formatting ancestor that starts at this exact
+   * boundary. Preserving the whole wrapper matters when another format is
+   * layered over it; extracting only its text would strand an empty shell.
    */
-  function outermostMarkerAtStart(node: Node, offset: number, root: Node): Element | null {
-    if (offset !== 0) return null;
-    let result: Element | null = null;
-    let current: Node = node;
+  function outermostFormattingAtStart(node: Node, offset: number, root: Node): Element | null {
+    const indexedChild =
+      node.nodeType === Node.ELEMENT_NODE ? (node.childNodes[offset] ?? null) : null;
+    if (!indexedChild && offset !== 0) return null;
+    let current: Node = indexedChild ?? node;
+    let result: Element | null =
+      current instanceof Element && isInlineFormattingWrapper(current) ? current : null;
     for (;;) {
       const parent: Node | null = current.parentNode;
       if (!parent || parent === root || parent.firstChild !== current) return result;
-      if (parent instanceof Element && isMarkerSpan(parent)) result = parent;
+      if (parent instanceof Element && isInlineFormattingWrapper(parent)) result = parent;
       current = parent;
     }
   }
 
-  /** The end-boundary counterpart of `outermostMarkerAtStart`. */
-  function outermostMarkerAtEnd(node: Node, offset: number, root: Node): Element | null {
+  /** The end-boundary counterpart of `outermostFormattingAtStart`. */
+  function outermostFormattingAtEnd(node: Node, offset: number, root: Node): Element | null {
     const length = node.nodeType === Node.TEXT_NODE ? (node as Text).data.length : node.childNodes.length;
-    if (offset !== length) return null;
-    let result: Element | null = null;
-    let current: Node = node;
+    const indexedChild =
+      node.nodeType === Node.ELEMENT_NODE && offset > 0 ? (node.childNodes[offset - 1] ?? null) : null;
+    if (!indexedChild && offset !== length) return null;
+    let current: Node = indexedChild ?? node;
+    let result: Element | null =
+      current instanceof Element && isInlineFormattingWrapper(current) ? current : null;
     for (;;) {
       const parent: Node | null = current.parentNode;
       if (!parent || parent === root || parent.lastChild !== current) return result;
-      if (parent instanceof Element && isMarkerSpan(parent)) result = parent;
+      if (parent instanceof Element && isInlineFormattingWrapper(parent)) result = parent;
       current = parent;
     }
   }
 
   /**
-   * If `range` exactly spans one or more marker spans' full content — size,
-   * colour, or a legacy size class — widen it to select those spans
-   * themselves rather than just their text. Otherwise `extractContents()`
+   * If `range` exactly spans one or more inline formatting wrappers, widen it
+   * to select those wrappers themselves rather than just their text. Otherwise `extractContents()`
    * below takes only the text and leaves an empty wrapper shell behind in
    * the live DOM: neither the strip loop after it (which only inspects what
    * actually got extracted) nor the sanitiser (which only unwraps a span
@@ -293,11 +350,11 @@
    * reset to normal with the old size still in effect, on an outer span the
    * new, now-unwrapped run had moved out from under.
    */
-  function widenToMarkerAncestors(range: Range, root: Node): void {
-    const startMarker = outermostMarkerAtStart(range.startContainer, range.startOffset, root);
-    if (startMarker) range.setStartBefore(startMarker);
-    const endMarker = outermostMarkerAtEnd(range.endContainer, range.endOffset, root);
-    if (endMarker) range.setEndAfter(endMarker);
+  function widenToFormattingAncestors(range: Range, root: Node): void {
+    const startWrapper = outermostFormattingAtStart(range.startContainer, range.startOffset, root);
+    if (startWrapper) range.setStartBefore(startWrapper);
+    const endWrapper = outermostFormattingAtEnd(range.endContainer, range.endOffset, root);
+    if (endWrapper) range.setEndAfter(endWrapper);
   }
 
   /**
@@ -308,13 +365,13 @@
    * over: setting a size means the selection *is* that size.
    */
   function applySize(percent: number): void {
-    editor?.focus();
-    const selection = window.getSelection();
-    if (!selection || selection.rangeCount === 0 || selection.isCollapsed || !editor) return;
+    if (!editor) return;
+    const range = editorSelectionRange();
+    if (!range || range.collapsed) return;
+    detachLiveSelectionFromToolbar();
 
     const next = clampTextSize(percent);
-    const range = selection.getRangeAt(0);
-    widenToMarkerAncestors(range, editor);
+    widenToFormattingAncestors(range, editor);
     const fragment = range.extractContents();
 
     for (const element of fragment.querySelectorAll(`.${TEXT_SIZE_CLASS}, [class*="size-"]`)) {
@@ -347,11 +404,10 @@
     // `--size` on the untouched outer span.
     const kept = document.createRange();
     kept.selectNode(holder);
-    selection.removeAllRanges();
-    selection.addRange(kept);
+    savedRange = kept.cloneRange();
 
     size = next;
-    commit();
+    commit(kept, false);
   }
 
   /**
@@ -365,12 +421,12 @@
    * "back to normal" shape `applySize(TEXT_SIZE.normal)` uses.
    */
   function applyColor(hex: string | null): void {
-    editor?.focus();
-    const selection = window.getSelection();
-    if (!selection || selection.rangeCount === 0 || selection.isCollapsed || !editor) return;
+    if (!editor) return;
+    const range = editorSelectionRange();
+    if (!range || range.collapsed) return;
+    detachLiveSelectionFromToolbar();
 
-    const range = selection.getRangeAt(0);
-    widenToMarkerAncestors(range, editor);
+    widenToFormattingAncestors(range, editor);
     const fragment = range.extractContents();
 
     for (const element of fragment.querySelectorAll(`.${TEXT_COLOR_CLASS}`)) {
@@ -391,15 +447,14 @@
     // `applySize` for why that distinction is load-bearing here.
     const kept = document.createRange();
     kept.selectNode(holder);
-    selection.removeAllRanges();
-    selection.addRange(kept);
+    savedRange = kept.cloneRange();
 
     color = hex;
-    commit();
+    commit(kept, false);
   }
 
 	function insertSymbol(name: InsertableTextSymbolName): void {
-    editor?.focus();
+    restoreEditorSelection(true, true);
     document.execCommand(
       'insertHTML',
       false,
@@ -416,7 +471,7 @@
    */
   function insertCustomSymbol(symbol: CustomSymbol): void {
     if (!symbol.source) return;
-    editor?.focus();
+    restoreEditorSelection(true, true);
     const label = customSymbolLabel(symbol);
     document.execCommand(
       'insertHTML',
@@ -435,7 +490,7 @@
         class="tool"
         title={tool.label}
         aria-label={tool.label}
-        onmousedown={(event) => event.preventDefault()}
+        onpointerdown={preserveSelectionForPointer}
         onclick={() => exec(tool.command)}
       >
         <Icon name={tool.icon} size={13} />
@@ -450,7 +505,7 @@
         class="tool"
         title={tool.label}
         aria-label={tool.label}
-        onmousedown={(event) => event.preventDefault()}
+        onpointerdown={preserveSelectionForPointer}
         onclick={() => exec(tool.command)}
       >
         <Icon name={tool.icon} size={13} />
@@ -464,7 +519,7 @@
         type="button"
         class="tool text"
         title="{block.label} paragraph"
-        onmousedown={(event) => event.preventDefault()}
+        onpointerdown={preserveSelectionForPointer}
         onclick={() => setBlock(block.tag)}
       >
         {block.label}
@@ -489,7 +544,6 @@
         aria-label="Text size, per cent"
         disabled={!hasTextSelection}
         style:--fill="{(((size - TEXT_SIZE.min) / (TEXT_SIZE.max - TEXT_SIZE.min)) * 100).toFixed(2)}%"
-        onmousedown={(event) => event.stopPropagation()}
         oninput={(event) => applySize(event.currentTarget.valueAsNumber)}
       />
 
@@ -502,7 +556,6 @@
         value={size}
         aria-label="Text size, per cent"
         disabled={!hasTextSelection}
-        onmousedown={(event) => event.stopPropagation()}
         onchange={(event) => applySize(event.currentTarget.valueAsNumber || TEXT_SIZE.normal)}
       />
       <span class="size-unit">%</span>
@@ -512,7 +565,7 @@
         class="tool text"
         title="Back to the card’s own size"
         disabled={!hasTextSelection}
-        onmousedown={(event) => event.preventDefault()}
+        onpointerdown={preserveSelectionForPointer}
         onclick={() => applySize(TEXT_SIZE.normal)}
       >
         Reset
@@ -531,12 +584,17 @@
       hollow ring when nothing here overrides the field's default.
     -->
     <div class="color-tool" title="Text colour — applies to the selection">
-      <label class="swatch" class:empty={color === null} style:--swatch={color ?? 'transparent'}>
+      <label
+        class="swatch"
+        class:empty={color === null}
+        class:disabled={!hasTextSelection}
+        style:--swatch={color ?? 'transparent'}
+      >
         <input
           type="color"
           value={color ?? '#000000'}
           aria-label="Text colour"
-          onmousedown={(event) => event.stopPropagation()}
+          disabled={!hasTextSelection}
           oninput={(event) => applyColor(event.currentTarget.value)}
         />
         <span class="swatch-face" aria-hidden="true"></span>
@@ -547,7 +605,8 @@
           type="button"
           class="tool text"
           title="Back to the card’s own colour"
-          onmousedown={(event) => event.preventDefault()}
+          disabled={!hasTextSelection}
+          onpointerdown={preserveSelectionForPointer}
           onclick={() => applyColor(null)}
         >
           Reset
@@ -562,7 +621,8 @@
         type="button"
         class="tool symbol-tool"
         title="Insert {TEXT_SYMBOL_LABELS[name]} symbol"
-        onmousedown={(event) => event.preventDefault()}
+        aria-label="Insert {TEXT_SYMBOL_LABELS[name]} symbol"
+        onpointerdown={preserveSelectionForPointer}
         onclick={() => insertSymbol(name)}
       >
         <img
@@ -578,7 +638,8 @@
         type="button"
         class="tool symbol-tool"
         title="Insert {customSymbolLabel(symbol)} symbol"
-        onmousedown={(event) => event.preventDefault()}
+        aria-label="Insert {customSymbolLabel(symbol)} symbol"
+        onpointerdown={preserveSelectionForPointer}
         onclick={() => insertCustomSymbol(symbol)}
       >
         <img src={symbol.source} alt={customSymbolLabel(symbol)} />
@@ -603,7 +664,14 @@
         focused = false;
         commit();
       }}
-      oninput={commit}
+      oncompositionstart={() => (composing = true)}
+      oncompositionend={() => {
+        composing = false;
+        commit();
+      }}
+      oninput={() => {
+        if (!composing) commit();
+      }}
       onpaste={onPaste}
     ></div>
   </div>
@@ -631,14 +699,21 @@
 
   .toolbar {
     display: flex;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
     align-items: center;
     gap: 2px;
     padding: var(--space-1);
+    min-width: 0;
+    overflow-x: auto;
+    overflow-y: hidden;
+    overscroll-behavior-inline: contain;
+    scrollbar-width: thin;
+    -webkit-overflow-scrolling: touch;
     border-bottom: 1px solid var(--border-subtle);
   }
 
   .divider {
+    flex: none;
     width: 1px;
     height: 16px;
     margin-inline: var(--space-1);
@@ -665,6 +740,7 @@
   .tool {
     display: grid;
     place-items: center;
+    flex: none;
     width: 24px;
     height: 22px;
     border-radius: var(--radius-xs);
@@ -700,6 +776,7 @@
 
   .size {
     display: flex;
+    flex: none;
     align-items: center;
     gap: 1px;
   }
@@ -804,6 +881,7 @@
 
   .color-tool {
     display: flex;
+    flex: none;
     align-items: center;
     gap: 2px;
   }
@@ -858,6 +936,15 @@
 
   .swatch:active .swatch-face {
     transform: scale(0.94);
+  }
+
+  .swatch.disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+  }
+
+  .swatch.disabled :is(input, .swatch-face) {
+    cursor: not-allowed;
   }
 
   /*

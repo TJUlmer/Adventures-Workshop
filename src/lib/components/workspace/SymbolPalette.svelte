@@ -42,6 +42,12 @@
   let { oninsert, onformat, customSymbols = [] }: Props = $props();
 
   const SYMBOL_NAMES = INSERTABLE_TEXT_SYMBOL_NAMES;
+
+  function preserveSelectionForPointer(event: PointerEvent): void {
+    // Mouse can keep the editor focused. Touch and pen retain native pointer
+    // behaviour so a swipe that begins on a button still scrolls the palette.
+    if (event.pointerType === 'mouse' && event.button === 0) event.preventDefault();
+  }
 </script>
 
 <div
@@ -56,7 +62,7 @@
       class="symbol format"
       title="Bold selected text"
       aria-label="Bold selected text"
-      onmousedown={(event) => event.preventDefault()}
+      onpointerdown={preserveSelectionForPointer}
       onclick={() => onformat('bold')}
     ><span class="format-glyph bold" aria-hidden="true">B</span></button>
     <button
@@ -64,7 +70,7 @@
       class="symbol format"
       title="Italicise selected text"
       aria-label="Italicise selected text"
-      onmousedown={(event) => event.preventDefault()}
+      onpointerdown={preserveSelectionForPointer}
       onclick={() => onformat('italic')}
     ><span class="format-glyph italic" aria-hidden="true">I</span></button>
   {/if}
@@ -74,7 +80,8 @@
       type="button"
       class="symbol"
       title="Insert {TEXT_SYMBOL_LABELS[name]} symbol"
-      onmousedown={(event) => event.preventDefault()}
+      aria-label="Insert {TEXT_SYMBOL_LABELS[name]} symbol"
+      onpointerdown={preserveSelectionForPointer}
       onclick={() => oninsert(symbolToken(name))}
     >
       <img
@@ -93,7 +100,8 @@
     type="button"
     class="symbol token"
     title="Insert the figure’s name"
-    onmousedown={(event) => event.preventDefault()}
+    aria-label="Insert the figure’s name"
+    onpointerdown={preserveSelectionForPointer}
     onclick={() => oninsert(SUBJECT_TOKEN)}
   >
     Name
@@ -104,7 +112,8 @@
       type="button"
       class="symbol"
       title="Insert {customSymbolLabel(symbol)} symbol"
-      onmousedown={(event) => event.preventDefault()}
+      aria-label="Insert {customSymbolLabel(symbol)} symbol"
+      onpointerdown={preserveSelectionForPointer}
       onclick={() => oninsert(displaySymbolToken(symbol, customSymbols))}
     >
       <img src={symbol.source} alt={customSymbolLabel(symbol)} />
@@ -129,12 +138,24 @@
   .symbols {
     display: flex;
     flex: 1 1 auto;
-    flex-wrap: wrap;
-    justify-content: flex-end;
+    flex-wrap: nowrap;
+    justify-content: flex-start;
     min-width: 0;
     gap: 1px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    overscroll-behavior-inline: contain;
+    scrollbar-width: thin;
+    -webkit-overflow-scrolling: touch;
     opacity: var(--palette-opacity, 0.55);
     transition: opacity var(--duration-fast) var(--ease-out);
+  }
+
+  /* Right-align short palettes without making the leading controls
+     unreachable when the same row overflows and becomes scrollable. */
+  .symbols::before {
+    content: '';
+    margin-inline-start: auto;
   }
 
   .symbols.formatted {
@@ -145,6 +166,7 @@
   .symbol {
     display: grid;
     place-items: center;
+    flex: none;
     width: 22px;
     height: 22px;
     border-radius: var(--radius-xs);
@@ -197,5 +219,12 @@
 
   .symbol.token:hover {
     color: var(--text-primary);
+  }
+
+  @media (any-pointer: coarse) {
+    .symbol {
+      min-width: var(--touch-target);
+      min-height: var(--touch-target);
+    }
   }
 </style>
