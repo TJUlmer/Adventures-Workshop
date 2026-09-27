@@ -9,6 +9,8 @@
     disabled?: boolean;
     /** Suffix shown inside the field, e.g. "HP". */
     unit?: string;
+    /** Accessible name for the numeric field when its visible label is outside this component. */
+    ariaLabel?: string;
     /** Called after the value changes, for store-mediated updates. */
     onchange?: (value: number) => void;
   }
@@ -20,6 +22,7 @@
     step = 1,
     disabled = false,
     unit,
+    ariaLabel,
     onchange
   }: Props = $props();
 
@@ -49,7 +52,12 @@
   }
 </script>
 
-<div class="stepper" class:disabled>
+<div
+  class="stepper"
+  class:disabled
+  role={ariaLabel ? 'group' : undefined}
+  aria-label={ariaLabel}
+>
   <button
     type="button"
     class="nudge"
@@ -69,6 +77,7 @@
       {step}
       {disabled}
       {value}
+      aria-label={ariaLabel}
       oninput={onInput}
       onblur={onBlur}
     />

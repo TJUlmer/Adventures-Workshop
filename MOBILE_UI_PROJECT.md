@@ -1,7 +1,7 @@
 # Unmatched Labs Mobile UI Project
 
-**Status:** Implementation in progress — Phase 0 browser work complete; physical-device sign-off pending
-**Last updated:** 26 September 2026
+**Status:** Implementation in progress — Phases 0–7 browser work complete; physical-device sign-off pending
+**Last updated:** 27 September 2026
 **Scope:** Responsive browser UI for phones and touch-capable tablets
 
 ## Purpose
@@ -559,21 +559,25 @@ the public pages that already respond well.
 
 ### Work
 
-- [ ] Display the board at a usable minimum width inside a horizontally
+- [x] Display the board at a usable minimum width inside a horizontally
   scrollable viewport instead of shrinking its controls to phone width.
-- [ ] Make the board selection-first on coarse/narrow layouts.
-- [ ] Move threat value, text, styling, and confirmed deletion into the
+- [x] Make the board selection-first on coarse/narrow layouts.
+- [x] Move threat value, text, styling, and confirmed deletion into the
   selected-space inspector.
-- [ ] Keep slot text, note, styling, and confirmed deletion in the slot
+- [x] Keep slot text, note, styling, and confirmed deletion in the slot
   editor.
-- [ ] Put placed-note text, styling, position, Move, and confirmed deletion in
+- [x] Put placed-note text, styling, position, Move, and confirmed deletion in
   the note editor.
-- [ ] Require an explicit Move action before a note captures dragging.
-- [ ] Give small printed entities minimum screen-space hit regions.
-- [ ] Allow horizontal board panning while the surrounding page continues to
+- [x] Require an explicit Move action before a note captures dragging.
+- [x] Give small printed entities minimum screen-space hit regions.
+- [x] Allow horizontal board panning while the surrounding page continues to
   scroll vertically.
-- [ ] Keep mobile editing controls outside the photographed result or scope
+- [x] Keep mobile editing controls outside the photographed result or scope
   them strictly to editable screen UI.
+
+`ThreatSlot` has no per-slot style fields. Slot appearance therefore continues
+to inherit the board's existing styling; Phase 7 did not add schema solely to
+duplicate that inherited presentation in the inspector.
 
 ### Likely files
 
@@ -585,11 +589,19 @@ the public pages that already respond well.
 
 - [ ] Every threat space, slot, and note can be selected, edited, moved where
   applicable, and removed at 360px using touch only.
-- [ ] No delete control is hidden behind hover.
+- [x] No delete control is hidden behind hover.
 - [ ] Horizontal strip navigation and vertical page scrolling do not fight.
 - [ ] Interruption during a move does not lose or duplicate an object.
-- [ ] Mobile hit areas and inspectors never appear in export.
+- [x] Mobile hit areas and inspectors never appear in export.
 - [ ] A representative threat export matches desktop in content and geometry.
+
+Automated Chromium checks at 360×800 and 1280×800 cover the 1152px board
+stage, contained horizontal overflow, 44px entity targets, space/slot/note
+selection, every inspector field, visible confirmed deletion, Move/Done
+ownership, keyboard focus transfer, and the absence of document-width
+overflow. All 53 stored Phase 0 export geometries still verify. Physical iOS
+and Android evidence remains open for one-finger axis arbitration, cancellation
+during rotation/backgrounding, and a fresh phone-versus-desktop PNG comparison.
 
 ---
 

@@ -2,17 +2,19 @@
   /**
    * The villain's threat track: a visual builder over the printed layout.
    *
-   * The preview is the editor. Each hex is a space, each pennant its value —
-   * clicking a space selects it, and its effect text edits below, so the thing
-   * being changed and the thing being looked at are never separated.
+   * The board is the selection surface; a full-size inspector edits whichever
+   * space, slot, or placed note the author chooses. The printed strip therefore
+   * stays legible without asking a finger to operate print-scale controls.
    */
-  import { mount, tick, unmount } from 'svelte';
+  import { mount, onDestroy, tick, unmount } from 'svelte';
   import type { Fill } from '$lib/cards/style';
   import { solid } from '$lib/cards/style';
   import { characterLabel } from '$lib/characters/factory';
   import { createArtwork, hasArtwork } from '$lib/core/artwork';
   import { readArtworkFile } from '$lib/core/image-import';
   import { renderThreatTrackImage, saveExport, slugify } from '$lib/export';
+  import { startPointerSession } from '$lib/interaction/pointer-session';
+  import type { PointerSession } from '$lib/interaction/pointer-session';
   import { ThreatBoard } from '$lib/renderer';
   import { THREAT_MAX_SPACES, THREAT_TRACK } from '$lib/renderer/geometry';
   import {
@@ -29,6 +31,7 @@
   import type {
     ThreatNote,
     ThreatNoteId,
+    ThreatSlot,
     ThreatSlotId,
     ThreatStep,
     ThreatStepId
@@ -42,6 +45,7 @@
     EmptyState,
     FillEditor,
     Icon,
+    NumberInput,
     Select,
     Slider,
     Switch,
@@ -52,11 +56,71 @@
   import EditorSection from '../workspace/EditorSection.svelte';
   import ReplacementPanel from '../workspace/ReplacementPanel.svelte';
 
+  type ThreatSelection =
+    | { kind: 'step'; id: ThreatStepId }
+    | { kind: 'slot'; id: ThreatSlotId }
+    | { kind: 'note'; id: ThreatNoteId };
+
+  interface NoteMoveSnapshot {
+    id: ThreatNoteId;
+    x: number;
+    y: number;
+    grabX: number;
+    grabY: number;
+  }
+
   const set = $derived(workshop.adventure);
   const track = $derived(set.threat);
 
-  let selectedId = $state<ThreatStepId | null>(null);
-  const selected = $derived(track.steps.find((step) => step.id === selectedId) ?? null);
+  let selection = $state<ThreatSelection | null>(null);
+  const selectedStep = $derived(
+    selection?.kind === 'step'
+      ? (track.steps.find((step) => step.id === selection?.id) ?? null)
+      : null
+  );
+  const selectedSlot = $derived(
+    selection?.kind === 'slot'
+      ? (track.slots.find((slot) => slot.id === selection?.id) ?? null)
+      : null
+  );
+  const selectedNote = $derived(
+    selection?.kind === 'note'
+      ? (track.notes.find((note) => note.id === selection?.id) ?? null)
+      : null
+  );
+  const selectedStepId = $derived(selectedStep?.id ?? null);
+  const selectedSlotId = $derived(selectedSlot?.id ?? null);
+  const selectedNoteId = $derived(selectedNote?.id ?? null);
+  const selectedItemValue = $derived(
+    selection ? `${selection.kind}:${selection.id as string}` : ''
+  );
+  const boardItemOptions = $derived([
+    { value: '', label: 'Select a board item' },
+    ...track.steps.map((step, index) => ({
+      value: `step:${step.id as string}`,
+      label: `Space ${index + 1} — threat ${step.value}`
+    })),
+    ...track.slots.map((slot, index) => ({
+      value: `slot:${slot.id as string}`,
+      label: `Slot ${index + 1}${slot.label.trim() ? ` — ${slot.label.trim()}` : ''}`
+    })),
+    ...track.notes.map((note, index) => ({
+      value: `note:${note.id as string}`,
+      label: `Placed text ${index + 1}${note.text.trim() ? ` — ${note.text.trim()}` : ''}`
+    }))
+  ]);
+  const inspectorTitle = $derived.by(() => {
+    if (selectedStep) return `Space ${track.steps.indexOf(selectedStep) + 1}`;
+    if (selectedSlot) return `Slot ${track.slots.indexOf(selectedSlot) + 1}`;
+    if (selectedNote) return `Placed text ${track.notes.indexOf(selectedNote) + 1}`;
+    return 'Selected board item';
+  });
+  const inspectorHint = $derived.by(() => {
+    if (selectedStep) return 'Threat value, effect, and the colours printed for this space.';
+    if (selectedSlot) return 'The label and instruction printed with this tile or marker slot.';
+    if (selectedNote) return 'Text, appearance, position, and deliberate movement for this note.';
+    return 'Tap a space, slot, or placed note above to edit it here.';
+  });
   const canAdd = $derived(canAddThreatStep(track));
   const canAddSlot = $derived(canAddThreatSlot(track));
 
@@ -104,9 +168,9 @@
   /**
    * Mount a read-only board off-screen and photograph that.
    *
-   * Not the board on screen: it carries add and remove buttons that are not
-   * part of the printed track, and its typed values live in form controls,
-   * whose text a clone does not inherit.
+   * Not the board on screen: it carries editor-only selection targets and state
+   * that are not part of the printed track. A read-only mount is an explicit
+   * export boundary even if the screen editor grows more affordances later.
    */
   async function exportBoard(): Promise<void> {
     exporting = true;
@@ -176,7 +240,57 @@
   // -- placing notes ------------------------------------------------------
 
   let strip = $state<HTMLDivElement | null>(null);
+  let armedNoteId = $state<ThreatNoteId | null>(null);
   let draggingNoteId = $state<ThreatNoteId | null>(null);
+  let notePointerSession: PointerSession | null = null;
+
+  function sameSelection(a: ThreatSelection | null, b: ThreatSelection): boolean {
+    return a?.kind === b.kind && a.id === b.id;
+  }
+
+  function stopNoteMove(): void {
+    const active = notePointerSession;
+    notePointerSession = null;
+    active?.cancel('mode-change');
+    draggingNoteId = null;
+    armedNoteId = null;
+  }
+
+  function selectEntity(next: ThreatSelection): void {
+    const deselecting = sameSelection(selection, next);
+    if (armedNoteId !== null) stopNoteMove();
+    selection = deselecting ? null : next;
+  }
+
+  function selectBoardItem(value: string): void {
+    if (!value) {
+      if (armedNoteId !== null) stopNoteMove();
+      selection = null;
+      return;
+    }
+
+    const separator = value.indexOf(':');
+    if (separator < 0) return;
+    const kind = value.slice(0, separator);
+    const id = value.slice(separator + 1);
+    if (kind === 'step') selectEntity({ kind, id: id as ThreatStepId });
+    if (kind === 'slot') selectEntity({ kind, id: id as ThreatSlotId });
+    if (kind === 'note') selectEntity({ kind, id: id as ThreatNoteId });
+  }
+
+  async function toggleNoteMove(note: ThreatNote): Promise<void> {
+    if (armedNoteId === note.id) {
+      stopNoteMove();
+      return;
+    }
+    stopNoteMove();
+    selection = { kind: 'note', id: note.id };
+    armedNoteId = note.id;
+    await tick();
+    const target = document.getElementById(`threat-note-${note.id}`);
+    target?.scrollIntoView({ block: 'nearest', inline: 'center' });
+    target?.focus({ preventScroll: true });
+  }
 
   /**
    * Where a pointer is on the board, as a fraction of it.
@@ -185,9 +299,12 @@
    * a note has to stay where it was put — and because the grab offset is kept,
    * so the note follows the cursor instead of jumping its corner to it.
    */
-  function fractionAt(event: PointerEvent, grab: { x: number; y: number }): { x: number; y: number } {
+  function fractionAt(
+    event: PointerEvent,
+    grab: { x: number; y: number }
+  ): { x: number; y: number } | null {
     const box = strip?.getBoundingClientRect();
-    if (!box) return grab;
+    if (!box || box.width === 0 || box.height === 0) return null;
     return {
       x: (event.clientX - box.left - grab.x) / box.width,
       y: (event.clientY - box.top - grab.y) / box.height
@@ -195,39 +312,63 @@
   }
 
   function startNoteDrag(event: PointerEvent, note: ThreatNote): void {
+    if (armedNoteId !== note.id || selectedNoteId !== note.id) return;
+
+    notePointerSession?.cancel('superseded');
+    notePointerSession = null;
+
     const box = strip?.getBoundingClientRect();
-    if (!box) return;
+    if (!box || box.width === 0 || box.height === 0) return;
     event.preventDefault();
 
-    const grab = {
-      x: event.clientX - (box.left + note.x * box.width),
-      y: event.clientY - (box.top + note.y * box.height)
+    const snapshot: NoteMoveSnapshot = {
+      id: note.id,
+      x: note.x,
+      y: note.y,
+      grabX: event.clientX - (box.left + note.x * box.width),
+      grabY: event.clientY - (box.top + note.y * box.height)
     };
 
-    draggingNoteId = note.id;
-    const handle = event.currentTarget as HTMLElement;
-    handle.setPointerCapture(event.pointerId);
-
-    const move = (moved: PointerEvent) => {
-      const at = fractionAt(moved, grab);
-      workshop.moveThreatNote(note.id, at.x, at.y);
-    };
-    const done = () => {
-      handle.removeEventListener('pointermove', move);
-      handle.removeEventListener('pointerup', done);
-      handle.removeEventListener('pointercancel', done);
-      draggingNoteId = null;
-      // One save for the whole drag, rather than one per pointer event.
-      workshop.editThreat(() => {});
-    };
-
-    handle.addEventListener('pointermove', move);
-    handle.addEventListener('pointerup', done);
-    handle.addEventListener('pointercancel', done);
+    notePointerSession = startPointerSession(event, {
+      snapshot,
+      onMove: (_movement, moved, start) => {
+        const at = fractionAt(moved, { x: start.grabX, y: start.grabY });
+        if (!at) {
+          notePointerSession?.cancel('manual');
+          return;
+        }
+        draggingNoteId = start.id;
+        workshop.moveThreatNote(start.id, at.x, at.y);
+      },
+      onCommit: (_movement, _ended, start) => {
+        notePointerSession = null;
+        draggingNoteId = null;
+        const moved = track.notes.find((entry) => entry.id === start.id);
+        if (moved && (moved.x !== start.x || moved.y !== start.y)) {
+          // One save for the whole drag, rather than one per pointer event.
+          workshop.editThreat(() => {});
+        }
+      },
+      onCancel: (_reason, _movement, start) => {
+        notePointerSession = null;
+        draggingNoteId = null;
+        workshop.moveThreatNote(start.id, start.x, start.y);
+      },
+      onTap: () => {
+        notePointerSession = null;
+        draggingNoteId = null;
+      }
+    });
   }
 
   /** Arrow keys move a note too, for placement a drag cannot be precise about. */
   function nudgeNote(event: KeyboardEvent, note: ThreatNote): void {
+    if (armedNoteId !== note.id || selectedNoteId !== note.id) return;
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      stopNoteMove();
+      return;
+    }
     const step = event.shiftKey ? 0.05 : 0.005;
     const by: Record<string, [number, number]> = {
       ArrowLeft: [-step, 0],
@@ -244,6 +385,63 @@
       note.y = at.y;
     });
   }
+
+  onDestroy(() => notePointerSession?.dispose());
+
+  function addStep(): void {
+    if (!workshop.addThreatStep(track.steps.at(-1)?.value ?? 1)) return;
+    const added = track.steps.at(-1);
+    if (added) selection = { kind: 'step', id: added.id };
+  }
+
+  function addSlot(): void {
+    if (!workshop.addThreatSlot()) return;
+    const added = track.slots.at(-1);
+    if (added) selection = { kind: 'slot', id: added.id };
+  }
+
+  function addNote(): void {
+    const added = workshop.addThreatNote();
+    selection = { kind: 'note', id: added.id };
+  }
+
+  function removeStep(step: ThreatStep): void {
+    const index = track.steps.indexOf(step);
+    workshop.removeThreatStep(step.id);
+    const next = track.steps[index] ?? track.steps[index - 1] ?? null;
+    selection = next ? { kind: 'step', id: next.id } : null;
+  }
+
+  function removeSlot(slot: ThreatSlot): void {
+    const index = track.slots.indexOf(slot);
+    workshop.removeThreatSlot(slot.id);
+    const next = track.slots[index] ?? track.slots[index - 1] ?? null;
+    selection = next ? { kind: 'slot', id: next.id } : null;
+  }
+
+  function removeNote(note: ThreatNote): void {
+    const index = track.notes.indexOf(note);
+    stopNoteMove();
+    workshop.removeThreatNote(note.id);
+    const next = track.notes[index] ?? track.notes[index - 1] ?? null;
+    selection = next ? { kind: 'note', id: next.id } : null;
+  }
+
+  $effect(() => {
+    if (!selection) return;
+
+    const hidden = !track.enabled || (track.useReplacement && hasArtwork(track.replacement));
+    const exists =
+      selection.kind === 'step'
+        ? track.steps.some((step) => step.id === selection?.id)
+        : selection.kind === 'slot'
+          ? track.slots.some((slot) => slot.id === selection?.id)
+          : track.notes.some((note) => note.id === selection?.id);
+
+    if (!hidden && exists) return;
+    stopNoteMove();
+    selection = null;
+  });
 </script>
 
 <div class="page scroll-y">
@@ -256,8 +454,8 @@
     <div class="head-actions">
       <!--
         Photographed from a read-only copy rather than from the board on
-        screen: the editor's buttons and fields are affordances, and a form
-        control's text does not survive being cloned for rasterisation.
+        screen: selection hit regions and editor state are affordances, not
+        printed content.
       -->
       <Button size="sm" disabled={!track.enabled || exporting} onclick={exportBoard}>
         <Icon name="download" size={13} />
@@ -301,23 +499,26 @@
   {:else}
   <!-- The board ---------------------------------------------------------- -->
   <section class="board-frame">
-    <ThreatBoard
-      {track}
-      villainName={villain ? characterLabel(villain) : ''}
-      editable
-      bind:strip
-      {selectedId}
-      {draggingNoteId}
-      onselectstep={(id: ThreatStepId) => (selectedId = id === selectedId ? null : id)}
-      onstepvalue={(step: ThreatStep, value: number) =>
-        workshop.editThreat(() => (step.value = value))}
-      onedit={(mutate: () => void) => workshop.editThreat(mutate)}
-      onremovestep={(id: ThreatStepId) => workshop.removeThreatStep(id)}
-      onremoveslot={(id: ThreatSlotId) => workshop.removeThreatSlot(id)}
-      onremovenote={(note: ThreatNote) => workshop.removeThreatNote(note.id)}
-      onnotedrag={startNoteDrag}
-      onnotekey={nudgeNote}
-    />
+    <div class="board-viewport" aria-label="Threat board. Swipe sideways to see the whole strip.">
+      <div class="board-stage">
+        <ThreatBoard
+          {track}
+          villainName={villain ? characterLabel(villain) : ''}
+          editable
+          bind:strip
+          {selectedStepId}
+          {selectedSlotId}
+          {selectedNoteId}
+          {armedNoteId}
+          {draggingNoteId}
+          onselectstep={(id: ThreatStepId) => selectEntity({ kind: 'step', id })}
+          onselectslot={(id: ThreatSlotId) => selectEntity({ kind: 'slot', id })}
+          onselectnote={(id: ThreatNoteId) => selectEntity({ kind: 'note', id })}
+          onnotedrag={startNoteDrag}
+          onnotekey={nudgeNote}
+        />
+      </div>
+    </div>
 
     <div class="board-foot">
       <!--
@@ -332,7 +533,7 @@
         title={canAdd
           ? 'Add a space to the track'
           : `The rail holds ${THREAT_MAX_SPACES} spaces at their printed size.`}
-        onclick={() => workshop.addThreatStep(track.steps.at(-1)?.value ?? 1)}
+        onclick={addStep}
       >
         <Icon name="plus" size={13} />
         Add a space
@@ -349,11 +550,25 @@
         title={canAddSlot
           ? 'Add a tile or marker slot'
           : `The board holds up to ${THREAT_MAX_SLOTS} tile or marker slots.`}
-        onclick={() => workshop.addThreatSlot()}
+        onclick={addSlot}
       >
         <Icon name="plus" size={13} />
         Add a slot
       </Button>
+
+      <Button size="sm" variant="ghost" onclick={addNote}>
+        <Icon name="plus" size={13} />
+        Add text
+      </Button>
+
+      <label class="item-picker">
+        <span class="field-label">Board item</span>
+        <Select
+          value={selectedItemValue}
+          options={boardItemOptions}
+          onchange={selectBoardItem}
+        />
+      </label>
 
       <span>
         <b class="numeric">{track.steps.length}</b> of
@@ -374,11 +589,249 @@
           {THREAT_TRACK.bleed.width} × {THREAT_TRACK.bleed.height} px
         </span>
       </span>
+      <span class="pan-hint">Swipe the board sideways to inspect the whole strip.</span>
     </div>
   </section>
 
   <!-- Editors ------------------------------------------------------------ -->
   <div class="panels">
+    <!--
+      The board is now a selection surface. Keeping every real control here
+      gives a finger-sized editor without changing the measured print strip.
+    -->
+    <div class="selection-inspector">
+      <EditorSection title={inspectorTitle} hint={inspectorHint}>
+        {#if selectedStep}
+          {@const stepNumber = track.steps.indexOf(selectedStep) + 1}
+          <div class="stack compact-field">
+            <span class="field-label">Threat value</span>
+            <NumberInput
+              value={selectedStep.value}
+              min={0}
+              max={99}
+              ariaLabel={`Threat value for space ${stepNumber}`}
+              onchange={(value) => workshop.editThreat(() => (selectedStep.value = value))}
+            />
+          </div>
+
+          <label class="stack">
+            <span class="field-label">Effect</span>
+            <TextArea
+              value={selectedStep.effect}
+              rows={3}
+              placeholder="Optional — most spaces just advance the threat."
+              oninput={(event) =>
+                workshop.editThreat(() => (selectedStep.effect = event.currentTarget.value))}
+            />
+          </label>
+
+          <div class="inspector-grid">
+            <FillEditor
+              label="Space colour"
+              value={selectedStep.fill ?? defaultSpaceFill(selectedStep)}
+              origin="the board"
+              overridden={selectedStep.fill !== null}
+              onchange={(fill) => workshop.editThreat(() => (selectedStep.fill = fill))}
+              onreset={() => workshop.editThreat(() => (selectedStep.fill = null))}
+            />
+
+            <FillEditor
+              label="Stroke colour"
+              value={selectedStep.stroke ?? defaultSpaceStroke()}
+              origin="the board"
+              overridden={selectedStep.stroke !== null}
+              onchange={(stroke) => workshop.editThreat(() => (selectedStep.stroke = stroke))}
+              onreset={() => workshop.editThreat(() => (selectedStep.stroke = null))}
+            />
+
+            <FillEditor
+              label="Number banner"
+              value={selectedStep.bannerFill ?? defaultBannerFill()}
+              origin="the track colour"
+              overridden={selectedStep.bannerFill !== null}
+              onchange={(banner) => workshop.editThreat(() => (selectedStep.bannerFill = banner))}
+              onreset={() => workshop.editThreat(() => (selectedStep.bannerFill = null))}
+            />
+
+            <label class="stack">
+              <span class="field-label">Number colour</span>
+              <ColorInput
+                value={selectedStep.numberColor ?? undefined}
+                inherited={THREAT_NUMBER_COLOR}
+                origin="the printed white"
+                onchange={(ink) =>
+                  workshop.editThreat(() => (selectedStep.numberColor = ink ?? null))}
+              />
+            </label>
+          </div>
+
+          <div class="inspector-actions">
+            <ConfirmAction
+              variant="ghost"
+              armedVariant="danger"
+              label={`Delete space ${stepNumber}`}
+              confirmLabel={`Delete space ${stepNumber} — activate again to confirm`}
+              confirmText="Confirm delete"
+              onconfirm={() => removeStep(selectedStep)}
+            >
+              <Icon name="trash" size={13} />
+              Delete space
+            </ConfirmAction>
+          </div>
+        {:else if selectedSlot}
+          {@const slotNumber = track.slots.indexOf(selectedSlot) + 1}
+          <label class="stack">
+            <span class="field-label">Label</span>
+            <TextInput
+              value={selectedSlot.label}
+              placeholder={`Slot ${slotNumber}`}
+              oninput={(event) =>
+                workshop.editThreat(() => (selectedSlot.label = event.currentTarget.value))}
+            />
+          </label>
+
+          <label class="stack">
+            <span class="field-label">Instruction</span>
+            <TextArea
+              value={selectedSlot.note}
+              rows={3}
+              placeholder="What goes here, or what it means…"
+              oninput={(event) =>
+                workshop.editThreat(() => (selectedSlot.note = event.currentTarget.value))}
+            />
+          </label>
+
+          <div class="inspector-actions">
+            <ConfirmAction
+              variant="ghost"
+              armedVariant="danger"
+              label={`Delete slot ${slotNumber}`}
+              confirmLabel={`Delete slot ${slotNumber} — activate again to confirm`}
+              confirmText="Confirm delete"
+              onconfirm={() => removeSlot(selectedSlot)}
+            >
+              <Icon name="trash" size={13} />
+              Delete slot
+            </ConfirmAction>
+          </div>
+        {:else if selectedNote}
+          {@const noteNumber = track.notes.indexOf(selectedNote) + 1}
+          <label class="stack">
+            <span class="field-label">Text</span>
+            <TextArea
+              value={selectedNote.text}
+              rows={2}
+              placeholder="Text on the board"
+              oninput={(event) =>
+                workshop.editThreat(() => (selectedNote.text = event.currentTarget.value))}
+            />
+          </label>
+
+          <label class="stack">
+            <span class="field-label">Colour</span>
+            <ColorInput
+              value={selectedNote.color === THREAT_NOTE_COLOR ? undefined : selectedNote.color}
+              inherited={THREAT_NOTE_COLOR}
+              origin="the stock ink"
+              onchange={(color) =>
+                workshop.editThreat(() => (selectedNote.color = color ?? THREAT_NOTE_COLOR))}
+            />
+          </label>
+
+          <div class="note-controls">
+            <Slider
+              label="Size"
+              value={selectedNote.size}
+              min={0.8}
+              max={4}
+              step={0.1}
+              neutral={1.4}
+              format={(size) => size.toFixed(1)}
+              onchange={(size) => workshop.editThreat(() => (selectedNote.size = size))}
+            />
+
+            <Slider
+              label="Turn"
+              value={selectedNote.rotation}
+              min={-180}
+              max={180}
+              step={1}
+              neutral={0}
+              format={(deg) => `${Math.round(deg)}°`}
+              onchange={(rotation) =>
+                workshop.editThreat(() => (selectedNote.rotation = rotation))}
+            />
+
+            <Slider
+              label="Horizontal position"
+              value={selectedNote.x}
+              min={0}
+              max={1}
+              step={0.005}
+              neutral={0.5}
+              format={(position) => `${Math.round(position * 100)}%`}
+              onchange={(x) =>
+                workshop.editThreat(() => {
+                  const at = clampNotePosition(x, selectedNote.y);
+                  selectedNote.x = at.x;
+                  selectedNote.y = at.y;
+                })}
+            />
+
+            <Slider
+              label="Vertical position"
+              value={selectedNote.y}
+              min={0}
+              max={1}
+              step={0.005}
+              neutral={0.5}
+              format={(position) => `${Math.round(position * 100)}%`}
+              onchange={(y) =>
+                workshop.editThreat(() => {
+                  const at = clampNotePosition(selectedNote.x, y);
+                  selectedNote.x = at.x;
+                  selectedNote.y = at.y;
+                })}
+            />
+          </div>
+
+          <div class="move-note">
+            <Button
+              size="sm"
+              variant={armedNoteId === selectedNote.id ? 'primary' : 'secondary'}
+              aria-pressed={armedNoteId === selectedNote.id}
+              aria-controls={`threat-note-${selectedNote.id}`}
+              onclick={() => toggleNoteMove(selectedNote)}
+            >
+              <Icon name="move" size={13} />
+              {armedNoteId === selectedNote.id ? 'Done moving' : 'Move'}
+            </Button>
+            <p class="hint" role="status">
+              {armedNoteId === selectedNote.id
+                ? 'Drag the selected text on the board, or use the arrow keys. Choose Done moving when it is placed.'
+                : 'Choose Move before the note can capture a drag. Ordinary swipes pan the board.'}
+            </p>
+          </div>
+
+          <div class="inspector-actions">
+            <ConfirmAction
+              variant="ghost"
+              armedVariant="danger"
+              label={`Delete placed text ${noteNumber}`}
+              confirmLabel={`Delete placed text ${noteNumber} — activate again to confirm`}
+              confirmText="Confirm delete"
+              onconfirm={() => removeNote(selectedNote)}
+            >
+              <Icon name="trash" size={13} />
+              Delete placed text
+            </ConfirmAction>
+          </div>
+        {:else}
+          <p class="hint">Nothing selected.</p>
+        {/if}
+      </EditorSection>
+    </div>
+
     <!--
       First, and the shared `ReplacementPanel` rather than the hand-built copy
       that used to sit at the bottom of the right-hand column. It is the same
@@ -509,141 +962,6 @@
         </label>
       </EditorSection>
 
-      <EditorSection
-        title={selected ? `Space ${track.steps.indexOf(selected) + 1}` : 'Space effect'}
-        hint={selected
-          ? 'What happens when the marker reaches this space.'
-          : 'Select a space on the track above.'}
-      >
-        {#if selected}
-          <FillEditor
-            label="Space colour"
-            value={selected.fill ?? defaultSpaceFill(selected)}
-            origin="the board"
-            overridden={selected.fill !== null}
-            onchange={(fill) => workshop.editThreat(() => (selected.fill = fill))}
-            onreset={() => workshop.editThreat(() => (selected.fill = null))}
-          />
-
-          <FillEditor
-            label="Stroke colour"
-            value={selected.stroke ?? defaultSpaceStroke()}
-            origin="the board"
-            overridden={selected.stroke !== null}
-            onchange={(stroke) => workshop.editThreat(() => (selected.stroke = stroke))}
-            onreset={() => workshop.editThreat(() => (selected.stroke = null))}
-          />
-
-          <!--
-            The ribbon and its number, apart from the hex above them: the number
-            has to stay legible whatever the space it hangs off does.
-          -->
-          <FillEditor
-            label="Number banner"
-            value={selected.bannerFill ?? defaultBannerFill()}
-            origin="the track colour"
-            overridden={selected.bannerFill !== null}
-            onchange={(banner) => workshop.editThreat(() => (selected.bannerFill = banner))}
-            onreset={() => workshop.editThreat(() => (selected.bannerFill = null))}
-          />
-
-          <!--
-            `ColorInput` already models override-or-inherit, so `null` maps onto
-            its `undefined` and the reset affordance comes for free.
-          -->
-          <label class="stack">
-            <span class="field-label">Number colour</span>
-            <ColorInput
-              value={selected.numberColor ?? undefined}
-              inherited={THREAT_NUMBER_COLOR}
-              origin="the printed white"
-              onchange={(ink) => workshop.editThreat(() => (selected.numberColor = ink ?? null))}
-            />
-          </label>
-
-          <TextArea
-            value={selected.effect}
-            rows={3}
-            placeholder="Optional — most spaces just advance the threat."
-            oninput={(event) =>
-              workshop.editThreat(() => (selected.effect = event.currentTarget.value))}
-          />
-        {:else}
-          <p class="hint">Nothing selected.</p>
-        {/if}
-      </EditorSection>
-
-      <EditorSection
-        title="Placed text"
-        hint="Anything else the board needs to say. Drag each one by its grip to place it."
-      >
-        {#snippet actions()}
-          <Button size="sm" onclick={() => workshop.addThreatNote()}>
-            <Icon name="plus" size={13} />
-            Add text
-          </Button>
-        {/snippet}
-
-        {#if track.notes.length === 0}
-          <p class="hint">
-            No placed text. Add one and it lands on the board, ready to be dragged where you
-            want it.
-          </p>
-        {:else}
-          {#each track.notes as note (note.id)}
-            <div class="note-row">
-              <TextInput
-                value={note.text}
-                placeholder="Text on the board"
-                oninput={(event) =>
-                  workshop.editThreat(() => (note.text = event.currentTarget.value))}
-              />
-              <!--
-                A note lands on the author's own artwork, so its ink has to be
-                answerable — light copy on a light picture is unreadable and no
-                board-wide default can fix it.
-              -->
-              <ColorInput
-                value={note.color === THREAT_NOTE_COLOR ? undefined : note.color}
-                inherited={THREAT_NOTE_COLOR}
-                origin="the stock ink"
-                onchange={(color) =>
-                  workshop.editThreat(() => (note.color = color ?? THREAT_NOTE_COLOR))}
-              />
-              <div class="note-size">
-                <Slider
-                  label="Size"
-                  value={note.size}
-                  min={0.8}
-                  max={4}
-                  step={0.1}
-                  neutral={1.4}
-                  format={(size) => `${size.toFixed(1)}`}
-                  onchange={(size) => workshop.editThreat(() => (note.size = size))}
-                />
-              </div>
-              <div class="note-size">
-                <!--
-                  Full turn either way rather than 0–360: a label is far more
-                  often nudged a few degrees anticlockwise than swung most of
-                  the way round, and −15 is easier to reach from the middle
-                  than 345 is from either end.
-                -->
-                <Slider
-                  label="Turn"
-                  value={note.rotation}
-                  min={-180}
-                  max={180}
-                  step={1}
-                  neutral={0}
-                  format={(deg) => `${Math.round(deg)}°`}
-                  onchange={(rotation) => workshop.editThreat(() => (note.rotation = rotation))}
-                />
-              </div>
-            </div>
-          {/each}
-        {/if}
-      </EditorSection>
     </div>
 
     <!-- Set once, then left alone: two abreast is enough for these. -->
@@ -666,43 +984,6 @@
           oninput={(event) =>
             workshop.editThreat((t) => (t.finalEffect = event.currentTarget.value))}
         />
-      </EditorSection>
-
-      <EditorSection
-        title="Tile and marker slots"
-        hint="Spaces on the board for the pieces the villain’s progress puts on the table."
-      >
-        {#if track.slots.length === 0}
-          <p class="hint">No slots. “Add a slot” is under the board.</p>
-        {:else}
-          {#each track.slots as slot, index (slot.id)}
-            <div class="slot-row">
-              <TextInput
-                value={slot.label}
-                placeholder="Slot {index + 1}"
-                oninput={(event) =>
-                  workshop.editThreat(() => (slot.label = event.currentTarget.value))}
-              />
-              <TextInput
-                value={slot.note}
-                placeholder="What goes here, or what it means…"
-                oninput={(event) =>
-                  workshop.editThreat(() => (slot.note = event.currentTarget.value))}
-              />
-              <ConfirmAction
-                size="sm"
-                variant="ghost"
-                armedVariant="danger"
-                iconOnly
-                label={`Delete slot ${index + 1}`}
-                confirmLabel={`Delete slot ${index + 1} — activate again to confirm`}
-                onconfirm={() => workshop.removeThreatSlot(slot.id)}
-              >
-                <Icon name="trash" size={13} />
-              </ConfirmAction>
-            </div>
-          {/each}
-        {/if}
       </EditorSection>
 
       <!--
@@ -802,12 +1083,33 @@
     flex-direction: column;
     flex: none;
     gap: var(--space-3);
+    min-width: 0;
+  }
+
+  /*
+   * The print strip stays large enough to read and tap. This wrapper, not the
+   * page, owns its extra width, so a sideways swipe never widens the document.
+   */
+  .board-viewport {
+    width: 100%;
+    min-width: 0;
+    overflow-x: auto;
+    overflow-y: hidden;
+    overscroll-behavior-x: contain;
+    overscroll-behavior-y: auto;
+    border-radius: var(--radius-lg);
+    scrollbar-width: thin;
+  }
+
+  .board-stage {
+    min-width: 0;
   }
 
   .board-foot {
     display: flex;
     flex-wrap: wrap;
-    gap: var(--space-5);
+    align-items: center;
+    gap: var(--space-3) var(--space-5);
     font-size: var(--text-xs);
     color: var(--text-muted);
   }
@@ -821,6 +1123,17 @@
     gap: var(--space-2);
     margin-left: auto;
     opacity: 0.75;
+  }
+
+  .item-picker {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    min-width: min(100%, 280px);
+  }
+
+  .pan-hint {
+    display: none;
   }
 
   /* -- panels ----------------------------------------------------------- */
@@ -837,6 +1150,40 @@
     max-width: 1600px;
   }
 
+  .selection-inspector {
+    width: min(100%, 920px);
+  }
+
+  .inspector-grid,
+  .note-controls {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--space-5) var(--space-6);
+  }
+
+  .compact-field {
+    align-items: flex-start;
+  }
+
+  .move-note {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    flex-wrap: wrap;
+  }
+
+  .move-note .hint {
+    flex: 1 1 260px;
+    margin: 0;
+  }
+
+  .inspector-actions {
+    display: flex;
+    justify-content: flex-end;
+    padding-top: var(--space-3);
+    border-top: 1px solid var(--border-subtle);
+  }
+
   .row {
     display: grid;
     gap: var(--space-6) var(--space-7);
@@ -844,25 +1191,12 @@
     align-items: start;
   }
 
-  /*
-   * Track takes the widest share because it alone carries five controls in two
-   * columns — `EditorSection`'s own fold to one column queries a `workspace`
-   * container, which nothing on this page declares, so it will not rescue a
-   * column that is too narrow for it.
-   */
   .row.primary {
-    grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-columns: minmax(0, 760px);
   }
 
   .row.secondary {
     grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  /* `home` is the page container, from AppShell. */
-  @container home (max-width: 1180px) {
-    .row.primary {
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-    }
   }
 
   @container home (max-width: 820px) {
@@ -882,26 +1216,6 @@
   .field-label {
     font-size: var(--text-xs);
     color: var(--text-tertiary);
-  }
-
-  /* The note gets the extra room; the delete action stays at the right edge. */
-  .slot-row {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(0, 2fr) auto;
-    align-items: center;
-    gap: var(--space-3);
-  }
-
-  /*
-   * The text and its ink on one line, the size under them. Three controls
-   * abreast fitted when this section had the page to itself; in a third of it
-   * the slider came out too short to aim with.
-   */
-  .note-row {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
-    align-items: center;
-    gap: var(--space-2) var(--space-3);
   }
 
   .hidden-file {
@@ -927,13 +1241,60 @@
     color: var(--danger);
   }
 
-  .note-size {
-    grid-column: 1 / -1;
-  }
-
   .link {
     color: var(--text-accent);
     text-decoration: underline;
     text-underline-offset: 2px;
+  }
+
+  @media (max-width: 760px), (any-pointer: coarse) {
+    .board-stage {
+      /* At this width the printed hex itself reaches roughly 45px. */
+      min-width: 72rem;
+    }
+
+    .pan-hint {
+      display: block;
+      flex-basis: 100%;
+    }
+  }
+
+  @media (max-width: 760px) {
+    .page {
+      gap: var(--space-5);
+      padding: var(--space-5) var(--space-4) var(--space-8);
+    }
+
+    .head {
+      align-items: flex-start;
+      flex-wrap: wrap;
+    }
+
+    .head-actions {
+      flex-wrap: wrap;
+    }
+
+    .board-foot {
+      gap: var(--space-2) var(--space-3);
+    }
+
+    .board-foot .size {
+      margin-left: 0;
+    }
+
+    .item-picker {
+      flex-basis: 100%;
+      align-items: stretch;
+      flex-direction: column;
+    }
+
+    .inspector-grid,
+    .note-controls {
+      grid-template-columns: minmax(0, 1fr);
+    }
+
+    .inspector-actions {
+      justify-content: stretch;
+    }
   }
 </style>

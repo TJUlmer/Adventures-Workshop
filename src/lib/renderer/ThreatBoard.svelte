@@ -7,23 +7,21 @@
    * is a flag rather than a second component because a board that drifted from
    * the one the author approved would be worse than no export at all.
    *
-   * Off, every field becomes the text it holds. That is not cosmetic: a form
-   * control's text is a *property*, and cloning a node for rasterisation copies
-   * only attributes — so an exported board full of inputs comes out showing its
-   * placeholders. Printing the text is what makes the export say what the board
-   * says.
+   * Printed values are always text. Editing lives in the surrounding inspector;
+   * this component adds only selection targets when `editable` is on. That keeps
+   * the photographed tree free of controls and prevents clone-based export from
+   * losing form-control values.
    */
   import { fillCss } from '$lib/cards/style';
   import { hasArtwork } from '$lib/core/artwork';
   import type {
     ThreatNote,
+    ThreatNoteId,
     ThreatSlotId,
-    ThreatStep,
     ThreatStepId,
     ThreatTrack
   } from '$lib/threat/types';
   import { threatWinLabel } from '$lib/threat/types';
-  import { Icon } from '$lib/ui';
   import CardArt from './CardArt.svelte';
   import { THREAT_RAIL, THREAT_SPACE_WIDTH, THREAT_TRACK } from './geometry';
 
@@ -33,14 +31,13 @@
     villainName: string;
     /** Editing affordances. Off leaves only what prints. */
     editable?: boolean;
-    selectedId?: ThreatStepId | null;
+    selectedStepId?: ThreatStepId | null;
+    selectedSlotId?: ThreatSlotId | null;
+    selectedNoteId?: ThreatNoteId | null;
+    armedNoteId?: ThreatNoteId | null;
     onselectstep?: (id: ThreatStepId) => void;
-    onstepvalue?: (step: ThreatStep, value: number) => void;
-    onedit?: (mutate: () => void) => void;
-    onremovestep?: (id: ThreatStepId) => void;
-    /** Adding a slot lives with the board's other counts, not on the board. */
-    onremoveslot?: (id: ThreatSlotId) => void;
-    onremovenote?: (note: ThreatNote) => void;
+    onselectslot?: (id: ThreatSlotId) => void;
+    onselectnote?: (id: ThreatNoteId) => void;
     onnotedrag?: (event: PointerEvent, note: ThreatNote) => void;
     onnotekey?: (event: KeyboardEvent, note: ThreatNote) => void;
     /** The strip element, which a note's position is measured against. */
@@ -52,13 +49,13 @@
     track,
     villainName,
     editable = false,
-    selectedId = null,
+    selectedStepId = null,
+    selectedSlotId = null,
+    selectedNoteId = null,
+    armedNoteId = null,
     onselectstep,
-    onstepvalue,
-    onedit,
-    onremovestep,
-    onremoveslot,
-    onremovenote,
+    onselectslot,
+    onselectnote,
     onnotedrag,
     onnotekey,
     strip = $bindable(null),
@@ -76,8 +73,6 @@
 
   const showingReplacement = $derived(track.useReplacement && hasArtwork(track.replacement));
   const winLabel = $derived(threatWinLabel(track, villainName));
-
-  const edit = (mutate: () => void) => onedit?.(mutate);
 </script>
 
 <!--
@@ -155,81 +150,55 @@
               part of the arrow rather than as another space before it — the
               printed boards fuse the two for the same reason.
             -->
-            <div class="space" class:selected={step.id === selectedId} class:trigger={last}>
+            <div
+              class="space"
+              class:selected={editable && step.id === selectedStepId}
+              class:trigger={last}
+            >
               <!--
                 Two layers, because the outline is a shape rather than a
                 border: `clip-path` cuts a border away along with the shadow
                 and the outline, so the stroke is the hex itself and the fill
                 is a second hex inset inside it.
               -->
-              {#if editable}
-                <button
-                  type="button"
-                  class="hex"
-                  class:painted={step.fill !== null}
-                  style:background={step.stroke ? fillCss(step.stroke) : undefined}
-                  title={last
-                    ? `Space ${index + 1} — reaching this triggers “${track.finalLabel || 'the end of the track'}”`
-                    : `Space ${index + 1}`}
-                  onclick={() => onselectstep?.(step.id)}
-                >
-                  <span
-                    class="hex-face"
-                    style:background={step.fill ? fillCss(step.fill) : undefined}
-                  ></span>
-                  {#if step.effect.trim()}<span class="marker" title="Has an effect"></span>{/if}
-                </button>
-              {:else}
-                <div
-                  class="hex"
-                  class:painted={step.fill !== null}
-                  style:background={step.stroke ? fillCss(step.stroke) : undefined}
-                >
-                  <span
-                    class="hex-face"
-                    style:background={step.fill ? fillCss(step.fill) : undefined}
-                  ></span>
-                </div>
-              {/if}
+              <div
+                class="hex"
+                class:painted={step.fill !== null}
+                style:background={step.stroke ? fillCss(step.stroke) : undefined}
+              >
+                <span
+                  class="hex-face"
+                  style:background={step.fill ? fillCss(step.fill) : undefined}
+                ></span>
+                {#if editable && step.effect.trim()}
+                  <span class="marker" title="Has an effect"></span>
+                {/if}
+              </div>
 
               <!--
                 Flush under the hex and exactly its width, so the two read as
-                one piece. The ink rides on the ribbon rather than the field, so
-                the printed span and the editor's input take it the same way.
+                one piece. The value stays text here; the full-size inspector
+                owns editing without changing the printed shape.
               -->
               <div
                 class="pennant"
                 style:background={step.bannerFill ? fillCss(step.bannerFill) : undefined}
                 style:color={step.numberColor ?? undefined}
               >
-                {#if editable}
-                  <input
-                    class="pennant-value numeric"
-                    type="number"
-                    min="0"
-                    max="99"
-                    value={step.value}
-                    aria-label="Threat value for space {index + 1}"
-                    oninput={(event) => {
-                      const next = event.currentTarget.valueAsNumber;
-                      if (!Number.isNaN(next)) onstepvalue?.(step, next);
-                    }}
-                  />
-                {:else}
-                  <span class="pennant-value numeric">{step.value}</span>
-                {/if}
+                <span class="pennant-value numeric">{step.value}</span>
               </div>
 
               {#if editable}
                 <button
                   type="button"
-                  class="remove"
-                  title="Remove this space"
-                  aria-label="Remove space {index + 1}"
-                  onclick={() => onremovestep?.(step.id)}
-                >
-                  <Icon name="minus" size={11} />
-                </button>
+                  class="entity-target space-target"
+                  aria-label={`Select space ${index + 1}, threat ${step.value}${step.effect.trim() ? ', has effect' : ''}`}
+                  aria-pressed={step.id === selectedStepId}
+                  title={last
+                    ? `Space ${index + 1} — reaching this triggers “${track.finalLabel || 'the end of the track'}”`
+                    : `Space ${index + 1}`}
+                  onclick={() => onselectstep?.(step.id)}
+                ></button>
               {/if}
             </div>
           {/each}
@@ -242,25 +211,7 @@
           -->
           <div class="final">
             <div class="arrow" style:background={triggerFill ?? undefined}>
-              <!--
-                A textarea, not an input: an input cannot wrap, so the editor
-                showed one clipped line where the export showed two balanced
-                ones — the board on screen has to be the board that prints.
-              -->
-              {#if editable}
-                <textarea
-                  class="final-label"
-                  rows="1"
-                  value={track.finalLabel}
-                  aria-label="Final space label"
-                  oninput={(event) => {
-                    const next = event.currentTarget.value;
-                    edit(() => (track.finalLabel = next));
-                  }}
-                ></textarea>
-              {:else}
-                <span class="final-label">{track.finalLabel}</span>
-              {/if}
+              <span class="final-label">{track.finalLabel}</span>
             </div>
           </div>
 
@@ -274,58 +225,27 @@
       -->
       <div class="slots">
         {#each track.slots as slot, index (slot.id)}
-          <div class="slot">
+          <div class="slot" class:selected={editable && slot.id === selectedSlotId}>
             <!--
               The label sits *in* the well, which is where the printed boards
               name a space — under it, it read as a caption for a box rather
-              than as the box's own name. A textarea so it wraps inside.
+              than as the box's own name. It wraps inside the well.
             -->
             <div class="slot-well">
-              {#if editable}
-                <textarea
-                  class="slot-label"
-                  rows="1"
-                  value={slot.label}
-                  placeholder="Slot {index + 1}"
-                  aria-label="Label for slot {index + 1}"
-                  oninput={(event) => {
-                    const next = event.currentTarget.value;
-                    edit(() => (slot.label = next));
-                  }}
-                ></textarea>
-              {:else}
-                <span class="slot-label">{slot.label}</span>
-              {/if}
+              <span class="slot-label">{slot.label}</span>
             </div>
 
+            {#if slot.note.trim()}<span class="slot-note">{slot.note}</span>{/if}
+
             {#if editable}
-              <!--
-                Wraps and grows *downward*, because a slot's line is a rule
-                rather than a caption — "Put a Foot Soldier into that borough"
-                needs the room, and the wells stay put while it takes it.
-              -->
-              <textarea
-                class="slot-note"
-                rows="1"
-                value={slot.note}
-                placeholder="Add a line…"
-                aria-label="Text under slot {index + 1}"
-                oninput={(event) => {
-                  const next = event.currentTarget.value;
-                  edit(() => (slot.note = next));
-                }}
-              ></textarea>
               <button
                 type="button"
-                class="remove"
-                title="Remove this slot"
-                aria-label="Remove slot {index + 1}"
-                onclick={() => onremoveslot?.(slot.id)}
-              >
-                <Icon name="minus" size={11} />
-              </button>
-            {:else if slot.note.trim()}
-              <span class="slot-note">{slot.note}</span>
+                class="entity-target slot-target"
+                aria-label={`Select slot ${index + 1}${slot.label.trim() ? `, ${slot.label.trim()}` : ''}`}
+                aria-pressed={slot.id === selectedSlotId}
+                title={`Slot ${index + 1}${slot.label.trim() ? ` — ${slot.label.trim()}` : ''}`}
+                onclick={() => onselectslot?.(slot.id)}
+              ></button>
             {/if}
           </div>
         {/each}
@@ -337,13 +257,15 @@
       </div>
 
       <!--
-        Free copy, over everything. Each note is dragged by its grip rather
-        than by its body, so moving one and writing in one never compete for
-        the same gesture.
+        Free copy, over everything. The editor adds a transparent selection
+        target; that target captures movement only after the inspector's Move
+        action arms this note.
       -->
       {#each track.notes as note (note.id)}
         <div
           class="note"
+          class:selected={editable && selectedNoteId === note.id}
+          class:move-armed={editable && armedNoteId === note.id}
           class:moving={draggingNoteId === note.id}
           style:left="{note.x * 100}%"
           style:top="{note.y * 100}%"
@@ -351,43 +273,62 @@
           style:color={note.color}
           style:rotate="{note.rotation}deg"
         >
+          <span class="note-text">{note.text}</span>
           {#if editable}
-            <button
-              type="button"
-              class="note-grip"
-              title="Drag to place this text"
-              aria-label="Move note"
-              onpointerdown={(event) => onnotedrag?.(event, note)}
-              onkeydown={(event) => onnotekey?.(event, note)}
-            >
-              <Icon name="move" size={11} />
-            </button>
-
-            <textarea
-              class="note-text"
-              rows="1"
-              value={note.text}
-              placeholder="Type here…"
-              aria-label="Note text"
-              oninput={(event) => {
-                const next = event.currentTarget.value;
-                edit(() => (note.text = next));
+            <!--
+              Pointer-only overlay for the visible text footprint. The separate
+              clamped target below remains the one keyboard and assistive-tech
+              users reach, including when the printable note clips at an edge.
+            -->
+            <!--
+              svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions
+              This pointer-only duplicate is hidden from accessibility APIs;
+              the clamped real button immediately below owns keyboard input.
+            -->
+            <span
+              class="note-visual-target"
+              class:move-armed={armedNoteId === note.id}
+              class:moving={draggingNoteId === note.id}
+              aria-hidden="true"
+              onpointerdown={(event) => {
+                if (armedNoteId === note.id) onnotedrag?.(event, note);
               }}
-            ></textarea>
-
-            <button
-              type="button"
-              class="note-remove"
-              title="Remove this note"
-              aria-label="Remove note"
-              onclick={() => onremovenote?.(note)}
-            >
-              <Icon name="minus" size={11} />
-            </button>
-          {:else}
-            <span class="note-text">{note.text}</span>
+              onclick={() => {
+                if (armedNoteId !== note.id) onselectnote?.(note.id);
+              }}
+            ></span>
           {/if}
         </div>
+
+        {#if editable}
+          <!--
+            Independent of the printable note so its 44px box can stay inside
+            the clipped strip even when the note's anchor is exactly on an edge.
+          -->
+          <button
+            id={`threat-note-${note.id}`}
+            type="button"
+            class="entity-target note-target"
+            class:move-armed={armedNoteId === note.id}
+            class:moving={draggingNoteId === note.id}
+            style:left="clamp(calc(var(--touch-target) / 2), {note.x * 100}%, calc(100% - var(--touch-target) / 2))"
+            style:top="clamp(calc(var(--touch-target) / 2), {note.y * 100}%, calc(100% - var(--touch-target) / 2))"
+            aria-label={armedNoteId === note.id
+              ? `Move placed text, ${note.text.trim() || 'empty text'}. Drag to place it or use the arrow keys.`
+              : `Select placed text, ${note.text.trim() || 'empty text'}`}
+            aria-pressed={selectedNoteId === note.id}
+            title={armedNoteId === note.id ? 'Drag to place this text' : 'Select this text'}
+            onpointerdown={(event) => {
+              if (armedNoteId === note.id) onnotedrag?.(event, note);
+            }}
+            onclick={() => {
+              if (armedNoteId !== note.id) onselectnote?.(note.id);
+            }}
+            onkeydown={(event) => {
+              if (armedNoteId === note.id) onnotekey?.(event, note);
+            }}
+          ></button>
+        {/if}
       {/each}
     </div>
   {/if}
@@ -540,9 +481,8 @@
   /*
    * A fixed share of the strip rather than whatever the slots leave over.
    *
-   * The slots' width follows their own text — they hold a `field-sizing:
-   * content` textarea — so the track used to lose 10cqw to a long caption,
-   * which changed how many spaces fitted. The number of spaces the rail holds
+   * Slot copy can wrap, so the track once lost 10cqw to a long caption and the
+   * number of spaces that fitted changed. The number of spaces the rail holds
    * is a printed fact and cannot depend on what an author typed underneath, so
    * the track claims its share first and the slots divide the remainder.
    */
@@ -674,7 +614,7 @@
     transition: background-color var(--duration-fast) var(--ease-out);
   }
 
-  .editable .hex:hover .hex-face {
+  .editable .space:hover .hex-face {
     background: var(--grey-600);
   }
 
@@ -687,7 +627,7 @@
     background: var(--accent);
   }
 
-  .editable .space.trigger .hex:not(.painted):hover .hex-face {
+  .editable .space.trigger:hover .hex:not(.painted) .hex-face {
     background: color-mix(in oklab, var(--accent) 80%, #fff);
   }
 
@@ -701,7 +641,7 @@
    * author chose should not be second-guessed by a hover state. The brightness
    * is on the face alone so hovering does not wash out the outline too.
    */
-  .editable .hex.painted:hover .hex-face {
+  .editable .space:hover .hex.painted .hex-face {
     filter: brightness(1.12);
   }
 
@@ -715,6 +655,45 @@
     height: 0.7cqw;
     border-radius: 50%;
     background: var(--accent);
+  }
+
+  /*
+   * Editing happens in a full-size inspector. These transparent buttons only
+   * select what the printed board already draws, so they can be generous on
+   * screen without changing a single measured print dimension.
+   */
+  .entity-target {
+    position: absolute;
+    z-index: 4;
+    min-width: var(--touch-target);
+    min-height: var(--touch-target);
+    padding: 0;
+    border: 0;
+    border-radius: var(--radius-md);
+    background: transparent;
+    touch-action: auto;
+  }
+
+  .entity-target:hover {
+    box-shadow: 0 0 0 1px var(--border-strong);
+  }
+
+  .entity-target[aria-pressed='true'] {
+    box-shadow: 0 0 0 2px var(--accent);
+  }
+
+  .entity-target:focus-visible {
+    outline: 3px solid var(--accent);
+    outline-offset: 2px;
+  }
+
+  .space-target {
+    top: calc(var(--space-h) / 2);
+    left: 50%;
+    width: max(100%, var(--touch-target));
+    height: max(var(--space-h), var(--touch-target));
+    translate: -50% -50%;
+    border-radius: 50%;
   }
 
   /*
@@ -751,56 +730,6 @@
     line-height: 1.2;
     /* The author's ink, off the ribbon. */
     color: inherit;
-    appearance: textfield;
-    -moz-appearance: textfield;
-  }
-
-  .pennant-value::-webkit-outer-spin-button,
-  .pennant-value::-webkit-inner-spin-button {
-    appearance: none;
-    margin: 0;
-  }
-
-  .pennant-value:focus {
-    outline: none;
-  }
-
-  .remove {
-    display: grid;
-    place-items: center;
-    width: 20px;
-    height: 18px;
-    border-radius: var(--radius-xs);
-    color: var(--text-muted);
-    opacity: 0;
-    transition: opacity var(--duration-fast) var(--ease-out);
-  }
-
-  /*
-   * A space's own remove button comes out of the flow, which is what lets the
-   * ribbon sit flush: the ribbon is positioned against `.space`, so anything
-   * in flow after the hex pushes it down — measured at 18px in the editor
-   * against 0px in the export, which is both an ugly gap and the two paths
-   * disagreeing about a printed position.
-   *
-   * The top right corner is free real estate on a vertex-up hex: the polygon
-   * leaves that corner of the box empty, so a hover affordance can sit there
-   * without covering the number, the marker, or the hex's own click target.
-   */
-  .space > .remove {
-    position: absolute;
-    top: 0;
-    right: 0;
-    z-index: 2;
-  }
-
-  .space:hover .remove,
-  .slot:hover .remove {
-    opacity: 1;
-  }
-
-  .remove:hover {
-    color: var(--danger);
   }
 
   /*
@@ -851,22 +780,6 @@
     color: #fff;
   }
 
-  /*
-   * The editing field, sized to what it holds so it wraps exactly as the
-   * printed span does. `overflow: hidden` for the reason the placed notes give:
-   * `field-sizing` rounds a pixel or two short and a textarea would otherwise
-   * put a scrollbar beside copy meant to read as print.
-   */
-  textarea.final-label {
-    resize: none;
-    field-sizing: content;
-    overflow: hidden;
-  }
-
-  .final-label:focus {
-    outline: none;
-  }
-
   /* -- tile and marker slots -------------------------------------------- */
   /*
    * Fills the rest of the red bed so the rectangle runs the arena's full width,
@@ -895,6 +808,14 @@
     max-width: 10cqw;
   }
 
+  .slot-target {
+    top: 50%;
+    left: 50%;
+    width: max(100%, var(--touch-target));
+    height: max(100%, var(--touch-target));
+    translate: -50% -50%;
+  }
+
   /* Drawn as the space it is, so the board reads as somewhere to put a piece. */
   .slot-well {
     display: grid;
@@ -914,9 +835,6 @@
     width: 100%;
     background: transparent;
     border: none;
-    resize: none;
-    field-sizing: content;
-    overflow: hidden;
     font-family: inherit;
     text-align: center;
     overflow-wrap: break-word;
@@ -925,24 +843,11 @@
     color: var(--text-secondary);
   }
 
-  .slot-label:focus,
-  .slot-note:focus {
-    outline: none;
-    color: var(--text-primary);
-  }
-
-  .slot-label::placeholder,
-  .slot-note::placeholder {
-    color: var(--text-muted);
-  }
-
   .slot-note {
     display: block;
     width: 100%;
     background: transparent;
     border: none;
-    resize: none;
-    field-sizing: content;
     text-align: center;
     font-family: inherit;
     font-size: 1cqw;
@@ -1013,75 +918,64 @@
     transition: border-color var(--duration-fast) var(--ease-out);
   }
 
+  .editable .note {
+    /* Placed text stays selectable even when it overlaps a space or slot. */
+    z-index: 6;
+  }
+
   .editable .note:hover,
   .editable .note:focus-within,
+  .editable .note.selected,
   .note.moving {
     border-color: var(--border-strong);
     background: color-mix(in oklab, var(--grey-1000) 70%, transparent);
   }
 
-  .note-grip,
-  .note-remove {
-    display: grid;
-    place-items: center;
-    width: 16px;
-    height: 16px;
-    flex: none;
+  .note-visual-target {
+    position: absolute;
+    z-index: 1;
+    inset: 0 auto auto 0;
+    width: max(100%, var(--touch-target));
+    height: max(100%, var(--touch-target));
+    padding: 0;
+    border: 0;
     border-radius: var(--radius-xs);
-    color: var(--text-muted);
-    opacity: 0;
-    touch-action: none;
-    transition: opacity var(--duration-fast) var(--ease-out);
+    background: transparent;
+    touch-action: auto;
   }
 
-  .note-grip {
+  .note-visual-target.move-armed {
     cursor: grab;
+    touch-action: none;
+    user-select: none;
   }
 
-  .note.moving .note-grip {
+  .note-visual-target.moving {
     cursor: grabbing;
   }
 
-  .note:hover .note-grip,
-  .note:hover .note-remove,
-  .note:focus-within .note-grip,
-  .note:focus-within .note-remove,
-  .note.moving .note-grip {
-    opacity: 1;
+  .note-target {
+    z-index: 7;
+    width: var(--touch-target);
+    height: var(--touch-target);
+    translate: -50% -50%;
   }
 
-  .note-grip:hover {
-    color: var(--text-primary);
+  .note-target.move-armed {
+    cursor: grab;
+    touch-action: none;
+    user-select: none;
   }
 
-  .note-remove:hover {
-    color: var(--danger);
+  .note-target.moving {
+    cursor: grabbing;
   }
 
-  /*
-   * `field-sizing: content` lets the box be the length of what is in it, so a
-   * note reads as text on a board rather than as a field sitting on one.
-   *
-   * The last two declarations are one fix for one bug, and both halves are
-   * needed. `field-sizing: content` rounds the box it asks for, and from about
-   * 2cqw up it lands 1–2px short of the text it is sizing to — measured, 68px
-   * of box for 70px of content at 4cqw — which is enough for a textarea's
-   * default `overflow: auto` to put a 15px scrollbar beside copy that is meant
-   * to read as printed text. `overflow: hidden` takes the bar away; the bottom
-   * padding is what stops it costing anything, because overflow is clipped at
-   * the *padding* box, so the couple of stray pixels land in padding and stay
-   * visible. In `em` so it holds at every size the slider offers.
-   *
-   * `line-height: normal` also cures the shortfall, but it retypesets every
-   * note that already exists. Leave the line height alone.
-   */
   .note-text {
     display: block;
     min-width: 6cqw;
     background: transparent;
     border: none;
-    resize: none;
-    field-sizing: content;
     font-family: var(--card-font-title);
     font-weight: var(--card-font-title-weight);
     font-size: inherit;
@@ -1091,13 +985,5 @@
     white-space: pre-wrap;
     overflow: hidden;
     padding-block-end: 0.08em;
-  }
-
-  .note-text:focus {
-    outline: none;
-  }
-
-  .note-text::placeholder {
-    color: var(--text-muted);
   }
 </style>
