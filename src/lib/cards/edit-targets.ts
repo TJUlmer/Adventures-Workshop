@@ -1,4 +1,4 @@
-import type { CardId } from './types';
+import type { ActionCard, CardId } from './types';
 
 export type AbilitySourceRegion = 'primary-ability' | 'defense-ability';
 export type AbilityParagraphField =
@@ -229,6 +229,7 @@ export type PreviewEditSession =
       address: CardEditAddress;
       original: PreviewEditValue;
       draft: PreviewEditValue;
+      valid: boolean;
     }
   | {
       status: 'invalidated';
@@ -259,3 +260,78 @@ export const PREVIEW_EDIT_LIFECYCLE = {
   cardMismatch: 'invalidate-without-write',
   artworkAdjustment: 'commit-valid-or-cancel-invalid'
 } as const;
+
+export interface PreviewDirectField {
+  kind: 'title' | 'number';
+  value: string | number;
+  min?: number;
+  max?: number;
+}
+
+/**
+ * Resolve the stored source behind a rendered direct-edit marker. Returning
+ * `null` deliberately suppresses optional, derived, or replacement content.
+ */
+export function previewDirectField(
+  card: ActionCard,
+  address: CardEditAddress
+): PreviewDirectField | null {
+  if (card.id !== address.cardId || card.useReplacement) return null;
+
+  if (address.region === 'title') {
+    return { kind: 'title', value: card.title };
+  }
+
+  if (address.region === 'ribbon' && address.field === 'symbolValue') {
+    if (card.symbol === 'scheme' || card.symbolValue === null) return null;
+    return { kind: 'number', value: card.symbolValue, min: 0, max: 9 };
+  }
+
+  if (address.region === 'combat') {
+    const value = address.field === 'attack' ? card.attack : card.defense;
+    return value === null ? null : { kind: 'number', value, min: 0, max: 20 };
+  }
+
+  if (address.region === 'boost' && address.field === 'boost') {
+    if (card.boostSymbol || card.boost === null) return null;
+    return { kind: 'number', value: card.boost, min: 1, max: 9 };
+  }
+
+  return null;
+}
+
+export function clampPreviewNumber(field: PreviewDirectField, value: number): number {
+  if (field.kind !== 'number') return value;
+  return Math.min(field.max ?? value, Math.max(field.min ?? value, value));
+}
+
+/** Revalidate the source path at the mutation boundary before writing it. */
+export function writePreviewDirectField(
+  card: ActionCard,
+  address: CardEditAddress,
+  value: PreviewEditValue
+): boolean {
+  const field = previewDirectField(card, address);
+  if (!field) return false;
+
+  if (field.kind === 'title') {
+    if (typeof value !== 'string') return false;
+    card.title = value;
+    return true;
+  }
+
+  if (typeof value !== 'number' || !Number.isFinite(value)) return false;
+  const next = clampPreviewNumber(field, value);
+  if (address.region === 'ribbon' && address.field === 'symbolValue') {
+    card.symbolValue = next;
+  } else if (address.region === 'combat' && address.field === 'attack') {
+    card.attack = next;
+  } else if (address.region === 'combat' && address.field === 'defense') {
+    card.defense = next;
+  } else if (address.region === 'boost' && address.field === 'boost') {
+    card.boost = next;
+  } else {
+    return false;
+  }
+  return true;
+}

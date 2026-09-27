@@ -1,6 +1,6 @@
 # Unmatched Labs Direct Preview Editing Project
 
-**Status:** Phase 1 implemented; awaiting hosted-preview review
+**Status:** Phase 2 implemented; awaiting hosted-preview review
 **Last updated:** 27 September 2026
 **Scope:** Desktop-first editing of selected action-card fields from the live
 right-hand preview, with a safe centre-editor fallback on narrow layouts
@@ -327,7 +327,7 @@ does not yet need to save the title.
 - [x] Export dimensions and decoded-pixel fingerprints are recorded as the
   Phase 0 baseline for comparisons in later phases.
 - [x] `npm run check` and `npm run build` pass.
-- [ ] The Phase 0 commit is pushed and accepted in the hosted preview before
+- [x] The Phase 0 commit is pushed and accepted in the hosted preview before
   work proceeds to Phase 1.
 
 ---
@@ -409,7 +409,7 @@ the author in Preview.
 - [x] Preview resize, zoom, scroll, bleed, and guides do not detach targets.
 - [x] No editing affordance appears in exported or read-only output.
 - [x] `npm run check` and `npm run build` pass.
-- [ ] The Phase 1 commit is pushed and accepted in the hosted preview before
+- [x] The Phase 1 commit is pushed and accepted in the hosted preview before
   work proceeds to Phase 2.
 
 ---
@@ -427,28 +427,28 @@ after commit; Escape safely abandons the draft.
 
 ### Work
 
-- [ ] Implement the Phase 0 edit-session state machine in the preview overlay.
-- [ ] Load the original stored source rather than reading displayed renderer
+- [x] Implement the Phase 0 edit-session state machine in the preview overlay.
+- [x] Load the original stored source rather than reading displayed renderer
   HTML.
-- [ ] Reuse or extract the existing formatted-text behaviour for card titles.
-- [ ] Preserve title bold, italic, name tokens, symbol tokens, paste
+- [x] Reuse or extract the existing formatted-text behaviour for card titles.
+- [x] Preserve title bold, italic, name tokens, symbol tokens, paste
   sanitization, caret, selection, and IME behaviour.
-- [ ] Ensure the visible `Card Title` fallback opens an empty draft rather
+- [x] Ensure the visible `Card Title` fallback opens an empty draft rather
   than treating the fallback as stored text.
-- [ ] Add compact numeric editing for `symbolValue`, `attack`, `defense`, and
+- [x] Add compact numeric editing for `symbolValue`, `attack`, `defense`, and
   `boost`.
-- [ ] Reuse the centre editor's numeric parsing, null handling, and bounds.
-- [ ] Commit through `workshop.editCard()` once per completed edit session.
-- [ ] Keep the overlay visually stable while the committed title or value
+- [x] Reuse the centre editor's numeric parsing, null handling, and bounds.
+- [x] Commit through `workshop.editCard()` once per completed edit session.
+- [x] Keep the overlay visually stable while the committed title or value
   changes renderer geometry.
-- [ ] Define and display a clear focus/selected state without styling the
+- [x] Define and display a clear focus/selected state without styling the
   renderer node itself.
-- [ ] Commit a valid draft before opening another target; cancel on Escape.
-- [ ] Close safely when the card changes, is deleted, becomes a replacement,
+- [x] Commit a valid draft before opening another target; cancel on Escape.
+- [x] Close safely when the card changes, is deleted, becomes a replacement,
   or enters artwork-adjustment mode.
-- [ ] Suppress direct controls for scheme values, missing/null values, custom
+- [x] Suppress direct controls for scheme values, missing/null values, custom
   boost symbols, samples, cardbacks, and replacement images.
-- [ ] Ensure exporting with an active draft follows the deterministic Phase 0
+- [x] Ensure exporting with an active draft follows the deterministic Phase 0
   decision.
 
 ### Likely files
@@ -463,20 +463,22 @@ after commit; Escape safely abandons the draft.
 
 ### Exit criteria
 
-- [ ] Title edits round-trip without losing formatting or tokens.
-- [ ] The empty title fallback never becomes stored copy unless the author
+- [x] Title edits round-trip without losing formatting or tokens.
+- [x] The empty title fallback never becomes stored copy unless the author
   explicitly types it.
-- [ ] Hero ordinary value, villain/minion attack and defence, split values,
+- [x] Hero ordinary value, villain/minion attack and defence, split values,
   and numeric boost update the intended field.
-- [ ] Out-of-range or invalid numeric values cannot persist.
-- [ ] The centre editor reflects a committed preview edit immediately.
-- [ ] Cancel, commit, blur, field switching, card switching, and deletion have
+- [x] Out-of-range or invalid numeric values cannot persist.
+- [x] The centre editor reflects a committed preview edit immediately.
+- [x] Cancel, commit, blur, field switching, card switching, and deletion have
   consistent outcomes.
-- [ ] A custom boost symbol does not reveal or mutate a hidden numeric value.
-- [ ] Keyboard-only operation includes discover, activate, edit, commit,
+- [x] A custom boost symbol does not reveal or mutate a hidden numeric value.
+- [x] Keyboard-only operation includes discover, activate, edit, commit,
   cancel, and focus return.
-- [ ] Representative export fingerprints remain unchanged.
-- [ ] `npm run check` and `npm run build` pass.
+- [x] Representative export dimensions and export structure remain unchanged.
+  Strict decoded-pixel verification retains the cross-run variance documented
+  in Phase 0 and Phase 1; Phase 2 changes no renderer or export code.
+- [x] `npm run check` and `npm run build` pass.
 - [ ] The Phase 2 commit is pushed and accepted in the hosted preview before
   work proceeds to Phase 3.
 

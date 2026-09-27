@@ -2,7 +2,7 @@
   /** Compact bold/italic editor for action-card title and ability copy. */
   import { untrack } from 'svelte';
   import type { CustomSymbol } from '$lib/symbols/types';
-  import { actionTextIsEmpty, sanitizeActionText } from '$lib/text/action-text';
+  import { cleanActionText } from '$lib/text/action-text';
   import { toDisplayTokens, toStoredTokens } from '$lib/text/tokens';
   import { Icon } from '$lib/ui';
   import {
@@ -45,17 +45,11 @@
     editorTarget
   }: Props = $props();
 
-  function hasIntentionalWhitespace(html: string): boolean {
-    const template = document.createElement('template');
-    template.innerHTML = html;
-    const text = template.content.textContent ?? '';
-    return text.length > 0 && text.trim().length === 0;
-  }
-
   function cleanValue(html: string): string {
-    if (preserveWhitespace && hasIntentionalWhitespace(html)) return ' ';
-    const clean = sanitizeActionText(html, !multiline);
-    return actionTextIsEmpty(clean) ? '' : clean;
+    return cleanActionText(html, {
+      singleLine: !multiline,
+      preserveWhitespace
+    });
   }
 
   let editor = $state<HTMLDivElement | null>(null);

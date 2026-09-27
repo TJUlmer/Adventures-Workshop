@@ -18,6 +18,7 @@
   import { BLEED_MM, CARD_FORMATS, trimBox } from '$lib/renderer/geometry';
   import { artworkAdjustmentView } from '$lib/state/artwork-adjustment-view.svelte';
   import { cardArtworkLayerView } from '$lib/state/card-artwork-layer-view.svelte';
+  import { cardEditorView } from '$lib/state/card-editor-view.svelte';
   import { characterEditorView } from '$lib/state/character-editor-view.svelte';
   import { findDeck, initiativeSubjectForCard } from '$lib/sets/queries';
   import { workshop } from '$lib/state/workshop.svelte';
@@ -226,6 +227,7 @@
    * format and filename worked out here instead.
    */
   async function exportPng(bleed: boolean): Promise<void> {
+    if (cardEditorView.previewEditAddress) return;
     const plate = stage?.querySelector<HTMLElement>('.plate');
     if (!plate) return;
 
@@ -262,14 +264,20 @@
 
 {#snippet exportButtons()}
   <div class="exports">
-    <Button size="sm" disabled={exporting !== null} onclick={() => exportPng(false)}>
+    <Button
+      size="sm"
+      disabled={exporting !== null || cardEditorView.previewEditAddress !== null}
+      title={cardEditorView.previewEditAddress ? 'Commit or cancel the preview edit first' : undefined}
+      onclick={() => exportPng(false)}
+    >
       <Icon name="download" size={13} />
       {exporting === 'trim' ? 'Rendering…' : 'Export PNG'}
     </Button>
     <Button
       size="sm"
       variant="secondary"
-      disabled={exporting !== null}
+      disabled={exporting !== null || cardEditorView.previewEditAddress !== null}
+      title={cardEditorView.previewEditAddress ? 'Commit or cancel the preview edit first' : undefined}
       onclick={() => exportPng(true)}
     >
       <Icon name="download" size={13} />
