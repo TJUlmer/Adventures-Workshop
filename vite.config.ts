@@ -262,7 +262,7 @@ export default defineConfig({
   build: {
     target: 'esnext',
     sourcemap: true,
-    rolldownOptions: {
+    rollupOptions: {
       // These probes deliberately create synthetic writes and large transfers. They
       // belong on local/preview builds where rollout evidence is collected, never on
       // the public production deployment where an unlinked URL could be abused.
@@ -281,21 +281,6 @@ export default defineConfig({
                 new URL('./tools/phase6-large-asset.html', import.meta.url)
               )
             })
-      },
-      output: {
-        /* The application deliberately ships its zero-dependency renderers,
-           exporters and editors together. Give Rolldown a real upper bound
-           so that growing one feature cannot silently turn that into a
-           megabyte entry chunk. */
-        codeSplitting: {
-          groups: [
-            {
-              name: 'workspace',
-              entriesAware: true,
-              maxSize: 480_000
-            }
-          ]
-        }
       }
     }
   }
