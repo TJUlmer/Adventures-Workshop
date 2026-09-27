@@ -15,6 +15,7 @@
   import type {
     CharacterAbility,
     CharacterCardDesign,
+    CharacterId,
     HeroCharacterCardId
   } from '$lib/characters/types';
   import { CHARACTER_ROLE_META } from '$lib/characters/types';
@@ -96,6 +97,23 @@
 
   function originFor(key: keyof CardTheme): string {
     return workshop.adventure.style[key] !== undefined ? 'set' : 'template';
+  }
+
+  function characterCardReplacementPicker(
+    characterId: CharacterId,
+    cardId?: HeroCharacterCardId
+  ): (source: string, label: string) => void {
+    return (source, label) => {
+      workshop.editCharacterCard(
+        characterId,
+        (card) => {
+          card.replacement.source = source;
+          card.replacement.label = label;
+          card.useReplacement = true;
+        },
+        cardId
+      );
+    };
   }
 
   function setDeckKind(deckId: DeckId, kind: string): void {
@@ -315,18 +333,10 @@
   <ReplacementPanel
     artwork={design.replacement}
     enabled={design.useReplacement}
+    operationKey={`character:${character!.id}:character-card:${cardId ?? 'primary'}:replacement`}
     hint="A finished character card, used instead of composing one."
     replaces="Replaces the whole printed sheet, template included."
-    onpick={(source, label) =>
-      workshop.editCharacterCard(
-        character!.id,
-        (card) => {
-          card.replacement.source = source;
-          card.replacement.label = label;
-          card.useReplacement = true;
-        },
-        cardId
-      )}
+    onpick={characterCardReplacementPicker(character!.id, cardId)}
     ontoggle={(use) =>
       workshop.editCharacterCard(character!.id, (card) => (card.useReplacement = use), cardId)}
     onclear={() =>

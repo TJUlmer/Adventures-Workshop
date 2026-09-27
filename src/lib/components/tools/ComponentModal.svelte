@@ -117,14 +117,14 @@
 
 <dialog
   bind:this={dialog}
-  class="component-modal"
+  class="component-modal ui-dialog-viewport"
   aria-labelledby="component-modal-title"
   onclose={onclose}
   onclick={onbackdrop}
   {onkeydown}
 >
   {#if figure}
-    <div class="inner">
+    <div class="inner ui-dialog-frame">
       <header class="head">
         <div class="heading">
           <span class="kicker">Physical component</span>
@@ -145,7 +145,7 @@
         </button>
       </header>
 
-      <div class="body">
+      <div class="body ui-dialog-scroll">
         {#if loading}
           <div class="loading" aria-live="polite">
             <span class="spinner"></span>
@@ -217,13 +217,10 @@
 
 <style>
   .component-modal {
-    width: min(920px, calc(100vw - var(--space-6) * 2));
-    max-width: none;
-    max-height: calc(100dvh - var(--space-6) * 2);
-    padding: 0;
+    --ui-dialog-inline-size: 920px;
+    --ui-dialog-gutter: var(--space-6);
     border: 1px solid var(--border-default);
     border-radius: var(--radius-lg);
-    overflow: hidden;
     background: var(--surface-raised);
     color: var(--text-default);
     box-shadow: var(--shadow-lg);
@@ -235,9 +232,7 @@
   }
 
   .inner {
-    display: flex;
-    flex-direction: column;
-    max-height: calc(100dvh - var(--space-6) * 2);
+    max-height: inherit;
   }
 
   .head {
@@ -446,12 +441,7 @@
 
   @media (max-width: 640px) {
     .component-modal {
-      width: calc(100vw - var(--space-3) * 2);
-      max-height: calc(100dvh - var(--space-3) * 2);
-    }
-
-    .inner {
-      max-height: calc(100dvh - var(--space-3) * 2);
+      --ui-dialog-gutter: var(--space-3);
     }
 
     .head,

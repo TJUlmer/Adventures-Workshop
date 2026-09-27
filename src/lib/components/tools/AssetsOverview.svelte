@@ -32,6 +32,7 @@
     printedCardPreviewKey
   } from '$lib/cloud/card-previews';
   import type { CardPreviewManifest } from '$lib/cloud/card-previews';
+  import { renderMeshSnapshot } from '$lib/models/snapshot';
   import { CardRenderer, MapBoard, ThreatBoard } from '$lib/renderer';
   import { initiativeSubjectForCard, resolveStyleForCard } from '$lib/sets/queries';
   import type { AdventureSet } from '$lib/sets/types';
@@ -41,6 +42,7 @@
   import { EmptyState, Icon } from '$lib/ui';
   import { GALLERY_CARD_SIZE } from './gallery-inspection';
   import type { GalleryCardItem, GalleryCardSide } from './gallery-inspection';
+  import { figurePreviewKey, loadFigurePreview, releaseFigurePreview } from './figure-preview';
   import RulebookLinks from './RulebookLinks.svelte';
 
   interface Props {
@@ -207,9 +209,6 @@
     let cancelled = false;
 
     void (async () => {
-      const [{ figurePreviewKey, loadFigurePreview, releaseFigurePreview }, { renderMeshSnapshot }] =
-        await Promise.all([import('./figure-preview'), import('$lib/models/snapshot')]);
-
       for (const figure of figures) {
         if (cancelled) return;
         /*
@@ -1499,7 +1498,7 @@
     translate: 0;
   }
 
-  @media (pointer: coarse) {
+  @media (any-pointer: coarse) {
     .inspect-cue {
       opacity: 1;
       translate: 0;

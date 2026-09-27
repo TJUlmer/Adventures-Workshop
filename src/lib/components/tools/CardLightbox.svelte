@@ -92,12 +92,17 @@
   }
 
   function startSwipe(event: PointerEvent): void {
-    if (event.pointerType !== 'touch') return;
+    if (swipe || !event.isPrimary || event.pointerType !== 'touch') return;
     const target = event.target;
     if (target instanceof Element && target.closest('button')) return;
-    swipe = { x: event.clientX, y: event.clientY, id: event.pointerId };
     const current = event.currentTarget;
-    if (current instanceof HTMLElement) current.setPointerCapture(event.pointerId);
+    if (!(current instanceof HTMLElement)) return;
+    try {
+      current.setPointerCapture(event.pointerId);
+    } catch {
+      return;
+    }
+    swipe = { x: event.clientX, y: event.clientY, id: event.pointerId };
   }
 
   function finishSwipe(event: PointerEvent): void {
@@ -106,12 +111,20 @@
     const deltaY = event.clientY - swipe.y;
     const current = event.currentTarget;
     if (current instanceof HTMLElement && current.hasPointerCapture(event.pointerId)) {
-      current.releasePointerCapture(event.pointerId);
+      try {
+        current.releasePointerCapture(event.pointerId);
+      } catch {
+        // A browser interruption can release capture between the check and call.
+      }
     }
     swipe = null;
     if (Math.abs(deltaX) < 54 || Math.abs(deltaX) < Math.abs(deltaY) * 1.35) return;
     if (deltaX > 0 && !first) onprevious();
     if (deltaX < 0 && !last) onnext();
+  }
+
+  function cancelSwipe(event: PointerEvent): void {
+    if (swipe?.id === event.pointerId) swipe = null;
   }
 
   function report(error: unknown): void {
@@ -125,14 +138,14 @@
 
 <dialog
   bind:this={dialog}
-  class="lightbox"
+  class="lightbox ui-dialog-viewport"
   aria-labelledby="card-lightbox-title"
   onclose={onclose}
   onclick={onbackdrop}
   {onkeydown}
 >
   {#if item}
-    <div class="inner">
+    <div class="inner ui-dialog-frame">
       <header class="head">
         <div class="heading">
           <span class="kicker">{collection}</span>
@@ -149,12 +162,13 @@
       </p>
 
       <div
-        class="stage"
+        class="stage ui-dialog-scroll"
         role="group"
         aria-label="Card viewer"
         onpointerdown={startSwipe}
         onpointerup={finishSwipe}
-        onpointercancel={() => (swipe = null)}
+        onpointercancel={cancelSwipe}
+        onlostpointercapture={cancelSwipe}
       >
         <button
           type="button"
@@ -254,13 +268,10 @@
 
 <style>
   .lightbox {
-    width: min(1080px, calc(100vw - var(--space-6) * 2));
-    max-width: none;
-    max-height: calc(100dvh - var(--space-6) * 2);
-    padding: 0;
+    --ui-dialog-inline-size: 1080px;
+    --ui-dialog-gutter: var(--space-6);
     border: 1px solid var(--border-default);
     border-radius: var(--radius-lg);
-    overflow: hidden;
     background: var(--surface-raised);
     color: var(--text-default);
     box-shadow: var(--shadow-lg);
@@ -272,9 +283,7 @@
   }
 
   .inner {
-    display: flex;
-    flex-direction: column;
-    max-height: calc(100dvh - var(--space-6) * 2);
+    max-height: inherit;
   }
 
   .head {
@@ -495,12 +504,7 @@
 
   @media (max-width: 640px) {
     .lightbox {
-      width: calc(100vw - var(--space-3) * 2);
-      max-height: calc(100dvh - var(--space-3) * 2);
-    }
-
-    .inner {
-      max-height: calc(100dvh - var(--space-3) * 2);
+      --ui-dialog-gutter: var(--space-3);
     }
 
     .head {
