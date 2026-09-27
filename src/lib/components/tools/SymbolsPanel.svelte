@@ -8,6 +8,8 @@
    * picture of its own, so a glyph uploaded here is immediately available on
    * every action card, rules card and character sheet.
    */
+  import { onDestroy } from 'svelte';
+  import { createOperationGuard } from '$lib/interaction/operation-guard';
   import { TEXT_SYMBOLS } from '$lib/renderer/assets';
   import { readArtworkFile } from '$lib/core/image-import';
   import type { CustomSymbol, CustomSymbolId } from '$lib/symbols/types';
@@ -35,6 +37,8 @@
 
   let fileInputs: Record<string, HTMLInputElement | null> = $state({});
   let error = $state<string | null>(null);
+  let errorOperation = 0;
+  const imageOperations = createOperationGuard();
 
   function add(): void {
     workshop.addCustomSymbol();
@@ -48,6 +52,15 @@
     event.currentTarget.value = '';
     if (!file) return;
 
+    const scope = workshop.adventure;
+    const operation = imageOperations.begin({
+      setId: scope.id,
+      targetKey: `symbol:${id}:image`,
+      scope,
+      symbolId: id,
+      fallbackName: file.name.replace(/\.[^.]+$/, '')
+    });
+    const feedback = ++errorOperation;
     error = null;
     try {
       // The same file-import path every "choose an image" control uses. Its
@@ -56,11 +69,20 @@
       // bespoke path for, but worth knowing if a symbol looks blurry after
       // import.
       const source = await readArtworkFile(file);
-      workshop.editCustomSymbol(id, (symbol) => {
+      if (
+        !imageOperations.isCurrent(operation, workshop.adventure.id, workshop.adventure) ||
+        !symbols.some((symbol) => symbol.id === operation.context.symbolId)
+      ) return;
+      workshop.editCustomSymbol(operation.context.symbolId, (symbol) => {
         symbol.source = source;
-        if (!symbol.name.trim()) symbol.name = file.name.replace(/\.[^.]+$/, '');
+        if (!symbol.name.trim()) symbol.name = operation.context.fallbackName;
       });
     } catch (cause) {
+      if (
+        feedback !== errorOperation ||
+        !imageOperations.isCurrent(operation, workshop.adventure.id, workshop.adventure) ||
+        !symbols.some((symbol) => symbol.id === operation.context.symbolId)
+      ) return;
       error = cause instanceof Error ? cause.message : 'Could not read that file.';
     }
   }
@@ -70,8 +92,14 @@
   }
 
   function remove(id: CustomSymbolId): void {
+    const scope = workshop.adventure;
+    imageOperations.supersede({ setId: scope.id, targetKey: `symbol:${id}:image`, scope });
+    errorOperation += 1;
+    error = null;
     workshop.removeCustomSymbol(id);
   }
+
+  onDestroy(() => imageOperations.invalidate());
 </script>
 
 <div class="page scroll-y">

@@ -1,7 +1,7 @@
 # Mobile UI Phase 8 — Map Mobile Workspace
 
-**Status:** Browser implementation complete; physical multi-touch/cancellation
-and a fresh phone-versus-desktop raster comparison remain
+**Status:** Browser implementation and fresh cross-viewport raster comparison
+complete; physical multi-touch and cancellation evidence remains
 
 **Completed:** 27 September 2026
 
@@ -169,11 +169,13 @@ At 1280×900:
 - Board/Zones remained beneath the map, preserving the desktop workspace.
 
 The live Export PNG control returned to its ready state without an in-app
-error, but the in-app browser did not surface its generated download event, so
-this report does not claim a newly captured PNG. Structural and stored evidence
-remains strong: no renderer/export source changed, all 53 Phase 0 baseline
-geometries verify, and the stored 1637×1131 map baseline retains SHA-256
-`E6D242AC09A5D7754529925E26EE4A69F414CD316E86733B3048529DFC8D89A1`.
+error, but the in-app browser did not surface its generated download event at
+the time of this phase. Phase 9 later added an isolated evidence profile and
+rendered the fixed fixture at 390×844 and 1440×900 in the same browser
+document. The direct map PNG retained its dimensions, content, and geometry,
+closing the geometry gap without replacing the Phase 0 evidence. Repeated
+strict runs found only sparse one-level raster rounding noise, not a coordinate
+or layout change. All 53 Phase 0 baseline geometries also continue to verify.
 
 Validation completed:
 
@@ -185,7 +187,7 @@ Validation completed:
 - `git diff --check` — clean apart from working-copy line-ending notices;
 - 390×844, 768×1024, and 1280×900 responsive checks — passed.
 
-## Remaining physical and raster evidence
+## Remaining physical evidence
 
 The in-app browser exposes a fine pointer, so physical iOS Safari and Android
 Chrome evidence remains open for:
@@ -197,6 +199,4 @@ Chrome evidence remains open for:
 - cancellation and exact rollback during a second contact, rotation,
   backgrounding, lost capture, or map switch;
 - software-keyboard reachability for text and label fields;
-- touch-only switching between two populated maps;
-- a fresh map PNG rendered from the same document on phone and desktop and
-  compared for content and pixels without replacing the stored Phase 0 files.
+- touch-only switching between two populated maps.

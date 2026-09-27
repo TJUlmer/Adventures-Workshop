@@ -6,12 +6,14 @@
    * artwork sits *over* the fill under a toggle — so any combination of image
    * and flat colour across the three bands is reachable.
    */
+  import { onDestroy } from 'svelte';
   import type { Fill } from '$lib/cards/style';
   import { solid } from '$lib/cards/style';
   import type { InitiativeBandKey, InitiativeCard } from '$lib/cards/types';
   import { initiativeBandLabel } from '$lib/cards/types';
   import { hasArtwork } from '$lib/core/artwork';
   import { readArtworkFile } from '$lib/core/image-import';
+  import { createOperationGuard } from '$lib/interaction/operation-guard';
   import { INITIATIVE_BAND_DEFAULTS } from '$lib/renderer/geometry';
   import { workshop } from '$lib/state/workshop.svelte';
   import { Button, ColorInput, FillEditor, Icon, Slider, Switch } from '$lib/ui';
@@ -28,6 +30,17 @@
   /** One hidden input per band, so each picker targets its own band. */
   let inputs: Record<string, HTMLInputElement | null> = $state({});
   let error = $state<string | null>(null);
+  const artworkPickGuard = createOperationGuard();
+  let errorScope: object | null = null;
+  let errorCardId: InitiativeCard['id'] | null = null;
+
+  $effect(() => {
+    const nextScope = workshop.adventure;
+    const nextCardId = card.id;
+    if (errorScope && (errorScope !== nextScope || errorCardId !== nextCardId)) error = null;
+    errorScope = nextScope;
+    errorCardId = nextCardId;
+  });
 
   async function pick(
     band: InitiativeBandKey,
@@ -37,18 +50,59 @@
     event.currentTarget.value = '';
     if (!file) return;
 
+    const cardId = card.id;
+    const scope = workshop.adventure;
+    const operation = artworkPickGuard.begin({
+      setId: scope.id,
+      targetKey: `card:${cardId}:initiative-band:${band}:artwork`,
+      scope,
+      cardId,
+      band
+    });
     error = null;
     try {
       const source = await readArtworkFile(file);
-      workshop.editBand(card.id, band, (style) => {
+      if (!artworkPickGuard.isCurrent(operation, workshop.adventure.id, workshop.adventure)) return;
+      workshop.editBand(operation.context.cardId, operation.context.band, (style) => {
         style.artwork.source = source;
         style.artwork.label = file.name;
         style.showArtwork = true;
       });
     } catch (cause) {
+      if (!artworkPickGuard.isCurrent(operation, workshop.adventure.id, workshop.adventure)) return;
+      if (card.id !== operation.context.cardId) return;
       error = cause instanceof Error ? cause.message : 'Could not read that file.';
     }
   }
+
+  function removeArtwork(band: InitiativeBandKey): void {
+    const cardId = card.id;
+    const scope = workshop.adventure;
+    artworkPickGuard.supersede({
+      setId: scope.id,
+      targetKey: `card:${cardId}:initiative-band:${band}:artwork`,
+      scope
+    });
+    workshop.editBand(cardId, band, (target) => {
+      target.artwork.source = null;
+      target.artwork.label = '';
+      target.showArtwork = false;
+    });
+  }
+
+  function setArtworkVisibility(band: InitiativeBandKey, showArtwork: boolean): void {
+    const cardId = card.id;
+    const scope = workshop.adventure;
+    artworkPickGuard.supersede({
+      setId: scope.id,
+      targetKey: `card:${cardId}:initiative-band:${band}:artwork`,
+      scope
+    });
+    error = null;
+    workshop.editBand(cardId, band, (target) => (target.showArtwork = showArtwork));
+  }
+
+  onDestroy(() => artworkPickGuard.invalidate());
 
   function setFill(band: InitiativeBandKey, fill: Fill): void {
     workshop.editBand(card.id, band, (style) => {
@@ -80,12 +134,7 @@
         <Button
           size="sm"
           variant="ghost"
-          onclick={() =>
-            workshop.editBand(card.id, band, (target) => {
-              target.artwork.source = null;
-              target.artwork.label = '';
-              target.showArtwork = false;
-            })}
+          onclick={() => removeArtwork(band)}
         >
           Remove art
         </Button>
@@ -162,8 +211,7 @@
         label="Show artwork"
         hint="Off keeps the image but prints the fill alone."
         checked={style.showArtwork}
-        onchange={(showArtwork) =>
-          workshop.editBand(card.id, band, (target) => (target.showArtwork = showArtwork))}
+        onchange={(showArtwork) => setArtworkVisibility(band, showArtwork)}
       />
 
       {#if style.showArtwork}

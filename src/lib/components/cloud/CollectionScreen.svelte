@@ -18,6 +18,7 @@
    * outright — and a collection link is exactly the kind opened weeks after
    * it was pasted, by somebody who signed in once and forgot.
    */
+  import { onDestroy } from 'svelte';
   import {
     amOrganizer,
     canSubmitToCollection,
@@ -81,6 +82,7 @@
   import { readTtsSavedObjectsPath, writeTtsSavedObjectsPath } from '$lib/storage/settings';
   import { initials, tint } from '$lib/core/swatch';
   import { asId } from '$lib/core/id';
+  import { createOperationGuard } from '$lib/interaction/operation-guard';
   import { auth } from '$lib/cloud/auth.svelte';
   import { navigation } from '$lib/state/navigation.svelte';
   import { workshop } from '$lib/state/workshop.svelte';
@@ -197,6 +199,26 @@
   let saving = $state(false);
   let notice = $state<string | null>(null);
   let bannerInput = $state<HTMLInputElement | null>(null);
+  const bannerOperations = createOperationGuard();
+  const bannerScope = {};
+  let bannerCollectionId: string | null = null;
+  let bannerAccountId: string | null = null;
+
+  $effect(() => {
+    const id = collection?.id ?? null;
+    const accountId = auth.user?.id ?? null;
+    if (id === bannerCollectionId && accountId === bannerAccountId) return;
+    if (bannerCollectionId !== null) {
+      bannerOperations.supersede({
+        setId: bannerCollectionId,
+        targetKey: 'collection:banner',
+        scope: bannerScope
+      });
+    }
+    bannerCollectionId = id;
+    bannerAccountId = accountId;
+    saving = false;
+  });
 
   /* Draft fields, held apart from `collection` so an abandoned edit changes
      nothing and Cancel needs no undo. */
@@ -532,18 +554,43 @@
     const file = event.currentTarget.files?.[0];
     event.currentTarget.value = '';
     if (!file || !collection) return;
+    const accountId = auth.user?.id;
+    if (!accountId) return;
+    const operation = bannerOperations.begin({
+      setId: collection.id,
+      targetKey: 'collection:banner',
+      scope: bannerScope,
+      accountId
+    });
     saving = true;
     notice = null;
     try {
-      const url = await uploadCollectionBanner(collection.id, file);
-      await updateCollection(collection.id, { banner_url: url });
+      const url = await uploadCollectionBanner(operation.context.setId, file);
+      if (
+        !bannerOperations.isCurrent(operation, collection?.id ?? '', bannerScope) ||
+        auth.user?.id !== operation.context.accountId
+      ) return;
+      await updateCollection(operation.context.setId, { banner_url: url });
+      if (
+        !bannerOperations.isCurrent(operation, collection?.id ?? '', bannerScope) ||
+        auth.user?.id !== operation.context.accountId
+      ) return;
       collection = { ...collection, banner_url: url };
     } catch (error) {
+      if (
+        !bannerOperations.isCurrent(operation, collection?.id ?? '', bannerScope) ||
+        auth.user?.id !== operation.context.accountId
+      ) return;
       notice = error instanceof Error ? error.message : 'Could not upload that picture.';
     } finally {
-      saving = false;
+      if (
+        bannerOperations.isCurrent(operation, collection?.id ?? '', bannerScope) &&
+        auth.user?.id === operation.context.accountId
+      ) saving = false;
     }
   }
+
+  onDestroy(() => bannerOperations.invalidate());
 
   async function copyLink(): Promise<void> {
     if (!collection) return;

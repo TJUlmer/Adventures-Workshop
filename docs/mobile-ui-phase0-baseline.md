@@ -26,6 +26,12 @@ Open <http://127.0.0.1:5174/tools/mobile-baseline/run.html>. Wait until the page
 4. writes trim and bleed card ZIPs plus direct map and threat PNGs;
 5. runs the normal Tabletop Simulator exporter into `exports/mobile-ui-baseline-tts`.
 
+The exporter imports `src/styles/index.css`, including the application's font
+faces and tokens, so its detached document is styled like the real application.
+For a same-document viewport comparison, resize the browser after the first
+`DONE` and choose **Run again**. A `?profile=lowercase-name` query keeps a later
+phase's output separate from the Phase 0 folders.
+
 The frozen fixture and selected rendered artefacts used as the durable Phase 0 record live in
 `tools/baselines/mobile-ui-phase0/`. Regenerate into `exports/` first, compare deliberately, and only
 replace committed evidence when an output change is accepted.

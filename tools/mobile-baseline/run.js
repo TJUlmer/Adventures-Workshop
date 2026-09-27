@@ -1,3 +1,4 @@
+import '../../src/styles/index.css';
 import { parseSetFile } from '/src/lib/export/json.ts';
 import { exportCardPngs } from '/src/lib/export/card-pngs.ts';
 import { photographMapBoard, photographThreatBoard } from '/src/lib/export/card-stage.ts';
@@ -10,8 +11,12 @@ import {
 } from './fixture.js';
 
 const status = document.querySelector('#status');
+const runAgain = document.querySelector('#run-again');
 const encoder = new TextEncoder();
 const lines = [];
+const requestedProfile = new URL(window.location.href).searchParams.get('profile')?.trim();
+const profile = requestedProfile || 'mobile-ui-baseline';
+const ttsProfile = `${profile}-tts`;
 
 function log(message) {
   lines.push(message);
@@ -38,7 +43,7 @@ async function run() {
   const set = parsed.set;
 
   log(`Fixture v${BASELINE_FIXTURE_VERSION} validated at schema v${set.schemaVersion}.`);
-  await writeText('mobile-ui-baseline/fixture.awset.json', fixtureText);
+  await writeText(`${profile}/fixture.awset.json`, fixtureText);
   log('Wrote fixture.awset.json.');
 
   for (const bleed of [false, true]) {
@@ -49,7 +54,7 @@ async function run() {
         status.textContent = `${lines.join('\n')}\nRendering ${label} card ${done}/${total}…`;
       }
     });
-    await writeBlob(`mobile-ui-baseline/cards-${label}.zip`, result.blob);
+    await writeBlob(`${profile}/cards-${label}.zip`, result.blob);
     log(`Wrote cards-${label}.zip.`);
   }
 
@@ -61,16 +66,17 @@ async function run() {
     authorName: set.meta.author
   });
   if (!mapBlob) throw new Error('The map renderer returned no image.');
-  await writeBlob('mobile-ui-baseline/map.png', mapBlob);
+  await writeBlob(`${profile}/map.png`, mapBlob);
   log('Wrote map.png.');
 
   const threatBlob = await photographThreatBoard(set);
   if (!threatBlob) throw new Error('The threat renderer returned no image.');
-  await writeBlob('mobile-ui-baseline/threat.png', threatBlob);
+  await writeBlob(`${profile}/threat.png`, threatBlob);
   log('Wrote threat.png.');
 
   const tts = await exportTabletopSimulator(set, {
     hosting: { kind: 'local', savedObjectsPath: 'C:\\Baseline\\Saved Objects' },
+    localBundleName: ttsProfile,
     onProgress(done, total, label) {
       status.textContent = `${lines.join('\n')}\nTTS ${done}/${total}: ${label}`;
     }
@@ -88,22 +94,38 @@ async function run() {
     outputs: {
       cardArchives: ['cards-trim.zip', 'cards-bleed.zip'],
       boards: ['map.png', 'threat.png'],
-      tabletopSimulatorFolder: 'mobile-ui-baseline-tts'
+      tabletopSimulatorFolder: ttsProfile
     },
     tts: {
       fileCount: tts.fileCount,
       warningCount: tts.warnings.length
     }
   };
-  await writeText('mobile-ui-baseline/run.json', JSON.stringify(runSummary, null, 2));
+  await writeText(`${profile}/run.json`, JSON.stringify(runSummary, null, 2));
   log('Wrote run.json.');
   log('DONE — generate the evidence manifest from a terminal.');
   document.title = 'DONE — Mobile UI baseline exporter';
 }
 
-run().catch((error) => {
-  const message = error instanceof Error ? `${error.name}: ${error.message}\n${error.stack ?? ''}` : String(error);
-  log(`FAILED\n${message}`);
-  document.title = 'FAILED — Mobile UI baseline exporter';
-  console.error(error);
-});
+async function execute() {
+  runAgain.disabled = true;
+  lines.length = 0;
+  status.textContent = 'Starting…';
+  document.title = 'Mobile UI baseline exporter';
+  try {
+    if (!/^[a-z0-9][a-z0-9-]{0,63}$/.test(profile)) {
+      throw new Error('The output profile may contain only lowercase letters, digits, and hyphens.');
+    }
+    await run();
+  } catch (error) {
+    const message = error instanceof Error ? `${error.name}: ${error.message}\n${error.stack ?? ''}` : String(error);
+    log(`FAILED\n${message}`);
+    document.title = 'FAILED — Mobile UI baseline exporter';
+    console.error(error);
+  } finally {
+    runAgain.disabled = false;
+  }
+}
+
+runAgain.addEventListener('click', () => void execute());
+void execute();

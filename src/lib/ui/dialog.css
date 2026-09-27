@@ -6,10 +6,9 @@
  * only the layout contract: keep the surface inside the dynamic viewport,
  * give exactly one child the scrollbar, and leave chrome reachable.
  *
- * The safe-area terms are useful immediately on browsers whose layout
- * viewport exposes them and are ready for an eventual `viewport-fit=cover`
- * rollout. That meta setting must wait until the whole application shell,
- * not just its dialogs, protects every edge.
+ * `viewport-fit=cover` lets the shell use the whole screen, so top-layer
+ * dialogs must protect their own edges: unlike ordinary content, they are not
+ * descendants of the shell's safe-area padding.
  */
 .ui-dialog-viewport {
   --ui-dialog-inline-size: 40rem;

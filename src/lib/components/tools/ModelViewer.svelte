@@ -62,7 +62,8 @@
   let yaw = $state(0.6);
   let pitch = $state(0.5);
   let zoom = $state(1);
-  let dragging = $state(false);
+  let dragPointerId = $state<number | null>(null);
+  const dragging = $derived(dragPointerId !== null);
 
   function setFailure(message: string | null): void {
     if (failure === message) return;
@@ -165,11 +166,40 @@
   $effect(() => onContextRestored(() => draw()));
 
   function orbit(event: PointerEvent): void {
-    if (!dragging || !event.isPrimary) return;
+    if (dragPointerId !== event.pointerId) return;
     yaw += event.movementX * 0.01;
     // Stopped just short of the poles, where the up vector flips and the
     // model appears to spin on its own.
     pitch = Math.min(1.5, Math.max(-1.5, pitch + event.movementY * 0.01));
+  }
+
+  function beginOrbit(event: PointerEvent): void {
+    if (dragPointerId !== null || !event.isPrimary || event.button !== 0) return;
+    const target = event.currentTarget;
+    if (!(target instanceof HTMLCanvasElement)) return;
+    try {
+      target.setPointerCapture(event.pointerId);
+    } catch {
+      return;
+    }
+    dragPointerId = event.pointerId;
+  }
+
+  function finishOrbit(event: PointerEvent): void {
+    if (dragPointerId !== event.pointerId) return;
+    dragPointerId = null;
+    const target = event.currentTarget;
+    if (target instanceof HTMLCanvasElement && target.hasPointerCapture(event.pointerId)) {
+      try {
+        target.releasePointerCapture(event.pointerId);
+      } catch {
+        // A browser interruption can release capture between the check and call.
+      }
+    }
+  }
+
+  function cancelOrbit(event: PointerEvent): void {
+    if (dragPointerId === event.pointerId) dragPointerId = null;
   }
 
   function reset(): void {
@@ -216,19 +246,11 @@
       tabindex={failure ? -1 : 0}
       aria-hidden={failure ? 'true' : undefined}
       aria-label="Interactive 3D preview, {mesh.triangles.toLocaleString()} triangles. Drag or use arrow keys to rotate; plus and minus zoom."
-      onpointerdown={(event) => {
-        if (!event.isPrimary || event.button !== 0) return;
-        dragging = true;
-        event.currentTarget.setPointerCapture(event.pointerId);
-      }}
+      onpointerdown={beginOrbit}
       onpointermove={orbit}
-      onpointerup={(event) => {
-        dragging = false;
-        if (event.currentTarget.hasPointerCapture(event.pointerId)) {
-          event.currentTarget.releasePointerCapture(event.pointerId);
-        }
-      }}
-      onpointercancel={() => (dragging = false)}
+      onpointerup={finishOrbit}
+      onpointercancel={cancelOrbit}
+      onlostpointercapture={cancelOrbit}
       onwheel={(event) => {
         event.preventDefault();
         changeZoom(event.deltaY > 0 ? 0.9 : 1.1);
@@ -387,7 +409,7 @@
     background: var(--surface-hover);
   }
 
-  @media (pointer: coarse) {
+  @media (any-pointer: coarse) {
     .controls button {
       min-width: 44px;
       min-height: 44px;

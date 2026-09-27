@@ -1,6 +1,8 @@
 # Unmatched Labs Mobile UI Project
 
-**Status:** Implementation in progress — Phases 0–7 browser work complete; physical-device sign-off pending
+**Status:** Chromium browser implementation through Phase 9 complete;
+physical-device, multi-browser, authenticated, keyboard, and offline release
+sign-off pending
 **Last updated:** 27 September 2026
 **Scope:** Responsive browser UI for phones and touch-capable tablets
 
@@ -593,15 +595,16 @@ duplicate that inherited presentation in the inspector.
 - [ ] Horizontal strip navigation and vertical page scrolling do not fight.
 - [ ] Interruption during a move does not lose or duplicate an object.
 - [x] Mobile hit areas and inspectors never appear in export.
-- [ ] A representative threat export matches desktop in content and geometry.
+- [x] A representative threat export matches desktop in content and geometry.
 
 Automated Chromium checks at 360×800 and 1280×800 cover the 1152px board
 stage, contained horizontal overflow, 44px entity targets, space/slot/note
 selection, every inspector field, visible confirmed deletion, Move/Done
 ownership, keyboard focus transfer, and the absence of document-width
-overflow. All 53 stored Phase 0 export geometries still verify. Physical iOS
-and Android evidence remains open for one-finger axis arbitration, cancellation
-during rotation/backgrounding, and a fresh phone-versus-desktop PNG comparison.
+overflow. All 53 stored Phase 0 export geometries still verify. Phase 9's fresh
+same-document phone-to-desktop export retained the threat PNG's dimensions and
+decoded pixels. Physical iOS and Android evidence remains open for one-finger
+axis arbitration and cancellation during rotation/backgrounding.
 
 ---
 
@@ -671,18 +674,20 @@ Additionally:
 - [ ] A scroll gesture never creates a space.
 - [x] A pan never moves a selected object.
 - [x] A tap never inherits a stale Link endpoint.
-- [ ] Map appearance and exported coordinates remain unchanged.
+- [x] Map appearance and exported coordinates remain unchanged.
 
 Automated Chromium checks at 390×844 and 768×1024 cover the responsive
 viewport, 44px controls and entity targets, deliberate Add/Move ownership,
 multi-selection and inspectors, Undo, stale-Link clearing, document-width
 containment, inverse coordinates at 135% zoom, and data invariance during pan.
-All 53 stored Phase 0 export geometries still verify. Physical iOS and Android
+All 53 stored Phase 0 export geometries still verify. Phase 9's fresh
+same-document phone-to-desktop export retained the map PNG's dimensions,
+content, and geometry. Repeated strict runs found only sparse one-level raster
+rounding noise, not a coordinate or layout change. Physical iOS and Android
 evidence remains open for genuine two-finger pinch, touch scroll/pan
 arbitration, complete touch-only map authoring, cancellation during
 rotation/backgrounding/lost capture/a second contact, software-keyboard
-reachability, touch-only multiple-map switching, and a fresh
-phone-versus-desktop PNG comparison.
+reachability, and touch-only multiple-map switching.
 
 ---
 
@@ -740,19 +745,19 @@ gesture arbitration.
 - [ ] Focused fields stay visible above the keyboard.
 - [ ] Dismissing the keyboard restores a stable layout.
 - [ ] Orientation changes retain the selected entity and valid pane state.
-- [ ] Drawers and dialogs do not strand the page in a non-scrollable state.
-- [ ] No critical action depends on hover or precision pointing.
+- [x] Drawers and dialogs do not strand the page in a non-scrollable state.
+- [x] No critical action depends on hover or precision pointing.
 - [ ] Test 200% browser zoom, larger OS text, reduced motion, focus order,
   visible focus, dialog focus trapping, accessible names, and selected/pressed
   state.
-- [ ] Test dark and light themes.
+- [x] Test dark and light themes.
 - [ ] Test file upload and artwork decode on phone browsers.
 - [ ] Test offline editing and background/foreground transitions.
-- [ ] Compare representative card, threat, map, print, and TTS outputs with
+- [x] Compare representative card, threat, map, print, and TTS outputs with
   their pre-mobile desktop output.
-- [ ] Run `npm run check`.
-- [ ] Run `npm run build`.
-- [ ] Record any intentional remaining limitation in user-facing copy and
+- [x] Run `npm run check`.
+- [x] Run `npm run build`.
+- [x] Record any intentional remaining limitation in user-facing copy and
   this plan.
 
 ### Release gate
@@ -765,9 +770,16 @@ gesture arbitration.
 - [ ] Touch interruption cannot duplicate, lose, or partially corrupt an
   edited object.
 - [ ] Desktop layouts and shortcuts remain intact.
-- [ ] Representative exports match desktop output in dimensions, content,
+- [x] Representative exports match desktop output in dimensions, content,
   and geometry.
-- [ ] Check and production build finish without errors or warnings.
+- [x] Check and production build finish without errors or warnings.
+
+Automated Chromium checks cover the required viewport matrix, all local routes
+at 320×568, representative public routes and dialogs, both themes, responsive
+seams, and desktop regression. `npm run check` and the production build finish
+with no errors or warnings. Physical-device, multi-browser, authenticated,
+virtual-keyboard, offline, and full end-to-end evidence remains open, as do the
+release-gate items that depend on those environments.
 
 ---
 
