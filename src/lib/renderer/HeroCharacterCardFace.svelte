@@ -454,12 +454,13 @@
     -->
     <div
       class="band-art"
+      data-artwork-surface={`character-${band}`}
       style:left={px(CHARACTER_CARD.x - bleed)}
       style:top={py(run.top - bleed)}
       style:width={px(CHARACTER_CARD.width + bleed * 2)}
       style:height={py(run.bottom - run.top + bleed * 2)}
     >
-      <CardArt artwork={design[band].artwork} background="transparent" />
+      <CardArt artwork={design[band].artwork} background="transparent" useCrop={false} />
     </div>
   {/if}
 {/each}

@@ -9,6 +9,7 @@
     CardFixedLayer
   } from '$lib/cards/types';
   import { BLEED } from '$lib/renderer/geometry';
+  import { artworkAdjustmentView } from '$lib/state/artwork-adjustment-view.svelte';
   import { cardArtworkLayerView } from '$lib/state/card-artwork-layer-view.svelte';
   import { workshop } from '$lib/state/workshop.svelte';
   import { Button, ConfirmAction, Icon } from '$lib/ui';
@@ -68,15 +69,22 @@
     card.artworkLayers.find((layer) => layer.id === selectedId) ?? null
   );
 
+  function selectLayer(layerId: CardArtworkLayerId | null): void {
+    cardArtworkLayerView.select(card.id, layerId);
+    const layer = card.artworkLayers.find((entry) => entry.id === layerId);
+    if (!layer?.artwork.source) return;
+    artworkAdjustmentView.begin({ entity: 'cardArtworkLayer', id: card.id, layerId: layer.id });
+  }
+
   $effect(() => {
     if (selectedId && card.artworkLayers.some((layer) => layer.id === selectedId)) return;
-    cardArtworkLayerView.select(card.id, card.artworkLayers[0]?.id ?? null);
+    selectLayer(card.artworkLayers[0]?.id ?? null);
   });
 
   onDestroy(() => cardArtworkLayerView.clear(card.id));
 
   function addLayer(): void {
-    cardArtworkLayerView.select(card.id, workshop.addCardArtworkLayer(card.id));
+    selectLayer(workshop.addCardArtworkLayer(card.id));
   }
 
   function canMove(layerId: CardCompositeLayerId, direction: -1 | 1): boolean {
@@ -122,7 +130,7 @@
       type="button"
       class="layer-select"
       aria-pressed={layer.id === selectedId}
-      onclick={() => cardArtworkLayerView.select(card.id, layer.id)}
+      onclick={() => selectLayer(layer.id)}
     >
       <span class="thumb" class:empty={!layer.artwork.source}>
         {#if layer.artwork.source}

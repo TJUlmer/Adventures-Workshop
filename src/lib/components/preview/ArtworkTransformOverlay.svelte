@@ -1,7 +1,6 @@
 <script lang="ts">
   import { onDestroy, onMount } from 'svelte';
-  import type { CardArtworkLayer, CardId } from '$lib/cards/types';
-  import type { ArtTransform } from '$lib/core/artwork';
+  import type { Artwork, ArtTransform } from '$lib/core/artwork';
   import {
     clampArtworkOffset,
     clampArtworkScale,
@@ -15,8 +14,16 @@
   import { workshop } from '$lib/state/workshop.svelte';
 
   interface Props {
-    cardId: CardId;
-    layer: CardArtworkLayer;
+    target: EntityRef;
+    artwork: Artwork;
+    /** The renderer window whose coordinate system owns this artwork. */
+    windowSelector: string;
+    /** How the full native-ratio picture meets its renderer window. */
+    fit?: 'cover' | 'contain';
+    /** Border breaks use the full source; ordinary artwork retains its crop rectangle. */
+    useCrop?: boolean;
+    /** Expose independent width and height handles for deliberate reshaping. */
+    allowStretch?: boolean;
   }
 
   interface Box {
@@ -53,59 +60,94 @@
     transform: ArtTransform;
   };
 
-  let { cardId, layer }: Props = $props();
+  let {
+    target,
+    artwork,
+    windowSelector,
+    fit = 'cover',
+    useCrop = true,
+    allowStretch = false
+  }: Props = $props();
   let surface = $state<HTMLDivElement | null>(null);
-  let plateBox = $state<Box>({ left: 0, top: 0, width: 1, height: 1 });
+  let windowBox = $state<Box>({ left: 0, top: 0, width: 1, height: 1 });
   let sourceWidth = $state(1);
   let sourceHeight = $state(1);
   let manipulating = $state(false);
   let pointerSession: PointerSession | null = null;
 
-  const target = $derived({ entity: 'cardArtworkLayer' as const, id: cardId, layerId: layer.id });
-
-  /** The visible image rectangle before the author's transform is applied. */
-  const baseSize = $derived.by(() => {
-    const imageAspect = sourceWidth / sourceHeight;
-    const plateAspect = plateBox.width / plateBox.height;
-    if (imageAspect >= plateAspect) {
-      return { width: plateBox.width, height: plateBox.width / imageAspect };
+  /** The source rectangle and the element dimensions percentage offsets use. */
+  const baseBox = $derived.by(() => {
+    if (useCrop) {
+      const crop = artwork.crop;
+      const cropWidth = crop.width > 0 ? crop.width : 1;
+      const cropHeight = crop.height > 0 ? crop.height : 1;
+      const width = windowBox.width / cropWidth;
+      const height = windowBox.height / cropHeight;
+      return {
+        centerX: windowBox.left - (crop.x / cropWidth) * windowBox.width + width / 2,
+        centerY: windowBox.top - (crop.y / cropHeight) * windowBox.height + height / 2,
+        width,
+        height,
+        translateWidth: width,
+        translateHeight: height
+      };
     }
-    return { width: plateBox.height * imageAspect, height: plateBox.height };
+
+    const imageAspect = sourceWidth / sourceHeight;
+    const windowAspect = windowBox.width / windowBox.height;
+    const size = fit === 'cover'
+      ? imageAspect >= windowAspect
+        ? { width: windowBox.height * imageAspect, height: windowBox.height }
+        : { width: windowBox.width, height: windowBox.width / imageAspect }
+      : imageAspect >= windowAspect
+        ? { width: windowBox.width, height: windowBox.width / imageAspect }
+        : { width: windowBox.height * imageAspect, height: windowBox.height };
+    return {
+      centerX: windowBox.left + windowBox.width / 2,
+      centerY: windowBox.top + windowBox.height / 2,
+      ...size,
+      translateWidth: size.width,
+      translateHeight: size.height
+    };
   });
 
   const bounds = $derived.by(() => {
-    const transform = layer.artwork.transform;
+    const transform = artwork.transform;
     return {
-      centerX: plateBox.left + plateBox.width / 2 + transform.offsetX * plateBox.width,
-      centerY: plateBox.top + plateBox.height / 2 + transform.offsetY * plateBox.height,
-      width: baseSize.width * transform.scale * transform.stretchX,
-      height: baseSize.height * transform.scale * transform.stretchY,
+      centerX: baseBox.centerX + transform.offsetX * baseBox.translateWidth,
+      centerY: baseBox.centerY + transform.offsetY * baseBox.translateHeight,
+      width: baseBox.width * transform.scale * transform.stretchX,
+      height: baseBox.height * transform.scale * transform.stretchY,
       rotation: transform.rotation
     };
   });
 
+  function rendererWindow(): HTMLElement | null {
+    return surface?.parentElement?.querySelector<HTMLElement>(windowSelector) ?? null;
+  }
+
   function measure(): void {
     if (!surface) return;
-    const plate = surface.parentElement?.querySelector<HTMLElement>('.plate');
-    if (!plate) return;
+    const targetWindow = rendererWindow();
+    if (!targetWindow) return;
     const surfaceRect = surface.getBoundingClientRect();
-    const plateRect = plate.getBoundingClientRect();
-    plateBox = {
-      left: plateRect.left - surfaceRect.left,
-      top: plateRect.top - surfaceRect.top,
-      width: plateRect.width,
-      height: plateRect.height
+    const targetRect = targetWindow.getBoundingClientRect();
+    windowBox = {
+      left: targetRect.left - surfaceRect.left,
+      top: targetRect.top - surfaceRect.top,
+      width: targetRect.width,
+      height: targetRect.height
     };
   }
 
   onMount(() => {
     measure();
     const frame = surface?.parentElement?.querySelector<HTMLElement>('.frame');
-    const plate = surface?.parentElement?.querySelector<HTMLElement>('.plate');
+    const targetWindow = rendererWindow();
     const observer = new ResizeObserver(measure);
     if (surface) observer.observe(surface);
     if (frame) observer.observe(frame);
-    if (plate) observer.observe(plate);
+    if (targetWindow) observer.observe(targetWindow);
     return () => observer.disconnect();
   });
 
@@ -141,7 +183,7 @@
     beginInteraction(event, {
       kind: 'drag',
       target,
-      transform: snapshotArtworkTransform(layer.artwork.transform)
+      transform: snapshotArtworkTransform(artwork.transform)
     });
   }
 
@@ -156,7 +198,7 @@
       centerX,
       centerY,
       distance: Math.max(1, Math.hypot(event.clientX - centerX, event.clientY - centerY)),
-      transform: snapshotArtworkTransform(layer.artwork.transform)
+      transform: snapshotArtworkTransform(artwork.transform)
     });
   }
 
@@ -167,7 +209,7 @@
       direction,
       size: axis === 'x' ? bounds.width : bounds.height,
       rotation: (bounds.rotation * Math.PI) / 180,
-      transform: snapshotArtworkTransform(layer.artwork.transform)
+      transform: snapshotArtworkTransform(artwork.transform)
     });
   }
 
@@ -182,7 +224,7 @@
       centerX,
       centerY,
       angle: Math.atan2(event.clientY - centerY, event.clientX - centerX),
-      transform: snapshotArtworkTransform(layer.artwork.transform)
+      transform: snapshotArtworkTransform(artwork.transform)
     });
   }
 
@@ -193,10 +235,10 @@
     if (interaction.kind === 'drag') {
       workshop.setTransform(interaction.target, {
         offsetX: clampArtworkOffset(
-          interaction.transform.offsetX + movement.deltaX / plateBox.width
+          interaction.transform.offsetX + movement.deltaX / baseBox.translateWidth
         ),
         offsetY: clampArtworkOffset(
-          interaction.transform.offsetY + movement.deltaY / plateBox.height
+          interaction.transform.offsetY + movement.deltaY / baseBox.translateHeight
         )
       });
       return;
@@ -253,19 +295,19 @@
           ? {
               stretchX: value,
               offsetX: clampArtworkOffset(
-                interaction.transform.offsetX + shiftX / plateBox.width
+                interaction.transform.offsetX + shiftX / baseBox.translateWidth
               ),
               offsetY: clampArtworkOffset(
-                interaction.transform.offsetY + shiftY / plateBox.height
+                interaction.transform.offsetY + shiftY / baseBox.translateHeight
               )
             }
           : {
               stretchY: value,
               offsetX: clampArtworkOffset(
-                interaction.transform.offsetX + shiftX / plateBox.width
+                interaction.transform.offsetX + shiftX / baseBox.translateWidth
               ),
               offsetY: clampArtworkOffset(
-                interaction.transform.offsetY + shiftY / plateBox.height
+                interaction.transform.offsetY + shiftY / baseBox.translateHeight
               )
             }
       );
@@ -284,7 +326,7 @@
 
   function nudge(event: KeyboardEvent): void {
     const distance = event.shiftKey ? 0.025 : 0.005;
-    const transform = layer.artwork.transform;
+    const transform = artwork.transform;
     const patch =
       event.key === 'ArrowLeft'
         ? { offsetX: clampArtworkOffset(transform.offsetX - distance) }
@@ -308,7 +350,7 @@
   }
 </script>
 
-{#if layer.artwork.source}
+{#if artwork.source}
   <div
     class="transform-surface"
     bind:this={surface}
@@ -316,7 +358,7 @@
   >
     <img
       class="source-probe"
-      src={layer.artwork.source}
+      src={artwork.source}
       alt=""
       onload={readSourceSize}
     />
@@ -330,7 +372,7 @@
       style:height="{bounds.height}px"
       style:transform="translate(-50%, -50%) rotate({bounds.rotation}deg)"
       role="button"
-      aria-label="Adjusting selected artwork. Drag to move, use the handles to resize or rotate, or use the arrow keys to nudge."
+      aria-label="Selected artwork. Drag to move, use the handles to resize or rotate, or use the arrow keys to nudge."
       tabindex="0"
       onpointerdown={beginDrag}
       onkeydown={nudge}
@@ -354,34 +396,36 @@
         ></button>
       {/each}
 
-      <button
-        class="handle edge n"
-        type="button"
-        aria-label="Change artwork height"
-        title="Drag to change height"
-        onpointerdown={(event) => beginStretch(event, 'y', -1)}
-      ></button>
-      <button
-        class="handle edge e"
-        type="button"
-        aria-label="Change artwork width"
-        title="Drag to change width"
-        onpointerdown={(event) => beginStretch(event, 'x', 1)}
-      ></button>
-      <button
-        class="handle edge s"
-        type="button"
-        aria-label="Change artwork height"
-        title="Drag to change height"
-        onpointerdown={(event) => beginStretch(event, 'y', 1)}
-      ></button>
-      <button
-        class="handle edge w"
-        type="button"
-        aria-label="Change artwork width"
-        title="Drag to change width"
-        onpointerdown={(event) => beginStretch(event, 'x', -1)}
-      ></button>
+      {#if allowStretch}
+        <button
+          class="handle edge n"
+          type="button"
+          aria-label="Change artwork height"
+          title="Drag to change height"
+          onpointerdown={(event) => beginStretch(event, 'y', -1)}
+        ></button>
+        <button
+          class="handle edge e"
+          type="button"
+          aria-label="Change artwork width"
+          title="Drag to change width"
+          onpointerdown={(event) => beginStretch(event, 'x', 1)}
+        ></button>
+        <button
+          class="handle edge s"
+          type="button"
+          aria-label="Change artwork height"
+          title="Drag to change height"
+          onpointerdown={(event) => beginStretch(event, 'y', 1)}
+        ></button>
+        <button
+          class="handle edge w"
+          type="button"
+          aria-label="Change artwork width"
+          title="Drag to change width"
+          onpointerdown={(event) => beginStretch(event, 'x', -1)}
+        ></button>
+      {/if}
     </div>
   </div>
 {/if}

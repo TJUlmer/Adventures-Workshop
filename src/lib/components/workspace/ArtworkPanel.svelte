@@ -53,7 +53,7 @@
      */
     aspect?: number;
     /** Preserve a transparent overlay's own proportions inside its full-card window. */
-    fit?: 'fill' | 'contain';
+    fit?: 'cover' | 'contain';
     /** Border-break overlays resize their whole image rather than crop its source. */
     resizeMode?: 'crop' | 'stretch';
   }
@@ -65,8 +65,8 @@
     resolved = null,
     bedOrigin,
     aspect = 1346 / 1061,
-    fit = 'fill',
-    resizeMode = 'crop'
+    fit = 'cover',
+    resizeMode = 'stretch'
   }: Props = $props();
 
   const bedOverridden = $derived(
@@ -80,7 +80,7 @@
 
   const artwork = $derived(workshop.artworkFor(target));
   const attached = $derived(artwork ? hasArtwork(artwork) : false);
-  const adjusting = $derived(artworkAdjustmentView.active(target));
+  const adjusting = $derived(attached && artworkAdjustmentView.active(target));
 
   const MASKS = [
     { value: 'none', label: 'None' },
@@ -108,6 +108,9 @@
       const source = await readArtworkFile(file);
       if (!artworkPickGuard.isCurrent(operation, workshop.adventure.id, workshop.adventure)) return;
       workshop.setArtworkSource(operation.context.target, source, file.name);
+      // Picking an image is also an explicit selection: show its preview
+      // handles immediately instead of asking for a second mode change.
+      artworkAdjustmentView.begin(operation.context.target);
     } catch (cause) {
       if (!artworkPickGuard.isCurrent(operation, workshop.adventure.id, workshop.adventure)) return;
       if (artworkAdjustmentKey(target) !== operation.context.targetKey) return;
@@ -184,12 +187,12 @@
     if (trackedTargetKey) artworkAdjustmentView.endKey(trackedTargetKey);
   });
 
-  function setAdjusting(next: boolean): void {
-    if (next) artworkAdjustmentView.begin(target);
-    else {
-      pointerSession?.cancel('mode-change');
-      artworkAdjustmentView.end(target);
+  function selectArtwork(): void {
+    if (!attached) {
+      fileInput?.click();
+      return;
     }
+    artworkAdjustmentView.begin(target);
   }
 
   function startDrag(event: PointerEvent): void {
@@ -250,26 +253,33 @@
   <div class="import">
     <button
       type="button"
-      class="thumb"
-      class:empty={!attached}
-      title={attached ? 'Replace image' : 'Choose image'}
-      onclick={() => fileInput?.click()}
+      class="artwork-select"
+      class:selected={adjusting}
+      aria-pressed={attached ? adjusting : undefined}
+      title={attached ? 'Select this image for adjustment' : 'Choose image'}
+      onclick={selectArtwork}
     >
-      {#if attached && artwork?.source}
-        <img src={artwork.source} alt="" />
-      {:else}
-        <Icon name="image" size={18} />
-      {/if}
-    </button>
+      <span class="thumb" class:empty={!attached}>
+        {#if attached && artwork?.source}
+          <img src={artwork.source} alt="" />
+        {:else}
+          <Icon name="image" size={18} />
+        {/if}
+      </span>
 
-    <div class="import-text">
-      <span class="filename">{artwork?.label || 'No image attached'}</span>
-      {#if error}
-        <span class="error">{error}</span>
-      {:else}
-        <span class="sub">Embedded in the set file.</span>
-      {/if}
-    </div>
+      <span class="import-text">
+        <span class="filename">{artwork?.label || 'No image attached'}</span>
+        {#if error}
+          <span class="error">{error}</span>
+        {:else if attached}
+          <span class="sub">
+            {adjusting ? 'Selected in the preview.' : 'Select to adjust in the preview.'}
+          </span>
+        {:else}
+          <span class="sub">Embedded in the set file after import.</span>
+        {/if}
+      </span>
+    </button>
 
     <Button size="sm" onclick={() => fileInput?.click()}>
       <Icon name="upload" size={13} />
@@ -281,11 +291,6 @@
 {#if attached && artwork}
   <EditorSection title="Placement">
     {#snippet actions()}
-      <Button
-        size="sm"
-        variant={adjusting ? 'primary' : 'secondary'}
-        onclick={() => setAdjusting(!adjusting)}
-      >{adjusting ? 'Done' : 'Adjust artwork'}</Button>
       <Button size="sm" variant="ghost" onclick={() => workshop.resetArtwork(target, 'transform')}>
         Reset
       </Button>
@@ -299,7 +304,7 @@
       role={adjusting ? 'application' : undefined}
       aria-label={adjusting
         ? 'Artwork adjustment surface. Drag with one finger to reposition the artwork.'
-        : 'Artwork preview. Choose Adjust artwork to reposition it.'}
+        : 'Artwork preview. Select the image row above to reposition it.'}
       onpointerdown={startDrag}
     >
       <CardArt
@@ -311,7 +316,7 @@
       {#if adjusting}
         <div class="drag-hint">
           <Icon name="move" size={13} />
-          Drag to reposition · Done when finished
+          Drag to reposition
         </div>
       {/if}
     </div>
@@ -585,9 +590,31 @@
 <style>
   .import {
     display: grid;
-    grid-template-columns: auto minmax(0, 1fr) auto;
+    grid-template-columns: minmax(0, 1fr) auto;
     align-items: center;
     gap: var(--space-3);
+  }
+
+  .artwork-select {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: center;
+    gap: var(--space-3);
+    min-width: 0;
+    padding: var(--space-1);
+    border: 1px solid transparent;
+    border-radius: var(--radius-sm);
+    text-align: left;
+  }
+
+  .artwork-select:hover {
+    border-color: var(--border-strong);
+    background: var(--surface-hover);
+  }
+
+  .artwork-select.selected {
+    border-color: var(--border-accent);
+    background: var(--accent-soft);
   }
 
   .thumb {
@@ -602,10 +629,6 @@
     border: 1px solid var(--border-default);
     color: var(--text-muted);
     transition: border-color var(--duration-fast) var(--ease-out);
-  }
-
-  .thumb:hover {
-    border-color: var(--border-strong);
   }
 
   .thumb img {

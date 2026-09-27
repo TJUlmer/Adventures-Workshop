@@ -450,8 +450,8 @@
   style:border-radius={pu(INTERIOR_RADIUS)}
   style:z-index={layerZ('main-artwork')}
 >
-  <div class="art" style:height={pu(artWindowHeight)}>
-    <CardArt artwork={card.artwork} background={fillCss(theme.artBackground)} />
+  <div class="art" data-artwork-surface="action-main" style:height={pu(artWindowHeight)}>
+    <CardArt artwork={card.artwork} background={fillCss(theme.artBackground)} useCrop={false} />
   </div>
 </div>
 

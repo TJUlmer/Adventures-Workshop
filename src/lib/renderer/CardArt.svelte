@@ -13,24 +13,32 @@
     /**
      * How the picture meets its window.
      *
-     * `fill` by default and for every card: the crop rectangle is expected to
-     * carry the window's aspect ratio, so stretching it is a no-op and the
-     * transform layer handles any deliberate distortion. `contain` is for the
-     * places where the picture's own shape has to survive — a logo dropped on
-     * a square plate should letterbox rather than be squashed into it.
+     * `cover` by default: imported pictures fill their window without ever
+     * changing their native aspect ratio. `contain` is for places where the
+     * whole picture must stay visible — a logo dropped on a square plate
+     * should letterbox rather than be cropped.
      */
-    fit?: 'fill' | 'contain';
-    /** Border-break overlays resize the whole source instead of cropping it. */
+    fit?: 'cover' | 'contain';
+    /** Apply an explicit source crop instead of exposing the complete picture box. */
     useCrop?: boolean;
   }
 
-  let { artwork, background, fit = 'fill', useCrop = true }: Props = $props();
+  let { artwork, background, fit = 'cover', useCrop = true }: Props = $props();
+
+  let sourceAspect = $state(1);
 
   const layout = $derived(
     artLayout(useCrop ? artwork : { ...artwork, crop: FULL_CROP })
   );
   const mask = $derived(artMaskCss(artwork.effects));
   const present = $derived(hasArtwork(artwork));
+
+  function readSourceAspect(event: Event): void {
+    const image = event.currentTarget as HTMLImageElement;
+    sourceAspect = image.naturalWidth > 0 && image.naturalHeight > 0
+      ? image.naturalWidth / image.naturalHeight
+      : 1;
+  }
 </script>
 
 <div class="art" style:background>
@@ -44,12 +52,18 @@
         src={artwork.source}
         alt=""
         draggable="false"
-        style:object-fit={fit}
-        style:width={layout.width}
-        style:height={layout.height}
-        style:left={layout.left}
-        style:top={layout.top}
-        style:transform={layout.transform}
+        class:full-source={!useCrop}
+        class:cover={!useCrop && fit === 'cover'}
+        class:contain={!useCrop && fit === 'contain'}
+        onload={readSourceAspect}
+        style:--source-aspect={sourceAspect}
+        style:object-fit={useCrop ? fit : undefined}
+        style:width={useCrop ? layout.width : undefined}
+        style:height={useCrop ? layout.height : undefined}
+        style:left={useCrop ? layout.left : undefined}
+        style:top={useCrop ? layout.top : undefined}
+        style:transform={useCrop ? layout.transform : undefined}
+        style:--art-transform={layout.transform}
         style:filter={layout.filter}
         style:opacity={layout.opacity}
       />
@@ -71,18 +85,17 @@
   .clip {
     position: absolute;
     inset: 0;
+    container-type: size;
     mask-size: 100% 100%;
     -webkit-mask-size: 100% 100%;
   }
 
-  /*
-   * The crop rectangle is scaled up so the visible slice fills the window;
-   * `fill` is correct here because the crop is expected to carry the window's
-   * aspect ratio, and the transform layer handles any deliberate distortion.
-   */
+  /* The crop rectangle is scaled up so the visible slice fills the window.
+     `cover` keeps the source ratio intact even when an older document still
+     carries the full, window-shaped crop rectangle. */
   .clip img {
     position: absolute;
-    object-fit: fill;
+    object-fit: cover;
     max-width: none;
     transform-origin: center;
     /*
@@ -96,6 +109,24 @@
      * wants the CSS property.
      */
     -webkit-user-drag: none;
+  }
+
+  /* A full-source image owns a real, native-ratio box. The card opening only
+     clips that box; it never crops inside or reshapes the source itself. */
+  .clip img.full-source {
+    top: 50%;
+    left: 50%;
+    height: auto;
+    object-fit: fill;
+    transform: translate(-50%, -50%) var(--art-transform);
+  }
+
+  .clip img.full-source.cover {
+    width: max(100cqw, calc(100cqh * var(--source-aspect)));
+  }
+
+  .clip img.full-source.contain {
+    width: min(100cqw, calc(100cqh * var(--source-aspect)));
   }
 
   .vignette {

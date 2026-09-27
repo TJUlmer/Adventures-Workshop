@@ -3,12 +3,12 @@
    * The live card. This panel is the point of the app, so it carries as little
    * chrome as it can get away with: a bleed toggle, the cut line, and zoom.
    */
-  import { onDestroy, tick } from 'svelte';
+  import { tick } from 'svelte';
   import { createCard } from '$lib/cards/factory';
   import { resolveCardTheme } from '$lib/cards/theme';
   import { CARD_TYPE_META } from '$lib/cards/types';
   import { characterLabel, createCharacter, primaryCardName } from '$lib/characters/factory';
-  import type { HeroCharacterCard } from '$lib/characters/types';
+  import { CHARACTER_BAND_NAMES, type HeroCharacterCard } from '$lib/characters/types';
   import { asId } from '$lib/core/id';
   import { deckLabel } from '$lib/decks/factory';
   import type { DeckId } from '$lib/decks/types';
@@ -16,10 +16,7 @@
   import { CardRenderer } from '$lib/renderer';
   import type { CardFormat } from '$lib/renderer/geometry';
   import { BLEED_MM, CARD_FORMATS, trimBox } from '$lib/renderer/geometry';
-  import {
-    artworkAdjustmentKey,
-    artworkAdjustmentView
-  } from '$lib/state/artwork-adjustment-view.svelte';
+  import { artworkAdjustmentView } from '$lib/state/artwork-adjustment-view.svelte';
   import { cardArtworkLayerView } from '$lib/state/card-artwork-layer-view.svelte';
   import { characterEditorView } from '$lib/state/character-editor-view.svelte';
   import { findDeck, initiativeSubjectForCard } from '$lib/sets/queries';
@@ -110,36 +107,37 @@
         }
       : null
   );
-  const artworkAdjusting = $derived(
-    selectedArtworkTarget ? artworkAdjustmentView.active(selectedArtworkTarget) : false
+  const selectedMainArtworkTarget = $derived(
+    card?.type === 'action' ? { entity: 'card' as const, id: card.id } : null
   );
-
-  let trackedArtworkTargetKey: string | null = null;
-
-  $effect(() => {
-    const nextKey = selectedArtworkTarget ? artworkAdjustmentKey(selectedArtworkTarget) : null;
-    if (trackedArtworkTargetKey && trackedArtworkTargetKey !== nextKey) {
-      artworkAdjustmentView.endKey(trackedArtworkTargetKey);
+  const selectedMainArtwork = $derived(
+    selectedMainArtworkTarget && artworkAdjustmentView.active(selectedMainArtworkTarget)
+      ? card?.type === 'action'
+        ? card.artwork
+        : null
+      : null
+  );
+  const characterCardDesign = $derived(
+    statCard && characterSlot?.kind === 'card'
+      ? (characterSlot.entry?.characterCard ?? statCard.characterCard)
+      : null
+  );
+  const selectedCharacterArtwork = $derived.by(() => {
+    if (!statCard || !characterCardDesign || characterSlot?.kind !== 'card') return null;
+    for (const band of CHARACTER_BAND_NAMES) {
+      const target = {
+        entity: 'characterBand' as const,
+        id: statCard.id,
+        cardId: characterSlot.entry?.id,
+        band
+      };
+      const artwork = characterCardDesign[band].artwork;
+      if (artwork.source && artworkAdjustmentView.active(target)) {
+        return { target, artwork, band };
+      }
     }
-    trackedArtworkTargetKey = nextKey;
-    if (selectedArtworkTarget && !selectedArtworkLayer?.artwork.source) {
-      artworkAdjustmentView.end(selectedArtworkTarget);
-    }
+    return null;
   });
-
-  onDestroy(() => {
-    if (trackedArtworkTargetKey) artworkAdjustmentView.endKey(trackedArtworkTargetKey);
-  });
-
-  function toggleArtworkAdjustment(): void {
-    if (!selectedArtworkTarget || !selectedArtworkLayer?.artwork.source) return;
-    if (artworkAdjustmentView.active(selectedArtworkTarget)) {
-      artworkAdjustmentView.end(selectedArtworkTarget);
-    } else {
-      artworkAdjustmentView.begin(selectedArtworkTarget);
-    }
-  }
-
   /**
    * A stand-in action card, so the figure's style controls have something to
    * act on. It is invented here and belongs to no deck: it is never saved,
@@ -286,21 +284,6 @@
     <span class="eyebrow">Preview</span>
 
     <div class="tools">
-      {#if selectedArtworkLayer}
-        <button
-          type="button"
-          class="tool label adjust"
-          class:on={artworkAdjusting}
-          aria-pressed={artworkAdjusting}
-          disabled={!selectedArtworkLayer.artwork.source}
-          title={selectedArtworkLayer.artwork.source
-            ? artworkAdjusting
-              ? 'Finish adjusting artwork'
-              : 'Move, resize, or rotate the selected artwork layer'
-            : 'Attach an image before adjusting this layer'}
-          onclick={toggleArtworkAdjustment}
-        >{artworkAdjusting ? 'Done' : 'Adjust artwork'}</button>
-      {/if}
       <button
         type="button"
         class="tool label"
@@ -344,13 +327,24 @@
           : ''}
       </span>
       <div class="card-slot" style:width="{zoom * 100}%" style:--zoom={zoom}>
-        <CardRenderer
-          card={null}
-          {statCard}
-          statCardEntry={characterSlot.entry}
-          options={{ showBleed: bleeding, showGuides: showGuides && bleeding }}
-          customSymbols={workshop.adventure.customSymbols}
-        />
+        <div class="card-canvas">
+          <CardRenderer
+            card={null}
+            {statCard}
+            statCardEntry={characterSlot.entry}
+            options={{ showBleed: bleeding, showGuides: showGuides && bleeding }}
+            customSymbols={workshop.adventure.customSymbols}
+          />
+          {#if selectedCharacterArtwork}
+            <ArtworkTransformOverlay
+              target={selectedCharacterArtwork.target}
+              artwork={selectedCharacterArtwork.artwork}
+              windowSelector={`[data-artwork-surface="character-${selectedCharacterArtwork.band}"]`}
+              useCrop={false}
+              allowStretch
+            />
+          {/if}
+        </div>
       </div>
     {/if}
 
@@ -375,8 +369,26 @@
             options={{ showBleed: bleeding, showGuides: showGuides && bleeding }}
             customSymbols={workshop.adventure.customSymbols}
           />
-          {#if card?.type === 'action' && selectedArtworkLayer && artworkAdjusting}
-            <ArtworkTransformOverlay cardId={card.id} layer={selectedArtworkLayer} />
+          {#if card?.type === 'action' && selectedMainArtwork && selectedMainArtworkTarget}
+            <ArtworkTransformOverlay
+              target={selectedMainArtworkTarget}
+              artwork={selectedMainArtwork}
+              windowSelector='[data-artwork-surface="action-main"]'
+              useCrop={false}
+              allowStretch
+            />
+          {/if}
+          <!-- Selecting a border-break layer is already the deliberate edit action. A second
+               adjustment mode hid these handles until the author repeated that choice. -->
+          {#if card?.type === 'action' && selectedArtworkLayer?.artwork.source && selectedArtworkTarget && artworkAdjustmentView.active(selectedArtworkTarget)}
+            <ArtworkTransformOverlay
+              target={selectedArtworkTarget}
+              artwork={selectedArtworkLayer.artwork}
+              windowSelector=".plate"
+              fit="contain"
+              useCrop={false}
+              allowStretch
+            />
           {/if}
         </div>
       </div>
@@ -584,10 +596,6 @@
     width: auto;
     padding-inline: var(--space-2);
     font-size: var(--text-2xs);
-  }
-
-  .tool.adjust {
-    flex: none;
   }
 
   .tool:disabled {
