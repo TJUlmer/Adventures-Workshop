@@ -1,4 +1,5 @@
-import type { ActionCard, CardId } from './types';
+import { actionTextIsEmpty } from '$lib/text/action-text';
+import type { AbilityBlocks, ActionCard, CardId } from './types';
 
 export type AbilitySourceRegion = 'primary-ability' | 'defense-ability';
 export type AbilityParagraphField =
@@ -262,10 +263,28 @@ export const PREVIEW_EDIT_LIFECYCLE = {
 } as const;
 
 export interface PreviewDirectField {
-  kind: 'title' | 'number';
+  kind: 'title' | 'ability' | 'number';
   value: string | number;
   min?: number;
   max?: number;
+}
+
+function abilitySource(
+  card: ActionCard,
+  address: CardEditAddress
+): { ability: AbilityBlocks; value: string } | null {
+  if (address.region !== 'primary-ability' && address.region !== 'defense-ability') {
+    return null;
+  }
+  if (address.region === 'defense-ability' && !card.split) return null;
+
+  const ability =
+    address.region === 'primary-ability' ? card.ability : card.defenseAbility;
+  if (address.field === 'bonus') {
+    const bonus = ability.bonusAbilities[address.bonusIndex];
+    return bonus ? { ability, value: bonus.text } : null;
+  }
+  return { ability, value: ability[address.field] };
 }
 
 /**
@@ -297,6 +316,11 @@ export function previewDirectField(
     return { kind: 'number', value: card.boost, min: 1, max: 9 };
   }
 
+  const ability = abilitySource(card, address);
+  if (ability && !actionTextIsEmpty(ability.value)) {
+    return { kind: 'ability', value: ability.value };
+  }
+
   return null;
 }
 
@@ -317,6 +341,23 @@ export function writePreviewDirectField(
   if (field.kind === 'title') {
     if (typeof value !== 'string') return false;
     card.title = value;
+    return true;
+  }
+
+  if (field.kind === 'ability') {
+    if (typeof value !== 'string') return false;
+    const source = abilitySource(card, address);
+    if (!source) return false;
+    if (address.region !== 'primary-ability' && address.region !== 'defense-ability') {
+      return false;
+    }
+    if (address.field === 'bonus') {
+      const bonus = source.ability.bonusAbilities[address.bonusIndex];
+      if (!bonus) return false;
+      bonus.text = value;
+    } else {
+      source.ability[address.field] = value;
+    }
     return true;
   }
 

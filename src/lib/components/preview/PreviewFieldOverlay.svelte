@@ -159,6 +159,14 @@
     finishInactive(current.address, returnFocus);
   }
 
+  function openFullEditor(): void {
+    if (session.status !== 'editing') return;
+    const address = session.address;
+    if (session.valid) commitSession(false);
+    else cancelSession(false);
+    cardEditorView.requestTarget(address);
+  }
+
   function updateDraft(draft: PreviewEditValue, valid: boolean): void {
     if (session.status !== 'editing') return;
     session = { ...session, draft, valid };
@@ -284,6 +292,7 @@
       ondraft={updateDraft}
       oncommit={commitSession}
       oncancel={cancelSession}
+      onopenfull={openFullEditor}
     />
   {/if}
 </div>

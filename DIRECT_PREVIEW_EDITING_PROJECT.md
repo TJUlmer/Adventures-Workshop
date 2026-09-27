@@ -1,6 +1,6 @@
 # Unmatched Labs Direct Preview Editing Project
 
-**Status:** Phase 2 implemented; awaiting hosted-preview review
+**Status:** Phase 3 implemented; awaiting hosted-preview review
 **Last updated:** 27 September 2026
 **Scope:** Desktop-first editing of selected action-card fields from the live
 right-hand preview, with a safe centre-editor fallback on narrow layouts
@@ -479,7 +479,7 @@ after commit; Escape safely abandons the draft.
   Strict decoded-pixel verification retains the cross-run variance documented
   in Phase 0 and Phase 1; Phase 2 changes no renderer or export code.
 - [x] `npm run check` and `npm run build` pass.
-- [ ] The Phase 2 commit is pushed and accepted in the hosted preview before
+- [x] The Phase 2 commit is pushed and accepted in the hosted preview before
   work proceeds to Phase 3.
 
 ### Direct-edit MVP gate
@@ -505,29 +505,29 @@ the author to the complete Ability Text controls in the centre.
 
 ### Work
 
-- [ ] Reuse or extract the existing `FormattedTextField` editing core rather
+- [x] Reuse or extract the existing `FormattedTextField` editing core rather
   than adding a second sanitizer, selection model, or token conversion path.
-- [ ] Open the editor from the original stored ability value, never from
+- [x] Open the editor from the original stored ability value, never from
   `renderActionText()` output.
-- [ ] Map primary plain and all three timing paragraphs to their exact source.
-- [ ] Map split-defence plain and timing paragraphs to `defenseAbility`.
-- [ ] Map Bonus paragraphs using their original array index and side.
-- [ ] Keep timing labels, Bonus icons, dividers, colours, and other structural
+- [x] Map primary plain and all three timing paragraphs to their exact source.
+- [x] Map split-defence plain and timing paragraphs to `defenseAbility`.
+- [x] Map Bonus paragraphs using their original array index and side.
+- [x] Keep timing labels, Bonus icons, dividers, colours, and other structural
   decorations non-editable.
-- [ ] Provide a clear **Open full editor** action inside the anchored ability
+- [x] Provide a clear **Open full editor** action inside the anchored ability
   editor.
-- [ ] Route blank ability space and missing blocks to the complete centre
+- [x] Route blank ability space and missing blocks to the complete centre
   stack.
-- [ ] Preserve bold, italic, multiline text, built-in symbols, custom-symbol
+- [x] Preserve bold, italic, multiline text, built-in symbols, custom-symbol
   IDs, `{{name}}`, paste sanitization, caret, selection, and IME composition.
-- [ ] Keep toolbar interaction within the active session rather than treating
+- [x] Keep toolbar interaction within the active session rather than treating
   it as an outside-focus commit.
-- [ ] Preserve normal rich-text undo behaviour while the local draft is open.
-- [ ] Handle copy reflow without losing selection or detaching the editor.
-- [ ] Preserve the renderer's existing empty/whitespace title-rule semantics.
-- [ ] Close or commit coherently if the selected ability becomes empty,
+- [x] Preserve normal rich-text undo behaviour while the local draft is open.
+- [x] Handle copy reflow without losing selection or detaching the editor.
+- [x] Preserve the renderer's existing empty/whitespace title-rule semantics.
+- [x] Close or commit coherently if the selected ability becomes empty,
   hidden, or structurally changed from the centre editor.
-- [ ] Keep unsupported advanced action-card text fields navigation-only or
+- [x] Keep unsupported advanced action-card text fields navigation-only or
   centre-editor-only for this milestone.
 
 ### Likely files
@@ -542,20 +542,22 @@ the author to the complete Ability Text controls in the centre.
 
 ### Exit criteria
 
-- [ ] Existing primary plain and timing paragraphs edit their exact fields.
-- [ ] Existing split-defence paragraphs never write to the primary side.
-- [ ] Existing Bonus ability 2 edits index `1` even if index `0` is empty.
-- [ ] Timing labels remain fixed while selecting the associated text.
-- [ ] Blank space and absent ability blocks open the correct centre stack.
-- [ ] Bold, italic, multiline copy, symbols, custom symbols, `{{name}}`, paste,
+- [x] Existing primary plain and timing paragraphs edit their exact fields.
+- [x] Existing split-defence paragraphs never write to the primary side.
+- [x] Existing Bonus ability 2 edits index `1` even if index `0` is empty.
+- [x] Timing labels remain fixed while selecting the associated text.
+- [x] Blank space and absent ability blocks open the correct centre stack.
+- [x] Bold, italic, multiline copy, symbols, custom symbols, `{{name}}`, paste,
   undo, caret, selection, and IME input survive a save/reload round trip.
-- [ ] Reflow during editing does not lose focus or strand the popover.
-- [ ] Escape, commit, toolbar use, Open full editor, and card switching follow
+- [x] Reflow during editing does not lose focus or strand the popover.
+- [x] Escape, commit, toolbar use, Open full editor, and card switching follow
   the shared edit-session contract.
-- [ ] Exporting cannot capture the editor or omit an unresolved draft
+- [x] Exporting cannot capture the editor or omit an unresolved draft
   silently.
-- [ ] Representative export fingerprints remain unchanged.
-- [ ] `npm run check` and `npm run build` pass.
+- [x] Representative export geometry and export structure remain unchanged.
+  Strict decoded-pixel verification retains the cross-environment variance
+  documented in earlier phases; Phase 3 changes no renderer or export code.
+- [x] `npm run check` and `npm run build` pass.
 - [ ] The Phase 3 commit is pushed and accepted in the hosted preview before
   work proceeds to Phase 4.
 

@@ -2,15 +2,17 @@
   import { onMount } from 'svelte';
   import type { PreviewDirectField, PreviewEditValue } from '$lib/cards/edit-targets';
   import type { CustomSymbol } from '$lib/symbols/types';
-  import { cleanActionText } from '$lib/text/action-text';
-  import { toDisplayTokens, toStoredTokens } from '$lib/text/tokens';
   import {
-    installSelectionRange,
-    rangeAtEnd,
-    rangeFromOffsets,
-    selectionOffsets,
-    selectionRangeInside
-  } from '$lib/ui/contenteditable-selection';
+    createActionTextEditorState,
+    displayActionTextEditorValue,
+    formatActionTextEditor,
+    insertActionTextEditorLineBreak,
+    insertActionTextEditorText,
+    rememberActionTextSelection,
+    restoreActionTextSelection,
+    syncActionTextEditor,
+    type ActionTextEditorValue
+  } from '$lib/text/action-text-editor';
   import SymbolPalette from '$lib/components/workspace/SymbolPalette.svelte';
   import { clampPreviewNumber } from '$lib/cards/edit-targets';
 
@@ -26,6 +28,7 @@
     ondraft: (value: PreviewEditValue, valid: boolean) => void;
     oncommit: (returnFocus: boolean) => void;
     oncancel: (returnFocus: boolean) => void;
+    onopenfull: () => void;
   }
 
   let {
@@ -39,22 +42,24 @@
     customSymbols = [],
     ondraft,
     oncommit,
-    oncancel
+    oncancel,
+    onopenfull
   }: Props = $props();
 
   let root = $state<HTMLDivElement | null>(null);
   let editor = $state<HTMLDivElement | null>(null);
   let numberInput = $state<HTMLInputElement | null>(null);
   let coarsePointer = $state(false);
-  let composing = false;
   let valid = $state(true);
-  let savedRange: Range | null = null;
+  const editorState = createActionTextEditorState();
+  const textField = $derived(field.kind === 'title' || field.kind === 'ability');
+  const multiline = $derived(field.kind === 'ability');
 
   const shellWidth = $derived.by(() => {
     const available = Math.max(96, canvasWidth - 8);
     const desired =
-      field.kind === 'title'
-        ? Math.max(width, 240)
+      textField
+        ? Math.max(width, multiline ? 320 : 240)
         : Math.max(width, coarsePointer ? 140 : 96);
     return Math.min(desired, available);
   });
@@ -65,55 +70,42 @@
     )
   );
 
-  function syncTitleDraft(): void {
-    if (!editor || composing) return;
-    const live = selectionRangeInside(editor);
-    const preserved = live ? selectionOffsets(editor, live) : null;
-    const clean = cleanActionText(editor.innerHTML, { singleLine: true });
+  function editorOptions(): { singleLine: boolean } {
+    return { singleLine: !multiline };
+  }
 
-    if (clean !== editor.innerHTML) {
-      editor.innerHTML = clean;
-      if (preserved) {
-        const kept = rangeFromOffsets(editor, preserved);
-        savedRange = kept.cloneRange();
-        installSelectionRange(editor, kept);
-      }
-    }
-
-    const current = selectionRangeInside(editor);
-    if (current) savedRange = current.cloneRange();
+  function acceptTextDraft(next: ActionTextEditorValue | null): void {
+    if (!next) return;
     valid = true;
-    ondraft(toStoredTokens(clean, customSymbols), true);
+    ondraft(next.stored, true);
   }
 
-  function restoreTitleSelection(fallbackToEnd = false): Range | null {
-    if (!editor) return null;
-    let range = selectionRangeInside(editor) ?? savedRange?.cloneRange() ?? null;
-    editor.focus({ preventScroll: true });
-    range ??= fallbackToEnd ? rangeAtEnd(editor) : null;
-    if (!range) return null;
-    const installed = installSelectionRange(editor, range);
-    savedRange = installed?.cloneRange() ?? null;
-    return installed;
+  function syncTextDraft(): void {
+    if (!editor) return;
+    acceptTextDraft(
+      syncActionTextEditor(editor, editorState, customSymbols, editorOptions())
+    );
   }
 
-  function formatTitle(command: 'bold' | 'italic'): void {
-    restoreTitleSelection();
-    document.execCommand(command, false);
-    syncTitleDraft();
+  function formatText(command: 'bold' | 'italic'): void {
+    if (!editor) return;
+    acceptTextDraft(
+      formatActionTextEditor(editor, editorState, command, customSymbols, editorOptions())
+    );
   }
 
-  function insertTitleToken(token: string): void {
-    restoreTitleSelection(true);
-    document.execCommand('insertText', false, token);
-    syncTitleDraft();
+  function insertText(token: string): void {
+    if (!editor) return;
+    acceptTextDraft(
+      insertActionTextEditorText(editor, editorState, token, customSymbols, editorOptions())
+    );
   }
 
-  function handleTitlePaste(event: ClipboardEvent): void {
+  function handleTextPaste(event: ClipboardEvent): void {
     event.preventDefault();
-    const text = (event.clipboardData?.getData('text/plain') ?? '').replace(/\s*\r?\n\s*/g, ' ');
-    document.execCommand('insertText', false, text);
-    syncTitleDraft();
+    let text = event.clipboardData?.getData('text/plain') ?? '';
+    if (!multiline) text = text.replace(/\s*\r?\n\s*/g, ' ');
+    insertText(text);
   }
 
   function handleNumberInput(event: Event): void {
@@ -149,7 +141,24 @@
     if (event.key === 'Enter' && !event.isComposing) {
       event.preventDefault();
       event.stopPropagation();
-      if (field.kind === 'title') syncTitleDraft();
+      if (field.kind === 'ability' && !event.ctrlKey && !event.metaKey) {
+        event.preventDefault();
+        event.stopPropagation();
+        if (editor) {
+          acceptTextDraft(
+            insertActionTextEditorLineBreak(
+              editor,
+              editorState,
+              customSymbols,
+              editorOptions()
+            )
+          );
+        }
+        return;
+      }
+      event.preventDefault();
+      event.stopPropagation();
+      if (textField) syncTextDraft();
       commitFromKeyboard();
     }
   }
@@ -163,13 +172,23 @@
 
   onMount(() => {
     coarsePointer = window.matchMedia('(any-pointer: coarse)').matches;
-    if (field.kind === 'title' && editor) {
-      editor.innerHTML = toDisplayTokens(String(field.value), customSymbols);
-      restoreTitleSelection(true);
+    if (textField && editor) {
+      editor.innerHTML = displayActionTextEditorValue(
+        String(field.value),
+        customSymbols,
+        editorOptions()
+      );
+      restoreActionTextSelection(editor, editorState, true);
     } else if (numberInput) {
       numberInput.focus({ preventScroll: true });
       numberInput.select();
     }
+
+    const captureSelection = (): void => {
+      rememberActionTextSelection(editor, editorState);
+    };
+    document.addEventListener('selectionchange', captureSelection);
+    return () => document.removeEventListener('selectionchange', captureSelection);
   });
 </script>
 
@@ -177,6 +196,7 @@
   bind:this={root}
   class="field-editor"
   class:title={field.kind === 'title'}
+  class:ability={field.kind === 'ability'}
   class:number={field.kind === 'number'}
   class:invalid={!valid}
   style:left="{shellLeft}px"
@@ -186,34 +206,42 @@
   role="group"
   aria-label="Editing {label}"
 >
-  {#if field.kind === 'title'}
+  {#if textField}
     <div
       bind:this={editor}
-      class="title-input"
+      class="text-input"
+      class:title-input={field.kind === 'title'}
+      class:ability-input={field.kind === 'ability'}
       contenteditable="true"
       role="textbox"
       tabindex="0"
       aria-label="{label} on card"
-      aria-multiline="false"
-      data-placeholder="Card Title"
-      style:min-height="{Math.max(height, 32)}px"
-      spellcheck="false"
-      oncompositionstart={() => (composing = true)}
+      aria-multiline={multiline}
+      data-placeholder={field.kind === 'title' ? 'Card Title' : 'Ability text'}
+      style:min-height="{Math.max(height, multiline ? 88 : 32)}px"
+      spellcheck={multiline}
+      oncompositionstart={() => (editorState.composing = true)}
       oncompositionend={() => {
-        composing = false;
-        syncTitleDraft();
+        editorState.composing = false;
+        syncTextDraft();
       }}
-      oninput={syncTitleDraft}
+      oninput={syncTextDraft}
       onkeydown={handleKeydown}
-      onpaste={handleTitlePaste}
+      onpaste={handleTextPaste}
     ></div>
     <div class="toolbar">
       <SymbolPalette
-        oninsert={insertTitleToken}
-        onformat={formatTitle}
+        oninsert={insertText}
+        onformat={formatText}
         {customSymbols}
       />
+      {#if field.kind === 'ability'}
+        <span class="commit-hint" title="Ctrl or Command + Enter saves">Ctrl/⌘+↵</span>
+      {/if}
       <div class="actions">
+        {#if field.kind === 'ability'}
+          <button type="button" class="open-full" onclick={onopenfull}>Open full editor</button>
+        {/if}
         <button type="button" class="action" aria-label="Commit {label}" title="Commit" onclick={() => oncommit(true)}>✓</button>
         <button type="button" class="action" aria-label="Cancel editing {label}" title="Cancel" onclick={() => oncancel(true)}>×</button>
       </div>
@@ -254,39 +282,51 @@
     box-shadow: var(--shadow-lg), 0 0 0 2px var(--accent-soft);
   }
 
-  .title-input {
+  .text-input {
     width: 100%;
     padding: 4px var(--space-2);
-    overflow-x: auto;
-    overflow-y: hidden;
-    white-space: nowrap;
     border-radius: var(--radius-xs);
     background: var(--surface-inset);
     color: var(--text-primary);
+    font-size: var(--text-sm);
+    line-height: var(--leading-normal);
+  }
+
+  .title-input {
+    overflow-x: auto;
+    overflow-y: hidden;
+    white-space: nowrap;
     font-family: var(--font-display);
     font-size: var(--text-md);
     line-height: var(--leading-tight);
   }
 
-  .title-input:focus,
+  .ability-input {
+    max-height: 180px;
+    overflow-x: hidden;
+    overflow-y: auto;
+    white-space: pre-wrap;
+  }
+
+  .text-input:focus,
   .number-input:focus {
     outline: none;
   }
 
-  .title-input:empty::before {
+  .text-input:empty::before {
     content: attr(data-placeholder);
     color: var(--text-muted);
     pointer-events: none;
   }
 
-  .title-input :global(b),
-  .title-input :global(strong) {
+  .text-input :global(b),
+  .text-input :global(strong) {
     font-weight: 700;
     font-synthesis-weight: auto;
   }
 
-  .title-input :global(i),
-  .title-input :global(em) {
+  .text-input :global(i),
+  .text-input :global(em) {
     font-style: italic;
   }
 
@@ -300,6 +340,16 @@
   .toolbar {
     min-width: 0;
     gap: var(--space-1);
+  }
+
+  .commit-hint {
+    flex: 1 1 auto;
+    overflow: hidden;
+    color: var(--text-muted);
+    font-size: var(--text-2xs);
+    text-align: right;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .actions {
@@ -319,10 +369,23 @@
   }
 
   .action:hover,
-  .action:focus-visible {
+  .action:focus-visible,
+  .open-full:hover,
+  .open-full:focus-visible {
     background: var(--surface-hover);
     color: var(--text-primary);
     outline: none;
+  }
+
+  .open-full {
+    flex: none;
+    height: 24px;
+    padding-inline: var(--space-2);
+    border-radius: var(--radius-xs);
+    color: var(--accent);
+    font-size: var(--text-2xs);
+    font-weight: var(--weight-semibold);
+    white-space: nowrap;
   }
 
   .field-editor.number {
@@ -371,6 +434,7 @@
 
   @media (hover: none), (any-pointer: coarse) {
     .action,
+    .open-full,
     .number-input {
       min-width: var(--touch-target);
       min-height: var(--touch-target);
