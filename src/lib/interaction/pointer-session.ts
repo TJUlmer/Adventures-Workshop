@@ -38,6 +38,11 @@ export interface PointerSessionOptions<TSnapshot> {
   snapshot: Readonly<TSnapshot>;
   /** Defaults to 6px for a mouse and 10px for touch or pen. */
   threshold?: number | ((pointerType: string) => number);
+  /**
+   * Defaults to true. A surface that owns multi-pointer arbitration may turn
+   * this off, then cancel explicitly after it has recorded the second contact.
+   */
+  cancelOnSecondPointer?: boolean;
   onMove: (
     movement: PointerSessionMovement,
     event: PointerEvent,
@@ -192,7 +197,11 @@ export function startPointerSession<TSnapshot>(
   };
 
   const onOtherPointerDown = (downEvent: Event): void => {
-    if (downEvent instanceof PointerEvent && downEvent.pointerId !== pointerId) {
+    if (
+      options.cancelOnSecondPointer !== false &&
+      downEvent instanceof PointerEvent &&
+      downEvent.pointerId !== pointerId
+    ) {
       cancel('second-pointer');
     }
   };

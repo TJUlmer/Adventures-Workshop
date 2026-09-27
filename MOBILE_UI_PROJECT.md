@@ -627,22 +627,22 @@ proved by earlier phases.
 
 ### Work
 
-- [ ] Commit placement on pointer-up only when movement remained below the tap
+- [x] Commit placement on pointer-up only when movement remained below the tap
   threshold. Never create a space on pointer-down.
-- [ ] Use a minimum screen-space hit radius independent of printed diameter.
-- [ ] Replace Shift-click-only colour selection with a visible Select
+- [x] Use a minimum screen-space hit radius independent of printed diameter.
+- [x] Replace Shift-click-only colour selection with a visible Select
   Multiple mode, selection count, and Clear action.
-- [ ] Preserve harmless pan/zoom while cancelling incomplete work cleanly
+- [x] Preserve harmless pan/zoom while cancelling incomplete work cleanly
   when the mode or map changes.
-- [ ] Add a visible touch Undo action.
-- [ ] Move selected space/path/zone/environment properties into a full-width
+- [x] Add a visible touch Undo action.
+- [x] Move selected space/path/zone/environment properties into a full-width
   inspector or bottom sheet.
-- [ ] Enlarge corner, unlink, palette, swatch, and ordering hit regions.
-- [ ] Maintain one viewport transform and inverse-transform pointer
+- [x] Enlarge corner, unlink, palette, swatch, and ordering hit regions.
+- [x] Maintain one viewport transform and inverse-transform pointer
   coordinates at every zoom.
-- [ ] Retain the unobstructed artwork visibility mode as a true non-editing
+- [x] Retain the unobstructed artwork visibility mode as a true non-editing
   view.
-- [ ] Verify multiple-map switching cannot retain stale selection or a
+- [x] Verify multiple-map switching cannot retain stale selection or a
   half-finished link.
 
 ### Likely files
@@ -669,9 +669,20 @@ At phone portrait and tablet portrait sizes, a touch-only author can:
 Additionally:
 
 - [ ] A scroll gesture never creates a space.
-- [ ] A pan never moves a selected object.
-- [ ] A tap never inherits a stale Link endpoint.
+- [x] A pan never moves a selected object.
+- [x] A tap never inherits a stale Link endpoint.
 - [ ] Map appearance and exported coordinates remain unchanged.
+
+Automated Chromium checks at 390×844 and 768×1024 cover the responsive
+viewport, 44px controls and entity targets, deliberate Add/Move ownership,
+multi-selection and inspectors, Undo, stale-Link clearing, document-width
+containment, inverse coordinates at 135% zoom, and data invariance during pan.
+All 53 stored Phase 0 export geometries still verify. Physical iOS and Android
+evidence remains open for genuine two-finger pinch, touch scroll/pan
+arbitration, complete touch-only map authoring, cancellation during
+rotation/backgrounding/lost capture/a second contact, software-keyboard
+reachability, touch-only multiple-map switching, and a fresh
+phone-versus-desktop PNG comparison.
 
 ---
 

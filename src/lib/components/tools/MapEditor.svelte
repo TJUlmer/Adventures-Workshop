@@ -2,22 +2,16 @@
   /**
    * The map editor.
    *
-   * "Place" used to be its own mode, exclusive of "Move" — placing a space
-   * meant switching away from moving one, and back again to place the next.
-   * The two never needed to be separate: a click on empty board can only ever
-   * mean "place", a click that lands on a space can only ever mean "select
-   * it", and a *held* click on a space can only ever mean "move it". None of
-   * those three overlap, so one mode reads all of them off a single pointer
-   * gesture instead of asking an author to keep switching between two modes
-   * that were only ever disambiguated by where the click landed anyway.
-   * "Link" and "Text" stay modes in their own right, because a click on a
-   * space genuinely is ambiguous between them and "select" — only the mode
-   * picker can say which one is meant.
+   * The board itself is `MapBoard`, read-only, with every authoring affordance
+   * laid over it here. That separation is the export boundary: pan/zoom,
+   * screen-sized hit targets, selection rings and move handles must never be
+   * able to alter the photographed map geometry.
    *
-   * The board itself is `MapBoard`, read-only, with the affordances laid over
-   * it. Same split as the threat track: what is exported must not be able to
-   * draw a handle.
-  */
+   * Touch editing is intentionally stateful. Navigate owns one-finger pan and
+   * pinch; authoring modes only mutate after an explicit Add or Move action.
+   * This is a little more ceremony than desktop click-and-drag, but it is what
+   * keeps a scroll, pinch or interrupted pointer from becoming document data.
+   */
   import { tick } from 'svelte';
   import { analyseMap } from '$lib/analysis/map';
   import MapBoard from '$lib/renderer/MapBoard.svelte';
@@ -25,6 +19,8 @@
   import { createArtwork, hasArtwork } from '$lib/core/artwork';
   import { readArtworkFile } from '$lib/core/image-import';
   import { photographMapBoard, saveExport, slugify } from '$lib/export';
+  import { startPointerSession } from '$lib/interaction/pointer-session';
+  import type { PointerSession, PointerSessionCancelReason } from '$lib/interaction/pointer-session';
   import {
     createMapNote,
     createMapEnvironmentPiece,
@@ -64,9 +60,19 @@
     MapZoneStyle
   } from '$lib/map/types';
   import { PATTERN_NAMES, patternAspect, patternUrl } from '$lib/renderer/assets';
+  import type { SetId } from '$lib/sets/types';
   import { customSymbolLabel } from '$lib/symbols/types';
   import { workshop } from '$lib/state/workshop.svelte';
-  import { Button, EmptyState, HexInput, Icon, Slider, Switch, TextInput } from '$lib/ui';
+  import {
+    Button,
+    ConfirmAction,
+    EmptyState,
+    HexInput,
+    Icon,
+    Slider,
+    Switch,
+    TextInput
+  } from '$lib/ui';
 
   const set = $derived(workshop.adventure);
   const map = $derived(
@@ -87,8 +93,39 @@
     { value: 'bottom-right', label: 'Bottom right', symbol: '↘' }
   ];
 
-  type Mode = 'place' | 'link' | 'text';
-  let mode = $state<Mode>('place');
+  type Mode = 'navigate' | 'spaces' | 'link' | 'text' | 'environment';
+  type MoveTarget =
+    | { kind: 'space'; id: MapSpaceId }
+    | { kind: 'note'; id: MapNoteId }
+    | { kind: 'environment'; id: MapEnvironmentPieceId };
+  type ViewGesture =
+    | {
+        kind: 'pan';
+        pointerId: number;
+        startClientX: number;
+        startClientY: number;
+        startX: number;
+        startY: number;
+      }
+    | {
+        kind: 'pinch';
+        pointerIds: [number, number];
+        startDistance: number;
+        startCentreX: number;
+        startCentreY: number;
+        startScale: number;
+        startX: number;
+        startY: number;
+      };
+
+  let mode = $state<Mode>('navigate');
+  let interactionRevision = 0;
+  let selectMultiple = $state(false);
+  let placementArmed = $state<'space' | 'text' | null>(null);
+  let moveTarget = $state<MoveTarget | null>(null);
+  let movingTarget = $state<MoveTarget | null>(null);
+  let pointerSession: PointerSession | null = null;
+  let artworkView = $state(false);
   /** Construction aid, never exported — see the toggle beside the modes. */
   let showNumbers = $state(false);
   /** The space the detail editor shows — always a member of `colorSelection` while it is non-empty. */
@@ -106,23 +143,24 @@
       zone is a colour, not a space, so it needs its own selection. */
   let selectedZoneColor = $state<string | null>(null);
   let linkFrom = $state<MapSpaceId | null>(null);
-  let dragging = $state<MapSpaceId | null>(null);
-  let draggingNote = $state<{
-    id: MapNoteId;
-    offsetX: number;
-    offsetY: number;
-  } | null>(null);
-  let draggingEnvironment = $state<{
-    id: MapEnvironmentPieceId;
-    offsetX: number;
-    offsetY: number;
-  } | null>(null);
-  /** A held pointer that never moves is selection, not an edit. */
-  let dragChanged = false;
+  let viewport = $state<HTMLDivElement | null>(null);
   let board = $state<HTMLDivElement | null>(null);
+  let viewScale = $state(1);
+  let viewX = $state(0);
+  let viewY = $state(0);
+  let viewGesture: ViewGesture | null = null;
+  let pointerKeptForPinch: number | null = null;
+  const viewPointers = new Map<number, { x: number; y: number }>();
   let artInput = $state<HTMLInputElement | null>(null);
   let artError = $state<string | null>(null);
+  let sizeOperation = 0;
+  let artworkOperation = 0;
+  let zonePatternOperation = 0;
+  let environmentOperation = 0;
+  let disposed = false;
   let confirmingMapDelete = $state(false);
+  let observedSetId: SetId | null = null;
+  let observedMapId: AdventureMapId | null = null;
 
   $effect(() => {
     if (!set.maps.some((entry) => entry.id === workshop.mapEditingId)) {
@@ -131,26 +169,67 @@
     }
   });
 
+  function invalidateAsyncMapOperations(): void {
+    sizeOperation += 1;
+    artworkOperation += 1;
+    zonePatternOperation += 1;
+    environmentOperation += 1;
+  }
+
+  function isCurrentMap(setId: SetId, mapId: AdventureMapId): boolean {
+    return !disposed && set.id === setId && workshop.mapEditingId === mapId;
+  }
+
   function resetMapSelections(): void {
+    interactionRevision += 1;
+    cancelPointerSession('mode-change');
+    finishEnvironmentReorder();
+    invalidateAsyncMapOperations();
+    mode = 'navigate';
     selected = null;
     colorSelection = new Set();
     selectedZoneColor = null;
     linkFrom = null;
-    dragging = null;
-    draggingNote = null;
-    draggingEnvironment = null;
     selectedNote = null;
     selectedEnvironment = null;
-    dragChanged = false;
+    placementArmed = null;
+    moveTarget = null;
+    selectMultiple = false;
+    artworkView = false;
+    replacingEnvironment = null;
+    reorderingEnvironment = null;
+    environmentDrop = null;
+    zonePatternError = null;
+    environmentError = null;
+    artError = null;
   }
+
+  /* Map IDs deliberately survive a fork, so map identity alone cannot detect
+     an external set switch. Reset transient state whenever either half of the
+     editor identity changes, including switches initiated outside this page. */
+  $effect(() => {
+    const nextSetId = set.id;
+    const nextMapId = map.id;
+    if (observedSetId === null && observedMapId === null) {
+      observedSetId = nextSetId;
+      observedMapId = nextMapId;
+      return;
+    }
+    if (nextSetId === observedSetId && nextMapId === observedMapId) return;
+    observedSetId = nextSetId;
+    observedMapId = nextMapId;
+    confirmingMapDelete = false;
+    resetMapSelections();
+    resetView();
+  });
 
   function selectMap(mapId: AdventureMapId): void {
     if (mapId === map.id) return;
-    if (dragChanged) workshop.commitMapEdit();
-    else workshop.cancelMapEdit();
+    cancelPointerSession('mode-change');
     workshop.selectMapForEditing(mapId);
     confirmingMapDelete = false;
     resetMapSelections();
+    resetView();
   }
 
   function addMap(): void {
@@ -158,6 +237,7 @@
     workshop.selectMapForEditing(mapId);
     confirmingMapDelete = false;
     resetMapSelections();
+    resetView();
   }
 
   function removeCurrentMap(): void {
@@ -165,13 +245,16 @@
       confirmingMapDelete = true;
       return;
     }
-    if (workshop.removeMap(map.id)) resetMapSelections();
+    if (workshop.removeMap(map.id)) {
+      resetMapSelections();
+      resetView();
+    }
     confirmingMapDelete = false;
   }
   let paletteInput = $state<HTMLInputElement | null>(null);
   let exporting = $state(false);
   let exportError = $state<string | null>(null);
-  let selectedNote = $state<string | null>(null);
+  let selectedNote = $state<MapNoteId | null>(null);
 
   const START_SIDES: { value: MapStartSide; label: string }[] = [
     { value: 'top', label: 'Top' },
@@ -220,21 +303,35 @@
    * every space on the board is positioned against it.
    */
   async function setSize(size: MapSize): Promise<void> {
+    const operation = ++sizeOperation;
     if (size !== 'custom') {
+      cancelPointerSession('mode-change');
+      finishEnvironmentReorder();
       workshop.editMap((m) => {
         m.size = size;
         const preset = MAP_SIZES[size];
         m.aspect = preset.width / preset.height;
       });
+      onViewportChange();
       return;
     }
 
+    const setId = set.id;
+    const mapId = map.id;
     const source = map.artwork.source;
     const aspect = source ? await imageAspect(source) : null;
+    if (
+      !isCurrentMap(setId, mapId) ||
+      operation !== sizeOperation ||
+      map.artwork.source !== source
+    ) return;
+    cancelPointerSession('mode-change');
+    finishEnvironmentReorder();
     workshop.editMap((m) => {
       m.size = 'custom';
       if (aspect !== null) m.aspect = aspect;
     });
+    onViewportChange();
   }
 
   /**
@@ -311,6 +408,7 @@
    * the same colour to look at.
    */
   function recolor(from: string, to: string): void {
+    zonePatternOperation += 1;
     const key = from.toLowerCase();
     workshop.editMap((m) => {
       if (m.background.color.toLowerCase() === key) m.background = solid(to);
@@ -337,16 +435,29 @@
 
   const MODES: { value: Mode; label: string; hint: string }[] = [
     {
-      value: 'place',
-      label: 'Spaces',
-      hint: 'Click empty board to add a space, click a space to select it, drag a space to move it — hold shift to select more than one'
+      value: 'navigate',
+      label: 'Navigate',
+      hint: 'Drag to pan and pinch to zoom without changing the map.'
     },
-    { value: 'link', label: 'Link', hint: 'Click two spaces to connect them, or again to unlink' },
-    { value: 'text', label: 'Text', hint: 'Click the board to place a label, or drag one to move it' }
+    {
+      value: 'spaces',
+      label: 'Spaces',
+      hint: 'Select spaces here. Add Space and Move are deliberate one-action tools.'
+    },
+    { value: 'link', label: 'Link', hint: 'Choose two endpoints. The same pair unlinks.' },
+    { value: 'text', label: 'Text', hint: 'Select text here. Add Text and Move are deliberate.' },
+    {
+      value: 'environment',
+      label: 'Environment',
+      hint: 'Select scenery here. Move it only after choosing Move.'
+    }
   ];
 
   const topology = $derived(analyseMap(map));
   const selectedSpace = $derived(findSpace(map, selected));
+  const selectedNoteEntry = $derived(
+    map.notes.find((note) => note.id === selectedNote) ?? null
+  );
   const selectedPortalSymbol = $derived(
     selectedSpace?.secretPassage?.symbolId
       ? set.customSymbols.find((symbol) => symbol.id === selectedSpace?.secretPassage?.symbolId) ?? null
@@ -386,12 +497,16 @@
    * or empties it out once none remain.
    */
   function selectSpace(id: MapSpaceId, additive: boolean): void {
+    interactionRevision += 1;
     selectedEnvironment = null;
+    selectedNote = null;
     if (!additive) {
+      if (moveTarget?.kind !== 'space' || moveTarget.id !== id) moveTarget = null;
       selected = id;
       colorSelection = new Set([id]);
       return;
     }
+    moveTarget = null;
     const next = new Set(colorSelection);
     if (next.delete(id)) {
       if (selected === id) {
@@ -406,8 +521,18 @@
   }
 
   function clearSelection(): void {
+    interactionRevision += 1;
     selected = null;
     colorSelection = new Set();
+    if (moveTarget?.kind === 'space') moveTarget = null;
+  }
+
+  function selectNote(id: MapNoteId | null): void {
+    interactionRevision += 1;
+    selectedNote = id;
+    selectedEnvironment = null;
+    clearSelection();
+    if (!id || moveTarget?.kind !== 'note' || moveTarget.id !== id) moveTarget = null;
   }
 
   /**
@@ -418,6 +543,7 @@
   function applyColorToSpaces(color: string, ids: Iterable<MapSpaceId>): void {
     const idSet = new Set(ids);
     if (idSet.size === 0) return;
+    zonePatternOperation += 1;
     workshop.editMap((m) => {
       for (const space of m.spaces) {
         if (!idSet.has(space.id)) continue;
@@ -437,6 +563,7 @@
     if (!selectedSpace) return;
     const zone = selectedSpace.zones[index];
     if (!zone) return;
+    zonePatternOperation += 1;
     workshop.editMap(() => {
       selectedSpace.zones[index] = { ...zone, color };
     });
@@ -470,6 +597,7 @@
       way round — "Pattern" and "Custom pattern" are one choice, not two
       that could both be on at once with only the last one drawn. */
   function setZonePatternName(color: string, name: string | null): void {
+    zonePatternOperation += 1;
     patchZone(color, { patternName: name, customSource: null, customLabel: '' });
   }
 
@@ -480,6 +608,7 @@
    * document already follows.
    */
   function clearZonePattern(color: string): void {
+    zonePatternOperation += 1;
     workshop.editMap((m) => {
       m.zoneStyles = m.zoneStyles.filter((z) => z.color.toLowerCase() !== color.toLowerCase());
     });
@@ -492,6 +621,7 @@
   let selectedEnvironment = $state<MapEnvironmentPieceId | null>(null);
   let replacingEnvironment = $state<MapEnvironmentPieceId | null>(null);
   let reorderingEnvironment = $state<MapEnvironmentPieceId | null>(null);
+  let environmentReorderPointerId: number | null = null;
   let environmentDrop = $state<{
     id: MapEnvironmentPieceId;
     position: 'before' | 'after';
@@ -504,20 +634,39 @@
       selections exclusive prevents a stale space editor sitting behind the
       environment editor and makes the heading always describe what is active. */
   function selectEnvironment(id: MapEnvironmentPieceId | null): void {
+    interactionRevision += 1;
     selectedEnvironment = id;
+    selectedNote = null;
     if (id) clearSelection();
+    if (!id || moveTarget?.kind !== 'environment' || moveTarget.id !== id) moveTarget = null;
   }
 
   async function pickZonePattern(event: Event & { currentTarget: HTMLInputElement }): Promise<void> {
     const file = event.currentTarget.files?.[0];
     event.currentTarget.value = '';
     if (!file || !selectedZoneColor) return;
+    const operation = ++zonePatternOperation;
+    const setId = set.id;
+    const mapId = map.id;
+    const color = selectedZoneColor;
 
     zonePatternError = null;
     try {
       const source = await readArtworkFile(file);
-      patchZone(selectedZoneColor, { patternName: null, customSource: source, customLabel: file.name });
+      if (
+        !isCurrentMap(setId, mapId) ||
+        operation !== zonePatternOperation ||
+        !spaceZoneColors(map).some((zone) => zone.color.toLowerCase() === color.toLowerCase())
+      ) return;
+      cancelPointerSession('mode-change');
+      finishEnvironmentReorder();
+      patchZone(color, { patternName: null, customSource: source, customLabel: file.name });
     } catch (cause) {
+      if (
+        !isCurrentMap(setId, mapId) ||
+        operation !== zonePatternOperation ||
+        !spaceZoneColors(map).some((zone) => zone.color.toLowerCase() === color.toLowerCase())
+      ) return;
       zonePatternError = cause instanceof Error ? cause.message : 'Could not read that file.';
     }
   }
@@ -537,9 +686,23 @@
     return { x: (event.clientX - box.left) / box.width, y: (event.clientY - box.top) / box.width };
   }
 
-  /** The space under the pointer, or `null`. Nearest centre within its radius. */
+  function clampModelPoint(point: { x: number; y: number }): { x: number; y: number } {
+    return {
+      x: Math.min(1, Math.max(0, point.x)),
+      y: Math.min(mapHeight(map), Math.max(0, point.y))
+    };
+  }
+
+  /**
+   * The space under the pointer, or `null`.
+   *
+   * Printed circles can be barely 20px wide on a phone. Selection instead
+   * gets a 44px screen-space diameter, converted back through the one live
+   * board transform so zoom never changes the model coordinates we store.
+   */
   function spaceAt(point: { x: number; y: number }): MapSpaceId | null {
-    const radius = map.spaceDiameter / 2;
+    const renderedWidth = board?.getBoundingClientRect().width ?? 0;
+    const radius = Math.max(map.spaceDiameter / 2, renderedWidth > 0 ? 22 / renderedWidth : 0);
     let best: MapSpaceId | null = null;
     let bestDistance = radius;
     for (const space of map.spaces) {
@@ -552,186 +715,523 @@
     return best;
   }
 
-  function onPointerDown(event: PointerEvent): void {
+  const MIN_VIEW_SCALE = 1;
+  const MAX_VIEW_SCALE = 4;
+
+  function clampView(x: number, y: number, scale: number): { x: number; y: number } {
+    if (!viewport || !board) return { x, y };
+    const minimumX = Math.min(0, viewport.clientWidth - board.offsetWidth * scale);
+    const minimumY = Math.min(0, viewport.clientHeight - board.offsetHeight * scale);
+    return {
+      x: Math.min(0, Math.max(minimumX, x)),
+      y: Math.min(0, Math.max(minimumY, y))
+    };
+  }
+
+  function setView(x: number, y: number, scale = viewScale): void {
+    const nextScale = Math.min(MAX_VIEW_SCALE, Math.max(MIN_VIEW_SCALE, scale));
+    const next = clampView(x, y, nextScale);
+    viewScale = nextScale;
+    viewX = next.x;
+    viewY = next.y;
+  }
+
+  function resetView(): void {
+    viewScale = 1;
+    viewX = 0;
+    viewY = 0;
+    viewGesture = null;
+    viewPointers.clear();
+  }
+
+  function zoomView(nextScale: number): void {
+    if (!viewport) return;
+    const scale = Math.min(MAX_VIEW_SCALE, Math.max(MIN_VIEW_SCALE, nextScale));
+    const anchorX = viewport.clientWidth / 2;
+    const anchorY = viewport.clientHeight / 2;
+    const modelX = (anchorX - viewX) / viewScale;
+    const modelY = (anchorY - viewY) / viewScale;
+    setView(anchorX - modelX * scale, anchorY - modelY * scale, scale);
+  }
+
+  function cancelPointerSession(
+    reason: PointerSessionCancelReason,
+    preservePointerForPinch = reason === 'second-pointer'
+  ): void {
+    const active = pointerSession;
+    pointerSession = null;
+    if (preservePointerForPinch && active) pointerKeptForPinch = active.pointerId;
+    active?.cancel(reason);
+    movingTarget = null;
+  }
+
+  function stopViewGesture(): void {
+    viewGesture = null;
+    pointerKeptForPinch = null;
+    viewPointers.clear();
+  }
+
+  function onViewportChange(): void {
+    stopViewGesture();
+    finishEnvironmentReorder();
+    void tick().then(() => setView(viewX, viewY, viewScale));
+  }
+
+  function onPageInterruption(): void {
+    stopViewGesture();
+    finishEnvironmentReorder();
+  }
+
+  function onVisibilityChange(): void {
+    if (document.visibilityState === 'hidden') onPageInterruption();
+  }
+
+  function changeMode(next: Mode): void {
+    interactionRevision += 1;
+    cancelPointerSession('mode-change');
+    stopViewGesture();
+    finishEnvironmentReorder();
+    mode = next;
+    artworkView = false;
+    placementArmed = null;
+    moveTarget = null;
+    linkFrom = null;
+    replacingEnvironment = null;
+    if (next !== 'spaces') selectMultiple = false;
+  }
+
+  function toggleArtworkView(): void {
+    interactionRevision += 1;
+    cancelPointerSession('mode-change');
+    stopViewGesture();
+    finishEnvironmentReorder();
+    const next = !artworkView;
+    if (next) invalidateAsyncMapOperations();
+    artworkView = next;
+    placementArmed = null;
+    moveTarget = null;
+    linkFrom = null;
+    replacingEnvironment = null;
+    confirmingMapDelete = false;
+    if (artworkView) {
+      mode = 'navigate';
+      selectMultiple = false;
+    }
+  }
+
+  function toggleMove(target: MoveTarget): void {
+    interactionRevision += 1;
+    cancelPointerSession('mode-change');
+    finishEnvironmentReorder();
+    artworkView = false;
+    placementArmed = null;
+    linkFrom = null;
+    const same = moveTarget?.kind === target.kind && moveTarget.id === target.id;
+    moveTarget = same ? null : target;
+    if (!same) {
+      mode = target.kind === 'space' ? 'spaces' : target.kind === 'note' ? 'text' : 'environment';
+    }
+  }
+
+  function startTapOrPan(
+    event: PointerEvent,
+    onTap: (upEvent: PointerEvent) => void
+  ): void {
+    cancelPointerSession('superseded');
+    const startX = viewX;
+    const startY = viewY;
+    pointerSession = startPointerSession(event, {
+      snapshot: { startX, startY },
+      cancelOnSecondPointer: false,
+      onMove: (movement, _moveEvent, snapshot) => {
+        setView(snapshot.startX + movement.deltaX, snapshot.startY + movement.deltaY);
+      },
+      onCommit: () => {
+        pointerSession = null;
+      },
+      onCancel: () => {
+        pointerSession = null;
+      },
+      onTap: (upEvent) => {
+        pointerSession = null;
+        onTap(upEvent);
+      }
+    });
+  }
+
+  function beginSpaceMove(event: PointerEvent, id: MapSpaceId): void {
+    const point = toModel(event);
+    const space = findSpace(map, id);
+    if (!point || !space) return;
+    cancelPointerSession('superseded');
+    movingTarget = { kind: 'space', id };
+    const session = startPointerSession(event, {
+      snapshot: {
+        id,
+        x: space.x,
+        y: space.y,
+        offsetX: point.x - space.x,
+        offsetY: point.y - space.y
+      },
+      cancelOnSecondPointer: false,
+      onMove: (_movement, moveEvent, snapshot) => {
+        const at = toModel(moveEvent);
+        const current = findSpace(map, snapshot.id);
+        if (!at || !current) return;
+        current.x = Math.min(1, Math.max(0, at.x - snapshot.offsetX));
+        current.y = Math.min(mapHeight(map), Math.max(0, at.y - snapshot.offsetY));
+      },
+      onCommit: () => {
+        workshop.commitMapEdit();
+        pointerSession = null;
+        movingTarget = null;
+      },
+      onCancel: (_reason, _movement, snapshot) => {
+        const current = findSpace(map, snapshot.id);
+        if (current) {
+          current.x = snapshot.x;
+          current.y = snapshot.y;
+        }
+        workshop.cancelMapEdit();
+        pointerSession = null;
+        movingTarget = null;
+      },
+      onTap: () => {
+        workshop.cancelMapEdit();
+        pointerSession = null;
+        movingTarget = null;
+        selectSpace(id, selectMultiple);
+      }
+    });
+    if (!session) {
+      movingTarget = null;
+      return;
+    }
+    pointerSession = session;
+    workshop.beginMapEdit();
+  }
+
+  function beginNoteMove(event: PointerEvent, id: MapNoteId): void {
+    const point = toModel(event);
+    const note = map.notes.find((entry) => entry.id === id);
+    if (!point || !note) return;
+    cancelPointerSession('superseded');
+    movingTarget = { kind: 'note', id };
+    const session = startPointerSession(event, {
+      snapshot: {
+        id,
+        x: note.x,
+        y: note.y,
+        offsetX: point.x - note.x,
+        offsetY: point.y - note.y
+      },
+      cancelOnSecondPointer: false,
+      onMove: (_movement, moveEvent, snapshot) => {
+        const at = toModel(moveEvent);
+        const current = map.notes.find((entry) => entry.id === snapshot.id);
+        if (!at || !current) return;
+        current.x = Math.min(1, Math.max(0, at.x - snapshot.offsetX));
+        current.y = Math.min(mapHeight(map), Math.max(0, at.y - snapshot.offsetY));
+      },
+      onCommit: () => {
+        workshop.commitMapEdit();
+        pointerSession = null;
+        movingTarget = null;
+      },
+      onCancel: (_reason, _movement, snapshot) => {
+        const current = map.notes.find((entry) => entry.id === snapshot.id);
+        if (current) {
+          current.x = snapshot.x;
+          current.y = snapshot.y;
+        }
+        workshop.cancelMapEdit();
+        pointerSession = null;
+        movingTarget = null;
+      },
+      onTap: () => {
+        workshop.cancelMapEdit();
+        pointerSession = null;
+        movingTarget = null;
+        selectNote(id);
+      }
+    });
+    if (!session) {
+      movingTarget = null;
+      return;
+    }
+    pointerSession = session;
+    workshop.beginMapEdit();
+  }
+
+  function beginEnvironmentMove(event: PointerEvent, id: MapEnvironmentPieceId): void {
+    const point = toModel(event);
+    const piece = map.environment.find((entry) => entry.id === id);
+    if (!point || !piece) return;
+    cancelPointerSession('superseded');
+    movingTarget = { kind: 'environment', id };
+    const session = startPointerSession(event, {
+      snapshot: {
+        id,
+        x: piece.x,
+        y: piece.y,
+        offsetX: point.x - piece.x,
+        offsetY: point.y - piece.y
+      },
+      cancelOnSecondPointer: false,
+      onMove: (_movement, moveEvent, snapshot) => {
+        const at = toModel(moveEvent);
+        const current = map.environment.find((entry) => entry.id === snapshot.id);
+        if (!at || !current) return;
+        current.x = Math.min(1, Math.max(0, at.x - snapshot.offsetX));
+        current.y = Math.min(mapHeight(map), Math.max(0, at.y - snapshot.offsetY));
+      },
+      onCommit: () => {
+        workshop.commitMapEdit();
+        pointerSession = null;
+        movingTarget = null;
+      },
+      onCancel: (_reason, _movement, snapshot) => {
+        const current = map.environment.find((entry) => entry.id === snapshot.id);
+        if (current) {
+          current.x = snapshot.x;
+          current.y = snapshot.y;
+        }
+        workshop.cancelMapEdit();
+        pointerSession = null;
+        movingTarget = null;
+      },
+      onTap: () => {
+        workshop.cancelMapEdit();
+        pointerSession = null;
+        movingTarget = null;
+        selectEnvironment(id);
+      }
+    });
+    if (!session) {
+      movingTarget = null;
+      return;
+    }
+    pointerSession = session;
+    workshop.beginMapEdit();
+  }
+
+  function completeLink(hit: MapSpaceId | null): void {
+    if (linkFrom !== null && !findSpace(map, linkFrom)) linkFrom = null;
+    if (!hit || !findSpace(map, hit)) return;
+    if (linkFrom === null) {
+      linkFrom = hit;
+      return;
+    }
+    if (linkFrom !== hit) {
+      const from = linkFrom;
+      if (pathExists(map, from, hit)) {
+        workshop.editMap((m) => {
+          m.paths = m.paths.filter(
+            (path) =>
+              !((path.from === from && path.to === hit) || (path.from === hit && path.to === from))
+          );
+        });
+      } else {
+        const path = createMapPath(from, hit);
+        workshop.editMap((m) => m.paths.push(path));
+      }
+      selectSpace(hit, false);
+    }
+    linkFrom = null;
+  }
+
+  function attributeId<T extends string>(event: PointerEvent, attribute: string): T | null {
+    const target = event.target instanceof Element ? event.target : null;
+    return target?.closest(`[${attribute}]`)?.getAttribute(attribute) as T | null;
+  }
+
+  function onEditorPointerDown(event: PointerEvent): void {
     const point = toModel(event);
     if (!point) return;
-    const hit = map.showSpacesAndPaths ? spaceAt(point) : null;
+    const hit = map.showSpacesAndPaths
+      ? (attributeId<MapSpaceId>(event, 'data-map-space-target') ?? spaceAt(point))
+      : null;
 
-    if (mode === 'place') {
-      const target = event.target instanceof Element ? event.target : null;
-      const environmentId = target
-        ?.closest('[data-environment-piece]')
-        ?.getAttribute('data-environment-piece') as MapEnvironmentPieceId | null;
-      const environmentPiece = environmentId
-        ? map.environment.find((piece) => piece.id === environmentId)
-        : null;
-      if (environmentPiece) {
-        /* Keep the grabbed pixel beneath the pointer. Snapping the image's
-           centre to the cursor makes a large scene piece jump on first move. */
-        selectEnvironment(environmentPiece.id);
-        workshop.beginMapEdit();
-        dragChanged = false;
-        draggingEnvironment = {
-          id: environmentPiece.id,
-          offsetX: point.x - environmentPiece.x,
-          offsetY: point.y - environmentPiece.y
-        };
-        (event.currentTarget as Element).setPointerCapture?.(event.pointerId);
-        return;
-      }
-
-      /* A hidden board is an artwork view, not an invisible editing surface.
-         Environment pieces remain draggable above, and Text remains useful,
-         but Place must not create a space the author cannot see. */
+    if (mode === 'spaces') {
       if (!map.showSpacesAndPaths) return;
-
       if (hit) {
-        // Shift-click adds to (or drops from) the running colour selection
-        // instead of replacing it, and never arms a drag — moving one space
-        // out of a multi-selection would leave it unclear which one just
-        // moved. A plain click both selects *and* arms a drag: nothing below
-        // moves until `onPointerMove` actually sees motion, so a click that
-        // never moves is indistinguishable from a plain select.
-        selectSpace(hit, event.shiftKey);
-        if (!event.shiftKey) {
-          workshop.beginMapEdit();
-          dragChanged = false;
-          dragging = hit;
-          (event.target as Element).setPointerCapture?.(event.pointerId);
+        if (moveTarget?.kind === 'space' && moveTarget.id === hit) {
+          beginSpaceMove(event, hit);
+        } else {
+          startTapOrPan(event, () => selectSpace(hit, selectMultiple || event.shiftKey));
         }
         return;
       }
-      const space = createMapSpace(point.x, point.y);
-      workshop.editMap((m) => m.spaces.push(space));
-      selectSpace(space.id, false);
-      return;
-    }
-
-    if (mode === 'text') {
-      const target = event.target instanceof Element ? event.target : null;
-      const noteId = target
-        ?.closest('[data-map-note]')
-        ?.getAttribute('data-map-note') as MapNoteId | null;
-      const noteAtPointer = noteId ? map.notes.find((entry) => entry.id === noteId) : null;
-      if (noteAtPointer) {
-        selectedNote = noteAtPointer.id;
-        /* Keep the point an author grabbed beneath the pointer. A label's
-           anchor is not necessarily its visual centre, so snapping it there
-           would make the text jump before the first move. */
-        workshop.beginMapEdit();
-        dragChanged = false;
-        draggingNote = {
-          id: noteAtPointer.id,
-          offsetX: point.x - noteAtPointer.x,
-          offsetY: point.y - noteAtPointer.y
-        };
-        (event.currentTarget as Element).setPointerCapture?.(event.pointerId);
-        return;
-      }
-
-      const note = createMapNote();
-      note.x = point.x;
-      note.y = point.y;
-      workshop.editMap((m) => m.notes.push(note));
-      selectedNote = note.id;
+      startTapOrPan(event, (upEvent) => {
+        if (placementArmed !== 'space') return;
+        const point = toModel(upEvent);
+        if (!point) return;
+        const at = clampModelPoint(point);
+        const space = createMapSpace(at.x, at.y);
+        workshop.editMap((m) => m.spaces.push(space));
+        placementArmed = null;
+        selectSpace(space.id, false);
+      });
       return;
     }
 
     if (mode === 'link') {
       if (!map.showSpacesAndPaths) return;
-      if (!hit) {
-        linkFrom = null;
-        return;
-      }
-      if (linkFrom === null) {
-        linkFrom = hit;
-        return;
-      }
-      /*
-       * Link is a toggle. Picking a pair that is already joined *unlinks* them,
-       * which is the only reading that makes sense: the alternative is a second
-       * mode whose one difference is what it does to a pair that is already
-       * connected, and drawing a link twice was never a thing anyone wanted.
-       */
-      if (linkFrom !== hit) {
-        const from = linkFrom;
-        if (pathExists(map, from, hit)) {
-          workshop.editMap((m) => {
-            m.paths = m.paths.filter(
-              (path) =>
-                !((path.from === from && path.to === hit) || (path.from === hit && path.to === from))
-            );
-          });
+      startTapOrPan(event, () => completeLink(hit));
+      return;
+    }
+
+    if (mode === 'text') {
+      const noteId =
+        attributeId<MapNoteId>(event, 'data-map-note-target') ??
+        attributeId<MapNoteId>(event, 'data-map-note');
+      if (noteId) {
+        if (moveTarget?.kind === 'note' && moveTarget.id === noteId) {
+          beginNoteMove(event, noteId);
         } else {
-          const path = createMapPath(from, hit);
-          workshop.editMap((m) => m.paths.push(path));
+          startTapOrPan(event, () => selectNote(noteId));
         }
+        return;
       }
-      linkFrom = null;
+      startTapOrPan(event, (upEvent) => {
+        if (placementArmed !== 'text') return;
+        const point = toModel(upEvent);
+        if (!point) return;
+        const at = clampModelPoint(point);
+        const note = createMapNote();
+        note.x = at.x;
+        note.y = at.y;
+        workshop.editMap((m) => m.notes.push(note));
+        placementArmed = null;
+        selectNote(note.id);
+      });
       return;
+    }
+
+    if (mode === 'environment') {
+      const environmentId =
+        attributeId<MapEnvironmentPieceId>(event, 'data-map-environment-target') ??
+        attributeId<MapEnvironmentPieceId>(event, 'data-environment-piece');
+      if (environmentId) {
+        if (moveTarget?.kind === 'environment' && moveTarget.id === environmentId) {
+          beginEnvironmentMove(event, environmentId);
+        } else {
+          startTapOrPan(event, () => selectEnvironment(environmentId));
+        }
+        return;
+      }
+      startTapOrPan(event, () => selectEnvironment(null));
     }
   }
 
-  function onPointerMove(event: PointerEvent): void {
-    if (draggingEnvironment !== null) {
-      const point = toModel(event);
-      const piece = map.environment.find((entry) => entry.id === draggingEnvironment?.id);
-      if (!point || !piece) return;
-      piece.x = Math.min(1, Math.max(0, point.x - draggingEnvironment.offsetX));
-      piece.y = Math.min(
-        mapHeight(map),
-        Math.max(0, point.y - draggingEnvironment.offsetY)
+  function beginPinch(): void {
+    if (viewPointers.size < 2 || !viewport) return;
+    const entries = [...viewPointers.entries()].slice(0, 2);
+    const first = entries[0];
+    const second = entries[1];
+    if (!first || !second) return;
+    const dx = second[1].x - first[1].x;
+    const dy = second[1].y - first[1].y;
+    viewGesture = {
+      kind: 'pinch',
+      pointerIds: [first[0], second[0]],
+      startDistance: Math.max(1, Math.hypot(dx, dy)),
+      startCentreX: (first[1].x + second[1].x) / 2,
+      startCentreY: (first[1].y + second[1].y) / 2,
+      startScale: viewScale,
+      startX: viewX,
+      startY: viewY
+    };
+    for (const pointerId of viewGesture.pointerIds) {
+      try {
+        viewport.setPointerCapture(pointerId);
+      } catch {
+        // A pointer may have ended between the second contact and capture.
+      }
+    }
+    pointerKeptForPinch = null;
+  }
+
+  function onViewportPointerDown(event: PointerEvent): void {
+    if (event.button !== 0) return;
+    viewPointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+    if (viewPointers.size >= 2) {
+      cancelPointerSession('second-pointer');
+      beginPinch();
+      (event.currentTarget as Element).setPointerCapture?.(event.pointerId);
+      return;
+    }
+    if (mode === 'navigate' || artworkView) {
+      viewGesture = {
+        kind: 'pan',
+        pointerId: event.pointerId,
+        startClientX: event.clientX,
+        startClientY: event.clientY,
+        startX: viewX,
+        startY: viewY
+      };
+      (event.currentTarget as Element).setPointerCapture?.(event.pointerId);
+      return;
+    }
+    onEditorPointerDown(event);
+  }
+
+  function onViewportPointerMove(event: PointerEvent): void {
+    if (!viewPointers.has(event.pointerId)) return;
+    viewPointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+    if (!viewGesture || !viewport) return;
+    if (viewGesture.kind === 'pan') {
+      if (viewGesture.pointerId !== event.pointerId) return;
+      event.preventDefault();
+      setView(
+        viewGesture.startX + event.clientX - viewGesture.startClientX,
+        viewGesture.startY + event.clientY - viewGesture.startClientY
       );
-      dragChanged = true;
       return;
     }
 
-    if (draggingNote !== null) {
-      const point = toModel(event);
-      const note = map.notes.find((entry) => entry.id === draggingNote?.id);
-      if (!point || !note) return;
-      note.x = Math.min(1, Math.max(0, point.x - draggingNote.offsetX));
-      note.y = Math.min(mapHeight(map), Math.max(0, point.y - draggingNote.offsetY));
-      dragChanged = true;
-      return;
-    }
-
-    if (dragging === null) return;
-    const point = toModel(event);
-    const space = findSpace(map, dragging);
-    if (!point || !space) return;
-    // Clamped to the board: a space dragged off the edge is unreachable, and
-    // the only way back would be to edit the file by hand.
-    space.x = Math.min(1, Math.max(0, point.x));
-    space.y = Math.min(mapHeight(map), Math.max(0, point.y));
-    dragChanged = true;
+    const first = viewPointers.get(viewGesture.pointerIds[0]);
+    const second = viewPointers.get(viewGesture.pointerIds[1]);
+    if (!first || !second) return;
+    event.preventDefault();
+    const distance = Math.max(1, Math.hypot(second.x - first.x, second.y - first.y));
+    const scale = Math.min(
+      MAX_VIEW_SCALE,
+      Math.max(MIN_VIEW_SCALE, viewGesture.startScale * (distance / viewGesture.startDistance))
+    );
+    const centreX = (first.x + second.x) / 2;
+    const centreY = (first.y + second.y) / 2;
+    const box = viewport.getBoundingClientRect();
+    const modelX = (viewGesture.startCentreX - box.left - viewGesture.startX) / viewGesture.startScale;
+    const modelY = (viewGesture.startCentreY - box.top - viewGesture.startY) / viewGesture.startScale;
+    setView(centreX - box.left - modelX * scale, centreY - box.top - modelY * scale, scale);
   }
 
-  function onPointerUp(): void {
-    const wasDragging =
-      draggingEnvironment !== null || draggingNote !== null || dragging !== null;
-    if (draggingEnvironment !== null) {
-      draggingEnvironment = null;
+  function onViewportPointerEnd(event: PointerEvent): void {
+    if (
+      event.type === 'lostpointercapture' &&
+      pointerKeptForPinch === event.pointerId
+    ) {
+      return;
     }
-    if (draggingNote !== null) {
-      draggingNote = null;
+    viewPointers.delete(event.pointerId);
+    if (
+      viewGesture?.kind === 'pan' && viewGesture.pointerId === event.pointerId ||
+      viewGesture?.kind === 'pinch' && viewGesture.pointerIds.includes(event.pointerId)
+    ) {
+      viewGesture = null;
     }
-    if (dragging !== null) {
-      dragging = null;
-    }
-    if (!wasDragging) return;
-    if (dragChanged) workshop.commitMapEdit();
-    else workshop.cancelMapEdit();
-    dragChanged = false;
   }
 
   /** Keep inspector selections valid when undo removes the thing they name. */
   function undoMap(): void {
+    interactionRevision += 1;
+    invalidateAsyncMapOperations();
+    cancelPointerSession('manual');
+    stopViewGesture();
     if (!workshop.undoMap()) return;
-    dragging = null;
-    draggingNote = null;
-    draggingEnvironment = null;
-    dragChanged = false;
+    moveTarget = null;
+    placementArmed = null;
 
     const spaceIds = new Set(map.spaces.map((space) => space.id));
     if (selected && !spaceIds.has(selected)) selected = null;
@@ -752,9 +1252,15 @@
     ) {
       selectedZoneColor = null;
     }
+    onViewportChange();
   }
 
   function onKeyDown(event: KeyboardEvent): void {
+    if (event.key === 'Escape' && reorderingEnvironment) {
+      finishEnvironmentReorder();
+      return;
+    }
+    if (artworkView) return;
     if (!(event.ctrlKey || event.metaKey) || event.shiftKey || event.key.toLowerCase() !== 'z') {
       return;
     }
@@ -773,12 +1279,19 @@
   }
 
   $effect(() => () => {
-    if (dragChanged) workshop.commitMapEdit();
-    else workshop.cancelMapEdit();
+    disposed = true;
+    invalidateAsyncMapOperations();
+    const active = pointerSession;
+    pointerSession = null;
+    active?.dispose();
+    movingTarget = null;
+    stopViewGesture();
   });
 
   function removeSelected(): void {
     if (selected === null) return;
+    interactionRevision += 1;
+    cancelPointerSession('manual');
     const id = selected;
     workshop.editMap((m) => {
       m.spaces = m.spaces.filter((space) => space.id !== id);
@@ -792,6 +1305,8 @@
     colorSelection = remaining;
     const [next] = remaining;
     selected = next ?? null;
+    if (moveTarget?.kind === 'space' && moveTarget.id === id) moveTarget = null;
+    if (linkFrom === id) linkFrom = null;
   }
 
   /**
@@ -799,20 +1314,25 @@
    * see `mapPrintWidth`.
    */
   async function exportMap(): Promise<void> {
+    const mapSnapshot = structuredClone($state.snapshot(map));
+    const customSymbols = structuredClone($state.snapshot(set.customSymbols));
+    const setName = set.name;
+    const authorName = set.meta.author;
+    const filename = `${slugify(setName, 'adventure-set')}-${slugify(mapSnapshot.name, 'map')}.png`;
     exporting = true;
     exportError = null;
     try {
       // The faces have to be loaded before anything is measured, or every
       // space label is placed against a fallback.
       await document.fonts.ready;
-      const blob = await photographMapBoard(map, {
-        customSymbols: set.customSymbols,
-        setName: set.name,
-        authorName: set.meta.author
+      const blob = await photographMapBoard(mapSnapshot, {
+        customSymbols,
+        setName,
+        authorName
       });
       if (!blob) throw new Error('The map did not render.');
       saveExport({
-        filename: `${slugify(set.name, 'adventure-set')}-${slugify(map.name, 'map')}.png`,
+        filename,
         mimeType: 'image/png',
         blob
       });
@@ -835,6 +1355,9 @@
     // Cleared straight away, or choosing the same file twice fires no event.
     event.currentTarget.value = '';
     if (!file) return;
+    const operation = ++artworkOperation;
+    const setId = set.id;
+    const mapId = map.id;
 
     artError = null;
     try {
@@ -843,14 +1366,22 @@
          new shape — measured here, once, rather than at render time. Read before
          the edit so the whole change lands in one mutation. A preset keeps its
          own aspect and lets the picture letterbox, which is what choosing a
-         preset means. */
-      const aspect = map.size === 'custom' ? await imageAspect(source) : null;
+         preset means. Measuring every chosen image also handles a size change
+         while the file is being read: the current size, not the size at file
+         selection time, decides whether the measured aspect is applied. */
+      const aspect = await imageAspect(source);
+      if (!isCurrentMap(setId, mapId) || operation !== artworkOperation) return;
+      cancelPointerSession('mode-change');
+      finishEnvironmentReorder();
+      const updatesAspect = map.size === 'custom' && aspect !== null;
       workshop.editMap((m) => {
         m.artwork.source = source;
         m.artwork.label = file.name;
-        if (aspect !== null) m.aspect = aspect;
+        if (m.size === 'custom' && aspect !== null) m.aspect = aspect;
       });
+      if (updatesAspect) onViewportChange();
     } catch (cause) {
+      if (!isCurrentMap(setId, mapId) || operation !== artworkOperation) return;
       artError = cause instanceof Error ? cause.message : 'Could not read that file.';
     }
   }
@@ -864,6 +1395,7 @@
    * built at until another picture gives it a new one.
    */
   function clearArtwork(): void {
+    artworkOperation += 1;
     workshop.editMap((m) => (m.artwork = createArtwork()));
   }
 
@@ -910,10 +1442,14 @@
   }
 
   async function openEnvironmentPicker(replace: MapEnvironmentPieceId | null = null): Promise<void> {
+    const operation = ++environmentOperation;
+    const setId = set.id;
+    const mapId = map.id;
     replacingEnvironment = replace;
     /* `multiple` depends on this state. Let Svelte update the real input before
        opening it, or Replace inherits Add's multi-file chooser for one frame. */
     await tick();
+    if (!isCurrentMap(setId, mapId) || operation !== environmentOperation || artworkView) return;
     environmentInput?.click();
   }
 
@@ -924,11 +1460,22 @@
   ): Promise<void> {
     const files = Array.from(event.currentTarget.files ?? []);
     event.currentTarget.value = '';
-    if (files.length === 0) return;
+    const operation = ++environmentOperation;
+    if (files.length === 0) {
+      replacingEnvironment = null;
+      return;
+    }
+    const setId = set.id;
+    const mapId = map.id;
+    const replaceId = replacingEnvironment;
+    const selectionRevision = interactionRevision;
+    const replaceLabel = replaceId
+      ? (map.environment.find((piece) => piece.id === replaceId)?.label ?? null)
+      : null;
 
     environmentError = null;
     try {
-      const chosen = replacingEnvironment ? files.slice(0, 1) : files;
+      const chosen = replaceId ? files.slice(0, 1) : files;
       if (chosen.some((file) => file.type !== 'image/png' && !file.name.toLowerCase().endsWith('.png'))) {
         throw new Error('Environment pieces must be PNG images.');
       }
@@ -938,18 +1485,22 @@
           return { source, label: file.name, aspect: (await imageAspect(source)) ?? 1 };
         })
       );
+      if (!isCurrentMap(setId, mapId) || operation !== environmentOperation) return;
+      if (replaceId && !map.environment.some((piece) => piece.id === replaceId)) return;
+      cancelPointerSession('mode-change');
+      finishEnvironmentReorder();
 
-      if (replacingEnvironment) {
-        const id = replacingEnvironment;
+      if (replaceId) {
+        const id = replaceId;
         workshop.editMap((m) => {
           const piece = m.environment.find((entry) => entry.id === id);
           const replacement = imported[0];
           if (!piece || !replacement) return;
           piece.source = replacement.source;
-          piece.label = replacement.label;
+          if (piece.label === replaceLabel) piece.label = replacement.label;
           piece.aspect = replacement.aspect;
         });
-        selectEnvironment(id);
+        if (interactionRevision === selectionRevision) selectEnvironment(id);
       } else {
         let last: MapEnvironmentPieceId | null = null;
         workshop.editMap((m) => {
@@ -965,12 +1516,15 @@
             last = piece.id;
           }
         });
-        selectEnvironment(last);
+        if (interactionRevision === selectionRevision) selectEnvironment(last);
       }
     } catch (cause) {
+      if (!isCurrentMap(setId, mapId) || operation !== environmentOperation) return;
       environmentError = cause instanceof Error ? cause.message : 'Could not read those PNGs.';
     } finally {
-      replacingEnvironment = null;
+      if (isCurrentMap(setId, mapId) && operation === environmentOperation) {
+        replacingEnvironment = null;
+      }
     }
   }
 
@@ -1016,6 +1570,7 @@
   function finishEnvironmentReorder(): void {
     reorderingEnvironment = null;
     environmentDrop = null;
+    environmentReorderPointerId = null;
   }
 
   function startEnvironmentPointerReorder(
@@ -1025,13 +1580,42 @@
     if (event.button !== 0) return;
     event.preventDefault();
     event.stopPropagation();
+    finishEnvironmentReorder();
     reorderingEnvironment = id;
+    environmentReorderPointerId = event.pointerId;
     environmentDrop = null;
-    (event.currentTarget as Element).setPointerCapture?.(event.pointerId);
+    try {
+      (event.currentTarget as Element).setPointerCapture(event.pointerId);
+    } catch {
+      finishEnvironmentReorder();
+    }
+  }
+
+  function onWindowPointerDown(event: PointerEvent): void {
+    if (
+      environmentReorderPointerId !== null &&
+      event.pointerId !== environmentReorderPointerId
+    ) {
+      finishEnvironmentReorder();
+    }
+    const target = event.target instanceof Element ? event.target : null;
+    /* Controls float inside the viewport but stop bubbling so they do not pan
+       the board. Treating them as though the viewport arbiter will see this
+       pointer would otherwise leave an in-flight authoring move alive. */
+    const reachesViewportArbiter = viewport !== null &&
+      event.composedPath().includes(viewport) &&
+      !target?.closest('.viewport-controls');
+    if (
+      pointerSession &&
+      event.pointerId !== pointerSession.pointerId &&
+      !reachesViewportArbiter
+    ) {
+      cancelPointerSession('second-pointer', false);
+    }
   }
 
   function targetEnvironmentPointerReorder(event: PointerEvent): void {
-    if (!reorderingEnvironment) return;
+    if (!reorderingEnvironment || event.pointerId !== environmentReorderPointerId) return;
     event.preventDefault();
     const target = document
       .elementFromPoint(event.clientX, event.clientY)
@@ -1048,20 +1632,31 @@
     };
   }
 
-  function finishEnvironmentPointerReorder(): void {
+  function finishEnvironmentPointerReorder(event: PointerEvent): void {
+    if (event.pointerId !== environmentReorderPointerId) return;
     if (reorderingEnvironment && environmentDrop) {
       reorderEnvironment(reorderingEnvironment, environmentDrop.id, environmentDrop.position);
     }
     finishEnvironmentReorder();
   }
 
+  function cancelEnvironmentPointerReorder(event: PointerEvent): void {
+    if (event.pointerId !== environmentReorderPointerId) return;
+    finishEnvironmentReorder();
+  }
+
   function removeEnvironment(): void {
     if (!selectedEnvironment) return;
+    interactionRevision += 1;
+    environmentOperation += 1;
+    replacingEnvironment = null;
+    cancelPointerSession('manual');
     const id = selectedEnvironment;
     workshop.editMap((m) => {
       m.environment = m.environment.filter((piece) => piece.id !== id);
     });
     selectedEnvironment = null;
+    if (moveTarget?.kind === 'environment' && moveTarget.id === id) moveTarget = null;
   }
 
   /** Direction copy for the two directional toggles, stated from whichever endpoint is open. */
@@ -1161,12 +1756,16 @@
   }
 
   function removeNote(note: MapNote): void {
+    interactionRevision += 1;
+    cancelPointerSession('manual');
     workshop.editMap((m) => (m.notes = m.notes.filter((n) => n.id !== note.id)));
     if (selectedNote === note.id) selectedNote = null;
+    if (moveTarget?.kind === 'note' && moveTarget.id === note.id) moveTarget = null;
   }
 
   function setZoneCount(count: number): void {
     if (!selectedSpace) return;
+    zonePatternOperation += 1;
     const zones = selectedSpace.zones;
     workshop.editMap(() => {
       while (zones.length > count) zones.pop();
@@ -1175,7 +1774,15 @@
   }
 </script>
 
-<svelte:window onkeydown={onKeyDown} />
+<svelte:window
+  onkeydown={onKeyDown}
+  onpointerdowncapture={onWindowPointerDown}
+  onblur={onPageInterruption}
+  onpagehide={onPageInterruption}
+  onresize={onViewportChange}
+  onorientationchange={onViewportChange}
+/>
+<svelte:document onvisibilitychange={onVisibilityChange} />
 
 <div class="page scroll-y">
   <header class="head">
@@ -1192,7 +1799,7 @@
     <div class="head-actions">
       <Button
         size="sm"
-        disabled={!workshop.canUndoMap}
+        disabled={artworkView || !workshop.canUndoMap}
         title="Undo last map change (Ctrl+Z)"
         onclick={undoMap}
       >
@@ -1223,13 +1830,14 @@
       {/each}
     </div>
     <div class="map-switcher-actions">
-      <Button size="sm" onclick={addMap}>
+      <Button size="sm" disabled={artworkView} onclick={addMap}>
         <Icon name="plus" size={13} />
         Map
       </Button>
       {#if set.maps.length > 1}
         <Button
           size="sm"
+          disabled={artworkView}
           variant={confirmingMapDelete ? 'danger' : 'secondary'}
           onclick={removeCurrentMap}
         >
@@ -1266,10 +1874,15 @@
     <section class="panel">
       <Switch
         checked={map.enabled}
+        disabled={artworkView}
         label="This adventure has a map"
         hint="Off by default — not every set needs one"
         onchange={(value) => {
           workshop.editMap((m) => (m.enabled = value));
+          if (!value) {
+            resetMapSelections();
+            resetView();
+          }
         }}
       />
     </section>
@@ -1281,20 +1894,89 @@
             <button
               type="button"
               class="mode"
+              disabled={artworkView}
               class:active={mode === entry.value}
+              aria-pressed={mode === entry.value}
               title={entry.hint}
-              onclick={() => {
-                mode = entry.value;
-                linkFrom = null;
-              }}
+              onclick={() => changeMode(entry.value)}
             >
               {entry.label}
             </button>
           {/each}
-          <span class="mode-hint">{MODES.find((m) => m.value === mode)?.hint}</span>
+          <span class="mode-hint">{MODES.find((entry) => entry.value === mode)?.hint}</span>
+
+          {#if mode === 'spaces'}
+            <button
+              type="button"
+              class="mode action-mode"
+              class:active={placementArmed === 'space'}
+              aria-pressed={placementArmed === 'space'}
+              onclick={() => {
+                moveTarget = null;
+                placementArmed = placementArmed === 'space' ? null : 'space';
+              }}
+            >
+              <Icon name="plus" size={13} />
+              {placementArmed === 'space' ? 'Cancel add' : 'Add space'}
+            </button>
+            <button
+              type="button"
+              class="mode"
+              class:active={selectMultiple}
+              aria-pressed={selectMultiple}
+              onclick={() => {
+                selectMultiple = !selectMultiple;
+                if (selectMultiple) moveTarget = null;
+              }}
+            >
+              Select multiple
+            </button>
+            <span class="selection-count" role="status">
+              {colorSelection.size} selected
+            </span>
+            <button
+              type="button"
+              class="mode"
+              disabled={colorSelection.size === 0}
+              onclick={clearSelection}
+            >Clear</button>
+          {:else if mode === 'text'}
+            <button
+              type="button"
+              class="mode action-mode"
+              class:active={placementArmed === 'text'}
+              aria-pressed={placementArmed === 'text'}
+              onclick={() => {
+                moveTarget = null;
+                placementArmed = placementArmed === 'text' ? null : 'text';
+              }}
+            >
+              <Icon name="plus" size={13} />
+              {placementArmed === 'text' ? 'Cancel add' : 'Add text'}
+            </button>
+          {:else if mode === 'link'}
+            <span class="selection-count" role="status">
+              {linkFrom ? `${spaceName(linkFrom)} chosen · choose the second endpoint` : 'Choose the first endpoint'}
+            </span>
+            {#if linkFrom}
+              <button type="button" class="mode" onclick={() => (linkFrom = null)}>Cancel link</button>
+            {/if}
+          {/if}
+
+          <button
+            type="button"
+            class="mode"
+            class:active={artworkView}
+            aria-pressed={artworkView}
+            title="Show only the board artwork here. This never changes the printed map."
+            onclick={toggleArtworkView}
+          >
+            <Icon name="eye" size={13} />
+            Artwork view
+          </button>
 
           <!--
-            A construction aid, not a fourth mode: it changes nothing a click
+            A construction aid, not an editing mode: it changes nothing a click
             does, only what the board shows while working — so a toggle
             rather than another entry in `MODES`, which is only ever about
             what a click means. Never touches the document and never
@@ -1304,6 +1986,7 @@
           <button
             type="button"
             class="mode"
+            disabled={artworkView}
             class:active={showNumbers}
             title="Show each space's construction number — a label for finding it in this editor, not for the printed board"
             onclick={() => (showNumbers = !showNumbers)}
@@ -1315,6 +1998,7 @@
           <button
             type="button"
             class="mode"
+            disabled={artworkView}
             class:active={map.showSpacesAndPaths}
             aria-pressed={map.showSpacesAndPaths}
             title={map.showSpacesAndPaths
@@ -1324,10 +2008,12 @@
               const visible = !map.showSpacesAndPaths;
               workshop.editMap((m) => (m.showSpacesAndPaths = visible));
               if (!visible) {
+                interactionRevision += 1;
                 selected = null;
                 colorSelection = new Set();
                 linkFrom = null;
-                dragging = null;
+                moveTarget = null;
+                cancelPointerSession('mode-change');
               }
             }}
           >
@@ -1338,6 +2024,7 @@
           <button
             type="button"
             class="mode"
+            disabled={artworkView}
             class:active={map.autoLargeFighter}
             aria-pressed={map.autoLargeFighter}
             title="Automatically mark paths longer than {LARGE_FIGHTER_CENTRE_THRESHOLD_MM} mm centre to centre"
@@ -1359,12 +2046,14 @@
               class="hidden-file"
               type="file"
               accept="image/*"
+              disabled={artworkView}
               bind:this={artInput}
               onchange={pickArtwork}
             />
             <button
               type="button"
               class="art-chip"
+              disabled={artworkView}
               onclick={() => artInput?.click()}
               title={hasArtwork(map.artwork) ? 'Replace board artwork' : 'Choose board artwork'}
             >
@@ -1375,6 +2064,7 @@
               <button
                 type="button"
                 class="unlink"
+                disabled={artworkView}
                 title="Remove board artwork"
                 aria-label="Remove board artwork"
                 onclick={clearArtwork}
@@ -1466,14 +2156,34 @@
               </Button>
             </div>
             <div class="environment-actions">
+              <Button
+                size="sm"
+                variant={moveTarget?.kind === 'environment' && moveTarget.id === piece.id
+                  ? 'primary'
+                  : 'secondary'}
+                onclick={() => toggleMove({ kind: 'environment', id: piece.id })}
+              >
+                <Icon name="move" size={13} />
+                {moveTarget?.kind === 'environment' && moveTarget.id === piece.id
+                  ? 'Done moving'
+                  : 'Move'}
+              </Button>
               <Button size="sm" onclick={() => openEnvironmentPicker(piece.id)}>
                 <Icon name="upload" size={13} />
                 Replace
               </Button>
-              <Button size="sm" variant="danger" onclick={removeEnvironment}>
-                <Icon name="trash" size={13} />
-                Remove
-              </Button>
+              {#key piece.id}
+                <ConfirmAction
+                  size="sm"
+                  label="Delete environment layer"
+                  confirmLabel="Delete environment layer — activate again to confirm"
+                  confirmText="Confirm delete"
+                  onconfirm={removeEnvironment}
+                >
+                  <Icon name="trash" size={13} />
+                  Delete
+                </ConfirmAction>
+              {/key}
             </div>
           </div>
         {/snippet}
@@ -1646,7 +2356,13 @@
           <div class="block environment-col">
             <div class="environment-head">
               <h2 class="panel-title">Environment</h2>
-              <Button size="sm" onclick={() => openEnvironmentPicker()}>
+              <Button
+                size="sm"
+                onclick={() => {
+                  changeMode('environment');
+                  void openEnvironmentPicker();
+                }}
+              >
                 <Icon name="plus" size={13} />
                 Add PNG
               </Button>
@@ -1678,8 +2394,10 @@
                       class="environment-row"
                       class:active={selectedEnvironment === piece.id}
                       aria-pressed={selectedEnvironment === piece.id}
-                      onclick={() =>
-                        selectEnvironment(selectedEnvironment === piece.id ? null : piece.id)}
+                      onclick={() => {
+                        changeMode('environment');
+                        selectEnvironment(selectedEnvironment === piece.id ? null : piece.id);
+                      }}
                     >
                       <span class="environment-thumb"><img src={piece.source} alt="" /></span>
                       <span class="environment-copy">
@@ -1693,7 +2411,8 @@
                         onpointerdown={(event) => startEnvironmentPointerReorder(event, piece.id)}
                         onpointermove={targetEnvironmentPointerReorder}
                         onpointerup={finishEnvironmentPointerReorder}
-                        onpointercancel={finishEnvironmentReorder}
+                        onpointercancel={cancelEnvironmentPointerReorder}
+                        onlostpointercapture={cancelEnvironmentPointerReorder}
                       >⋮⋮</span>
                     </button>
                   </li>
@@ -1712,145 +2431,176 @@
           the tallest thing on the page by a long way.
         -->
         <div class="layout">
+          <div class="map-stack">
           <div class="map-col">
-          <!--
-            `touch-action: none` on the board rather than `preventDefault`: a
-            drag on a touch screen is a scroll until the browser is told
-            otherwise, and told at paint time, not at the first move event.
-          -->
           <div
-            class="board"
-            class:dragging-environment={draggingEnvironment !== null}
-            class:dragging-note={draggingNote !== null}
-            bind:this={board}
-            role="application"
-            aria-label="Adventure map"
-            onpointerdown={onPointerDown}
-            onpointermove={onPointerMove}
-            onpointerup={onPointerUp}
-            onpointercancel={onPointerUp}
+            class="map-viewport"
+            bind:this={viewport}
+            role="region"
+            aria-label="Adventure map workspace. {mode === 'navigate'
+              ? 'Drag to pan and pinch to zoom.'
+              : 'Use the selected editing mode, or switch to Navigate to pan.'}"
+            onpointerdown={onViewportPointerDown}
+            onpointermove={onViewportPointerMove}
+            onpointerup={onViewportPointerEnd}
+            onpointercancel={onViewportPointerEnd}
+            onlostpointercapture={onViewportPointerEnd}
           >
-            <MapBoard
-              {map}
-              customSymbols={set.customSymbols}
-              setName={set.name}
-              authorName={set.meta.author}
-              highlight={Array.from(colorSelection)}
-              linking={mode === 'link' ? linkFrom : null}
-            />
+            <div
+              class="board"
+              class:artwork-view={artworkView}
+              class:moving={movingTarget !== null}
+              bind:this={board}
+              style:transform="translate({viewX}px, {viewY}px) scale({viewScale})"
+              style:--view-scale={viewScale}
+            >
+              <MapBoard
+                {map}
+                customSymbols={set.customSymbols}
+                setName={set.name}
+                authorName={set.meta.author}
+                highlight={artworkView ? [] : Array.from(colorSelection)}
+                linking={!artworkView && mode === 'link' ? linkFrom : null}
+              />
 
-            {#if showNumbers && map.showSpacesAndPaths}
-              <!--
-                Drawn here, over `MapBoard` rather than inside it — `MapBoard`
-                is also what the export photographs (see its own doc comment:
-                "what is exported must not be able to draw a handle"), and
-                these numbers are a construction aid an author reaches for
-                specifically to find "Space 29" while unlinking it, never
-                something that should show up on a printed board.
-                `pointer-events: none` so the overlay never steals the click
-                that is meant for the board underneath it.
-              -->
-              <div class="numbers" aria-hidden="true">
-                {#each map.spaces as space, index (space.id)}
-                  <span
-                    class="number"
-                    style:left="{(space.x * 100).toFixed(3)}%"
-                    style:top="{((space.y / mapHeight(map)) * 100).toFixed(3)}%"
-                  >
-                    {index + 1}
-                  </span>
-                {/each}
-              </div>
-            {/if}
-          </div>
-          {@render belowMap()}
-          </div>
+              {#if showNumbers && map.showSpacesAndPaths && !artworkView}
+                <!-- Editor-only construction labels; the export mounts MapBoard alone. -->
+                <div class="numbers" aria-hidden="true">
+                  {#each map.spaces as space, index (space.id)}
+                    <span
+                      class="number"
+                      style:left="{(space.x * 100).toFixed(3)}%"
+                      style:top="{((space.y / mapHeight(map)) * 100).toFixed(3)}%"
+                    >
+                      {index + 1}
+                    </span>
+                  {/each}
+                </div>
+              {/if}
 
-          <!-- Source order stays interaction-first: map, visual layers,
-               selected-item controls, then board-wide settings. CSS keeps
-               Environment beside the map and Board beside Zones beneath it. -->
-          <aside class="side">
-            <div class="side-col">
-            {@render environmentPanel()}
-
-            <div class="block placed-block">
-              <h2 class="panel-title">Placed text</h2>
-
-              {#if map.notes.length === 0}
-                <p class="hint">Switch to Text and click the board to add a label.</p>
-              {:else}
-                {#each map.notes as note (note.id)}
-                  <div class="note-row">
-                    <TextInput
-                      value={note.text}
-                      placeholder="Type here…"
-                      oninput={(event) => {
-                        const next = event.currentTarget.value;
-                        editNote(note, (n) => (n.text = next));
-                      }}
-                    />
-                    <div class="link-row">
-                      <div class="color-row">
-                        <input
-                          type="color"
-                          value={note.color}
-                          aria-label="Text colour"
-                          oninput={(event) => {
-                            const value = event.currentTarget.value;
-                            editNote(note, (n) => (n.color = value));
-                          }}
-                        />
-                        <HexInput
-                          value={note.color}
-                          label="Text colour, hex"
-                          onchange={(color) => editNote(note, (n) => (n.color = color))}
-                        />
-                      </div>
+              {#if !artworkView}
+                <div class="map-hit-layer">
+                  {#if map.showSpacesAndPaths && (mode === 'spaces' || mode === 'link')}
+                    {#each map.spaces as space, index (space.id)}
                       <button
                         type="button"
-                        class="unlink"
-                        title="Remove this text"
-                        aria-label="Remove text"
-                        onclick={() => removeNote(note)}
-                      >
-                        <Icon name="minus" size={12} />
-                      </button>
-                    </div>
-                    <Slider
-                      label="Size"
-                      value={note.size}
-                      min={0.8}
-                      max={8}
-                      step={0.1}
-                      neutral={2.2}
-                      format={(v) => v.toFixed(1)}
-                      onchange={(v) => editNote(note, (n) => (n.size = v))}
-                    />
-                    <!--
-                      A full turn either way rather than 0–360: a label is far
-                      more often nudged a few degrees than swung most of the way
-                      round, and −15 is easier to reach from the middle than 345
-                      is from an end.
-                    -->
-                    <Slider
-                      label="Turn"
-                      value={note.rotation}
-                      min={-180}
-                      max={180}
-                      step={1}
-                      neutral={0}
-                      format={(v) => `${Math.round(v)}°`}
-                      onchange={(v) => editNote(note, (n) => (n.rotation = v))}
-                    />
-                  </div>
-                {/each}
+                        class="map-hit-target space-hit-target"
+                        class:selected={colorSelection.has(space.id) || linkFrom === space.id}
+                        class:move-armed={moveTarget?.kind === 'space' && moveTarget.id === space.id}
+                        data-map-space-target={space.id}
+                        style:--target-x="{(space.x * 100).toFixed(3)}%"
+                        style:--target-y="{((space.y / mapHeight(map)) * 100).toFixed(3)}%"
+                        style:--target-width="max(calc(44px / var(--view-scale)), {(map.spaceDiameter * 100).toFixed(3)}%)"
+                        style:--target-height="max(calc(44px / var(--view-scale)), {((map.spaceDiameter / mapHeight(map)) * 100).toFixed(3)}%)"
+                        aria-label="{mode === 'link' ? 'Choose' : 'Select'} {spaceName(space.id)}"
+                        aria-pressed={colorSelection.has(space.id) || linkFrom === space.id}
+                        onclick={(event) => {
+                          if (event.detail !== 0) return;
+                          if (mode === 'link') completeLink(space.id);
+                          else selectSpace(space.id, selectMultiple || event.shiftKey);
+                        }}
+                      ><span aria-hidden="true">{index + 1}</span></button>
+                    {/each}
+                  {:else if mode === 'text'}
+                    {#each map.notes as note, index (note.id)}
+                      <button
+                        type="button"
+                        class="map-hit-target note-hit-target"
+                        class:selected={selectedNote === note.id}
+                        class:move-armed={moveTarget?.kind === 'note' && moveTarget.id === note.id}
+                        data-map-note-target={note.id}
+                        style:--target-x="{(note.x * 100).toFixed(3)}%"
+                        style:--target-y="{((note.y / mapHeight(map)) * 100).toFixed(3)}%"
+                        aria-label="Select placed text {index + 1}, {note.text.trim() || 'empty text'}"
+                        aria-pressed={selectedNote === note.id}
+                        onclick={(event) => {
+                          if (event.detail === 0) selectNote(note.id);
+                        }}
+                      ></button>
+                    {/each}
+                  {:else if mode === 'environment'}
+                    {#each map.environment as piece, index (piece.id)}
+                      <button
+                        type="button"
+                        class="map-hit-target environment-hit-target"
+                        class:selected={selectedEnvironment === piece.id}
+                        class:move-armed={moveTarget?.kind === 'environment' && moveTarget.id === piece.id}
+                        data-map-environment-target={piece.id}
+                        style:--target-x="{(piece.x * 100).toFixed(3)}%"
+                        style:--target-y="{((piece.y / mapHeight(map)) * 100).toFixed(3)}%"
+                        style:--target-width="max(calc(44px / var(--view-scale)), {(piece.width * 100).toFixed(3)}%)"
+                        style:--target-height="max(calc(44px / var(--view-scale)), {((piece.width / piece.aspect / mapHeight(map)) * 100).toFixed(3)}%)"
+                        aria-label="Select environment layer {index + 1}, {piece.label}"
+                        aria-pressed={selectedEnvironment === piece.id}
+                        onclick={(event) => {
+                          if (event.detail === 0) selectEnvironment(piece.id);
+                        }}
+                      ></button>
+                    {/each}
+                  {/if}
+                </div>
               {/if}
             </div>
+
+            <div
+              class="viewport-controls"
+              role="group"
+              aria-label="Map zoom controls"
+              onpointerdown={(event) => event.stopPropagation()}
+            >
+              <button
+                type="button"
+                aria-label="Zoom out"
+                disabled={viewScale <= MIN_VIEW_SCALE}
+                onclick={(event) => {
+                  event.stopPropagation();
+                  zoomView(viewScale / 1.35);
+                }}
+              >−</button>
+              <span class="numeric">{Math.round(viewScale * 100)}%</span>
+              <button
+                type="button"
+                aria-label="Zoom in"
+                disabled={viewScale >= MAX_VIEW_SCALE}
+                onclick={(event) => {
+                  event.stopPropagation();
+                  zoomView(viewScale * 1.35);
+                }}
+              >+</button>
+              <button
+                type="button"
+                class="fit-view"
+                disabled={viewScale === 1 && viewX === 0 && viewY === 0}
+                onclick={(event) => {
+                  event.stopPropagation();
+                  resetView();
+                }}
+              >Fit</button>
             </div>
+          </div>
+          <p class="viewport-hint">
+            {artworkView
+              ? 'Artwork-only view. Editing is paused and exports are unchanged.'
+              : mode === 'navigate'
+                ? 'Drag to pan · pinch or use +/− to zoom'
+                : 'Drag empty board to pan · use two fingers to pinch · editing only happens after a tap or explicit Move'}
+          </p>
+          </div>
+          </div>
+
+          <!-- DOM and visual order both stay interaction-first on narrow
+               screens: map, selected item, visual layers, board settings. -->
+          <aside class="side" class:editing-paused={artworkView} inert={artworkView}>
 
             <div class="block selected-block">
               <h2 class="panel-title">
-                {selectedEnvironmentPiece ? 'Selected environment' : 'Selected space'}
+                {selectedEnvironmentPiece
+                  ? 'Selected environment'
+                  : selectedNoteEntry
+                    ? 'Selected text'
+                    : selectedSpace
+                      ? 'Selected space'
+                      : 'Inspector'}
               </h2>
               <div class="selected-scroll">
 
@@ -1859,12 +2609,116 @@
                   (entry) => entry.id === selectedEnvironmentPiece.id
                 )}
                 {@render environmentInspector(selectedEnvironmentPiece, environmentIndex)}
+              {:else if selectedNoteEntry}
+                <p class="stats">
+                  At {(selectedNoteEntry.x * 100).toFixed(1)}%,
+                  {((selectedNoteEntry.y / mapHeight(map)) * 100).toFixed(1)}%
+                </p>
+                <div class="field">
+                  <span class="field-label">Text</span>
+                  <TextInput
+                    value={selectedNoteEntry.text}
+                    placeholder="Type here…"
+                    aria-label="Placed text"
+                    oninput={(event) => {
+                      const next = event.currentTarget.value;
+                      editNote(selectedNoteEntry, (note) => (note.text = next));
+                    }}
+                  />
+                </div>
+                <div class="field">
+                  <span class="field-label">Colour</span>
+                  <div class="color-row">
+                    <input
+                      type="color"
+                      value={selectedNoteEntry.color}
+                      aria-label="Text colour"
+                      oninput={(event) =>
+                        editNote(selectedNoteEntry, (note) => (note.color = event.currentTarget.value))}
+                    />
+                    <HexInput
+                      value={selectedNoteEntry.color}
+                      label="Text colour, hex"
+                      onchange={(color) => editNote(selectedNoteEntry, (note) => (note.color = color))}
+                    />
+                  </div>
+                </div>
+                <div class="note-position-controls">
+                  <Slider
+                    label="Horizontal position"
+                    value={selectedNoteEntry.x}
+                    min={0}
+                    max={1}
+                    step={0.005}
+                    neutral={0.5}
+                    format={(value) => `${Math.round(value * 100)}%`}
+                    onchange={(x) => editNote(selectedNoteEntry, (note) => (note.x = x))}
+                  />
+                  <Slider
+                    label="Vertical position"
+                    value={selectedNoteEntry.y / mapHeight(map)}
+                    min={0}
+                    max={1}
+                    step={0.005}
+                    neutral={0.5}
+                    format={(value) => `${Math.round(value * 100)}%`}
+                    onchange={(value) =>
+                      editNote(selectedNoteEntry, (note) => (note.y = value * mapHeight(map)))}
+                  />
+                  <Slider
+                    label="Size"
+                    value={selectedNoteEntry.size}
+                    min={0.8}
+                    max={8}
+                    step={0.1}
+                    neutral={2.2}
+                    format={(value) => value.toFixed(1)}
+                    onchange={(size) => editNote(selectedNoteEntry, (note) => (note.size = size))}
+                  />
+                  <Slider
+                    label="Turn"
+                    value={selectedNoteEntry.rotation}
+                    min={-180}
+                    max={180}
+                    step={1}
+                    neutral={0}
+                    format={(value) => `${Math.round(value)}°`}
+                    onchange={(rotation) =>
+                      editNote(selectedNoteEntry, (note) => (note.rotation = rotation))}
+                  />
+                </div>
+                <div class="inspector-actions">
+                  <Button
+                    size="sm"
+                    variant={moveTarget?.kind === 'note' && moveTarget.id === selectedNoteEntry.id
+                      ? 'primary'
+                      : 'secondary'}
+                    onclick={() => toggleMove({ kind: 'note', id: selectedNoteEntry.id })}
+                  >
+                    <Icon name="move" size={13} />
+                    {moveTarget?.kind === 'note' && moveTarget.id === selectedNoteEntry.id
+                      ? 'Done moving'
+                      : 'Move'}
+                  </Button>
+                  {#key selectedNoteEntry.id}
+                    <ConfirmAction
+                      label="Delete placed text"
+                      confirmLabel="Delete placed text — activate again to confirm"
+                      confirmText="Confirm delete"
+                      size="sm"
+                      onconfirm={() => removeNote(selectedNoteEntry)}
+                    >
+                      <Icon name="trash" size={13} />
+                      Delete
+                    </ConfirmAction>
+                  {/key}
+                </div>
               {:else if colorSelection.size === 0}
                 <!-- The block keeps its place when nothing is selected, so the
                      board does not jump sideways every time one is. -->
                 <p class="hint">
-                  Click a space or environment layer to edit it. Shift-click to
-                  select more than one space.
+                  Choose Spaces, Text, or Environment, then tap an item to edit it.
+                  Select Multiple replaces Shift-click on touch screens.
                 </p>
               {:else}
                 {#if colorSelection.size > 1}
@@ -1924,6 +2778,25 @@
               {/if}
 
               {#if colorSelection.size === 1 && selectedSpace}
+                <div class="inspector-actions">
+                  <Button
+                    size="sm"
+                    variant={moveTarget?.kind === 'space' && moveTarget.id === selectedSpace.id
+                      ? 'primary'
+                      : 'secondary'}
+                    onclick={() => toggleMove({ kind: 'space', id: selectedSpace.id })}
+                  >
+                    <Icon name="move" size={13} />
+                    {moveTarget?.kind === 'space' && moveTarget.id === selectedSpace.id
+                      ? 'Done moving'
+                      : 'Move'}
+                  </Button>
+                  <span class="hint">
+                    {moveTarget?.kind === 'space' && moveTarget.id === selectedSpace.id
+                      ? 'Drag this space on the board. Escape or an interruption restores its position.'
+                      : 'Choose Move before a drag can change its position.'}
+                  </span>
+                </div>
                 <label class="field">
                   <span class="field-label">Label</span>
                   <TextInput
@@ -2276,6 +3149,7 @@
                             aria-label="Zone {index + 1} colour"
                             oninput={(event) => {
                               const value = event.currentTarget.value;
+                              zonePatternOperation += 1;
                               workshop.editMap(() => (selectedSpace.zones[index] = solid(value)));
                             }}
                           />
@@ -2292,6 +3166,7 @@
                         aria-label="Zone {index + 1} colour"
                         oninput={(event) => {
                           const value = event.currentTarget.value;
+                          zonePatternOperation += 1;
                           workshop.editMap(() => (selectedSpace.zones[index] = solid(value)));
                         }}
                       />
@@ -2299,10 +3174,18 @@
                   </div>
                 {/if}
 
-                <Button variant="danger" size="sm" onclick={removeSelected}>
-                  <Icon name="trash" size={13} />
-                  Delete space
-                </Button>
+                {#key selectedSpace.id}
+                  <ConfirmAction
+                    size="sm"
+                    label="Delete space"
+                    confirmLabel="Delete space — activate again to confirm"
+                    confirmText="Confirm delete"
+                    onconfirm={removeSelected}
+                  >
+                    <Icon name="trash" size={13} />
+                    Delete space
+                  </ConfirmAction>
+                {/key}
                 </section>
               {/if}
 
@@ -2314,10 +3197,56 @@
               </div>
             </div>
 
+            <div class="side-col">
+            {@render environmentPanel()}
+
+            <div class="block placed-block">
+              <div class="environment-head">
+                <h2 class="panel-title">Placed text</h2>
+                <Button
+                  size="sm"
+                  onclick={() => {
+                    changeMode('text');
+                    placementArmed = 'text';
+                  }}
+                >
+                  <Icon name="plus" size={13} />
+                  Add
+                </Button>
+              </div>
+
+              {#if map.notes.length === 0}
+                <p class="hint">Choose Add, then tap once on the board.</p>
+              {:else}
+                <ul class="note-items">
+                  {#each map.notes as note, index (note.id)}
+                    <li>
+                      <button
+                        type="button"
+                        class="note-list-row"
+                        class:active={selectedNote === note.id}
+                        aria-pressed={selectedNote === note.id}
+                        onclick={() => {
+                          changeMode('text');
+                          selectNote(note.id);
+                        }}
+                      >
+                        <span>{note.text.trim() || `Placed text ${index + 1}`}</span>
+                        <small>{Math.round(note.x * 100)}%, {Math.round((note.y / mapHeight(map)) * 100)}%</small>
+                      </button>
+                    </li>
+                  {/each}
+                </ul>
+              {/if}
+            </div>
+            </div>
+
           </aside>
 
+          {@render belowMap()}
+
           {#snippet belowMap()}
-            <div class="below-map">
+            <div class="below-map" class:editing-paused={artworkView} inert={artworkView}>
               {@render boardPanel()}
 
               <!-- Terrain styling and the path-wide restriction rule share
@@ -2659,6 +3588,13 @@
     color: var(--text-primary);
   }
 
+  .mode:disabled,
+  .art-chip:disabled,
+  .unlink:disabled {
+    cursor: default;
+    opacity: 0.5;
+  }
+
   .mode-hint {
     font-size: var(--text-xs);
     color: var(--text-muted);
@@ -2691,7 +3627,7 @@
     cursor: pointer;
   }
 
-  .art-chip:hover {
+  .art-chip:hover:not(:disabled) {
     border-color: var(--border-strong);
   }
 
@@ -2705,7 +3641,7 @@
      beneath it, while visual scene layers stay beside the live preview. */
   .layout {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) 360px 440px;
+    grid-template-columns: minmax(0, 1fr) 440px 360px;
     column-gap: var(--space-4);
     row-gap: var(--space-4);
     align-items: start;
@@ -2779,26 +3715,162 @@
     gap: var(--space-2);
   }
 
-  .map-col {
+  .map-stack {
     grid-column: 1;
     display: flex;
     flex-direction: column;
     min-width: 0;
   }
 
-  .board {
-    /* The construction-number overlay is absolute and must resolve against
-       the map, not whichever page ancestor happens to be positioned. */
+  .map-col {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+  }
+
+  .map-viewport {
     position: relative;
+    width: 100%;
+    overflow: hidden;
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-sm);
+    background: var(--surface-inset);
+    cursor: grab;
+    touch-action: none;
+    user-select: none;
+  }
+
+  .map-viewport:active {
+    cursor: grabbing;
+  }
+
+  .board {
+    position: relative;
+    width: 100%;
+    transform-origin: 0 0;
+    will-change: transform;
+  }
+
+  .board.artwork-view :global(.ink) {
+    opacity: 0;
+  }
+
+  .map-hit-layer,
+  .numbers {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+  }
+
+  .map-hit-target {
+    --target-width: calc(44px / var(--view-scale));
+    --target-height: calc(44px / var(--view-scale));
+    position: absolute;
+    z-index: 4;
+    left: clamp(
+      calc(var(--target-width) / 2),
+      var(--target-x),
+      calc(100% - var(--target-width) / 2)
+    );
+    top: clamp(
+      calc(var(--target-height) / 2),
+      var(--target-y),
+      calc(100% - var(--target-height) / 2)
+    );
+    width: var(--target-width);
+    height: var(--target-height);
+    transform: translate(-50%, -50%);
+    border: max(1px, calc(2px / var(--view-scale))) solid transparent;
+    border-radius: var(--radius-full);
+    background: transparent;
+    color: transparent;
+    pointer-events: auto;
+    cursor: pointer;
+    touch-action: none;
+  }
+
+  .map-hit-target:hover,
+  .map-hit-target:focus-visible,
+  .map-hit-target.selected {
+    border-color: var(--accent);
+    background: var(--accent-soft);
+    outline: none;
+  }
+
+  .map-hit-target.move-armed {
+    border-style: dashed;
+    border-color: var(--warning);
+    background: color-mix(in srgb, var(--warning) 18%, transparent);
+    cursor: grab;
+  }
+
+  .board.moving .map-hit-target.move-armed {
+    cursor: grabbing;
+  }
+
+  .space-hit-target > span {
+    opacity: 0;
+  }
+
+  .viewport-controls {
+    position: absolute;
+    z-index: 8;
+    top: var(--space-2);
+    right: var(--space-2);
+    display: flex;
+    align-items: center;
+    gap: var(--space-1);
+    padding: var(--space-1);
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-sm);
+    background: var(--surface-overlay);
+    box-shadow: var(--shadow-sm);
+  }
+
+  .viewport-controls button {
+    display: grid;
+    min-width: 36px;
+    min-height: 36px;
+    padding: 0 var(--space-2);
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-sm);
+    background: var(--surface-raised);
+    color: var(--text-primary);
+    place-items: center;
+    cursor: pointer;
+  }
+
+  .viewport-controls button:disabled {
+    cursor: default;
+    opacity: 0.45;
+  }
+
+  .viewport-controls .fit-view {
+    min-width: 44px;
+  }
+
+  .viewport-controls span {
+    min-width: 4ch;
+    font-size: var(--text-2xs);
+    text-align: center;
+  }
+
+  .viewport-hint,
+  .selection-count {
+    margin: var(--space-2) 0 0;
+    font-size: var(--text-xs);
+    color: var(--text-muted);
   }
 
   .selected-block {
-    grid-column: 3;
+    grid-column: 2;
     max-height: 600px;
     overflow: hidden;
   }
 
   .below-map {
+    grid-column: 1;
+    grid-row: 2;
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
     width: 100%;
@@ -2959,7 +4031,7 @@
   }
 
   .side-col {
-    grid-column: 2;
+    grid-column: 3;
     display: flex;
     flex-direction: column;
     gap: 0;
@@ -2972,9 +4044,10 @@
       grid-template-columns: minmax(0, 1fr) 420px;
     }
 
-    .map-col { grid-column: 1; grid-row: 1; }
+    .map-stack { grid-column: 1; grid-row: 1; }
+    .selected-block { grid-column: 2; grid-row: 1 / span 3; }
     .side-col { grid-column: 1; grid-row: 2; }
-    .selected-block { grid-column: 2; grid-row: 1 / span 2; }
+    .below-map { grid-column: 1; grid-row: 3; }
   }
 
   /* Under about a tablet's width the columns stop being columns at all. */
@@ -2985,13 +4058,46 @@
 
     .map-col,
     .selected-block,
-    .side-col {
+    .side-col,
+    .below-map {
       grid-column: 1;
     }
 
+    .map-stack { display: contents; }
     .map-col { grid-row: 1; }
-    .side-col { grid-row: 2; }
-    .selected-block { grid-row: 3; margin-top: 0; }
+    .selected-block {
+      grid-row: 2;
+      max-height: none;
+      overflow: visible;
+      margin-top: 0;
+    }
+    .side-col { grid-row: 3; }
+    .below-map { grid-row: 4; }
+
+    .selected-scroll {
+      overflow: visible;
+      padding-right: 0;
+      scrollbar-gutter: auto;
+    }
+
+    .below-map {
+      grid-template-columns: minmax(0, 1fr);
+    }
+
+    .below-map .board-block,
+    .zone-col {
+      border: 1px solid var(--border-default);
+      border-radius: var(--radius-sm);
+    }
+
+    .zone-col {
+      border-top: 0;
+      border-radius: 0 0 var(--radius-sm) var(--radius-sm);
+    }
+
+    .below-map .board-block {
+      border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+    }
 
   }
 
@@ -2999,6 +4105,11 @@
      item so Environment and Placed text can form one flush vertical stack. */
   .side {
     display: contents;
+  }
+
+  .side.editing-paused > *,
+  .below-map.editing-paused {
+    opacity: 0.55;
   }
 
   .selected-block,
@@ -3195,22 +4306,67 @@
     --hex-color: var(--text-secondary);
   }
 
-  .link-row .color-row {
-    flex: 1 1 auto;
-  }
-
-  .note-row {
+  .note-items {
     display: flex;
     flex-direction: column;
-    gap: var(--space-2);
+    gap: var(--space-1);
     width: 100%;
-    padding-bottom: var(--space-3);
-    border-bottom: 1px solid var(--border-default);
+    max-height: 240px;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    margin: 0;
+    padding: 0;
+    list-style: none;
   }
 
-  .note-row:last-child {
-    padding-bottom: 0;
-    border-bottom: none;
+  .note-list-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
+    width: 100%;
+    min-height: 44px;
+    padding: var(--space-2) var(--space-3);
+    border: 1px solid transparent;
+    border-radius: var(--radius-sm);
+    background: transparent;
+    color: var(--text-primary);
+    text-align: left;
+    cursor: pointer;
+  }
+
+  .note-list-row:hover,
+  .note-list-row.active {
+    border-color: var(--accent);
+    background: var(--surface-selected);
+  }
+
+  .note-list-row span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .note-list-row small {
+    flex: none;
+    color: var(--text-muted);
+    font-size: var(--text-2xs);
+  }
+
+  .note-position-controls,
+  .inspector-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--space-3);
+    width: 100%;
+  }
+
+  .inspector-actions {
+    align-items: center;
+  }
+
+  .inspector-actions .hint {
+    grid-column: 1 / -1;
   }
 
   .link-row {
@@ -3270,7 +4426,7 @@
     cursor: pointer;
   }
 
-  .unlink:hover {
+  .unlink:hover:not(:disabled) {
     border-color: var(--danger);
     color: var(--danger);
   }
@@ -3613,36 +4769,6 @@
     display: none;
   }
 
-  .board {
-    touch-action: none;
-    cursor: crosshair;
-    user-select: none;
-  }
-
-  .board :global(.environment-piece) {
-    cursor: grab;
-  }
-
-  .board :global(.note) {
-    cursor: grab;
-  }
-
-  .board.dragging-environment,
-  .board.dragging-environment :global(.environment-piece) {
-    cursor: grabbing;
-  }
-
-  .board.dragging-note,
-  .board.dragging-note :global(.note) {
-    cursor: grabbing;
-  }
-
-  .numbers {
-    position: absolute;
-    inset: 0;
-    pointer-events: none;
-  }
-
   .number {
     position: absolute;
     transform: translate(-50%, -50%);
@@ -3713,5 +4839,131 @@
     flex-direction: column;
     gap: var(--space-3);
     width: 100%;
+  }
+
+  @media (max-width: 900px), (any-pointer: coarse) {
+    .mode,
+    .map-tab,
+    .unlink,
+    .swatch-apply,
+    .swatch-add,
+    .corner-button,
+    .portal-symbol,
+    .environment-grip,
+    .zone-row,
+    .custom-pattern-thumb,
+    .swatches input,
+    .color-row > input[type='color'],
+    .viewport-controls button {
+      min-width: 44px;
+      min-height: 44px;
+    }
+
+    .corner-buttons {
+      grid-template-columns: repeat(4, 44px);
+    }
+
+    .corner-button,
+    .unlink,
+    .swatch-apply,
+    .swatch-add,
+    .swatches input {
+      width: 44px;
+      height: 44px;
+    }
+
+    .environment-grip {
+      width: 44px;
+      height: 44px;
+    }
+  }
+
+  @media (max-width: 600px) {
+    .page {
+      padding: var(--space-4);
+    }
+
+    .head,
+    .map-switcher {
+      align-items: stretch;
+      flex-direction: column;
+    }
+
+    .head-actions,
+    .map-switcher-actions {
+      width: 100%;
+    }
+
+    .head-actions :global(button),
+    .map-switcher-actions :global(button) {
+      flex: 1 1 0;
+      min-height: 44px;
+    }
+
+    .panel {
+      padding: var(--space-3);
+    }
+
+    .modes {
+      align-items: stretch;
+    }
+
+    .modes .mode {
+      flex: 1 1 calc(33.333% - var(--space-2));
+      justify-content: center;
+    }
+
+    .mode-hint,
+    .selection-count {
+      flex: 1 0 100%;
+      margin-top: 0;
+    }
+
+    .board-art {
+      width: 100%;
+      margin-left: 0;
+    }
+
+    .art-chip {
+      flex: 1 1 auto;
+      min-height: 44px;
+      max-width: none;
+    }
+
+    .block.board-block,
+    .environment-sliders,
+    .portal-sliders,
+    .portal-customisation,
+    .pattern-controls,
+    .note-position-controls,
+    .inspector-actions,
+    .selected-block .connection {
+      grid-template-columns: minmax(0, 1fr);
+    }
+
+    .board-block > *,
+    .fade-slider,
+    .inspector-actions .hint,
+    .selected-block .connection .link-row {
+      grid-column: 1;
+    }
+
+    .topology-stats {
+      grid-template-columns: minmax(0, 1fr);
+    }
+
+    .topology-stats > div {
+      border-right: 0;
+      border-bottom: 1px solid var(--border-default);
+    }
+
+    .topology-stats > div:last-child {
+      border-bottom: 0;
+    }
+
+    .environment-items,
+    .note-items {
+      max-height: none;
+    }
   }
 </style>
