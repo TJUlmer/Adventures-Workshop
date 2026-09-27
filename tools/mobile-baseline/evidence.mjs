@@ -89,100 +89,36 @@ function canonicalJson(value) {
 
 function normalizeString(value) {
   return value
-    .replace(
-      /file:\/\/\/[^"]*?\/mobile-ui-[a-z0-9-]+-tts\//gi,
-      'file:///<BASELINE>/mobile-ui-baseline-tts/'
-    )
-    .replace(
-      /[A-Za-z]:\\[^\r\n]*?\\mobile-ui-[a-z0-9-]+-tts\\/gi,
-      '<BASELINE>\\mobile-ui-baseline-tts\\'
-    );
+    .replace(/file:\/\/\/[^"]*?\/mobile-ui-baseline-tts\//gi, 'file:///<BASELINE>/mobile-ui-baseline-tts/')
+    .replace(/[A-Za-z]:\\[^\r\n]*?\\mobile-ui-baseline-tts\\/g, '<BASELINE>\\mobile-ui-baseline-tts\\');
 }
 
-/* Phase 9 briefly captured a manifest while profile names normalized to a
-   generic marker. Keep that spelling as a compatibility digest only; the
-   durable spelling above is the one Phase 0 already committed. */
-function normalizeStringWithGenericTtsMarker(value) {
-  return value
-    .replace(/file:\/\/\/[^"]*?\/mobile-ui-[a-z0-9-]+-tts\//gi, 'file:///<BASELINE>/<TTS>/')
-    .replace(/[A-Za-z]:\\[^\r\n]*?\\mobile-ui-[a-z0-9-]+-tts\\/gi, '<BASELINE>\\<TTS>\\');
-}
-
-const NORMALIZED_TTS_REFERENCE =
-  /((?:file:\/\/\/<BASELINE>\/mobile-ui-baseline-tts\/|<BASELINE>\\mobile-ui-baseline-tts\\)[^\r\n"']*?)-[0-9a-f]{8}(?=\.(?:jpe?g|png|webp)\b)/gi;
-
-/** Geometry ignores only the content hash in a normalized TTS image URL. */
-function geometryNormalizeString(value) {
-  return normalizeString(value).replace(NORMALIZED_TTS_REFERENCE, '$1-<CONTENT_HASH>');
-}
-
-function normalizeJson(value, key = '', normalizeText = normalizeString) {
+function normalizeJson(value, key = '') {
   if (key === 'exportedAt' || key === 'Date') return '<VOLATILE_TIMESTAMP>';
-  if (typeof value === 'string') return normalizeText(value);
-  if (Array.isArray(value)) return value.map((entry) => normalizeJson(entry, '', normalizeText));
+  if (typeof value === 'string') return normalizeString(value);
+  if (Array.isArray(value)) return value.map((entry) => normalizeJson(entry));
   if (value !== null && typeof value === 'object') {
     return Object.fromEntries(
-      Object.entries(value).map(([childKey, child]) => [
-        childKey,
-        normalizeJson(child, childKey, normalizeText)
-      ])
+      Object.entries(value).map(([childKey, child]) => [childKey, normalizeJson(child, childKey)])
     );
   }
   return value;
 }
 
-function normalizedDigest(bytes, extension, normalizeText = normalizeString) {
+function normalizedDigest(bytes, extension) {
   if (extension === '.json') {
     try {
       const value = JSON.parse(bytes.toString('utf8'));
-      return sha256(Buffer.from(canonicalJson(normalizeJson(value, '', normalizeText))));
+      return sha256(Buffer.from(canonicalJson(normalizeJson(value))));
     } catch {
       return null;
     }
   }
   if (extension === '.txt') {
-    return sha256(Buffer.from(normalizeText(bytes.toString('utf8')).replace(/\r\n/g, '\n')));
+    return sha256(Buffer.from(normalizeString(bytes.toString('utf8')).replace(/\r\n/g, '\n')));
   }
   return null;
 }
-
-function escapeRegExp(value) {
-  return value.replace(/[|\\{}()[\]^$+*?.-]/g, '\\$&');
-}
-
-/**
- * Re-spell only TTS image paths which the geometry path index paired.
- *
- * Old manifests have no geometry-normalized digest. Replacing the current
- * content-hash name with that manifest's name lets their original normalized
- * digest remain a real structural comparison instead of silently skipping
- * JSON/text whenever one of those generated names changes.
- */
-function remapTtsImageReferences(value, aliases) {
-  let result = value;
-  for (const [actual, expected] of aliases) {
-    result = result.replace(new RegExp(escapeRegExp(actual), 'g'), expected);
-    const actualWindows = actual.replaceAll('/', '\\');
-    const expectedWindows = expected.replaceAll('/', '\\');
-    result = result.replace(new RegExp(escapeRegExp(actualWindows), 'g'), expectedWindows);
-  }
-  return result;
-}
-
-function compatibilityNormalizedDigests(bytes, extension, aliases) {
-  const normalizers = [normalizeString, normalizeStringWithGenericTtsMarker];
-  return new Set(
-    normalizers
-      .map((normalizeText) => normalizedDigest(
-        bytes,
-        extension,
-        (value) => normalizeText(remapTtsImageReferences(value, aliases))
-      ))
-      .filter((digest) => digest !== null)
-  );
-}
-
-const COMPATIBILITY_NORMALIZED_DIGESTS = Symbol('compatibilityNormalizedDigests');
 
 function pngDimensions(bytes) {
   if (bytes.length < 24 || bytes.toString('hex', 0, 8) !== '89504e470d0a1a0a') return null;
@@ -320,7 +256,7 @@ function imageDimensions(bytes, extension) {
   return null;
 }
 
-function inspectBytes(bytes, name, options = {}) {
+function inspectBytes(bytes, name) {
   const extension = extname(name).toLowerCase();
   const result = { bytes: bytes.length, sha256: sha256(bytes) };
   const dimensions = imageDimensions(bytes, extension);
@@ -331,24 +267,11 @@ function inspectBytes(bytes, name, options = {}) {
   }
   const normalizedSha256 = normalizedDigest(bytes, extension);
   if (normalizedSha256) result.normalizedSha256 = normalizedSha256;
-  const geometryNormalizedSha256 = normalizedDigest(bytes, extension, geometryNormalizeString);
-  if (geometryNormalizedSha256) result.geometryNormalizedSha256 = geometryNormalizedSha256;
-
-  /* Used only while verifying manifests captured before the geometry digest
-     existed. A symbol carries the candidates through object spreads while
-     JSON serialization omits them from a new captured manifest. */
-  if (normalizedSha256) {
-    result[COMPATIBILITY_NORMALIZED_DIGESTS] = compatibilityNormalizedDigests(
-      bytes,
-      extension,
-      options.compatibilityAliases ?? []
-    );
-  }
   return result;
 }
 
 /** The app's ZIP writer stores entries without compression or data descriptors. */
-function inspectStoredZip(bytes, options = {}) {
+function inspectStoredZip(bytes) {
   const entries = [];
   let offset = 0;
   while (offset + 4 <= bytes.length) {
@@ -368,7 +291,7 @@ function inspectStoredZip(bytes, options = {}) {
     if (dataEnd > bytes.length) throw new Error('Truncated ZIP entry.');
     const name = bytes.toString('utf8', nameStart, nameStart + fileNameLength);
     const data = bytes.subarray(dataStart, dataEnd);
-    entries.push({ path: name, ...inspectBytes(data, name, options) });
+    entries.push({ path: name, ...inspectBytes(data, name) });
     offset = dataEnd;
   }
   return entries;
@@ -382,13 +305,13 @@ async function walk(target) {
   return children.flat();
 }
 
-async function inspectFile(file, options = {}) {
+async function inspectFile(file) {
   const bytes = await readFile(file);
-  const result = { path: displayPath(file), ...inspectBytes(bytes, file, options) };
+  const result = { path: displayPath(file), ...inspectBytes(bytes, file) };
   if (extname(file).toLowerCase() === '.zip') {
     result.comparison = 'stored-entries';
     result.containerNote = 'Raw ZIP hash includes per-run DOS timestamps and is informational.';
-    result.entries = inspectStoredZip(bytes, options);
+    result.entries = inspectStoredZip(bytes);
   } else if (result.normalizedSha256) {
     result.comparison = 'normalized-sha256';
   } else if (result.dimensions) {
@@ -439,76 +362,6 @@ async function capture(options) {
   console.log(`Captured ${files.length} files in ${displayPath(manifestPath)}.`);
 }
 
-const CONTENT_HASHED_IMAGE_PATH_SUFFIX =
-  /-[0-9a-f]{8}(?=\.(?:jpe?g|png|webp)$)/i;
-
-function slashPath(value) {
-  return value.replaceAll('\\', '/');
-}
-
-function isTtsPath(value) {
-  return /(?:^|\/)exports\/[^/]+-tts(?:\/|$)/i.test(slashPath(value));
-}
-
-function isTtsZip(value) {
-  return /(?:^|\/)exports\/[^/]+-tts\.zip$/i.test(slashPath(value));
-}
-
-function canonicalEvidencePath(value, ttsContainer = false) {
-  const normalized = slashPath(value);
-  if (!ttsContainer && !isTtsPath(normalized)) return normalized;
-  return normalized.replace(CONTENT_HASHED_IMAGE_PATH_SUFFIX, '-<CONTENT_HASH>');
-}
-
-function ttsRelativePath(value, ttsContainer = false) {
-  const normalized = slashPath(value);
-  if (ttsContainer) return normalized;
-  const match = normalized.match(/(?:^|\/)exports\/[^/]+-tts\/(.+)$/i);
-  return match?.[1] ?? null;
-}
-
-function indexPaths(entries, pathFor, geometryOnly, ttsContainer, label, errors) {
-  const index = new Map();
-  for (const entry of entries) {
-    const path = pathFor(entry);
-    const key = geometryOnly ? canonicalEvidencePath(path, ttsContainer) : path;
-    const previous = index.get(key);
-    if (previous) {
-      errors.push(
-        label + ': canonical path collision between ' + pathFor(previous) + ' and ' + path + '.'
-      );
-      continue;
-    }
-    index.set(key, entry);
-  }
-  return index;
-}
-
-/**
- * Pair current and captured TTS image names through their canonical path.
- * These aliases are only for old normalized digests; new manifests carry a
- * geometry-normalized digest and do not need to reconstruct the old spelling.
- */
-function compatibilityAliases(expectedIndex, actualIndex, ttsContainer = false) {
-  const aliases = [];
-  for (const [key, expected] of expectedIndex) {
-    const actual = actualIndex.get(key);
-    if (!actual) continue;
-    const expectedPath = ttsRelativePath(expected.path, ttsContainer);
-    const actualPath = ttsRelativePath(actual.path, ttsContainer);
-    if (
-      expectedPath &&
-      actualPath &&
-      expectedPath !== actualPath &&
-      CONTENT_HASHED_IMAGE_PATH_SUFFIX.test(expectedPath) &&
-      CONTENT_HASHED_IMAGE_PATH_SUFFIX.test(actualPath)
-    ) {
-      aliases.push([actualPath, expectedPath]);
-    }
-  }
-  return aliases;
-}
-
 function compareEntry(expected, actual, geometryOnly, label, errors) {
   const comparesDecodedPixels = Boolean(expected.pixelSha256 && actual.pixelSha256);
   if (expected.bytes !== actual.bytes && !geometryOnly && !comparesDecodedPixels) {
@@ -529,21 +382,8 @@ function compareEntry(expected, actual, geometryOnly, label, errors) {
         errors.push(`${label}: encoded image changed.`);
       }
     }
-  } else if (expected.normalizedSha256 || expected.geometryNormalizedSha256) {
-    if (geometryOnly && expected.geometryNormalizedSha256) {
-      if (expected.geometryNormalizedSha256 !== actual.geometryNormalizedSha256) {
-        errors.push(`${label}: geometry-normalized content changed.`);
-      }
-    } else if (
-      geometryOnly &&
-      !expected.geometryNormalizedSha256 &&
-      expected.normalizedSha256 !== actual.normalizedSha256 &&
-      !actual[COMPATIBILITY_NORMALIZED_DIGESTS]?.has(expected.normalizedSha256)
-    ) {
-      errors.push(`${label}: normalized content changed (legacy manifest).`);
-    } else if (!geometryOnly && expected.normalizedSha256 !== actual.normalizedSha256) {
-      errors.push(`${label}: normalized content changed.`);
-    }
+  } else if (expected.normalizedSha256) {
+    if (expected.normalizedSha256 !== actual.normalizedSha256) errors.push(`${label}: normalized content changed.`);
   } else if (!geometryOnly && expected.sha256 !== actual.sha256) {
     errors.push(`${label}: content changed.`);
   }
@@ -554,44 +394,19 @@ async function verify(options) {
   const manifest = JSON.parse(await readFile(manifestPath, 'utf8'));
   const errors = [];
   const roots = await existingRoots(manifest.roots);
+  const expectedPaths = new Set(manifest.files.map((file) => file.path));
   const currentFiles = (await Promise.all(roots.map(walk)))
     .flat()
     .filter((file) => resolve(file) !== manifestPath);
-  const expectedFiles = indexPaths(
-    manifest.files,
-    (file) => file.path,
-    options.geometryOnly,
-    false,
-    'manifest',
-    errors
-  );
-  const actualFiles = indexPaths(
-    currentFiles.map((absolute) => ({ path: displayPath(absolute), absolute })),
-    (file) => file.path,
-    options.geometryOnly,
-    false,
-    'current output',
-    errors
-  );
-  const aliases = options.geometryOnly
-    ? compatibilityAliases(expectedFiles, actualFiles)
-    : [];
-
-  for (const [key, file] of actualFiles) {
-    if (!expectedFiles.has(key)) errors.push(`${file.path}: unexpected.`);
+  for (const file of currentFiles) {
+    const path = displayPath(file);
+    if (!expectedPaths.has(path)) errors.push(`${path}: unexpected.`);
   }
-
-  for (const [key, expected] of expectedFiles) {
-    const current = actualFiles.get(key);
-    if (!current) {
-      errors.push(`${expected.path}: missing.`);
-      continue;
-    }
-
-    const absolute = current.absolute;
+  for (const expected of manifest.files) {
+    const absolute = repoPath(expected.path);
     let actual;
     try {
-      actual = await inspectFile(absolute, { compatibilityAliases: aliases });
+      actual = await inspectFile(absolute);
     } catch (error) {
       if (error && error.code === 'ENOENT') {
         errors.push(`${expected.path}: missing.`);
@@ -600,57 +415,15 @@ async function verify(options) {
       throw error;
     }
     if (expected.comparison === 'stored-entries') {
-      const ttsContainer = options.geometryOnly &&
-        (isTtsPath(expected.path) || isTtsZip(expected.path));
-      const expectedEntries = indexPaths(
-        expected.entries,
-        (entry) => entry.path,
-        options.geometryOnly,
-        ttsContainer,
-        `${expected.path} manifest ZIP`,
-        errors
-      );
-      let actualEntries = indexPaths(
-        actual.entries,
-        (entry) => entry.path,
-        options.geometryOnly,
-        ttsContainer,
-        `${expected.path} current ZIP`,
-        errors
-      );
-      const entryAliases = options.geometryOnly
-        ? compatibilityAliases(expectedEntries, actualEntries, ttsContainer)
-        : [];
-
-      if (entryAliases.length > 0) {
-        actual = await inspectFile(absolute, {
-          compatibilityAliases: [...aliases, ...entryAliases]
-        });
-        actualEntries = new Map(
-          actual.entries.map((entry) => [
-            canonicalEvidencePath(entry.path, ttsContainer),
-            entry
-          ])
-        );
+      const expectedEntries = new Map(expected.entries.map((entry) => [entry.path, entry]));
+      const actualEntries = new Map(actual.entries.map((entry) => [entry.path, entry]));
+      for (const [path, entry] of expectedEntries) {
+        const found = actualEntries.get(path);
+        if (!found) errors.push(`${expected.path}!${path}: missing.`);
+        else compareEntry(entry, found, options.geometryOnly, `${expected.path}!${path}`, errors);
       }
-
-      for (const [entryKey, entry] of expectedEntries) {
-        const found = actualEntries.get(entryKey);
-        if (!found) errors.push(`${expected.path}!${entry.path}: missing.`);
-        else {
-          compareEntry(
-            entry,
-            found,
-            options.geometryOnly,
-            `${expected.path}!${entry.path}`,
-            errors
-          );
-        }
-      }
-      for (const [entryKey, entry] of actualEntries) {
-        if (!expectedEntries.has(entryKey)) {
-          errors.push(`${expected.path}!${entry.path}: unexpected entry.`);
-        }
+      for (const path of actualEntries.keys()) {
+        if (!expectedEntries.has(path)) errors.push(`${expected.path}!${path}: unexpected entry.`);
       }
     } else {
       compareEntry(expected, actual, options.geometryOnly, expected.path, errors);

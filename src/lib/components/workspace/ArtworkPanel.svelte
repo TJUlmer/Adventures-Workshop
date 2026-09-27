@@ -18,7 +18,6 @@
     clampArtworkOffset,
     snapshotArtworkTransform
   } from '$lib/interaction/artwork-transform';
-  import { createOperationGuard } from '$lib/interaction/operation-guard';
   import { startPointerSession } from '$lib/interaction/pointer-session';
   import type { PointerSession } from '$lib/interaction/pointer-session';
   import { CardArt } from '$lib/renderer';
@@ -75,8 +74,6 @@
 
   let fileInput = $state<HTMLInputElement | null>(null);
   let error = $state<string | null>(null);
-  let errorScope: object | null = null;
-  const artworkPickGuard = createOperationGuard();
 
   const artwork = $derived(workshop.artworkFor(target));
   const attached = $derived(artwork ? hasArtwork(artwork) : false);
@@ -95,35 +92,12 @@
     event.currentTarget.value = '';
     if (!file) return;
 
-    const origin: EntityRef = { ...target };
-    const scope = workshop.adventure;
-    const operation = artworkPickGuard.begin({
-      setId: scope.id,
-      targetKey: artworkAdjustmentKey(origin),
-      scope,
-      target: origin
-    });
     error = null;
     try {
-      const source = await readArtworkFile(file);
-      if (!artworkPickGuard.isCurrent(operation, workshop.adventure.id, workshop.adventure)) return;
-      workshop.setArtworkSource(operation.context.target, source, file.name);
+      workshop.setArtworkSource(target, await readArtworkFile(file), file.name);
     } catch (cause) {
-      if (!artworkPickGuard.isCurrent(operation, workshop.adventure.id, workshop.adventure)) return;
-      if (artworkAdjustmentKey(target) !== operation.context.targetKey) return;
       error = cause instanceof Error ? cause.message : 'Could not read that file.';
     }
-  }
-
-  function removeArtwork(): void {
-    const origin: EntityRef = { ...target };
-    const scope = workshop.adventure;
-    artworkPickGuard.supersede({
-      setId: scope.id,
-      targetKey: artworkAdjustmentKey(origin),
-      scope
-    });
-    workshop.setArtworkSource(origin, null);
   }
 
   const pct = (value: number) => `${Math.round(value * 100)}%`;
@@ -157,14 +131,6 @@
 
   $effect(() => {
     const nextKey = artworkAdjustmentKey(target);
-    const nextScope = workshop.adventure;
-    if (
-      errorScope &&
-      (errorScope !== nextScope || (trackedTargetKey && trackedTargetKey !== nextKey))
-    ) {
-      error = null;
-    }
-    errorScope = nextScope;
     if (trackedTargetKey && trackedTargetKey !== nextKey) {
       pointerSession?.cancel('mode-change');
       artworkAdjustmentView.endKey(trackedTargetKey);
@@ -179,7 +145,6 @@
   });
 
   onDestroy(() => {
-    artworkPickGuard.invalidate();
     pointerSession?.dispose();
     if (trackedTargetKey) artworkAdjustmentView.endKey(trackedTargetKey);
   });
@@ -239,7 +204,7 @@
 <EditorSection title="Image" {hint}>
   {#snippet actions()}
     {#if attached}
-      <Button size="sm" variant="ghost" onclick={removeArtwork}>
+      <Button size="sm" variant="ghost" onclick={() => workshop.setArtworkSource(target, null)}>
         Remove
       </Button>
     {/if}

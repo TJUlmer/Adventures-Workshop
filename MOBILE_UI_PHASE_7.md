@@ -1,7 +1,7 @@
 # Mobile UI Phase 7 — Threat-track Mobile Inspector
 
-**Status:** Browser implementation and fresh cross-viewport raster comparison
-complete; physical touch evidence remains
+**Status:** Browser implementation complete; physical touch and a fresh
+phone-versus-desktop raster comparison remain
 
 **Completed:** 27 September 2026
 
@@ -133,10 +133,9 @@ layout did not gain an unnecessary horizontal scrollbar or document overflow.
 
 The live Export PNG action completed without an in-app error. The repository's
 53 stored Phase 0 export geometries also verify, including the 1637×232 threat
-PNG. Phase 9 later added an isolated evidence profile and rendered the fixed
-fixture at 390×844 and 1440×900 in the same browser document. The direct threat
-PNG retained both its dimensions and decoded pixels, closing the raster gap
-without replacing the Phase 0 evidence.
+PNG. The current baseline runner has no safe alternate output directory, so an
+exact newly rendered pixel hash was not produced without overwriting the stored
+evidence; that comparison remains explicitly open below.
 
 Validation completed:
 
@@ -148,7 +147,7 @@ Validation completed:
 - `git diff --check` — clean apart from working-copy line-ending notices;
 - 360×800 and 1280×800 responsive checks — passed.
 
-## Remaining physical evidence
+## Remaining physical and raster evidence
 
 The in-app browser exposes a fine pointer, so physical iOS Safari and Android
 Chrome evidence remains open for:
@@ -157,4 +156,6 @@ Chrome evidence remains open for:
   entity using touch only;
 - one-finger horizontal board panning versus vertical page scrolling;
 - software-keyboard reachability for each inspector;
-- rollback during rotation, backgrounding, lost capture, and a second touch.
+- rollback during rotation, backgrounding, lost capture, and a second touch;
+- a fresh threat PNG rendered from the same document on phone and desktop,
+  compared for content and pixels without replacing the stored Phase 0 files.

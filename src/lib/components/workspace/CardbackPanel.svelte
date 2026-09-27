@@ -7,14 +7,12 @@
    * thing. The replacement toggle keeps both available, so switching back and
    * forth costs nothing.
    */
-  import { onDestroy } from 'svelte';
   import type { Fill } from '$lib/cards/style';
   import { sameFill } from '$lib/cards/style';
   import { createCardback } from '$lib/characters/factory';
   import type { Character } from '$lib/characters/types';
   import { createArtwork, hasArtwork } from '$lib/core/artwork';
   import { readArtworkFile } from '$lib/core/image-import';
-  import { createOperationGuard } from '$lib/interaction/operation-guard';
   import { workshop } from '$lib/state/workshop.svelte';
   import { Button, ColorInput, FillEditor, Icon, Slider, Switch, TextInput } from '$lib/ui';
   import EditorSection from './EditorSection.svelte';
@@ -46,21 +44,10 @@
 
   let insetInput = $state<HTMLInputElement | null>(null);
   let error = $state<string | null>(null);
-  const artworkPickGuard = createOperationGuard();
-  let errorScope: object | null = null;
-  let errorCharacterId: Character['id'] | null = null;
 
   const back = $derived(character.cardback);
   const hasInset = $derived(hasArtwork(back.artwork));
   const hasReplacement = $derived(hasArtwork(back.replacement));
-
-  $effect(() => {
-    const nextScope = workshop.adventure;
-    const nextCharacterId = character.id;
-    if (errorScope && (errorScope !== nextScope || errorCharacterId !== nextCharacterId)) error = null;
-    errorScope = nextScope;
-    errorCharacterId = nextCharacterId;
-  });
 
   async function pick(
     slot: 'artwork',
@@ -70,57 +57,17 @@
     event.currentTarget.value = '';
     if (!file) return;
 
-    const characterId = character.id;
-    const scope = workshop.adventure;
-    const operation = artworkPickGuard.begin({
-      setId: scope.id,
-      targetKey: `character:${characterId}:cardback:${slot}`,
-      scope,
-      characterId,
-      slot
-    });
     error = null;
     try {
       const source = await readArtworkFile(file);
-      if (!artworkPickGuard.isCurrent(operation, workshop.adventure.id, workshop.adventure)) return;
-      workshop.editCardback(operation.context.characterId, (design) => {
-        design[operation.context.slot].source = source;
-        design[operation.context.slot].label = file.name;
+      workshop.editCardback(character.id, (design) => {
+        design[slot].source = source;
+        design[slot].label = file.name;
       });
     } catch (cause) {
-      if (!artworkPickGuard.isCurrent(operation, workshop.adventure.id, workshop.adventure)) return;
-      if (character.id !== operation.context.characterId) return;
       error = cause instanceof Error ? cause.message : 'Could not read that file.';
     }
   }
-
-  function removeArtwork(): void {
-    const characterId = character.id;
-    const scope = workshop.adventure;
-    artworkPickGuard.supersede({
-      setId: scope.id,
-      targetKey: `character:${characterId}:cardback:artwork`,
-      scope
-    });
-    workshop.editCardback(characterId, (design) => {
-      design.artwork.source = null;
-      design.artwork.label = '';
-    });
-  }
-
-  function replacementPicker(
-    characterId: Character['id']
-  ): (source: string, label: string) => void {
-    return (source, label) => {
-      workshop.editCardback(characterId, (design) => {
-        design.replacement.source = source;
-        design.replacement.label = label;
-        design.useReplacement = true;
-      });
-    };
-  }
-
-  onDestroy(() => artworkPickGuard.invalidate());
 
   const pct = (value: number) => `${Math.round(value * 100)}%`;
   const signed = (value: number) => `${value > 0 ? '+' : ''}${Math.round(value * 100)}%`;
@@ -142,10 +89,14 @@
 <ReplacementPanel
   artwork={back.replacement}
   enabled={back.useReplacement}
-  operationKey={`character:${character.id}:cardback:replacement`}
   hint="A finished back, used instead of composing one."
   replaces="Replaces the entire card back, template included."
-  onpick={replacementPicker(character.id)}
+  onpick={(source, label) =>
+    workshop.editCardback(character.id, (design) => {
+      design.replacement.source = source;
+      design.replacement.label = label;
+      design.useReplacement = true;
+    })}
   ontoggle={(useReplacement) =>
     workshop.editCardback(character.id, (design) => (design.useReplacement = useReplacement))}
   onclear={() =>
@@ -226,7 +177,11 @@
         <Button
           size="sm"
           variant="ghost"
-          onclick={removeArtwork}
+          onclick={() =>
+            workshop.editCardback(character.id, (design) => {
+              design.artwork.source = null;
+              design.artwork.label = '';
+            })}
         >
           Remove
         </Button>

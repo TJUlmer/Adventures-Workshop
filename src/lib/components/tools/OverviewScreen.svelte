@@ -32,43 +32,12 @@
   let saving = $state(false);
   let mobilePane = $state<'review' | 'actions'>('review');
   let fullScreen = $state(false);
-  let screen = $state<HTMLDivElement | null>(null);
-
-  const FOCUSABLE = [
-    'a[href]',
-    'button:not([disabled])',
-    'input:not([disabled])',
-    'select:not([disabled])',
-    'textarea:not([disabled])',
-    '[tabindex]:not([tabindex="-1"])'
-  ].join(',');
 
   const savedLabel = $derived.by(() => {
     if (workshop.saveError) return workshop.saveError;
     if (workshop.savedAt === null) return 'Not saved yet';
     const time = new Date(workshop.savedAt);
     return `Saved locally at ${time.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
-  });
-
-  $effect(() => {
-    if (!fullScreen || !screen) return;
-
-    const isolated: HTMLElement[] = [];
-    let branch: HTMLElement = screen;
-    let parent = branch.parentElement;
-    while (parent && parent !== document.body) {
-      for (const sibling of parent.children) {
-        if (sibling === branch || !(sibling instanceof HTMLElement) || sibling.inert) continue;
-        sibling.inert = true;
-        isolated.push(sibling);
-      }
-      branch = parent;
-      parent = parent.parentElement;
-    }
-
-    return () => {
-      for (const sibling of isolated) sibling.inert = false;
-    };
   });
 
   async function saveNow(): Promise<void> {
@@ -86,44 +55,13 @@
   }
 
   function handleWindowKeydown(event: KeyboardEvent): void {
-    if (!fullScreen || event.defaultPrevented) return;
-    const descendantDialogOpen = Boolean(screen?.querySelector('dialog[open]'));
-    if (event.key === 'Escape') {
-      // Let the native modal consume Escape before the enclosing overview.
-      if (descendantDialogOpen) return;
-      fullScreen = false;
-      return;
-    }
-    if (event.key !== 'Tab' || !screen || descendantDialogOpen) return;
-
-    const focusable = Array.from(screen.querySelectorAll<HTMLElement>(FOCUSABLE)).filter(
-      (element) =>
-        element.getClientRects().length > 0 &&
-        getComputedStyle(element).visibility !== 'hidden' &&
-        !element.closest('[inert]')
-    );
-    const first = focusable[0];
-    const last = focusable.at(-1);
-    if (!first || !last) return;
-
-    const active = document.activeElement;
-    if (event.shiftKey ? active === first || !screen.contains(active) : active === last || !screen.contains(active)) {
-      event.preventDefault();
-      (event.shiftKey ? last : first).focus();
-    }
+    if (event.key === 'Escape' && fullScreen) fullScreen = false;
   }
 </script>
 
 <svelte:window onkeydown={handleWindowKeydown} />
 
-<div
-  bind:this={screen}
-  class="screen"
-  class:fullscreen={fullScreen}
-  role={fullScreen ? 'dialog' : undefined}
-  aria-modal={fullScreen ? 'true' : undefined}
-  aria-label={fullScreen ? 'Full screen set overview' : undefined}
->
+<div class="screen" class:fullscreen={fullScreen}>
   <main class="main" class:inactive={mobilePane !== 'review'}>
     <header class="overview-head">
       <div class="heading">
@@ -602,7 +540,7 @@
     }
   }
 
-  @media (max-height: 500px) {
+  @media (max-width: 700px) and (max-height: 500px) {
     .overview-head {
       display: grid;
       grid-template-columns: auto minmax(0, 1fr);
@@ -612,7 +550,6 @@
     }
 
     .heading .eyebrow,
-    .heading p,
     .summary {
       display: none;
     }

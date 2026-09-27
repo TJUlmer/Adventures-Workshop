@@ -353,11 +353,6 @@
     --space-w: 4.2cqw;
     --hex-stroke: 11.5%;
 
-    /* `.strip` establishes the container used by everything inside it, but
-       its own `cqw` gap and padding cannot query itself. Without this parent
-       container those two lengths fall back to the small viewport width, so
-       the same printed board shifted between a phone and a desktop export. */
-    container-type: inline-size;
     display: flex;
     flex-direction: column;
     flex: none;

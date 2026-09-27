@@ -6,12 +6,10 @@
    * prints on, so it is edited beside those cards rather than here, a page away
    * from anything it changes.
    */
-  import { onDestroy } from 'svelte';
   import { auth } from '$lib/cloud/auth.svelte';
   import { listMyPublishedSets } from '$lib/cloud/sets';
   import { hasArtwork } from '$lib/core/artwork';
   import { readArtworkFile } from '$lib/core/image-import';
-  import { createOperationGuard } from '$lib/interaction/operation-guard';
   import GeneratedBoxArt from '$lib/renderer/GeneratedBoxArt.svelte';
   import { usesAutomaticBoxArt } from '$lib/sets/box-art';
   import { SET_KINDS, SET_KIND_META } from '$lib/sets/types';
@@ -63,7 +61,6 @@
 
   let boxInput = $state<HTMLInputElement | null>(null);
   let error = $state<string | null>(null);
-  const boxArtOperations = createOperationGuard();
 
   /**
    * Why the heroes option cannot be chosen, or `null` when it can.
@@ -86,34 +83,15 @@
     event.currentTarget.value = '';
     if (!file) return;
 
-    const scope = set;
-    const operation = boxArtOperations.begin({
-      setId: scope.id,
-      targetKey: 'set:box-art',
-      scope,
-      label: file.name
-    });
     error = null;
     try {
       const source = await readArtworkFile(file);
-      if (!boxArtOperations.isCurrent(operation, set.id, set)) return;
       set.boxArt.source = source;
-      set.boxArt.label = operation.context.label;
+      set.boxArt.label = file.name;
     } catch (cause) {
-      if (!boxArtOperations.isCurrent(operation, set.id, set)) return;
       error = cause instanceof Error ? cause.message : 'Could not read that file.';
     }
   }
-
-  function removeBoxArt(): void {
-    const scope = set;
-    boxArtOperations.supersede({ setId: scope.id, targetKey: 'set:box-art', scope });
-    error = null;
-    set.boxArt.source = null;
-    set.boxArt.label = '';
-  }
-
-  onDestroy(() => boxArtOperations.invalidate());
 </script>
 
 <div class="page scroll-y">
@@ -226,7 +204,10 @@
           <Button
             size="sm"
             variant="ghost"
-            onclick={removeBoxArt}
+            onclick={() => {
+              set.boxArt.source = null;
+              set.boxArt.label = '';
+            }}
           >
             Remove
           </Button>
@@ -286,7 +267,6 @@
     <ReplacementPanel
       artwork={set.initiativeBack}
       enabled={set.useInitiativeBack}
-      operationKey="set:initiative-back:replacement"
       title="Initiative deck back"
       hint="One image, printed on the back of every initiative card."
       replaces="Replaces the printed initiative back."

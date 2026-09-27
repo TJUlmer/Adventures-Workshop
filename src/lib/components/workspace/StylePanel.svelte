@@ -7,13 +7,10 @@
    * and the labels change. An absent key means "inherit"; the controls make
    * that state visible and reversible rather than hiding it behind a default.
    */
-  import { onDestroy } from 'svelte';
   import type { CardTheme, CustomPatternStyle, Fill, PatternStyle, TextureKind } from '$lib/cards/style';
   import { TEXTURE_LABELS, TEXTURES } from '$lib/cards/style';
   import { readArtworkFile } from '$lib/core/image-import';
-  import { createOperationGuard } from '$lib/interaction/operation-guard';
   import { PATTERN_NAMES, patternAspect, patternUrl } from '$lib/renderer/assets';
-  import { artworkAdjustmentKey } from '$lib/state/artwork-adjustment-view.svelte';
   import type { StyleTarget } from '$lib/state/workshop.svelte';
   import { workshop } from '$lib/state/workshop.svelte';
   import { Button, ColorInput, FillEditor, Icon, Slider } from '$lib/ui';
@@ -101,71 +98,19 @@
 
   let customPatternInput = $state<HTMLInputElement | null>(null);
   let customPatternError = $state<string | null>(null);
-  const customPatternPickGuard = createOperationGuard();
-  let customPatternErrorScope: object | null = null;
-  let customPatternErrorTargetKey: string | null = null;
-
-  function styleOperationKey(value: StyleTarget): string {
-    return value.entity === 'set' ? 'style:set' : `style:${artworkAdjustmentKey(value)}`;
-  }
-
-  $effect(() => {
-    const nextScope = workshop.adventure;
-    const nextTargetKey = styleOperationKey(target);
-    if (
-      customPatternErrorScope &&
-      (customPatternErrorScope !== nextScope ||
-        customPatternErrorTargetKey !== nextTargetKey)
-    ) {
-      customPatternError = null;
-    }
-    customPatternErrorScope = nextScope;
-    customPatternErrorTargetKey = nextTargetKey;
-  });
 
   async function pickCustomPattern(event: Event & { currentTarget: HTMLInputElement }): Promise<void> {
     const file = event.currentTarget.files?.[0];
     event.currentTarget.value = '';
     if (!file) return;
 
-    const origin: StyleTarget = { ...target };
-    const scope = workshop.adventure;
-    const operation = customPatternPickGuard.begin({
-      setId: scope.id,
-      targetKey: styleOperationKey(origin),
-      scope,
-      target: origin,
-      customPattern: { ...resolved.customPattern }
-    });
     customPatternError = null;
     try {
-      const source = await readArtworkFile(file);
-      if (!customPatternPickGuard.isCurrent(operation, workshop.adventure.id, workshop.adventure)) return;
-      const currentPattern = workshop.styleFor(operation.context.target)?.customPattern;
-      workshop.setStyle(operation.context.target, 'customPattern', {
-        ...(currentPattern ?? operation.context.customPattern),
-        source,
-        label: file.name
-      });
+      patchCustomPattern({ source: await readArtworkFile(file), label: file.name });
     } catch (cause) {
-      if (!customPatternPickGuard.isCurrent(operation, workshop.adventure.id, workshop.adventure)) return;
-      if (styleOperationKey(target) !== operation.context.targetKey) return;
       customPatternError = cause instanceof Error ? cause.message : 'Could not read that file.';
     }
   }
-
-  function clearCustomPattern(): void {
-    const origin: StyleTarget = { ...target };
-    const scope = workshop.adventure;
-    customPatternPickGuard.supersede({
-      setId: scope.id,
-      targetKey: styleOperationKey(origin),
-      scope
-    });
-    patchCustomPattern({ source: null, label: '' });
-  }
-
-  onDestroy(() => customPatternPickGuard.invalidate());
 
   function setTexture(kind: TextureKind): void {
     workshop.setStyle(target, 'texture', { ...resolved.texture, kind });
@@ -312,7 +257,7 @@
       <Button
         size="sm"
         variant="ghost"
-        onclick={clearCustomPattern}
+        onclick={() => patchCustomPattern({ source: null, label: '' })}
       >
         Clear
       </Button>

@@ -101,11 +101,6 @@ export interface TtsBundleOptions {
   /** Called as images are drawn, so a long export can say where it has got to. */
   onProgress?: (done: number, total: number, label: string) => void;
   hosting: TtsHosting;
-  /**
-   * Isolate a local evidence run from the author's ordinary bundle. Product
-   * exports omit this and keep the set-name-derived folder.
-   */
-  localBundleName?: string;
 }
 
 /**
@@ -719,9 +714,7 @@ export async function exportTabletopSimulator(
   set: AdventureSet,
   options: TtsBundleOptions
 ): Promise<TtsBundleResult> {
-  const root = options.hosting.kind === 'local' && options.localBundleName
-    ? slugify(options.localBundleName, 'adventure-set-tts')
-    : `${slugify(set.name, 'adventure-set')}-tts`;
+  const root = `${slugify(set.name, 'adventure-set')}-tts`;
   const online = options.hosting.kind === 'online';
   /* A development server is a local-output convenience. It must never win
      over an explicit online choice and quietly put file URLs in a save that

@@ -13,8 +13,6 @@
   import { readArtworkFile } from '$lib/core/image-import';
   import { saveExport, slugify } from '$lib/export';
   import { BOX_SKIN_HEIGHT, BOX_SKIN_WIDTH } from '$lib/export/tts-box';
-  import { createOperationGuard } from '$lib/interaction/operation-guard';
-  import type { OperationToken } from '$lib/interaction/operation-guard';
   import {
     buildTokenPreviewMesh,
     exportTokenModel,
@@ -93,47 +91,12 @@
   let addingRulebook = $state(false);
   let openedRulebookSetId = $state<string | null>(null);
   const showRulebooks = $derived(openedRulebookSetId === set.id);
-  const uploadOperations = createOperationGuard();
-  let uploadFeedback = 0;
-  let observedUploadScope: object | null = null;
-
-  function uploadIsCurrent(operation: OperationToken): boolean {
-    return uploadOperations.isCurrent(operation, set.id, set);
-  }
-
-  function supersedeUpload(targetKey: string): void {
-    const scope = set;
-    uploadOperations.supersede({ setId: scope.id, targetKey, scope });
-    uploadFeedback += 1;
-    error = null;
-  }
-
-  $effect(() => {
-    const scope = set;
-    if (observedUploadScope === null) {
-      observedUploadScope = scope;
-      return;
-    }
-    if (scope === observedUploadScope) return;
-    observedUploadScope = scope;
-    uploadFeedback += 1;
-    addingRulebook = false;
-    error = null;
-  });
 
   async function pickBoxSkin(event: Event): Promise<void> {
     const input = event.currentTarget as HTMLInputElement;
     const file = input.files?.[0];
     input.value = '';
     if (!file) return;
-    const scope = set;
-    const operation = uploadOperations.begin({
-      setId: scope.id,
-      targetKey: 'set:box-skin',
-      scope,
-      label: file.name
-    });
-    const feedback = ++uploadFeedback;
     error = null;
     if (!['image/png', 'image/jpeg'].includes(file.type)) {
       error = 'Export the PSD as a PNG or JPEG before attaching it.';
@@ -151,15 +114,11 @@
         image.onerror = () => reject(new Error('Could not read the box skin image.'));
         image.src = url;
       });
-      if (!uploadIsCurrent(operation)) return;
       if (dimensions.width !== BOX_SKIN_WIDTH || dimensions.height !== BOX_SKIN_HEIGHT) {
         throw new Error(`The box skin must be ${BOX_SKIN_WIDTH} × ${BOX_SKIN_HEIGHT} pixels. Export the PSD at its original size.`);
       }
-      const source = await readAsDataUrl(file);
-      if (!uploadIsCurrent(operation)) return;
-      workshop.setBoxSkin({ source, label: operation.context.label });
+      workshop.setBoxSkin({ source: await readAsDataUrl(file), label: file.name });
     } catch (cause) {
-      if (feedback !== uploadFeedback || !uploadIsCurrent(operation)) return;
       error = cause instanceof Error ? cause.message : 'Could not attach the box skin.';
     } finally {
       URL.revokeObjectURL(url);
@@ -170,21 +129,11 @@
     const input = event.currentTarget as HTMLInputElement;
     const files = [...(input.files ?? [])];
     input.value = '';
-    if (files.length === 0) return;
-    const scope = set;
-    const operation = uploadOperations.begin({
-      setId: scope.id,
-      targetKey: 'set:rulebooks:add',
-      scope
-    });
-    const feedback = ++uploadFeedback;
     error = null;
     addingRulebook = true;
     try {
-      const imported: { name: string; source: string; size: number }[] = [];
       for (const file of files) {
         const signature = new TextDecoder().decode((await file.slice(0, 5).arrayBuffer()));
-        if (!uploadIsCurrent(operation)) return;
         if (signature !== '%PDF-') throw new Error(`${file.name} is not a PDF file.`);
         const source = await new Promise<string>((resolve, reject) => {
           const reader = new FileReader();
@@ -192,16 +141,12 @@
           reader.onerror = () => reject(new Error(`Could not read ${file.name}.`));
           reader.readAsDataURL(new Blob([file], { type: 'application/pdf' }));
         });
-        if (!uploadIsCurrent(operation)) return;
-        imported.push({ name: file.name.replace(/\.pdf$/i, ''), source, size: file.size });
+        workshop.addRulebook(file.name.replace(/\.pdf$/i, ''), source, file.size);
       }
-      if (!uploadIsCurrent(operation)) return;
-      for (const book of imported) workshop.addRulebook(book.name, book.source, book.size);
     } catch (cause) {
-      if (feedback !== uploadFeedback || !uploadIsCurrent(operation)) return;
       error = cause instanceof Error ? cause.message : 'Could not attach the PDF.';
     } finally {
-      if (uploadIsCurrent(operation)) addingRulebook = false;
+      addingRulebook = false;
     }
   }
 
@@ -244,32 +189,14 @@
     event.currentTarget.value = '';
     if (!file) return;
 
-    const scope = set;
-    const operation = uploadOperations.begin({
-      setId: scope.id,
-      targetKey: `figure:${id}:reference`,
-      scope,
-      figureId: id,
-      label: file.name
-    });
-    const feedback = ++uploadFeedback;
     error = null;
     try {
       const source = await readArtworkFile(file);
-      if (
-        !uploadIsCurrent(operation) ||
-        !figures.some((figure) => figure.id === operation.context.figureId)
-      ) return;
-      workshop.editFigure(operation.context.figureId, (figure) => {
+      workshop.editFigure(id, (figure) => {
         figure.reference.source = source;
-        figure.reference.label = operation.context.label;
+        figure.reference.label = file.name;
       });
     } catch (cause) {
-      if (
-        feedback !== uploadFeedback ||
-        !uploadIsCurrent(operation) ||
-        !figures.some((figure) => figure.id === operation.context.figureId)
-      ) return;
       error = cause instanceof Error ? cause.message : 'Could not read that file.';
     }
   }
@@ -282,17 +209,6 @@
     event.currentTarget.value = '';
     if (!file) return;
 
-    const scope = set;
-    const operation = uploadOperations.begin({
-      setId: scope.id,
-      targetKey: `figure:${id}:model`,
-      scope,
-      figureId: id,
-      name: file.name,
-      size: file.size
-    });
-    const feedback = ++uploadFeedback;
-
     // Models get big fast; warn rather than silently blowing the storage quota.
     if (file.size > 8 * 1024 * 1024) {
       error = `${file.name} is ${(file.size / 1024 / 1024).toFixed(1)} MB — too large to embed. Keep models under 8 MB.`;
@@ -302,23 +218,10 @@
     error = null;
     try {
       const source = await readAsDataUrl(file);
-      if (
-        !uploadIsCurrent(operation) ||
-        !figures.some((figure) => figure.id === operation.context.figureId)
-      ) return;
-      workshop.editFigure(operation.context.figureId, (figure) => {
-        figure.model = {
-          name: operation.context.name,
-          source,
-          size: operation.context.size
-        };
+      workshop.editFigure(id, (figure) => {
+        figure.model = { name: file.name, source, size: file.size };
       });
     } catch (cause) {
-      if (
-        feedback !== uploadFeedback ||
-        !uploadIsCurrent(operation) ||
-        !figures.some((figure) => figure.id === operation.context.figureId)
-      ) return;
       error = cause instanceof Error ? cause.message : 'Could not read that file.';
     }
   }
@@ -746,24 +649,6 @@
     }
   }
 
-  function removeBoxSkin(): void {
-    supersedeUpload('set:box-skin');
-    workshop.setBoxSkin(null);
-  }
-
-  function removeReference(id: FigureId): void {
-    supersedeUpload(`figure:${id}:reference`);
-    workshop.editFigure(id, (figure) => {
-      figure.reference.source = null;
-      figure.reference.label = '';
-    });
-  }
-
-  function removeModel(id: FigureId): void {
-    supersedeUpload(`figure:${id}:model`);
-    workshop.editFigure(id, (figure) => (figure.model = null));
-  }
-
   $effect(() => {
     for (const figure of figures) {
       const save = figure.ttsSave;
@@ -793,43 +678,21 @@
     event.currentTarget.value = '';
     if (!file) return;
 
-    const scope = set;
-    const operation = uploadOperations.begin({
-      setId: scope.id,
-      targetKey: `figure:${id}:tts`,
-      scope,
-      figureId: id,
-      name: file.name,
-      size: file.size
-    });
-    const feedback = ++uploadFeedback;
     error = null;
     try {
       const text = await file.text();
-      if (
-        !uploadIsCurrent(operation) ||
-        !figures.some((figure) => figure.id === operation.context.figureId)
-      ) return;
       // Parsed first, so a file that is not one of these never reaches the set.
       parseTtsSave(text);
-      const previousSave = tts[operation.context.figureId];
-      clearTtsPreview(
-        operation.context.figureId,
-        previousSave ? ttsAsset(previousSave) : null
-      );
-      workshop.editFigure(operation.context.figureId, (figure) => {
+      const previousSave = tts[id];
+      clearTtsPreview(id, previousSave ? ttsAsset(previousSave) : null);
+      workshop.editFigure(id, (figure) => {
         figure.ttsSave = {
-          name: operation.context.name,
+          name: file.name,
           source: `data:application/json;base64,${btoa(unescape(encodeURIComponent(text)))}`,
-          size: operation.context.size
+          size: file.size
         };
       });
     } catch (cause) {
-      if (
-        feedback !== uploadFeedback ||
-        !uploadIsCurrent(operation) ||
-        !figures.some((figure) => figure.id === operation.context.figureId)
-      ) return;
       error = cause instanceof Error ? cause.message : 'Could not read that file.';
     }
   }
@@ -863,16 +726,12 @@
   }
 
   function removeTts(id: FigureId): void {
-    supersedeUpload(`figure:${id}:tts`);
     const save = tts[id];
     clearTtsPreview(id, save ? ttsAsset(save) : null);
     workshop.editFigure(id, (figure) => (figure.ttsSave = null));
   }
 
   function removeFigure(figure: Figure): void {
-    supersedeUpload(`figure:${figure.id}:reference`);
-    supersedeUpload(`figure:${figure.id}:model`);
-    supersedeUpload(`figure:${figure.id}:tts`);
     const save = tts[figure.id];
     clearTtsPreview(figure.id, save ? ttsAsset(save) : null);
     workshop.removeFigure(figure.id);
@@ -891,7 +750,6 @@
   }
 
   onDestroy(() => {
-    uploadOperations.invalidate();
     dialPreviewDestroyed = true;
     for (const id of Object.keys(dialPreviewRuns)) {
       dialPreviewRuns[id] = (dialPreviewRuns[id] ?? 0) + 1;
@@ -1004,7 +862,7 @@
                 label="Remove box skin"
                 confirmText="Confirm remove"
                 size="sm"
-                onconfirm={removeBoxSkin}
+                onconfirm={() => workshop.setBoxSkin(null)}
               >
                 Remove skin
               </ConfirmAction>
@@ -1178,7 +1036,11 @@
                     variant="ghost"
                     size="sm"
                     iconOnly
-                    onconfirm={() => removeReference(figure.id)}
+                    onconfirm={() =>
+                      workshop.editFigure(figure.id, (f) => {
+                        f.reference.source = null;
+                        f.reference.label = '';
+                      })}
                   >
                     <Icon name="minus" size={12} />
                   </ConfirmAction>
@@ -1211,7 +1073,7 @@
                       variant="ghost"
                       size="sm"
                       iconOnly
-                      onconfirm={() => removeModel(figure.id)}
+                      onconfirm={() => workshop.editFigure(figure.id, (f) => (f.model = null))}
                     >
                       <Icon name="minus" size={12} />
                     </ConfirmAction>

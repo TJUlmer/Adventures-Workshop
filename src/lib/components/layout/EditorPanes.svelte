@@ -8,7 +8,6 @@
    * — picking a card, editing it, watching it change — it was right.
   */
   import { onMount, tick, type Snippet } from 'svelte';
-  import { startPointerSession, type PointerSession } from '$lib/interaction/pointer-session';
   import { artworkAdjustmentView } from '$lib/state/artwork-adjustment-view.svelte';
   import { workshop } from '$lib/state/workshop.svelte';
 
@@ -53,7 +52,11 @@
   let activePane = $state<ActivePane>('edit');
   let previewWidth = $state(DEFAULT_PREVIEW_WIDTH);
   let previewMaximum = $state(MAX_PREVIEW_WIDTH);
-  let resizeSession = $state.raw<PointerSession | null>(null);
+  let resizeDrag = $state<{
+    pointerId: number;
+    startX: number;
+    startWidth: number;
+  } | null>(null);
 
   function measuredMaximumPreviewWidth(): number {
     if (!panes || !sidebarPane) return MAX_PREVIEW_WIDTH;
@@ -88,27 +91,26 @@
   }
 
   function beginResize(event: PointerEvent): void {
-    resizeSession?.cancel('superseded');
-    resizeSession = startPointerSession(event, {
-      snapshot: { width: previewWidth },
-      onMove: (movement, _event, snapshot) => {
-        // The divider is the preview's left edge: moving it left makes the pane wider.
-        setPreviewWidth(snapshot.width - movement.deltaX, false);
-      },
-      onCommit: () => {
-        resizeSession = null;
-        rememberPreviewWidth();
-      },
-      /* Preview width is view-only. Keeping the last clamped width on an
-         interruption is coherent and avoids a surprising snap after resize. */
-      onCancel: () => {
-        resizeSession = null;
-        rememberPreviewWidth();
-      },
-      onTap: () => {
-        resizeSession = null;
-      }
-    });
+    if (event.button !== 0) return;
+    (event.currentTarget as HTMLDivElement).setPointerCapture(event.pointerId);
+    resizeDrag = {
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startWidth: previewWidth
+    };
+    event.preventDefault();
+  }
+
+  function resize(event: PointerEvent): void {
+    if (!resizeDrag || resizeDrag.pointerId !== event.pointerId) return;
+    // The divider is the preview's left edge: moving it left makes the pane wider.
+    setPreviewWidth(resizeDrag.startWidth - (event.clientX - resizeDrag.startX), false);
+  }
+
+  function finishResize(event: PointerEvent): void {
+    if (!resizeDrag || resizeDrag.pointerId !== event.pointerId) return;
+    resizeDrag = null;
+    rememberPreviewWidth();
   }
 
   function resizeWithKeyboard(event: KeyboardEvent): void {
@@ -192,10 +194,7 @@
       previewWidth = clampPreviewWidth(previewWidth);
     });
     if (panes) observer.observe(panes);
-    return () => {
-      resizeSession?.dispose();
-      observer.disconnect();
-    };
+    return () => observer.disconnect();
   });
 </script>
 
@@ -230,7 +229,7 @@
   </main>
   <div
     class="preview-divider"
-    class:dragging={resizeSession !== null}
+    class:dragging={resizeDrag !== null}
     role="slider"
     aria-label="Resize card preview"
     aria-orientation="vertical"
@@ -242,6 +241,9 @@
     bind:this={previewDivider}
     title="Drag to resize the card preview. Double-click to reset."
     onpointerdown={beginResize}
+    onpointermove={resize}
+    onpointerup={finishResize}
+    onpointercancel={finishResize}
     onkeydown={resizeWithKeyboard}
     ondblclick={() => setPreviewWidth(DEFAULT_PREVIEW_WIDTH)}
   ></div>

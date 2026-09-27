@@ -112,27 +112,6 @@
     const origin: StyleOrigin = styleOriginForCard(workshop.adventure, card, key);
     return STYLE_ORIGIN_LABELS[origin];
   }
-
-  function frontReplacementPicker(cardId: CardId): (source: string, label: string) => void {
-    return (source, label) => {
-      workshop.editCard(cardId, (next) => {
-        next.replacement.source = source;
-        next.replacement.label = label;
-        next.useReplacement = true;
-      });
-    };
-  }
-
-  function backReplacementPicker(cardId: CardId): (source: string, label: string) => void {
-    return (source, label) => {
-      workshop.editCard(cardId, (next) => {
-        if (next.type !== 'event') return;
-        next.backReplacement.source = source;
-        next.backReplacement.label = label;
-        next.useBackReplacement = true;
-      });
-    };
-  }
 </script>
 
 {#if card && meta && resolvedTheme}
@@ -192,11 +171,15 @@
       <ReplacementPanel
         artwork={card.replacement}
         enabled={card.useReplacement}
-        operationKey={`card:${card.id}:replacement:front`}
         hint="A finished card, used instead of composing one."
         replaces="Replaces the whole face, template and all."
         landscape={card.type === 'event'}
-        onpick={frontReplacementPicker(card.id)}
+        onpick={(source, label) =>
+          workshop.editCard(card.id, (next) => {
+            next.replacement.source = source;
+            next.replacement.label = label;
+            next.useReplacement = true;
+          })}
         ontoggle={(useReplacement) =>
           workshop.editCard(card.id, (next) => (next.useReplacement = useReplacement))}
         onclear={() =>
@@ -212,12 +195,17 @@
         <ReplacementPanel
           artwork={card.backReplacement}
           enabled={card.useBackReplacement}
-          operationKey={`card:${card.id}:replacement:back`}
           title="Replacement image — reverse"
           hint="A finished back for this event card."
           replaces="Replaces the whole reverse, template and all."
           landscape
-          onpick={backReplacementPicker(card.id)}
+          onpick={(source, label) =>
+            workshop.editCard(card.id, (next) => {
+              if (next.type !== 'event') return;
+              next.backReplacement.source = source;
+              next.backReplacement.label = label;
+              next.useBackReplacement = true;
+            })}
           ontoggle={(use) =>
             workshop.editCard(card.id, (next) => {
               if (next.type === 'event') next.useBackReplacement = use;

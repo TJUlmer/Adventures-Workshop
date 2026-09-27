@@ -13,7 +13,6 @@
   import { createArtwork, hasArtwork } from '$lib/core/artwork';
   import { readArtworkFile } from '$lib/core/image-import';
   import { renderThreatTrackImage, saveExport, slugify } from '$lib/export';
-  import { createOperationGuard } from '$lib/interaction/operation-guard';
   import { startPointerSession } from '$lib/interaction/pointer-session';
   import type { PointerSession } from '$lib/interaction/pointer-session';
   import { ThreatBoard } from '$lib/renderer';
@@ -213,7 +212,6 @@
 
   let logoInput = $state<HTMLInputElement | null>(null);
   let logoError = $state<string | null>(null);
-  const logoOperations = createOperationGuard();
 
   /**
    * Read the logo into the document as a data URL.
@@ -227,32 +225,16 @@
     event.currentTarget.value = '';
     if (!file) return;
 
-    const scope = set;
-    const operation = logoOperations.begin({
-      setId: scope.id,
-      targetKey: 'threat:logo',
-      scope,
-      label: file.name
-    });
     logoError = null;
     try {
       const source = await readArtworkFile(file);
-      if (!logoOperations.isCurrent(operation, set.id, set)) return;
       workshop.editThreat((t) => {
         t.logo.source = source;
-        t.logo.label = operation.context.label;
+        t.logo.label = file.name;
       });
     } catch (cause) {
-      if (!logoOperations.isCurrent(operation, set.id, set)) return;
       logoError = cause instanceof Error ? cause.message : 'Could not read that file.';
     }
-  }
-
-  function removeLogo(): void {
-    const scope = set;
-    logoOperations.supersede({ setId: scope.id, targetKey: 'threat:logo', scope });
-    logoError = null;
-    workshop.editThreat((threat) => (threat.logo = createArtwork()));
   }
 
   // -- placing notes ------------------------------------------------------
@@ -404,10 +386,7 @@
     });
   }
 
-  onDestroy(() => {
-    notePointerSession?.dispose();
-    logoOperations.invalidate();
-  });
+  onDestroy(() => notePointerSession?.dispose());
 
   function addStep(): void {
     if (!workshop.addThreatStep(track.steps.at(-1)?.value ?? 1)) return;
@@ -864,7 +843,6 @@
     <ReplacementPanel
       artwork={track.replacement}
       enabled={track.useReplacement}
-      operationKey="set:threat:replacement"
       hint="A finished board made elsewhere, used instead of the one above. {THREAT_TRACK.label} — {THREAT_TRACK.bleed.width} × {THREAT_TRACK.bleed.height} px at 300 DPI."
       replaces="Replaces the whole board, elements included."
       landscape
@@ -959,7 +937,7 @@
               <Button
                 size="sm"
                 variant="ghost"
-                onclick={removeLogo}
+                onclick={() => workshop.editThreat((t) => (t.logo = createArtwork()))}
               >
                 Remove
               </Button>

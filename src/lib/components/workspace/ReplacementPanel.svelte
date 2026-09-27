@@ -13,12 +13,9 @@
    * it changes, because the four places this appears mutate four different
    * parts of the document through four different store commands.
    */
-  import { onDestroy } from 'svelte';
   import type { Artwork } from '$lib/core/artwork';
   import { hasArtwork } from '$lib/core/artwork';
   import { readArtworkFile } from '$lib/core/image-import';
-  import { createOperationGuard } from '$lib/interaction/operation-guard';
-  import { workshop } from '$lib/state/workshop.svelte';
   import { Button, Icon, Switch } from '$lib/ui';
   import EditorSection from './EditorSection.svelte';
 
@@ -32,8 +29,6 @@
     replaces: string;
     /** A landscape card should not preview as a portrait one. */
     landscape?: boolean;
-    /** Stable identity of the document slot the delayed picker writes. */
-    operationKey: string;
     onpick: (source: string, label: string) => void;
     ontoggle: (enabled: boolean) => void;
     onclear: () => void;
@@ -46,7 +41,6 @@
     hint = 'A finished card, used instead of composing one.',
     replaces,
     landscape = false,
-    operationKey,
     onpick,
     ontoggle,
     onclear
@@ -54,64 +48,28 @@
 
   let input = $state<HTMLInputElement | null>(null);
   let error = $state<string | null>(null);
-  const pickGuard = createOperationGuard();
-  let errorScope: object | null = null;
-  let errorOperationKey: string | null = null;
 
   const chosen = $derived(hasArtwork(artwork));
-
-  $effect(() => {
-    const nextScope = workshop.adventure;
-    if (errorScope && (errorScope !== nextScope || errorOperationKey !== operationKey)) error = null;
-    errorScope = nextScope;
-    errorOperationKey = operationKey;
-  });
 
   async function pick(event: Event & { currentTarget: HTMLInputElement }): Promise<void> {
     const file = event.currentTarget.files?.[0];
     event.currentTarget.value = '';
     if (!file) return;
 
-    const scope = workshop.adventure;
-    const operation = pickGuard.begin({
-      setId: scope.id,
-      targetKey: operationKey,
-      scope,
-      onpick
-    });
     error = null;
     try {
-      const source = await readArtworkFile(file);
-      if (!pickGuard.isCurrent(operation, workshop.adventure.id, workshop.adventure)) return;
-      operation.context.onpick(source, file.name);
+      onpick(await readArtworkFile(file), file.name);
     } catch (cause) {
-      if (!pickGuard.isCurrent(operation, workshop.adventure.id, workshop.adventure)) return;
-      if (operationKey !== operation.context.targetKey) return;
       error = cause instanceof Error ? cause.message : 'Could not read that file.';
     }
   }
-
-  function clear(): void {
-    const scope = workshop.adventure;
-    pickGuard.supersede({ setId: scope.id, targetKey: operationKey, scope });
-    onclear();
-  }
-
-  function toggle(next: boolean): void {
-    const scope = workshop.adventure;
-    pickGuard.supersede({ setId: scope.id, targetKey: operationKey, scope });
-    error = null;
-    ontoggle(next);
-  }
-
-  onDestroy(() => pickGuard.invalidate());
 </script>
 
 <EditorSection {title} {hint}>
   {#snippet actions()}
     <!-- Only once there is something to switch to. -->
     {#if chosen}
-      <Switch label="Use replacement" checked={enabled} onchange={toggle} />
+      <Switch label="Use replacement" checked={enabled} onchange={ontoggle} />
     {/if}
   {/snippet}
 
@@ -144,7 +102,7 @@
         {chosen ? 'Replace' : 'Choose'}
       </Button>
       {#if chosen}
-        <Button size="sm" variant="ghost" onclick={clear}>Clear</Button>
+        <Button size="sm" variant="ghost" onclick={onclear}>Clear</Button>
       {/if}
     </div>
   </div>

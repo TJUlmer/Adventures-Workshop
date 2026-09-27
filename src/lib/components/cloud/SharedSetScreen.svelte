@@ -2495,9 +2495,7 @@
       flex-direction: column;
       gap: var(--space-4);
       max-height: inherit;
-      padding-block: var(--space-5) calc(var(--space-5) + env(safe-area-inset-bottom));
-      padding-inline: max(var(--space-4), env(safe-area-inset-left))
-        max(var(--space-4), env(safe-area-inset-right));
+      padding: var(--space-5) var(--space-4) calc(var(--space-5) + env(safe-area-inset-bottom));
     }
 
     .sheet-head {

@@ -19,8 +19,7 @@
   let { value, label, step = 15, onchange }: Props = $props();
 
   let dial = $state<HTMLDivElement | null>(null);
-  let dragPointerId = $state<number | null>(null);
-  const dragging = $derived(dragPointerId !== null);
+  let dragging = $state(false);
 
   const wrap = (degrees: number) => ((degrees % 360) + 360) % 360;
 
@@ -40,38 +39,10 @@
   }
 
   function track(event: PointerEvent): void {
-    if (dragPointerId !== null || !event.isPrimary || event.button !== 0) return;
-    const target = event.currentTarget;
-    if (!(target instanceof HTMLElement)) return;
-    try {
-      target.setPointerCapture(event.pointerId);
-    } catch {
-      return;
-    }
     event.preventDefault();
-    dragPointerId = event.pointerId;
+    dragging = true;
+    dial?.setPointerCapture(event.pointerId);
     onchange(angleAt(event));
-  }
-
-  function move(event: PointerEvent): void {
-    if (dragPointerId !== event.pointerId) return;
-    onchange(angleAt(event));
-  }
-
-  function finish(event: PointerEvent): void {
-    if (dragPointerId !== event.pointerId) return;
-    dragPointerId = null;
-    if (dial?.hasPointerCapture(event.pointerId)) {
-      try {
-        dial.releasePointerCapture(event.pointerId);
-      } catch {
-        // A browser interruption can release capture between the check and call.
-      }
-    }
-  }
-
-  function cancel(event: PointerEvent): void {
-    if (dragPointerId === event.pointerId) dragPointerId = null;
   }
 
   function onKey(event: KeyboardEvent): void {
@@ -101,10 +72,12 @@
     aria-valuenow={value}
     aria-valuetext="{value} degrees"
     onpointerdown={track}
-    onpointermove={move}
-    onpointerup={finish}
-    onpointercancel={cancel}
-    onlostpointercapture={cancel}
+    onpointermove={(event) => dragging && onchange(angleAt(event))}
+    onpointerup={(event) => {
+      dragging = false;
+      dial?.releasePointerCapture(event.pointerId);
+    }}
+    onpointercancel={() => (dragging = false)}
     onkeydown={onKey}
   >
     <span class="dial-face" aria-hidden="true">

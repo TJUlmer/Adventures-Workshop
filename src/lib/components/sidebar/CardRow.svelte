@@ -506,15 +506,6 @@
     font-size: var(--text-xs);
   }
 
-  @media (max-width: 760px) {
-    /* Safari zooms the whole page when a focused field renders below 16px.
-       This selector is opened only on demand, which hid it from the shared
-       control pass until the end-to-end phone journey exercised Move. */
-    .deck-move select {
-      font-size: var(--text-md);
-    }
-  }
-
   @media (hover: none), (any-pointer: coarse) {
     .row {
       gap: 0;
