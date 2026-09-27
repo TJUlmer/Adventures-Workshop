@@ -196,8 +196,12 @@
   }
 
   function startDrag(event: PointerEvent): void {
-    if (!adjusting || !artwork) return;
+    if (!artwork) return;
     event.preventDefault();
+    // The Placement preview is itself an explicit artwork selection. Starting
+    // the pointer session here lets the first press-and-drag move the image;
+    // authors do not have to prime the interaction from the Image row.
+    artworkAdjustmentView.begin(target);
     pointerSession?.cancel('superseded');
     const box = event.currentTarget as HTMLElement;
     const rect = box.getBoundingClientRect();
@@ -301,10 +305,8 @@
       class:dragging
       class:adjusting
       style:aspect-ratio={aspect}
-      role={adjusting ? 'application' : undefined}
-      aria-label={adjusting
-        ? 'Artwork adjustment surface. Drag with one finger to reposition the artwork.'
-        : 'Artwork preview. Select the image row above to reposition it.'}
+      role="application"
+      aria-label="Artwork adjustment surface. Drag to reposition the artwork."
       onpointerdown={startDrag}
     >
       <CardArt
@@ -313,12 +315,10 @@
         {fit}
         useCrop={resizeMode === 'crop'}
       />
-      {#if adjusting}
-        <div class="drag-hint">
-          <Icon name="move" size={13} />
-          Drag to reposition
-        </div>
-      {/if}
+      <div class="drag-hint">
+        <Icon name="move" size={13} />
+        Drag to reposition
+      </div>
     </div>
 
     <div class="grid">
@@ -674,15 +674,13 @@
     overflow: hidden;
     border-radius: var(--radius-sm);
     border: 1px solid var(--border-default);
-    touch-action: auto;
-    cursor: default;
+    touch-action: none;
+    cursor: grab;
     user-select: none;
   }
 
   .drag-preview.adjusting {
     border-color: var(--border-accent);
-    touch-action: none;
-    cursor: grab;
   }
 
   .drag-preview.dragging {
@@ -706,6 +704,7 @@
     transition: opacity var(--duration-fast) var(--ease-out);
   }
 
+  .drag-preview:hover .drag-hint,
   .drag-preview.adjusting .drag-hint {
     opacity: 1;
   }
