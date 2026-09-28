@@ -71,7 +71,7 @@ function settled(image: HTMLImageElement): Promise<void> {
 }
 
 /**
- * Inline every `<img>` on the **live** element, before anything is cloned.
+ * Prepare every `<img>` on the **live** element, before anything is cloned.
  *
  * This has to happen here and not on the clone, and the reason is worth the
  * paragraph. An SVG loaded as an image is its own document: it may not fetch
@@ -80,12 +80,11 @@ function settled(image: HTMLImageElement): Promise<void> {
  * Neither `load` nor `decode()` on the wrapper waits for them.
  *
  * What *does* work is the picture already being loaded when the markup is
- * serialised. A card's own artwork never showed the fault, and that is the
- * clue: artwork is a data URI from the moment the card mounts, so it is loaded
- * long before the clone is made. Our assets were not — they were swapped in
- * moments before serialising — so the first two cards of a cold export came out
- * with holes where their attack and defense symbols should be, and every card
- * after them was right, because by then the browser had the files.
+ * serialised. Bundled assets are swapped in moments before serialising, so a
+ * cold export must wait for them. User artwork is already a data URI, but an
+ * off-screen card can still be cloned before its load handler has measured the
+ * source aspect ratio. A wide image then exports with the square fallback and
+ * appears shrunken inside its art window even though the live preview is right.
  *
  * Swapping on the live node gives them the same head start artwork has always
  * had. Measured: with this, the first card of a cold export carries its symbols;
@@ -94,17 +93,33 @@ function settled(image: HTMLImageElement): Promise<void> {
  * It leaves the on-screen card holding data URIs, which is the same picture by
  * the same bytes — and one fewer thing it needs the network for.
  */
-async function inlineLiveImages(root: Element): Promise<void> {
+async function prepareLiveImages(root: Element): Promise<void> {
   const images = [root, ...Array.from(root.querySelectorAll('*'))].filter(
-    (element): element is HTMLImageElement =>
-      element instanceof HTMLImageElement && element.getAttribute('src')?.includes('/assets/') === true
+    (element): element is HTMLImageElement => element instanceof HTMLImageElement
   );
 
   for (const image of images) {
-    image.setAttribute('src', await toDataUrl(image.src));
+    if (image.getAttribute('src')?.includes('/assets/') === true) {
+      image.setAttribute('src', await toDataUrl(image.src));
+    }
   }
 
   await Promise.all(images.map(settled));
+
+  /*
+   * Do not rely on Svelte's image-load state update winning the race with the
+   * export clone. CardArt consumes this custom property directly, so stamping
+   * the measured value here makes the photographed layout deterministic.
+   */
+  for (const image of images) {
+    if (
+      image.classList.contains('full-source') &&
+      image.naturalWidth > 0 &&
+      image.naturalHeight > 0
+    ) {
+      image.style.setProperty('--source-aspect', String(image.naturalWidth / image.naturalHeight));
+    }
+  }
 }
 
 /**
@@ -115,7 +130,7 @@ async function inlineLiveImages(root: Element): Promise<void> {
  * matches once the tree is a string. And on the clone rather than the live
  * node, because these are the values `freezeStyles` has just written.
  *
- * Masks never had the loading fault that `inlineLiveImages` exists for — a mask
+ * Masks never had the loading fault that `prepareLiveImages` handles — a mask
  * resolves as part of style, before the draw — so this stays where it is.
  */
 async function inlineStyleAssets(root: Element): Promise<void> {
@@ -214,7 +229,7 @@ async function rasterise(
   height: number
 ): Promise<HTMLImageElement> {
   // Before the clone exists, so the pictures are loaded by the time it is text.
-  await inlineLiveImages(element);
+  await prepareLiveImages(element);
 
   const clone = element.cloneNode(true) as HTMLElement;
   clone.style.position = 'static';
