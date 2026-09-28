@@ -219,6 +219,19 @@
   let exporting = $state<string | null>(null);
   let exportError = $state<string | null>(null);
 
+  const MIN_CARD_QUANTITY = 1;
+  const MAX_CARD_QUANTITY = 20;
+
+  function changeCardQuantity(delta: -1 | 1): void {
+    if (!card) return;
+    const next = Math.min(
+      MAX_CARD_QUANTITY,
+      Math.max(MIN_CARD_QUANTITY, Math.trunc(card.quantity) + delta)
+    );
+    if (next === card.quantity) return;
+    workshop.editCard(card.id, (candidate) => (candidate.quantity = next));
+  }
+
   /**
    * A regular card exports through `renderCardImage`, which already knows how
    * to derive its own format and filename. The character card is not a
@@ -479,7 +492,27 @@
         <span class="fact type" style:--type-color="var({meta.colorVar})">{meta.label}</span>
         <span class="fact">{deck ? deckLabel(deck) : 'No deck'}</span>
         {#if owner}<span class="fact">{characterLabel(owner)}</span>{/if}
-        <span class="fact numeric">×{card.quantity}</span>
+        <div class="quantity-control" role="group" aria-label="Copies in deck">
+          <span class="fact numeric quantity-value" aria-live="polite">×{card.quantity}</span>
+          <span class="quantity-stepper">
+            <button
+              type="button"
+              class="quantity-step"
+              aria-label="Increase copies in deck"
+              title="Increase copies in deck"
+              disabled={card.quantity >= MAX_CARD_QUANTITY}
+              onclick={() => changeCardQuantity(1)}
+            ><span aria-hidden="true">▲</span></button>
+            <button
+              type="button"
+              class="quantity-step"
+              aria-label="Decrease copies in deck"
+              title="Decrease copies in deck"
+              disabled={card.quantity <= MIN_CARD_QUANTITY}
+              onclick={() => changeCardQuantity(-1)}
+            ><span aria-hidden="true">▼</span></button>
+          </span>
+        </div>
       </div>
 
       {#if dimensions}
@@ -706,6 +739,59 @@
     color: var(--text-muted);
   }
 
+  .quantity-control,
+  .quantity-stepper {
+    display: inline-flex;
+    align-items: center;
+  }
+
+  .quantity-control {
+    gap: var(--space-1);
+  }
+
+  .quantity-value {
+    min-width: 2.25ch;
+    text-align: right;
+  }
+
+  .quantity-stepper {
+    flex-direction: column;
+    overflow: hidden;
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-xs);
+    background: var(--surface-raised);
+  }
+
+  .quantity-step {
+    display: grid;
+    place-items: center;
+    width: 22px;
+    height: 15px;
+    color: var(--text-muted);
+    font-size: 7px;
+    line-height: 1;
+  }
+
+  .quantity-step + .quantity-step {
+    border-top: 1px solid var(--border-subtle);
+  }
+
+  .quantity-step:hover,
+  .quantity-step:focus-visible {
+    background: var(--surface-hover);
+    color: var(--text-primary);
+    outline: none;
+  }
+
+  .quantity-step:focus-visible {
+    box-shadow: inset 0 0 0 1px var(--accent);
+  }
+
+  .quantity-step:disabled {
+    opacity: 0.35;
+    cursor: default;
+  }
+
   .size {
     display: flex;
     align-items: center;
@@ -740,6 +826,21 @@
     height: 6px;
     border-radius: var(--radius-full);
     background: var(--type-color);
+  }
+
+  @media (hover: none), (any-pointer: coarse) {
+    .quantity-step {
+      width: var(--touch-target);
+      height: calc(var(--touch-target) / 2);
+      font-size: 9px;
+    }
+  }
+
+  @media (forced-colors: active) {
+    .quantity-step:focus-visible {
+      outline: 2px solid currentColor;
+      outline-offset: -2px;
+    }
   }
 
   .zoom {

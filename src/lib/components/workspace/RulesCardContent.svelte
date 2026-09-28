@@ -228,7 +228,12 @@
 <EditorSection title="Deck" columns={2}>
   <label class="stack">
     <span class="field-label">Copies in deck</span>
-    <NumberInput bind:value={card.quantity} min={1} max={20} />
+    <NumberInput
+      value={card.quantity}
+      min={1}
+      max={20}
+      onchange={(quantity) => edit((target) => (target.quantity = quantity))}
+    />
   </label>
 
   {#if deckOptions.length > 1}

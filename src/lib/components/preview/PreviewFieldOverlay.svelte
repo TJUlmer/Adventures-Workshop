@@ -33,16 +33,19 @@
     top: number;
     width: number;
     height: number;
+    crowded: boolean;
   }
 
   let { cardId, zoom, showBleed, showGuides, disabled = false }: Props = $props();
 
   const MIN_DIRECT_WIDTH = 320;
   const EMPTY_TARGET_HEIGHT = 24;
+  const COARSE_TARGET_SIZE = 44;
 
   let overlay = $state<HTMLDivElement | null>(null);
   let boxes = $state<TargetBox[]>([]);
   let canvasWidth = $state(0);
+  let coarsePointer = $state(false);
   let frame = 0;
   let session = $state<PreviewEditSession>({ status: 'inactive' });
 
@@ -82,7 +85,7 @@
 
     const hostBounds = host.getBoundingClientRect();
     canvasWidth = hostBounds.width;
-    boxes = Array.from(host.querySelectorAll<HTMLElement>('.plate [data-card-edit-target]'))
+    const measured = Array.from(host.querySelectorAll<HTMLElement>('.plate [data-card-edit-target]'))
       .map((marker): TargetBox | null => {
         const value = marker.dataset.cardEditTarget;
         const address = value ? cardEditAddressFromTarget(cardId, value) : null;
@@ -90,16 +93,41 @@
 
         const bounds = marker.getBoundingClientRect();
         const empty = marker.classList.contains('ability') && marker.querySelector('.line') === null;
+        const width = coarsePointer ? Math.max(bounds.width, COARSE_TARGET_SIZE) : bounds.width;
+        const height = coarsePointer
+          ? Math.max(empty ? EMPTY_TARGET_HEIGHT : bounds.height, COARSE_TARGET_SIZE)
+          : empty
+            ? EMPTY_TARGET_HEIGHT
+            : bounds.height;
+        const naturalLeft = bounds.left - hostBounds.left - (width - bounds.width) / 2;
+        const naturalTop =
+          bounds.top -
+          hostBounds.top -
+          (empty ? EMPTY_TARGET_HEIGHT / 2 : 0) -
+          (height - (empty ? EMPTY_TARGET_HEIGHT : bounds.height)) / 2;
         return {
           marker: value,
           address,
-          left: bounds.left - hostBounds.left,
-          top: bounds.top - hostBounds.top - (empty ? EMPTY_TARGET_HEIGHT / 2 : 0),
-          width: bounds.width,
-          height: empty ? EMPTY_TARGET_HEIGHT : bounds.height
+          left: Math.min(Math.max(0, naturalLeft), Math.max(0, hostBounds.width - width)),
+          top: Math.min(Math.max(0, naturalTop), Math.max(0, hostBounds.height - height)),
+          width,
+          height,
+          crowded: false
         };
       })
       .filter((box): box is TargetBox => box !== null && box.width > 0);
+
+    boxes = measured.map((box, index) => ({
+      ...box,
+      crowded: measured.some(
+        (other, otherIndex) =>
+          otherIndex !== index &&
+          box.left < other.left + other.width &&
+          box.left + box.width > other.left &&
+          box.top < other.top + other.height &&
+          box.top + box.height > other.top
+      )
+    }));
   }
 
   function scheduleMeasure(): void {
@@ -190,7 +218,9 @@
       else cancelSession(false);
     }
 
-    const field = direct ? sourceFor(address) : null;
+    const marker = cardEditTargetForAddress(address);
+    const box = boxes.find((candidate) => candidate.marker === marker);
+    const field = direct && !box?.crowded ? sourceFor(address) : null;
     if (field) beginDirect(address, field);
     else cardEditorView.requestTarget(address);
   }
@@ -201,6 +231,7 @@
     void showBleed;
     void showGuides;
     void disabled;
+    void coarsePointer;
     void tick().then(scheduleMeasure);
   });
 
@@ -223,7 +254,7 @@
       return;
     }
 
-    if (disabled || !direct) {
+    if (disabled || !direct || activeBox?.crowded) {
       if (current.valid) commitSession(false);
       else cancelSession(false);
       return;
@@ -237,11 +268,18 @@
     const host = overlay?.parentElement;
     if (!host) return;
 
+    const pointerQuery = window.matchMedia('(any-pointer: coarse)');
+    const updatePointer = (): void => {
+      coarsePointer = pointerQuery.matches;
+    };
+    updatePointer();
+
     const resizeObserver = new ResizeObserver(scheduleMeasure);
     const mutationObserver = new MutationObserver(scheduleMeasure);
     resizeObserver.observe(host);
     mutationObserver.observe(host, { childList: true, subtree: true, characterData: true });
     window.addEventListener('resize', scheduleMeasure);
+    pointerQuery.addEventListener('change', updatePointer);
     scheduleMeasure();
 
     return () => {
@@ -249,6 +287,7 @@
       resizeObserver.disconnect();
       mutationObserver.disconnect();
       window.removeEventListener('resize', scheduleMeasure);
+      pointerQuery.removeEventListener('change', updatePointer);
     };
   });
 
@@ -260,13 +299,13 @@
 <div bind:this={overlay} class="field-overlay" aria-hidden={boxes.length ? undefined : 'true'}>
   {#each boxes as box (box.marker)}
     {@const label = cardEditAddressLabel(box.address)}
-    {@const directField = direct ? sourceFor(box.address) : null}
+    {@const directField = direct && !box.crowded ? sourceFor(box.address) : null}
     {#if activeBox?.marker !== box.marker}
       <button
         type="button"
         class="hotspot"
         class:direct={directField !== null}
-        class:fallback={!direct}
+        class:fallback={directField === null}
         data-card-edit-target={box.marker}
         aria-label={directField ? `Edit ${label} on card` : `Edit ${label} in the full editor`}
         title={directField ? `Edit ${label} on card` : `Edit ${label} in the full editor`}
@@ -332,5 +371,13 @@
   .hotspot.fallback:hover,
   .hotspot.fallback:focus-visible {
     border-style: dashed;
+  }
+
+  @media (forced-colors: active) {
+    .hotspot:hover,
+    .hotspot:focus-visible {
+      outline: 2px solid currentColor;
+      outline-offset: -2px;
+    }
   }
 </style>

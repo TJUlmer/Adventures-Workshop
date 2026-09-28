@@ -228,7 +228,12 @@
   {/if}
 
   <Field label="Copies in deck">
-    <NumberInput bind:value={card.quantity} min={1} max={20} />
+    <NumberInput
+      value={card.quantity}
+      min={1}
+      max={20}
+      onchange={(quantity) => edit((target) => (target.quantity = quantity))}
+    />
   </Field>
 
   <Field label="Deck">

@@ -440,4 +440,14 @@
       min-height: var(--touch-target);
     }
   }
+
+  @media (forced-colors: active) {
+    .text-input:focus,
+    .number-input:focus,
+    .action:focus-visible,
+    .open-full:focus-visible {
+      outline: 2px solid currentColor;
+      outline-offset: -2px;
+    }
+  }
 </style>

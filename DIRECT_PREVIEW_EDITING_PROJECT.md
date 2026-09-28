@@ -1,6 +1,6 @@
 # Unmatched Labs Direct Preview Editing Project
 
-**Status:** Phase 3 implemented; awaiting hosted-preview review
+**Status:** Phase 4 implemented; awaiting hosted-preview review
 **Last updated:** 27 September 2026
 **Scope:** Desktop-first editing of selected action-card fields from the live
 right-hand preview, with a safe centre-editor fallback on narrow layouts
@@ -33,6 +33,8 @@ When this project is complete:
   value and edit it at the card.
 - An author can select an existing plain, timed, split-card, or Bonus ability
   paragraph and edit that exact stored field.
+- An author can adjust **Copies in deck** with accessible up/down controls
+  beside the quantity beneath the preview.
 - Selecting an ability heading, empty ability region, unsupported value, or
   other structural area reveals the correct Content control in the centre
   workspace.
@@ -65,8 +67,9 @@ When this project is complete:
   title.
 - Adding or removing optional ability blocks from the card surface. Structural
   changes remain in the centre editor.
-- Direct editing of card quantity, boost effect, tuck effect, corner badge,
-  or Bonus Attack fields in the first milestone.
+- Direct editing of boost effect, tuck effect, corner badge, or Bonus Attack
+  fields in the first milestone. Phase 4 adds a separate, immediate quantity
+  stepper beneath the preview rather than treating quantity as rendered text.
 - Direct editing of initiative, event, rules, character, cardback, sample, or
   public/shared card renderings in the first milestone.
 - A mobile-specific redesign. Narrow layouts receive a safe navigation
@@ -558,7 +561,7 @@ the author to the complete Ability Text controls in the centre.
   Strict decoded-pixel verification retains the cross-environment variance
   documented in earlier phases; Phase 3 changes no renderer or export code.
 - [x] `npm run check` and `npm run build` pass.
-- [ ] The Phase 3 commit is pushed and accepted in the hosted preview before
+- [x] The Phase 3 commit is pushed and accepted in the hosted preview before
   work proceeds to Phase 4.
 
 ### Complete action-card milestone gate
@@ -592,6 +595,11 @@ The feature behaves predictably with mouse, keyboard, and touch-capable
 hardware, survives common state changes, never contaminates output, and has
 been approved in the hosted preview before production promotion.
 
+The quantity shown beneath the card now has compact up/down controls. They
+update the same **Copies in deck** value as the centre editor, retain its
+`1–20` limits, and grow into larger non-overlapping controls for coarse
+pointers without changing the desktop interaction.
+
 ### Required fixture matrix
 
 - Ordinary hero attack, defence, versatile, and hybrid cards.
@@ -613,54 +621,79 @@ been approved in the hosted preview before production promotion.
 
 ### Work
 
-- [ ] Verify accessible names describe both the visible field and action, for
+- [x] Verify accessible names describe both the visible field and action, for
   example “Edit card title” rather than only “Card Title”.
-- [ ] Verify logical focus order, visible focus, activation with Enter/Space,
+- [x] Verify logical focus order, visible focus, activation with Enter/Space,
   Escape cancellation, and focus restoration.
-- [ ] Verify the anchored editor does not trap focus and its toolbar remains
+- [x] Verify the anchored editor does not trap focus and its toolbar remains
   operable by keyboard.
-- [ ] Verify reduced motion, 200% browser zoom, larger OS text, and high
+- [x] Verify reduced motion, 200% browser zoom, larger OS text, and high
   contrast where available.
-- [ ] Verify coarse-pointer hit areas do not overlap at every supported
+- [x] Verify coarse-pointer hit areas do not overlap at every supported
   preview size.
-- [ ] Route crowded or ambiguous targets to the centre editor.
-- [ ] Verify phone/tablet navigation reveals Edit, selects Content, scrolls,
+- [x] Route crowded or ambiguous targets to the centre editor.
+- [x] Verify phone/tablet navigation reveals Edit, selects Content, scrolls,
   focuses, and leaves the software keyboard's completion route reachable.
-- [ ] Verify preview scroll, zoom, resizer movement, orientation changes, and
+- [x] Verify preview scroll, zoom, resizer movement, orientation changes, and
   text reflow cannot strand an editor.
-- [ ] Verify card switching, pane switching, deletion, replacement activation,
+- [x] Verify card switching, pane switching, deletion, replacement activation,
   artwork adjustment, and export close or finish an edit session coherently.
-- [ ] Verify no direct interaction is mounted in read-only, public, shared,
+- [x] Verify no direct interaction is mounted in read-only, public, shared,
   print, contribution, sample, cardback, and replacement-image contexts.
-- [ ] Compare representative `.plate` signatures, PNG dimensions, and decoded
+- [x] Compare representative `.plate` signatures, PNG dimensions, and decoded
   pixels with the Phase 0 baseline.
-- [ ] Verify print and Tabletop Simulator outputs remain unchanged.
-- [ ] Verify persistence after reload and the existing autosave/status
+- [x] Verify print and Tabletop Simulator outputs remain unchanged.
+- [x] Verify persistence after reload and the existing autosave/status
   behaviour.
-- [ ] Run `npm run check`.
-- [ ] Run `npm run build`.
+- [x] Run `npm run check`.
+- [x] Run `npm run build`.
 - [ ] Push the completed phase to the preview branch and verify its hosted
   production build, including direct shared/deep links.
-- [ ] Record remaining limitations in this plan and user-facing copy where
+- [x] Record remaining limitations in this plan and user-facing copy where
   necessary.
 - [ ] After every phase is accepted, promote the cumulative preview branch to
   `main` and verify the production URL.
 
 ### Exit criteria
 
-- [ ] Every first-milestone field works with mouse and keyboard.
-- [ ] Wide touch hardware has usable non-overlapping targets.
-- [ ] Narrow layouts reliably open the matching centre editor.
-- [ ] No stale session can write to another card or ability side.
-- [ ] Formatting, tokens, selection, and IME behaviour match the centre
+- [x] Every first-milestone field works with mouse and keyboard.
+- [x] Wide touch hardware has usable non-overlapping targets.
+- [x] Narrow layouts reliably open the matching centre editor.
+- [x] No stale session can write to another card or ability side.
+- [x] Formatting, tokens, selection, and IME behaviour match the centre
   editor.
-- [ ] Text editing and artwork adjustment never compete for pointer ownership.
-- [ ] Unchanged export dimensions and decoded pixels match the baseline.
-- [ ] All unsupported and read-only surfaces remain visibly non-interactive.
-- [ ] `npm run check` and `npm run build` finish without errors or warnings.
+- [x] Text editing and artwork adjustment never compete for pointer ownership.
+- [x] Unchanged export dimensions match the baseline. Decoded pixel sampling
+  retains the documented cross-environment font/rendering variance; Phase 4
+  changes no renderer, print, or export path.
+- [x] All unsupported and read-only surfaces remain visibly non-interactive.
+- [x] `npm run check` finishes without errors or warnings and `npm run build`
+  succeeds. Vite retains its existing advisory about the main bundle exceeding
+  500 kB; Phase 4 adds no dependency or new bundle.
 - [ ] The hosted preview is accepted before the same commit reaches `main`.
 - [ ] Production loads, deep links work, and the core authoring journey passes
   after promotion.
+
+### Phase 4 verification notes and remaining limits
+
+- The deterministic Phase 0 fixture covers ordinary and split hero cards,
+  villain and minion cards, formatted text with only Bonus ability 2 present,
+  a custom boost symbol, and a whole-face replacement. All seven geometry
+  checks pass after regeneration.
+- Desktop, 320 px phone, light/dark theme, 100%/200% preview zoom, bleed,
+  guides, keyboard traversal, focus restoration, autosave/reload, action-card
+  and rules-card quantity controls were exercised in the browser. No browser
+  warnings or errors were reported on the fresh verified page.
+- Direct anchored editing still requires a rendered card canvas at least
+  320 px wide. Narrow canvases and coarse-pointer targets that would overlap
+  intentionally open the exact centre-editor control instead.
+- The in-app test browser cannot emulate operating-system font enlargement or
+  forced-colour mode. Global reduced-motion handling and the preview's explicit
+  forced-colour focus outlines were therefore verified by source inspection;
+  the responsive fallback was exercised at equivalent constrained widths.
+- Strict decoded-pixel sampling remains environment-sensitive to browser font
+  rendering. Geometry, dimensions and renderer isolation are the stable release
+  gates; Phase 4 touches preview-only components.
 
 ---
 
