@@ -2,6 +2,13 @@ import { actionTextIsEmpty } from '$lib/text/action-text';
 import type { AbilityBlocks, ActionCard, CardId } from './types';
 
 export type AbilitySourceRegion = 'primary-ability' | 'defense-ability';
+/** Optional special effects whose stored source is visibly printed when active. */
+export type SpecialEffectField =
+  | 'boostEffect'
+  | 'bonusAttackTitle'
+  | 'bonusAttackValue'
+  | 'bonusAttackAbility'
+  | 'tuckEffect';
 export type AbilityParagraphField =
   | 'plain'
   | 'immediately'
@@ -31,7 +38,7 @@ export type CardEditLocation =
     }
   | {
       region: 'advanced';
-      field: 'bonusAttack' | 'boostEffect' | 'tuckEffect' | 'cornerBadge';
+      field: SpecialEffectField | 'cornerBadge';
     }
   | { region: 'replacement'; field: 'wholeFace' };
 
@@ -42,7 +49,7 @@ export type PreviewFieldBehaviour = 'direct' | 'navigate' | 'none';
 interface PreviewFieldContract {
   key: string;
   behaviour: PreviewFieldBehaviour;
-  milestone: 'first' | 'later' | 'never';
+  milestone: 'first' | 'special-effects' | 'later' | 'never';
   condition: string;
 }
 
@@ -120,10 +127,40 @@ export const DIRECT_PREVIEW_FIELD_CONTRACT = [
     condition: 'derived names never masquerade as the card title'
   },
   {
-    key: 'advanced:*',
-    behaviour: 'navigate',
+    key: 'advanced:boostEffect',
+    behaviour: 'direct',
+    milestone: 'special-effects',
+    condition: 'effect on and boost printed; blank text edits in place like a blank title'
+  },
+  {
+    key: 'advanced:bonusAttackTitle',
+    behaviour: 'direct',
+    milestone: 'special-effects',
+    condition: 'stored title is non-empty; the derived Bonus Attack label navigates'
+  },
+  {
+    key: 'advanced:bonusAttackValue',
+    behaviour: 'direct',
+    milestone: 'special-effects',
+    condition: 'Bonus Attack on'
+  },
+  {
+    key: 'advanced:bonusAttackAbility',
+    behaviour: 'direct',
+    milestone: 'special-effects',
+    condition: 'Bonus Attack on and its ability is non-empty (blank is not rendered)'
+  },
+  {
+    key: 'advanced:tuckEffect',
+    behaviour: 'direct',
+    milestone: 'special-effects',
+    condition: 'Tuck Effect on and non-empty, either orientation; blank navigates'
+  },
+  {
+    key: 'advanced:cornerBadge',
+    behaviour: 'none',
     milestone: 'later',
-    condition: 'Bonus Attack, boost effect, tuck effect and corner badge'
+    condition: 'corner badge remains a centre-editor control'
   },
   {
     key: 'replacement:wholeFace',
@@ -140,8 +177,21 @@ export const CARD_EDIT_MARKERS = {
   attack: 'combat:attack',
   defense: 'combat:defense',
   boost: 'boost:boost',
-  boostSymbol: 'boost:boostSymbol'
+  boostSymbol: 'boost:boostSymbol',
+  boostEffect: 'advanced:boostEffect',
+  bonusAttackTitle: 'advanced:bonusAttackTitle',
+  bonusAttackValue: 'advanced:bonusAttackValue',
+  bonusAttackAbility: 'advanced:bonusAttackAbility',
+  tuckEffect: 'advanced:tuckEffect'
 } as const;
+
+const SPECIAL_EFFECT_FIELDS: readonly SpecialEffectField[] = [
+  'boostEffect',
+  'bonusAttackTitle',
+  'bonusAttackValue',
+  'bonusAttackAbility',
+  'tuckEffect'
+];
 
 export function cardEditTarget(location: CardEditLocation): string {
   if (location.field === 'bonus') {
@@ -171,6 +221,11 @@ export function cardEditAddressFromTarget(
       return { cardId, region: 'boost', field: 'boostSymbol' };
   }
 
+  if (target.startsWith('advanced:')) {
+    const field = target.slice('advanced:'.length) as SpecialEffectField;
+    return SPECIAL_EFFECT_FIELDS.includes(field) ? { cardId, region: 'advanced', field } : null;
+  }
+
   const match = /^(primary-ability|defense-ability):(plain|immediately|duringCombat|afterCombat|bonus)(?::(\d+))?$/.exec(
     target
   );
@@ -188,6 +243,15 @@ export function cardEditAddressFromTarget(
 export function cardEditTargetForAddress(address: CardEditAddress): string {
   return cardEditTarget(address);
 }
+
+const SPECIAL_EFFECT_LABELS: Record<SpecialEffectField | 'cornerBadge', string> = {
+  boostEffect: 'boost effect text',
+  bonusAttackTitle: 'Bonus Attack title',
+  bonusAttackValue: 'Bonus Attack value',
+  bonusAttackAbility: 'Bonus Attack ability',
+  tuckEffect: 'tuck effect text',
+  cornerBadge: 'corner badge'
+};
 
 export function cardEditAddressLabel(address: CardEditAddress): string {
   switch (address.region) {
@@ -208,7 +272,7 @@ export function cardEditAddressLabel(address: CardEditAddress): string {
       return `${side}${address.field === 'immediately' ? 'Immediately' : 'After Combat'} text`;
     }
     case 'advanced':
-      return address.field;
+      return SPECIAL_EFFECT_LABELS[address.field];
     case 'replacement':
       return 'replacement image';
   }
@@ -263,10 +327,56 @@ export const PREVIEW_EDIT_LIFECYCLE = {
 } as const;
 
 export interface PreviewDirectField {
-  kind: 'title' | 'ability' | 'number';
+  /**
+   * `title` is formatted single-line text and `ability` formatted multiline.
+   * `plain` exists for a field the renderer prints literally: a formatted
+   * editor there would save bold or `{{…}}` tokens that then print as markup.
+   */
+  kind: 'title' | 'ability' | 'number' | 'plain';
   value: string | number;
   min?: number;
   max?: number;
+  /** Shown in an empty editor; never written to the card. */
+  placeholder?: string;
+}
+
+/** The Boost Effect capsule is part of the boost assembly, printed only with a boost. */
+function boostEffectVisible(card: ActionCard): boolean {
+  return card.showBoostEffect && card.boost !== null;
+}
+
+function specialEffectField(
+  card: ActionCard,
+  field: SpecialEffectField | 'cornerBadge'
+): PreviewDirectField | null {
+  switch (field) {
+    case 'boostEffect':
+      /* Deliberately direct when blank, like the card title: turning the
+         effect on prints an empty capsule, and that is where an author types. */
+      return boostEffectVisible(card)
+        ? { kind: 'plain', value: card.boostEffect, placeholder: 'Boost effect' }
+        : null;
+    case 'bonusAttackTitle':
+      /* A blank title prints the derived "Bonus Attack" label, which must
+         never be loaded as source text; the centre control handles it. */
+      return card.showBonusAttack && !actionTextIsEmpty(card.bonusAttackTitle)
+        ? { kind: 'title', value: card.bonusAttackTitle, placeholder: 'Bonus attack title' }
+        : null;
+    case 'bonusAttackValue':
+      return card.showBonusAttack
+        ? { kind: 'number', value: card.bonusAttackValue, min: 0, max: 9 }
+        : null;
+    case 'bonusAttackAbility':
+      return card.showBonusAttack && !actionTextIsEmpty(card.bonusAttackAbility)
+        ? { kind: 'ability', value: card.bonusAttackAbility, placeholder: 'Ability text' }
+        : null;
+    case 'tuckEffect':
+      return card.showTuckEffect && !actionTextIsEmpty(card.tuckEffect)
+        ? { kind: 'title', value: card.tuckEffect, placeholder: 'Tuck effect' }
+        : null;
+    case 'cornerBadge':
+      return null;
+  }
 }
 
 function abilitySource(
@@ -298,8 +408,10 @@ export function previewDirectField(
   if (card.id !== address.cardId || card.useReplacement) return null;
 
   if (address.region === 'title') {
-    return { kind: 'title', value: card.title };
+    return { kind: 'title', value: card.title, placeholder: 'Card Title' };
   }
+
+  if (address.region === 'advanced') return specialEffectField(card, address.field);
 
   if (address.region === 'ribbon' && address.field === 'symbolValue') {
     if (card.symbol === 'scheme' || card.symbolValue === null) return null;
@@ -318,7 +430,7 @@ export function previewDirectField(
 
   const ability = abilitySource(card, address);
   if (ability && !actionTextIsEmpty(ability.value)) {
-    return { kind: 'ability', value: ability.value };
+    return { kind: 'ability', value: ability.value, placeholder: 'Ability text' };
   }
 
   return null;
@@ -337,6 +449,33 @@ export function writePreviewDirectField(
 ): boolean {
   const field = previewDirectField(card, address);
   if (!field) return false;
+
+  if (address.region === 'advanced') {
+    switch (address.field) {
+      case 'boostEffect':
+        if (typeof value !== 'string') return false;
+        card.boostEffect = value;
+        return true;
+      case 'bonusAttackTitle':
+        if (typeof value !== 'string') return false;
+        card.bonusAttackTitle = value;
+        return true;
+      case 'bonusAttackAbility':
+        if (typeof value !== 'string') return false;
+        card.bonusAttackAbility = value;
+        return true;
+      case 'tuckEffect':
+        if (typeof value !== 'string') return false;
+        card.tuckEffect = value;
+        return true;
+      case 'bonusAttackValue':
+        if (typeof value !== 'number' || !Number.isFinite(value)) return false;
+        card.bonusAttackValue = clampPreviewNumber(field, value);
+        return true;
+      case 'cornerBadge':
+        return false;
+    }
+  }
 
   if (field.kind === 'title') {
     if (typeof value !== 'string') return false;

@@ -1,9 +1,10 @@
 # Direct Preview Editing — Session Handoff
 
 **Updated:** 28 September 2026  
-**Status:** Phases 0–4 are complete in production. Phase 5 is planned but not
-implemented: add direct preview editing for active Boost Effect, Bonus Attack,
-and Tuck Effect fields when their source is visibly represented on the card.
+**Status:** Phases 0–4 are complete in production. Phase 5 (direct preview
+editing for active Boost Effect, Bonus Attack and Tuck Effect fields) is
+implemented on `codex/direct-preview-special-effects-preview` and awaits the
+user's review of its hosted preview. Nothing from it is on `main`.
 
 ## User intent
 
@@ -21,22 +22,21 @@ and Tuck Effect fields when their source is visibly represented on the card.
 ## Repository state at handoff
 
 - The production feature baseline is merge commit
-  `9ef768998fb7254698f79af2b9d10c05519f6efd`. The current `main` follows that
-  baseline with the Phase 5 roadmap and handoff, unrelated Tabletop Simulator
-  storage work (`57404f0`, `70f02e8`), and a follow-up that corrects the
-  shipped Defense accessible names and records a pre-implementation code
-  review of Phase 5.
+  `9ef768998fb7254698f79af2b9d10c05519f6efd`. `main` follows it with the
+  Phase 5 roadmap and handoff and unrelated Tabletop Simulator storage work,
+  ending at `70f02e8`.
+- The Phase 5 preview branch `codex/direct-preview-special-effects-preview`
+  starts from `70f02e8` and carries two commits: the pre-implementation review
+  plus the Defense accessible-name correction, then Phase 5 itself.
 - The baseline merge contains the exact reviewed Phase 4 tip
   `1edb0b519b3303e6fe258c26a4cc7c7340eb025e` plus the production artwork-export
   and print-readiness fixes.
 - The historical `codex/direct-preview-editing-preview` branch must not be
   reused for Phase 5. Its local tip is `9392eef633637ace3e7e54c6363f7690fb08d95e`
   while its remote tip remains the reviewed `1edb0b5`.
-- When implementation begins, create a fresh branch from the then-current
-  `main`, recommended `codex/direct-preview-special-effects-preview`.
-- `DIRECT_PREVIEW_EDITING_PROJECT.md` on `main` is now the authoritative
-  roadmap. Its completed Phase 4 evidence remains historical truth and its
-  unchecked Phase 5 section describes the next release.
+- `DIRECT_PREVIEW_EDITING_PROJECT.md` on the preview branch is the
+  authoritative roadmap. Its Phase 5 section records what was built, how the
+  review's constraints were resolved, and which items await hosted review.
 
 ## Phase commits on the preview branch
 
@@ -89,11 +89,11 @@ not introduce a second renderer, persist new fields, or change normalization.
 
 | Visible field | Stored source | Direct behaviour | Fallback or guard |
 |---|---|---|---|
-| Boost Effect text | `card.boostEffect` | New **plain** single-line editor kind when active, visible, and non-empty | Mark `.boost-effect-label` only: never the capsule (it overlaps the boost value) or the invisible title-clearance copy. How a blank Boost Effect is reached is an open decision |
+| Boost Effect text | `card.boostEffect` | New **plain** single-line editor kind when active and visible, blank or not: a blank capsule edits in place like a blank title (user decision) | Mark `.boost-effect-label` only: never the capsule (it overlaps the boost value) or the invisible title-clearance copy |
 | Bonus Attack title | `card.bonusAttackTitle` | Formatted single-line edit when stored text is non-empty | The derived **Bonus Attack** label opens the centre field and must never be persisted |
 | Bonus Attack value | `card.bonusAttackValue` | Numeric edit using existing `0–9` bounds while the effect is active | Hidden/off effects expose no preview target |
 | Bonus Attack ability | `card.bonusAttackAbility` | Formatted multiline edit when non-empty | A blank ability is not rendered, so it has no target; reach it through the title fallback or centre editor |
-| Tuck Effect text | `card.tuckEffect` | Formatted single-line edit when active and non-empty | Mark the whole bar in both orientations, so blank text still has a navigation target |
+| Tuck Effect text | `card.tuckEffect` | Formatted single-line edit when active and non-empty | Mark the whole bar in both orientations, so blank text still has a navigation target. The bar is a layered surface, so the ability text it covers stays direct |
 
 ### Pre-implementation code review (28 September 2026)
 
@@ -118,7 +118,25 @@ reuse `workshop.editCard()`, the local-draft session, rich-text core, numeric
 validation, stale-card guards, focus restoration, artwork exclusion, and
 export blocking already delivered in Phases 0–4.
 
-## Verification already completed
+## Phase 5 verification (development server)
+
+- Pixel identity: ten Boost Effect, Tuck Effect and Bonus Attack cards
+  photographed through the real export stage hash identically before and after
+  the renderer changes, after confirming the hashes are stable across runs.
+- Phase 0 geometry-only verification: 7 of 7. `npm run check` 0/0;
+  `npm run build` passes with the existing chunk-size advisory.
+- Every field exercised with mouse and keyboard: commit, Escape, Enter versus
+  Ctrl+Enter, focus restoration, centre-editor sync, IndexedDB persistence,
+  export blocking, `{{name}}` and bold round trips, 0–9 clamping.
+- Fallbacks: derived Bonus Attack title and blank Tuck Effect focus their exact
+  centre controls; a 280 px canvas routes all five fields to the centre editor.
+- Fixed in passing, shared with Phases 2–4: text editors opened with the caret
+  at the start of existing copy; single-line editors took a tall target's
+  height. Recorded, not changed: a right Tuck bar hides the right edge of long
+  ability lines.
+- Evidence: `tools/baselines/direct-preview-editing-phase5/`.
+
+## Phase 0–4 verification
 
 - `npm run check`: 0 errors, 0 warnings.
 - `npm run build`: passed. Vite still prints the pre-existing advisory that the
@@ -144,31 +162,19 @@ Evidence, now on `main`:
 - `tools/baselines/direct-preview-editing-phase2/`
 - `tools/baselines/direct-preview-editing-phase3/`
 - `tools/baselines/direct-preview-editing-phase4/`
+- `tools/baselines/direct-preview-editing-phase5/` (preview branch)
 
 ## Remaining work
 
-1. Do not start Phase 5 until the user asks to begin implementation. At that
-   point, update from remote and create
-   `codex/direct-preview-special-effects-preview` from the latest accepted
-   `main`; do not reuse the historical preview branch.
-2. Implement the exact Phase 5 field contract above. Keep inactive, blank,
-   derived, hidden, narrow, crowded, and unsupported cases on the safe
-   centre-editor or inert paths described in the project plan.
-3. Exercise the full Phase 5 fixture matrix, especially the duplicate invisible
-   Boost Effect copy, the boost value and title staying directly editable (not
-   crowded) beside a Boost Effect, blank-text targets, derived Bonus Attack
-   title, Bonus Attack `0–9` bounds, both Tuck Effect orientations, combined
-   effects, formatted tokens, long-text reflow, and read-only/export surfaces.
-4. Run `npm run check`, `npm run build`, `git diff --check`, focused browser
-   verification, and the Phase 0 geometry-only evidence verification.
-5. Commit Phase 5 separately and push only its preview branch. Verify the exact
-   hosted deployment, including persistence, console cleanliness, `.plate`
-   isolation, export safety, and a direct shared link.
-6. Report both a layman explanation and a technical recap. Keep `main`
-   untouched while the user reviews the hosted preview.
-7. Only after explicit acceptance, promote the exact reviewed Phase 5 commit
-   into the then-current `main`, rerun proportionate checks, push, verify the
-   exact production deployment, and mark the Phase 5 checklist complete.
+1. Verify the hosted deployment of the pushed preview branch: persistence,
+   console cleanliness, `.plate` isolation, export safety, and a direct shared
+   link exposing no preview-edit controls.
+2. Report a layman explanation and a technical recap. Keep `main` untouched
+   while the user reviews the hosted preview; fix findings on the same branch.
+3. Only after explicit acceptance, promote the reviewed preview branch (both
+   commits) into the then-current `main`, rerun proportionate checks, push,
+   verify the exact production deployment, and tick the remaining Phase 5
+   checklist items.
 
 Suggested geometry command:
 

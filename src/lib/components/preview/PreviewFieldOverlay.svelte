@@ -34,6 +34,8 @@
     width: number;
     height: number;
     crowded: boolean;
+    /** Painted over what it overlaps, so it wins there rather than crowding it. */
+    surface: boolean;
   }
 
   let { cardId, zoom, showBleed, showGuides, disabled = false }: Props = $props();
@@ -112,22 +114,32 @@
           top: Math.min(Math.max(0, naturalTop), Math.max(0, hostBounds.height - height)),
           width,
           height,
-          crowded: false
+          crowded: false,
+          surface: marker.hasAttribute('data-card-edit-surface')
         };
       })
-      .filter((box): box is TargetBox => box !== null && box.width > 0);
+      .filter((box): box is TargetBox => box !== null && box.width > 0 && box.height > 0);
 
-    boxes = measured.map((box, index) => ({
-      ...box,
-      crowded: measured.some(
-        (other, otherIndex) =>
-          otherIndex !== index &&
-          box.left < other.left + other.width &&
-          box.left + box.width > other.left &&
-          box.top < other.top + other.height &&
-          box.top + box.height > other.top
-      )
-    }));
+    /* A right-hand tuck bar is painted over the edge of the ability column,
+       so treating that overlap as ambiguity would take direct editing away
+       from both. The surface is layered last instead: it wins where it is
+       visibly on top, and the text below stays direct everywhere else. */
+    boxes = measured
+      .map((box, index) => ({
+        ...box,
+        crowded:
+          !box.surface &&
+          measured.some(
+            (other, otherIndex) =>
+              otherIndex !== index &&
+              !other.surface &&
+              box.left < other.left + other.width &&
+              box.left + box.width > other.left &&
+              box.top < other.top + other.height &&
+              box.top + box.height > other.top
+          )
+      }))
+      .sort((a, b) => Number(a.surface) - Number(b.surface));
   }
 
   function scheduleMeasure(): void {

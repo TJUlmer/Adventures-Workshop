@@ -15,6 +15,7 @@
   } from '$lib/text/action-text-editor';
   import SymbolPalette from '$lib/components/workspace/SymbolPalette.svelte';
   import { clampPreviewNumber } from '$lib/cards/edit-targets';
+  import { rangeAtEnd } from '$lib/ui/contenteditable-selection';
 
   interface Props {
     field: PreviewDirectField;
@@ -49,16 +50,24 @@
   let root = $state<HTMLDivElement | null>(null);
   let editor = $state<HTMLDivElement | null>(null);
   let numberInput = $state<HTMLInputElement | null>(null);
+  let plainInput = $state<HTMLInputElement | null>(null);
   let coarsePointer = $state(false);
   let valid = $state(true);
   const editorState = createActionTextEditorState();
   const textField = $derived(field.kind === 'title' || field.kind === 'ability');
   const multiline = $derived(field.kind === 'ability');
 
+  /* A single-line editor is one line tall whatever it replaces: a right-hand
+     tuck bar is the card's full height, and taking that as a minimum turned a
+     one-line field into a panel covering the card. */
+  const inputMinHeight = $derived(
+    multiline ? Math.max(height, 88) : Math.max(32, Math.min(height, 48))
+  );
+
   const shellWidth = $derived.by(() => {
     const available = Math.max(96, canvasWidth - 8);
     const desired =
-      textField
+      textField || field.kind === 'plain'
         ? Math.max(width, multiline ? 320 : 240)
         : Math.max(width, coarsePointer ? 140 : 96);
     return Math.min(desired, available);
@@ -123,6 +132,11 @@
     ondraft(next, true);
   }
 
+  function handlePlainInput(event: Event): void {
+    valid = true;
+    ondraft((event.currentTarget as HTMLInputElement).value, true);
+  }
+
   function commitFromKeyboard(): void {
     if (!valid) {
       numberInput?.focus({ preventScroll: true });
@@ -178,7 +192,16 @@
         customSymbols,
         editorOptions()
       );
+      /* Seed the bookmark at the end first. Focusing a contenteditable lets the
+         browser put a caret at its start, which `restoreActionTextSelection`
+         then accepts as live, so its end fallback never ran and the first
+         keystroke landed before the existing copy. */
+      editorState.savedRange = rangeAtEnd(editor);
       restoreActionTextSelection(editor, editorState, true);
+    } else if (plainInput) {
+      plainInput.focus({ preventScroll: true });
+      const end = plainInput.value.length;
+      plainInput.setSelectionRange(end, end);
     } else if (numberInput) {
       numberInput.focus({ preventScroll: true });
       numberInput.select();
@@ -197,7 +220,7 @@
   class="field-editor"
   class:title={field.kind === 'title'}
   class:ability={field.kind === 'ability'}
-  class:number={field.kind === 'number'}
+  class:number={field.kind === 'number' || field.kind === 'plain'}
   class:invalid={!valid}
   style:left="{shellLeft}px"
   style:top="{top}px"
@@ -217,8 +240,8 @@
       tabindex="0"
       aria-label="{label} on card"
       aria-multiline={multiline}
-      data-placeholder={field.kind === 'title' ? 'Card Title' : 'Ability text'}
-      style:min-height="{Math.max(height, multiline ? 88 : 32)}px"
+      data-placeholder={field.placeholder ?? ''}
+      style:min-height="{inputMinHeight}px"
       spellcheck={multiline}
       oncompositionstart={() => (editorState.composing = true)}
       oncompositionend={() => {
@@ -245,6 +268,23 @@
         <button type="button" class="action" aria-label="Commit {label}" title="Commit" onclick={() => oncommit(true)}>✓</button>
         <button type="button" class="action" aria-label="Cancel editing {label}" title="Cancel" onclick={() => oncancel(true)}>×</button>
       </div>
+    </div>
+  {:else if field.kind === 'plain'}
+    <span class="number-label">{label}</span>
+    <div class="number-row">
+      <input
+        bind:this={plainInput}
+        class="plain-input"
+        type="text"
+        value={field.value}
+        placeholder={field.placeholder}
+        spellcheck="false"
+        aria-label="{label} on card"
+        oninput={handlePlainInput}
+        onkeydown={handleKeydown}
+      />
+      <button type="button" class="action" aria-label="Commit {label}" title="Commit" onclick={commitFromKeyboard}>✓</button>
+      <button type="button" class="action" aria-label="Cancel editing {label}" title="Cancel" onclick={() => oncancel(true)}>×</button>
     </div>
   {:else}
     <span class="number-label">{label}</span>
@@ -421,6 +461,25 @@
     -moz-appearance: textfield;
   }
 
+  .plain-input {
+    min-width: 0;
+    width: 100%;
+    height: 28px;
+    padding-inline: var(--space-2);
+    border-radius: var(--radius-xs);
+    background: var(--surface-inset);
+    color: var(--text-primary);
+    font-size: var(--text-sm);
+  }
+
+  .plain-input::placeholder {
+    color: var(--text-muted);
+  }
+
+  .plain-input:focus {
+    outline: none;
+  }
+
   .number-input::-webkit-outer-spin-button,
   .number-input::-webkit-inner-spin-button {
     appearance: none;
@@ -435,7 +494,8 @@
   @media (hover: none), (any-pointer: coarse) {
     .action,
     .open-full,
-    .number-input {
+    .number-input,
+    .plain-input {
       min-width: var(--touch-target);
       min-height: var(--touch-target);
     }
@@ -444,6 +504,7 @@
   @media (forced-colors: active) {
     .text-input:focus,
     .number-input:focus,
+    .plain-input:focus,
     .action:focus-visible,
     .open-full:focus-visible {
       outline: 2px solid currentColor;
