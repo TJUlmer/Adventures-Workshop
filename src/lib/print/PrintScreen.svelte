@@ -18,6 +18,7 @@
    * resolution the printer has. "Save as PDF" in that same dialogue produces
    * the file, and produces a better one than we could.
    */
+  import { tick } from 'svelte';
   import type { AdventureSet } from '$lib/sets/types';
   import { navigation } from '$lib/state/navigation.svelte';
   import { workshop } from '$lib/state/workshop.svelte';
@@ -88,6 +89,11 @@
   /** The scroll area's own box, so "fit" means fit *this*, not the window. */
   let viewportWidth = $state(0);
   let viewportHeight = $state(0);
+  let sheetsRoot = $state<HTMLElement | null>(null);
+  let imageReadiness = $state<'empty' | 'preparing' | 'ready' | 'failed'>('empty');
+  let failedImageCount = $state(0);
+  let preparationGeneration = 0;
+  let retryGeneration = $state(0);
 
   const PX_PER_MM = 96 / 25.4;
   /** Breathing room so a fitted page is not wedged against the edges. */
@@ -118,6 +124,75 @@
       ? 'Nothing to print yet — this set has no cards.'
       : `${cardCount} ${cardCount === 1 ? 'card' : 'cards'} across ${plan.pages.length} ${plan.pages.length === 1 ? 'sheet' : 'sheets'}.`
   );
+
+  /** A broken picture must settle too, so the screen can offer a retry. */
+  function imageLoaded(image: HTMLImageElement): Promise<boolean> {
+    if (image.complete) return Promise.resolve(image.naturalWidth > 0);
+    return new Promise((resolve) => {
+      const finish = (loaded: boolean): void => {
+        image.removeEventListener('load', loadedImage);
+        image.removeEventListener('error', brokenImage);
+        resolve(loaded);
+      };
+      const loadedImage = (): void => finish(true);
+      const brokenImage = (): void => finish(false);
+      image.addEventListener('load', loadedImage, { once: true });
+      image.addEventListener('error', brokenImage, { once: true });
+      /* It may have settled between the first `complete` check and the
+         listeners being attached. */
+      if (image.complete) finish(image.naturalWidth > 0);
+    });
+  }
+
+  /** Let the load handler's Svelte update and one real paint finish before printing. */
+  function afterPaint(): Promise<void> {
+    return new Promise((resolve) => {
+      requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+    });
+  }
+
+  /*
+   * A gallery download being complete does not mean the fresh <img> elements
+   * on this screen have decoded. Chromium can snapshot the print tree before
+   * they do, leaving CardArt's CSS vignette over an empty background in the
+   * resulting PDF. PNG/TTS capture already waits for image load; printing has
+   * to make the same guarantee before its button becomes available.
+   */
+  $effect(() => {
+    const root = sheetsRoot;
+    const pages = plan.pages;
+    const monochrome = printerFriendly;
+    const retry = retryGeneration;
+    const generation = ++preparationGeneration;
+    void monochrome;
+    void retry;
+
+    if (!root || pages.length === 0) {
+      imageReadiness = 'empty';
+      failedImageCount = 0;
+      return;
+    }
+
+    imageReadiness = 'preparing';
+    failedImageCount = 0;
+
+    void (async () => {
+      /* The plan changes first; the keyed card DOM follows on Svelte's tick. */
+      await tick();
+      const images = Array.from(root.querySelectorAll('img'));
+      const results = await Promise.all(images.map(imageLoaded));
+      await tick();
+      await afterPaint();
+      if (generation !== preparationGeneration) return;
+
+      failedImageCount = results.filter((loaded) => !loaded).length;
+      imageReadiness = failedImageCount === 0 ? 'ready' : 'failed';
+    })();
+
+    return () => {
+      preparationGeneration += 1;
+    };
+  });
 </script>
 
 <svelte:head>
@@ -164,12 +239,26 @@
           </Button>
         </span>
 
-        <Button variant="primary" disabled={plan.pages.length === 0} onclick={() => window.print()}>
+        <Button
+          variant="primary"
+          disabled={imageReadiness !== 'ready'}
+          onclick={() => window.print()}
+        >
           <Icon name="printer" size={13} />
-          Print
+          {imageReadiness === 'preparing' ? 'Preparing artwork…' : 'Print'}
         </Button>
       </div>
     </div>
+
+    {#if imageReadiness === 'failed'}
+      <div class="print-error" role="alert">
+        <span>
+          {failedImageCount} {failedImageCount === 1 ? 'image' : 'images'} could not load. Check your
+          connection and try again before printing.
+        </span>
+        <Button size="sm" variant="ghost" onclick={() => (retryGeneration += 1)}>Try again</Button>
+      </div>
+    {/if}
 
     <p class="mobile-scale-note">Use 100% scale and background graphics in the print dialogue.</p>
 
@@ -234,7 +323,12 @@
     </div>
   </header>
 
-  <div class="sheets" bind:clientWidth={viewportWidth} bind:clientHeight={viewportHeight}>
+  <div
+    class="sheets"
+    bind:this={sheetsRoot}
+    bind:clientWidth={viewportWidth}
+    bind:clientHeight={viewportHeight}
+  >
     {#each plan.pages as page (page.key)}
       <figure class="sheet-block">
         <figcaption class="caption">{page.label}</figcaption>
@@ -382,6 +476,15 @@
 
   .warnings {
     padding-left: var(--space-5);
+  }
+
+  .print-error {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: var(--space-2);
+    font-size: var(--text-xs);
+    color: var(--danger);
   }
 
   .sheets {
