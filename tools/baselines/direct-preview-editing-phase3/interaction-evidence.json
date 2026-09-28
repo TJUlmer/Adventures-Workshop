@@ -1,0 +1,58 @@
+{
+  "phase": 3,
+  "capturedOn": "2026-09-27",
+  "priority": {
+    "authoring": "desktop-first",
+    "narrowMobile": "exact full-editor fallback when the fitted card canvas is below the direct-edit threshold"
+  },
+  "abilityIdentity": {
+    "primaryPlain": "pass",
+    "primaryTiming": "pass",
+    "splitDefenseIsolation": "pass",
+    "bonusTwoWithEmptyBonusOne": "pass",
+    "storedSourceNotRenderedProjection": true,
+    "timingLabelsAndDecorationsRemainInert": true
+  },
+  "formattedEditing": {
+    "ordinaryEnterAddsLineBreak": "pass",
+    "controlEnterCommits": "pass",
+    "boldRoundTripAfterReload": "pass",
+    "builtInSymbolTokenRoundTripAfterReload": "pass",
+    "nameTokenPreserved": "pass",
+    "multilinePastePreserved": "pass",
+    "nativeUndoPreserved": "pass",
+    "caretAndSelectionToolbarRoundTrip": "pass",
+    "customSymbolAndImeUseSharedCentreEditorCore": true
+  },
+  "lifecycle": {
+    "escapeRestoresOriginal": "pass",
+    "toolbarKeepsSessionOpen": "pass",
+    "openFullEditorCommitsAndFocusesExactTarget": "pass",
+    "blankAbilityOpensExactCentreTarget": "pass",
+    "sourceRevalidatedBeforeMutation": true,
+    "exportBlockedDuringDraft": true
+  },
+  "rendererIsolation": {
+    "controlsInsidePlate": 0,
+    "editorInsidePlate": false,
+    "activeEditorMountedInSiblingOverlay": true
+  },
+  "responsive": {
+    "desktop1920x1080": "anchored direct ability editor with full-editor action",
+    "phone320x700": "Preview action switches to Edit and focuses the exact centre ability field"
+  },
+  "diagnostics": {
+    "freshLoadBrowserWarningsOrErrors": 0,
+    "svelteCheckErrors": 0,
+    "svelteCheckWarnings": 0,
+    "productionBuild": "pass"
+  },
+  "exports": {
+    "phase0FixtureRegenerated": true,
+    "geometryOnlyVerification": "pass",
+    "dimensionsChanged": false,
+    "overlayMountedByExporter": false,
+    "strictComparison": "trim and bleed hero character-card decoded pixels varied; Phase 0 interaction JSON checkout line endings changed its encoded byte count",
+    "rendererOrExportFilesChangedByPhase3": false
+  }
+}

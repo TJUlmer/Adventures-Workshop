@@ -7,6 +7,8 @@
    * one click to add a defense value, one click to take it away, no separate
    * checkbox. Scroll or arrow keys change the number without leaving the mouse.
    */
+  import { clampPreviewNumber } from '$lib/cards/edit-targets';
+
   interface Props {
     label: string;
     /** `null` when the card does not print this value. */
@@ -17,6 +19,8 @@
     max?: number;
     /** Value used the first time the control is switched on. */
     defaultValue?: number;
+    /** Stable destination for preview-to-editor navigation. */
+    editorTarget?: string;
     onchange: (value: number | null) => void;
   }
 
@@ -27,6 +31,7 @@
     min = 0,
     max = 20,
     defaultValue = 1,
+    editorTarget,
     onchange
   }: Props = $props();
 
@@ -49,7 +54,7 @@
   });
 
   function clamp(next: number): number {
-    return Math.min(max, Math.max(min, next));
+    return clampPreviewNumber({ kind: 'number', value: next, min, max }, next);
   }
 
   function toggle(): void {
@@ -110,6 +115,7 @@
         {max}
         {value}
         aria-label={label}
+        data-card-editor-target={editorTarget}
         onwheel={onWheel}
         onkeydown={onKey}
         oninput={(event) => {

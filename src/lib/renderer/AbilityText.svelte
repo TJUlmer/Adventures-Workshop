@@ -5,6 +5,7 @@
    * Inline `{{attack}}` tokens become print-resolution symbols, and `{{name}}`
    * becomes whoever the card belongs to.
    */
+  import { cardEditTarget, type AbilitySourceRegion } from '$lib/cards/edit-targets';
   import type { AbilityBlocks, BonusAbility } from '$lib/cards/types';
   import { ABILITY_TIMING_LABELS, usedTimings } from '$lib/cards/types';
   import type { CustomSymbol } from '$lib/symbols/types';
@@ -25,6 +26,8 @@
     bonusIconSize?: number;
     /** The set's author-uploaded glyphs, for resolving `{{custom:…}}` tokens. */
     customSymbols?: CustomSymbol[];
+    /** Present only on editable action-card faces; other renderer consumers stay inert. */
+    sourceRegion?: AbilitySourceRegion;
   }
 
   let {
@@ -34,13 +37,17 @@
     bonusInk,
     bonusTextSize = 90,
     bonusIconSize = 2.1,
-    customSymbols = []
+    customSymbols = [],
+    sourceRegion
   }: Props = $props();
 
   const timings = $derived(usedTimings(ability));
   const hasPlain = $derived(!actionTextIsEmpty(ability.plain));
+  /* Preserve document identity before empty Bonus entries disappear from the face. */
   const bonuses = $derived(
-    ability.bonusAbilities.filter((bonus) => !actionTextIsEmpty(bonus.text))
+    ability.bonusAbilities
+      .map((bonus, index) => ({ bonus, index }))
+      .filter(({ bonus }) => !actionTextIsEmpty(bonus.text))
   );
   const empty = $derived(!hasPlain && bonuses.length === 0 && timings.length === 0);
 
@@ -62,28 +69,47 @@
 </script>
 
 <!-- `renderActionText` sanitises the stored inline HTML before this insertion. -->
-<div class="ability" style:--bonus-divider-thickness={pu(BONUS_ABILITY_DIVIDER_HEIGHT)}>
+<div
+  class="ability"
+  data-card-edit-target={empty && sourceRegion
+    ? cardEditTarget({ region: sourceRegion, field: 'plain' })
+    : undefined}
+  style:--bonus-divider-thickness={pu(BONUS_ABILITY_DIVIDER_HEIGHT)}
+>
   {#if empty}
     {#if placeholder}
       <p class="line placeholder">{placeholder}</p>
     {/if}
   {:else}
     {#if hasPlain}
-      <p class="line">{@html renderActionText(ability.plain, subject, customSymbols)}</p>
+      <p
+        class="line"
+        data-card-edit-target={sourceRegion
+          ? cardEditTarget({ region: sourceRegion, field: 'plain' })
+          : undefined}
+      >{@html renderActionText(ability.plain, subject, customSymbols)}</p>
     {/if}
 
     {#each timings as timing (timing)}
-      <p class="line">
+      <p
+        class="line"
+        data-card-edit-target={sourceRegion
+          ? cardEditTarget({ region: sourceRegion, field: timing })
+          : undefined}
+      >
         <span class="label">{ABILITY_TIMING_LABELS[timing]}:</span>
         {@html renderActionText(ability[timing], subject, customSymbols)}
       </p>
     {/each}
 
-    {#each bonuses as bonus}
+    {#each bonuses as { bonus, index } (index)}
       {@const bonusIconSrc = bonusIconSource(bonus)}
       <p
         class="line bonus"
         class:with-divider={bonus.showDivider}
+        data-card-edit-target={sourceRegion
+          ? cardEditTarget({ region: sourceRegion, field: 'bonus', bonusIndex: index })
+          : undefined}
         style:color={bonus.ink ?? bonusInk}
         style:font-size={`${(bonus.textSize ?? bonusTextSize) / 90}em`}
       >

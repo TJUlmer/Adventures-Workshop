@@ -1,0 +1,51 @@
+{
+  "phase": 0,
+  "capturedOn": "2026-09-27",
+  "prototype": {
+    "field": "card.title",
+    "savedMutations": false,
+    "separateEditModeRequired": false,
+    "minimumDirectCardWidthPx": 320,
+    "narrowBehaviour": "open-centre-editor"
+  },
+  "geometry": [
+    {
+      "preview": "fit",
+      "cardWidthPx": 372,
+      "bleed": false,
+      "guides": false,
+      "deltaPx": { "left": 0, "top": 0, "width": -0.00390625, "height": 0 }
+    },
+    {
+      "preview": "200%",
+      "bleed": false,
+      "guides": false,
+      "deltaPx": { "left": 0, "top": 0, "width": -0.0078125, "height": 0 }
+    },
+    {
+      "preview": "200%",
+      "bleed": true,
+      "guides": true,
+      "deltaPx": { "left": 0, "top": 0, "width": -0.00244140625, "height": 0 }
+    }
+  ],
+  "structure": {
+    "controlsInsidePlate": 0,
+    "overlayInsidePlate": false,
+    "rendererMetadataOnly": true
+  },
+  "interactions": {
+    "pointerActivation": "pass",
+    "enterActivation": "pass",
+    "escapeCloses": "pass",
+    "focusReturnsToTarget": "pass",
+    "openFullEditorFocusesCardTitle": "pass",
+    "phoneFallbackRevealsEditAndFocusesCardTitle": "pass"
+  },
+  "exports": {
+    "trim": { "width": 1478, "height": 2065 },
+    "bleed": { "width": 1632, "height": 2222 },
+    "overlayMountedByExporter": false,
+    "comparisonNote": "The committed manifest is the Phase 0 reference for later phases. Cross-run action-card pixels were not claimed identical because unrelated renderer surfaces also varied between captures on this platform."
+  }
+}

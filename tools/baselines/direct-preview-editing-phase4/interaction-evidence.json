@@ -1,0 +1,86 @@
+{
+  "phase": 4,
+  "capturedOn": "2026-09-27",
+  "priority": {
+    "authoring": "desktop-first",
+    "touch": "44px expanded preview targets when unambiguous; exact centre-editor fallback when crowded",
+    "narrowMobile": "exact full-editor fallback below the 320px rendered-card threshold"
+  },
+  "quantityStepper": {
+    "location": "preview facts below the rendered card and outside .plate",
+    "centreEditorSync": "pass",
+    "centreEditorUsesStoreCommandWithoutPropMutationWarning": true,
+    "mouseActivation": "pass",
+    "keyboardActivation": "pass",
+    "minimumOneDisabled": "pass",
+    "maximumTwentyDisabled": "pass",
+    "autosaveReload": "pass",
+    "actionAndRulesCards": "pass",
+    "accessibleNames": [
+      "Increase copies in deck",
+      "Decrease copies in deck"
+    ]
+  },
+  "accessibility": {
+    "fieldNamesDescribeActionAndDestination": "pass",
+    "spaceActivation": "pass",
+    "escapeCancellation": "pass",
+    "focusRestoration": "pass",
+    "toolbarKeyboardOrder": "pass",
+    "focusCanLeaveEditor": "pass",
+    "visibleFocus": "pass",
+    "reducedMotion": "global source rule verified",
+    "forcedColours": "explicit currentColor focus outlines verified by source; unavailable for runtime emulation",
+    "osTextEnlargement": "unavailable for runtime emulation; constrained responsive widths exercised"
+  },
+  "responsive": {
+    "desktop": "anchored direct editing retained",
+    "phone320x700": "Preview action switches to Edit and focuses the exact centre title field",
+    "previewZoom100": "pass",
+    "previewZoom200": "pass",
+    "bleedAndGuides": "overlay remained attached",
+    "coarseTargetCollisionPolicy": "overlapping expanded targets route to the centre editor"
+  },
+  "lifecycle": {
+    "quantityClickCommitsValidOpenDraft": "pass",
+    "paneSwitchCommitsValidOpenDraft": "pass",
+    "cardIdAndOriginalSourceRevalidatedBeforeWrite": true,
+    "replacementAndArtworkModesInvalidateOrFinishPreviewSession": true,
+    "exportBlockedDuringUnresolvedDraft": true
+  },
+  "rendererIsolation": {
+    "controlsInsidePlate": 0,
+    "overlayMountedOnlyByAuthoringPreview": true,
+    "rulesSampleCardbackAndReadOnlyDirectHotspots": 0
+  },
+  "fixtureMatrix": {
+    "ordinaryAndSplitHeroes": "Phase 0 deterministic fixture",
+    "villainAndMinionUnsplitAndSplit": "Phase 0 deterministic fixture and typed target audit",
+    "nullAndCustomValues": "typed target audit plus deterministic custom-boost fixture",
+    "formattedTitleAbilityTimingAndBonusTwo": "Phase 2/3 browser evidence plus Phase 0 deterministic fixture",
+    "wholeFaceReplacement": "Phase 0 deterministic fixture and authoring mount audit",
+    "artworkAdjustment": "mutual-exclusion state audit",
+    "lightAndDark": "browser pass",
+    "desktopTabletPhone": "desktop and phone browser pass plus breakpoint audit"
+  },
+  "diagnostics": {
+    "freshLoadBrowserWarningsOrErrors": 0,
+    "svelteCheckErrors": 0,
+    "svelteCheckWarnings": 0,
+    "productionBuild": "pass",
+    "buildAdvisory": "existing Vite main-chunk size advisory; no Phase 4 dependency or new chunk"
+  },
+  "exports": {
+    "phase0FixtureRegenerated": true,
+    "geometryOnlyVerification": "pass: 7 files",
+    "dimensionsChanged": false,
+    "controlsInsidePlate": 0,
+    "strictComparison": "11 decoded-pixel or normalized-text byte variances from environment-sensitive font rendering and line endings",
+    "rendererPrintTtsOrExportFilesChangedByPhase4": false
+  },
+  "release": {
+    "previewBranch": "codex/direct-preview-editing-preview",
+    "mainPromotion": "pending explicit hosted-preview acceptance",
+    "productionVerification": "pending promotion"
+  }
+}

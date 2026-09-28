@@ -26,6 +26,7 @@
   import { primaryCardName, resolvedHeroName } from '$lib/characters/factory';
   import type { Character } from '$lib/characters/types';
   import type { CustomSymbol } from '$lib/symbols/types';
+  import { CARD_EDIT_MARKERS } from '$lib/cards/edit-targets';
   import { actionTextIsEmpty, renderActionText } from '$lib/text/action-text';
   import { parseAbilityText } from '$lib/text/tokens';
   import AbilityText from './AbilityText.svelte';
@@ -637,6 +638,7 @@
              gains a consistent safe inset without inventing new disc geometry. -->
         <img
           class="boost-symbol"
+          data-card-edit-target={CARD_EDIT_MARKERS.boostSymbol}
           src={boostSymbolSrc}
           alt=""
           style:left={pu(BOOST.cx - BOOST_VALUE.size / 2 - INTERIOR.x)}
@@ -647,6 +649,7 @@
       {:else}
         <div
           class="boost-value"
+          data-card-edit-target={CARD_EDIT_MARKERS.boost}
           style:left={pu(BOOST.cx - INTERIOR.x)}
           style:top={pu(
             digitMiddleToBoxTop(BOOST.cy, BOOST_VALUE.size, BOOST_VALUE.lineHeight) - DIVIDER.y
@@ -763,6 +766,7 @@
     -->
     <div
       class="title"
+      data-card-edit-target={CARD_EDIT_MARKERS.title}
       class:boost-aware={card.boost !== null && card.showBoostEffect}
       style:margin-left={pu(TITLE.x - BODY_PANEL.x)}
       style:width={card.boost !== null && card.showBoostEffect ? 'max-content' : pu(TITLE.width)}
@@ -832,6 +836,9 @@
             />
             <span
               class="value-number"
+              data-card-edit-target={row.key === 'attack'
+                ? CARD_EDIT_MARKERS.attack
+                : CARD_EDIT_MARKERS.defense}
               style:left={pu(VALUE_STACK.numberX - BODY_PANEL.x)}
               style:top={pu(
                 belowTitleRule(
@@ -881,6 +888,7 @@
             >
               <AbilityText
                 ability={card.ability}
+                sourceRegion="primary-ability"
                 placeholder=""
                 subject={ribbonName}
                 bonusInk={theme.bonusAbilityInk}
@@ -903,6 +911,7 @@
           >
             <AbilityText
               ability={card.ability}
+              sourceRegion="primary-ability"
               placeholder=""
               subject={ribbonName}
               bonusInk={theme.bonusAbilityInk}
@@ -1173,6 +1182,7 @@
     -->
     <div
       class="hero-owner-text"
+      data-card-edit-target={CARD_EDIT_MARKERS.ownerName}
       style:align-self="flex-start"
       style:margin-left={pu(HERO_RIBBON_OWNER_LEFT - HERO_RIBBON.x)}
       style:font-size={pu(HERO_RIBBON_OWNER.size)}
@@ -1218,6 +1228,7 @@
   {#if showSymbolValue}
     <span
       class="hero-symbol-value"
+      data-card-edit-target={CARD_EDIT_MARKERS.symbolValue}
       style:left={pu(HERO_RIBBON.centerX)}
       style:top={pu(digitTopToBoxTop(HERO_RIBBON_VALUE.top, HERO_RIBBON_VALUE.size))}
       style:font-size={pu(HERO_RIBBON_VALUE.size)}
@@ -1272,6 +1283,7 @@
     -->
     <div
       class="name"
+      data-card-edit-target={CARD_EDIT_MARKERS.ownerName}
       style:font-size={pu(NAME.size)}
       style:max-height={pu(NAME.maxLength)}
       style:color={theme.bannerInk}
@@ -1355,6 +1367,9 @@
             />
             <span
               class="split-number"
+              data-card-edit-target={side.key === 'attack'
+                ? CARD_EDIT_MARKERS.attack
+                : CARD_EDIT_MARKERS.defense}
               style:left={px(VALUE_STACK.numberX - BODY_PANEL.x, BODY_PANEL)}
               style:top={pu(VALUE_STACK.numberOffset - 25)}
               style:font-size={pu(VALUE_STACK.numberSize)}
@@ -1400,6 +1415,7 @@
             >
               <AbilityText
                 {ability}
+                sourceRegion={side.key === 'attack' ? 'primary-ability' : 'defense-ability'}
                 placeholder=""
                 subject={ribbonName}
                 bonusInk={theme.bonusAbilityInk}

@@ -2,17 +2,18 @@
   /** Compact bold/italic editor for action-card title and ability copy. */
   import { untrack } from 'svelte';
   import type { CustomSymbol } from '$lib/symbols/types';
-  import { actionTextIsEmpty, sanitizeActionText } from '$lib/text/action-text';
-  import { toDisplayTokens, toStoredTokens } from '$lib/text/tokens';
-  import { Icon } from '$lib/ui';
   import {
-    installSelectionRange,
-    rangeAtEnd,
-    rangeFromOffsets,
-    rangeInside,
-    selectionOffsets,
-    selectionRangeInside
-  } from '$lib/ui/contenteditable-selection';
+    createActionTextEditorState,
+    displayActionTextEditorValue,
+    formatActionTextEditor,
+    insertActionTextEditorLineBreak,
+    insertActionTextEditorText,
+    rememberActionTextSelection,
+    syncActionTextEditor,
+    type ActionTextEditorValue
+  } from '$lib/text/action-text-editor';
+  import { toStoredTokens } from '$lib/text/tokens';
+  import { Icon } from '$lib/ui';
   import SymbolPalette from './SymbolPalette.svelte';
 
   interface Props {
@@ -27,6 +28,8 @@
     onremove?: () => void;
     onchange: (value: string) => void;
     customSymbols?: CustomSymbol[];
+    /** Stable destination for preview-to-editor navigation. */
+    editorTarget?: string;
   }
 
   let {
@@ -39,106 +42,59 @@
     preserveWhitespace = false,
     onremove,
     onchange,
-    customSymbols = []
+    customSymbols = [],
+    editorTarget
   }: Props = $props();
 
-  function hasIntentionalWhitespace(html: string): boolean {
-    const template = document.createElement('template');
-    template.innerHTML = html;
-    const text = template.content.textContent ?? '';
-    return text.length > 0 && text.trim().length === 0;
-  }
-
-  function cleanValue(html: string): string {
-    if (preserveWhitespace && hasIntentionalWhitespace(html)) return ' ';
-    const clean = sanitizeActionText(html, !multiline);
-    return actionTextIsEmpty(clean) ? '' : clean;
+  function editorOptions(): { singleLine: boolean; preserveWhitespace: boolean } {
+    return {
+      singleLine: !multiline,
+      preserveWhitespace
+    };
   }
 
   let editor = $state<HTMLDivElement | null>(null);
-  let display = $state(untrack(() => toDisplayTokens(cleanValue(value), customSymbols)));
-  let composing = false;
-  let savedRange: Range | null = null;
+  let display = $state(
+    untrack(() => displayActionTextEditorValue(value, customSymbols, editorOptions()))
+  );
+  const editorState = createActionTextEditorState();
 
   /*
    * The stored-token round trip distinguishes a local edit from a card switch,
    * undo or custom-symbol rename. Only the latter redraws the DOM, so typing
    * and toolbar actions do not throw the current selection away.
-   */
+  */
   $effect(() => {
-    const incoming = toDisplayTokens(cleanValue(value), customSymbols);
+    const incoming = displayActionTextEditorValue(value, customSymbols, editorOptions());
     const element = editor;
     untrack(() => {
       if (toStoredTokens(display, customSymbols) !== value) display = incoming;
       if (element && element.innerHTML !== display) {
         element.innerHTML = display;
-        savedRange = null;
+        editorState.savedRange = null;
       }
     });
   });
 
-  function rememberedRange(): Range | null {
-    if (!editor || !savedRange || !rangeInside(editor, savedRange)) {
-      savedRange = null;
-      return null;
-    }
-    return savedRange.cloneRange();
-  }
-
-  function restoreEditorSelection(fallbackToEnd = false): Range | null {
-    if (!editor) return null;
-    const live = selectionRangeInside(editor);
-    let range =
-      (document.activeElement === editor ? live : null) ?? rememberedRange() ?? live;
-    editor.focus({ preventScroll: true });
-    range ??= selectionRangeInside(editor);
-    range ??= fallbackToEnd ? rangeAtEnd(editor) : null;
-    if (!range) return null;
-    const installed = installSelectionRange(editor, range);
-    savedRange = installed?.cloneRange() ?? null;
-    return installed;
-  }
-
-  function commit(): void {
-    if (!editor || composing) return;
-    const liveRange = selectionRangeInside(editor);
-    const range = liveRange ?? rememberedRange();
-    const preserved = range ? selectionOffsets(editor, range) : null;
-    const clean = cleanValue(editor.innerHTML);
-
-    if (clean !== editor.innerHTML) {
-      editor.innerHTML = clean;
-      if (preserved) {
-        const kept = rangeFromOffsets(editor, preserved);
-        savedRange = kept.cloneRange();
-        if (liveRange) installSelectionRange(editor, kept);
-      }
-    }
-
-    const current = selectionRangeInside(editor);
-    if (current) savedRange = current.cloneRange();
-    display = clean;
-    onchange(toStoredTokens(clean, customSymbols));
+  function accept(next: ActionTextEditorValue | null): void {
+    if (!next) return;
+    display = next.display;
+    onchange(next.stored);
   }
 
   function exec(command: 'bold' | 'italic'): void {
-    restoreEditorSelection();
-    document.execCommand(command, false);
-    commit();
+    if (!editor) return;
+    accept(formatActionTextEditor(editor, editorState, command, customSymbols, editorOptions()));
   }
 
   function insert(token: string): void {
     if (!editor) return;
-    restoreEditorSelection(true);
-    document.execCommand('insertText', false, token);
-    commit();
+    accept(insertActionTextEditorText(editor, editorState, token, customSymbols, editorOptions()));
   }
 
   $effect(() => {
     const captureSelection = (): void => {
-      if (!editor) return;
-      const range = selectionRangeInside(editor);
-      if (range && document.activeElement === editor) savedRange = range.cloneRange();
+      rememberActionTextSelection(editor, editorState);
     };
     document.addEventListener('selectionchange', captureSelection);
     return () => document.removeEventListener('selectionchange', captureSelection);
@@ -147,9 +103,15 @@
   function handleKeydown(event: KeyboardEvent): void {
     if (event.key !== 'Enter' || event.isComposing) return;
     event.preventDefault();
-    if (multiline) {
-      document.execCommand('insertLineBreak', false);
-      commit();
+    if (multiline && editor) {
+      accept(
+        insertActionTextEditorLineBreak(
+          editor,
+          editorState,
+          customSymbols,
+          editorOptions()
+        )
+      );
     }
   }
 
@@ -157,8 +119,9 @@
     event.preventDefault();
     let text = event.clipboardData?.getData('text/plain') ?? '';
     if (!multiline) text = text.replace(/\s*\r?\n\s*/g, ' ');
-    document.execCommand('insertText', false, text);
-    commit();
+    if (editor) {
+      accept(insertActionTextEditorText(editor, editorState, text, customSymbols, editorOptions()));
+    }
   }
 </script>
 
@@ -186,16 +149,21 @@
     tabindex="0"
     aria-label={label}
     aria-multiline={multiline}
+    data-card-editor-target={editorTarget}
     data-placeholder={placeholder}
     spellcheck={multiline}
     style:min-height={multiline ? `${rows * 20 + 18}px` : undefined}
-    oncompositionstart={() => (composing = true)}
+    oncompositionstart={() => (editorState.composing = true)}
     oncompositionend={() => {
-      composing = false;
-      commit();
+      editorState.composing = false;
+      if (editor) {
+        accept(syncActionTextEditor(editor, editorState, customSymbols, editorOptions()));
+      }
     }}
     oninput={() => {
-      if (!composing) commit();
+      if (editor) {
+        accept(syncActionTextEditor(editor, editorState, customSymbols, editorOptions()));
+      }
     }}
     onkeydown={handleKeydown}
     onpaste={handlePaste}

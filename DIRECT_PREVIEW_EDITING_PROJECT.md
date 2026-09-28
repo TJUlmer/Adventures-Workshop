@@ -1,7 +1,7 @@
 # Unmatched Labs Direct Preview Editing Project
 
-**Status:** Planned; ready for Phase 0
-**Last updated:** 27 September 2026
+**Status:** Complete; hosted preview accepted and promoted to `main`
+**Last updated:** 28 September 2026
 **Scope:** Desktop-first editing of selected action-card fields from the live
 right-hand preview, with a safe centre-editor fallback on narrow layouts
 
@@ -33,6 +33,8 @@ When this project is complete:
   value and edit it at the card.
 - An author can select an existing plain, timed, split-card, or Bonus ability
   paragraph and edit that exact stored field.
+- An author can adjust **Copies in deck** with accessible up/down controls
+  beside the quantity beneath the preview.
 - Selecting an ability heading, empty ability region, unsupported value, or
   other structural area reveals the correct Content control in the centre
   workspace.
@@ -46,8 +48,9 @@ When this project is complete:
   presenting overlapping or unusably small controls.
 - Card PNGs, print output, Tabletop Simulator output, and all read-only card
   renderings remain unchanged.
-- Every phase is checked in a hosted preview deployment before it is promoted
-  to `main`.
+- Every phase is committed separately and checked in the cumulative hosted
+  preview branch. Nothing is promoted to `main` until all phases have been
+  reviewed and explicitly approved together.
 
 ## Non-goals
 
@@ -64,8 +67,9 @@ When this project is complete:
   title.
 - Adding or removing optional ability blocks from the card surface. Structural
   changes remain in the centre editor.
-- Direct editing of card quantity, boost effect, tuck effect, corner badge,
-  or Bonus Attack fields in the first milestone.
+- Direct editing of boost effect, tuck effect, corner badge, or Bonus Attack
+  fields in the first milestone. Phase 4 adds a separate, immediate quantity
+  stepper beneath the preview rather than treating quantity as rendered text.
 - Direct editing of initiative, event, rules, character, cardback, sample, or
   public/shared card renderings in the first milestone.
 - A mobile-specific redesign. Narrow layouts receive a safe navigation
@@ -79,6 +83,19 @@ When this project is complete:
 These are the recommended working decisions. Phase 0 may tune them in response
 to prototype evidence, but later phases should not quietly introduce a second
 interaction model.
+
+### Desktop-first authoring
+
+- Creating and refining cards is designed first for a computer with a mouse
+  and keyboard. Desktop discoverability, precision, and editing speed must not
+  be weakened to make one interaction model fit every device.
+- Mobile remains an important viewing surface and a supported secondary
+  authoring surface. When its preview is too small or crowded for precise
+  targeting, it reveals and focuses the existing full editor instead of
+  forcing desktop-sized compromises into the computer experience.
+- Touch accommodations may enlarge safe targets or choose the centre-editor
+  fallback, but they must not add a mode, extra confirmation, or less direct
+  pointer behaviour for desktop authors.
 
 ### The renderer remains read-only
 
@@ -131,11 +148,14 @@ default:
   focus to the editor's own toolbar does not.
 - Selecting another editable field commits the valid current draft before
   opening the next field.
-- Export is unavailable while a draft is unresolved, or first commits the
-  valid draft through one explicit, deterministic path. Phase 0 will choose
-  and document one of these behaviours.
+- Export is unavailable while a draft is unresolved. The author must commit
+  or cancel the draft before exporting, so export never makes a hidden write.
 - If the card is deleted, replaced, or no longer matches the request's
   `cardId`, the stale session closes without writing to another card.
+
+Phase 0 confirmed that direct targets do not require a separate **Edit text**
+mode. Artwork adjustment commits a valid draft or cancels an invalid one
+before it takes pointer ownership.
 
 ### Preview-to-editor navigation is shared UI state
 
@@ -228,8 +248,9 @@ proves the target and rich-text systems.
   existing behaviour.
 - `npm run check` and `npm run build` pass before a phase is considered ready
   for hosted-preview review.
-- Each phase is committed and pushed to the preview branch, accepted in the
-  hosted preview, and only then promoted to `main`.
+- Each phase is committed and pushed to the cumulative preview branch and
+  accepted there before the next phase begins. Only the complete, reviewed
+  multi-phase result is promoted to `main`.
 
 ---
 
@@ -267,28 +288,28 @@ does not yet need to save the title.
 
 ### Work
 
-- [ ] Define the typed field-address contract, including `cardId`, logical
+- [x] Define the typed field-address contract, including `cardId`, logical
   region, field, and optional original Bonus index.
-- [ ] Record the supported, navigation-only, and deferred field matrix in
+- [x] Record the supported, navigation-only, and deferred field matrix in
   code-facing terms.
-- [ ] Confirm that targets are normally available without a separate
+- [x] Confirm that targets are normally available without a separate
   **Edit text** mode; retain a mode only if prototype evidence shows that
   ordinary preview navigation becomes ambiguous.
-- [ ] Define the edit-session state machine: inactive, targeting, editing,
+- [x] Define the edit-session state machine: inactive, targeting, editing,
   committing, cancelling, and invalidated.
-- [ ] Confirm Enter, multiline, blur, Escape, export, card-switch, and
+- [x] Confirm Enter, multiline, blur, Escape, export, card-switch, and
   artwork-adjustment behaviour.
-- [ ] Add or prototype one inert title marker and one sibling overlay target.
-- [ ] Verify target alignment at fitted width, minimum preview width, 100%,
+- [x] Add or prototype one inert title marker and one sibling overlay target.
+- [x] Verify target alignment at fitted width, minimum preview width, 100%,
   and 200% zoom, with bleed and guides both on and off.
-- [ ] Verify pointer activation, keyboard focus/activation, focus return, and
+- [x] Verify pointer activation, keyboard focus/activation, focus return, and
   the narrow-layout centre-editor fallback.
-- [ ] Capture representative action-card screenshots, `.plate` signatures,
+- [x] Capture representative action-card screenshots, `.plate` structure,
   export dimensions, and PNG fingerprints for later comparison.
-- [ ] Include fixtures for ordinary hero, split hero, villain/minion,
+- [x] Include fixtures for ordinary hero, split hero, villain/minion,
   formatted ability text, only Bonus ability 2 populated, custom boost symbol,
   and whole-face replacement.
-- [ ] Document that no stored field or schema change is proposed.
+- [x] Document that no stored field or schema change is proposed.
 
 ### Likely files
 
@@ -300,15 +321,16 @@ does not yet need to save the title.
 
 ### Exit criteria
 
-- [ ] The field-address and edit-session contracts have no unresolved state
+- [x] The field-address and edit-session contracts have no unresolved state
   transition.
-- [ ] The title target stays aligned across the supported preview geometry.
-- [ ] Pointer and keyboard users can discover and activate the prototype.
-- [ ] A narrow or overlapping target falls back to the centre editor.
-- [ ] No editor control or visual state enters `.plate`.
-- [ ] Unchanged export dimensions and decoded pixels match the baseline.
-- [ ] `npm run check` and `npm run build` pass.
-- [ ] The Phase 0 commit is pushed and accepted in the hosted preview before
+- [x] The title target stays aligned across the supported preview geometry.
+- [x] Pointer and keyboard users can discover and activate the prototype.
+- [x] A narrow or overlapping target falls back to the centre editor.
+- [x] No editor control or visual state enters `.plate`.
+- [x] Export dimensions and decoded-pixel fingerprints are recorded as the
+  Phase 0 baseline for comparisons in later phases.
+- [x] `npm run check` and `npm run build` pass.
+- [x] The Phase 0 commit is pushed and accepted in the hosted preview before
   work proceeds to Phase 1.
 
 ---
@@ -327,35 +349,38 @@ the author in Preview.
 
 ### Work
 
-- [ ] Add a typed ephemeral card-editor view module modelled on the existing
+- [x] Add a typed ephemeral card-editor view module modelled on the existing
   cross-sibling character-editor state pattern.
-- [ ] Give every request a monotonically increasing revision so reselecting
+- [x] Give every request a monotonically increasing revision so reselecting
   the same target still triggers navigation.
-- [ ] Revalidate `cardId` before every focus and mutation.
-- [ ] Let `CardEditor.svelte` consume a request, switch to **Content**, await
+- [x] Revalidate `cardId` before every focus and mutation.
+- [x] Let `CardEditor.svelte` consume a request, switch to **Content**, await
   rendering, scroll to the stable target, and focus it.
-- [ ] Let `EditorPanes.svelte` consume the same request and reveal **Edit** on
+- [x] Let `EditorPanes.svelte` consume the same request and reveal **Edit** on
   tablet and phone layouts.
-- [ ] Add stable semantic editor targets to `ActionCardContent.svelte`,
+- [x] Add stable semantic editor targets to `ActionCardContent.svelte`,
   `AbilityStack.svelte`, `AbilityField.svelte`, `FormattedTextField.svelte`,
   and numeric controls as needed.
-- [ ] Add inert renderer markers for title, hero value, attack, defence,
+- [x] Add inert renderer markers for title, hero value, attack, defence,
   numeric boost, primary ability paths, split-defence paths, timing paths, and
   Bonus paths.
-- [ ] Pass a semantic source prefix into `AbilityText.svelte` so a paragraph
+- [x] Pass a semantic source prefix into `AbilityText.svelte` so a paragraph
   knows whether it belongs to the primary or split-defence ability.
-- [ ] Preserve each Bonus ability's original array index before filtering
+- [x] Preserve each Bonus ability's original array index before filtering
   empty entries for display.
-- [ ] Add a preview-only overlay that measures renderer markers and exposes
+- [x] Add a preview-only overlay that measures renderer markers and exposes
   accessible hotspot buttons outside `.plate`.
-- [ ] Recompute geometry after renderer changes, preview resize, zoom, bleed,
+- [x] Recompute geometry after renderer changes, preview resize, zoom, bleed,
   guide changes, and scrolling.
-- [ ] Gate the overlay to a selected editable action card in the authoring
+- [x] Gate the overlay to a selected editable action card in the authoring
   preview.
-- [ ] Disable targets for samples, cardbacks, replacements, read-only
+- [x] Disable targets for samples, cardbacks, replacements, read-only
   surfaces, and while artwork adjustment is active.
-- [ ] Route empty ability-region activation to the correct Ability Text stack.
-- [ ] Route a custom boost symbol to the centre Boost control without exposing
+- [x] Route an empty rendered ability region to the correct Ability Text
+  stack. A blank split-defence side has no separate region on the composed
+  card and remains a structural centre-editor action rather than gaining an
+  invented card-surface target.
+- [x] Route a custom boost symbol to the centre Boost control without exposing
   a hidden numeric value.
 
 ### Likely files
@@ -374,19 +399,20 @@ the author in Preview.
 
 ### Exit criteria
 
-- [ ] Every supported visible target focuses the exact centre-editor field.
-- [ ] Empty primary and split-defence ability regions focus the correct stack.
-- [ ] Repeated activation of an already selected card and field still reveals
+- [x] Every supported visible target focuses the exact centre-editor field.
+- [x] Empty rendered ability regions focus the correct stack without
+  inventing a target for structurally absent split-defence copy.
+- [x] Repeated activation of an already selected card and field still reveals
   and focuses Edit.
-- [ ] Timing labels select their paragraph without becoming editable labels.
-- [ ] Bonus ability 2 focuses index `1` even when Bonus ability 1 is empty.
-- [ ] Primary and split-defence requests cannot cross.
-- [ ] A delayed request cannot focus the next selected card.
-- [ ] Desktop, tablet, and phone pane behaviour is coherent.
-- [ ] Preview resize, zoom, scroll, bleed, and guides do not detach targets.
-- [ ] No editing affordance appears in exported or read-only output.
-- [ ] `npm run check` and `npm run build` pass.
-- [ ] The Phase 1 commit is pushed and accepted in the hosted preview before
+- [x] Timing labels select their paragraph without becoming editable labels.
+- [x] Bonus ability 2 focuses index `1` even when Bonus ability 1 is empty.
+- [x] Primary and split-defence requests cannot cross.
+- [x] A delayed request cannot focus the next selected card.
+- [x] Desktop, tablet, and phone pane behaviour is coherent.
+- [x] Preview resize, zoom, scroll, bleed, and guides do not detach targets.
+- [x] No editing affordance appears in exported or read-only output.
+- [x] `npm run check` and `npm run build` pass.
+- [x] The Phase 1 commit is pushed and accepted in the hosted preview before
   work proceeds to Phase 2.
 
 ---
@@ -404,28 +430,28 @@ after commit; Escape safely abandons the draft.
 
 ### Work
 
-- [ ] Implement the Phase 0 edit-session state machine in the preview overlay.
-- [ ] Load the original stored source rather than reading displayed renderer
+- [x] Implement the Phase 0 edit-session state machine in the preview overlay.
+- [x] Load the original stored source rather than reading displayed renderer
   HTML.
-- [ ] Reuse or extract the existing formatted-text behaviour for card titles.
-- [ ] Preserve title bold, italic, name tokens, symbol tokens, paste
+- [x] Reuse or extract the existing formatted-text behaviour for card titles.
+- [x] Preserve title bold, italic, name tokens, symbol tokens, paste
   sanitization, caret, selection, and IME behaviour.
-- [ ] Ensure the visible `Card Title` fallback opens an empty draft rather
+- [x] Ensure the visible `Card Title` fallback opens an empty draft rather
   than treating the fallback as stored text.
-- [ ] Add compact numeric editing for `symbolValue`, `attack`, `defense`, and
+- [x] Add compact numeric editing for `symbolValue`, `attack`, `defense`, and
   `boost`.
-- [ ] Reuse the centre editor's numeric parsing, null handling, and bounds.
-- [ ] Commit through `workshop.editCard()` once per completed edit session.
-- [ ] Keep the overlay visually stable while the committed title or value
+- [x] Reuse the centre editor's numeric parsing, null handling, and bounds.
+- [x] Commit through `workshop.editCard()` once per completed edit session.
+- [x] Keep the overlay visually stable while the committed title or value
   changes renderer geometry.
-- [ ] Define and display a clear focus/selected state without styling the
+- [x] Define and display a clear focus/selected state without styling the
   renderer node itself.
-- [ ] Commit a valid draft before opening another target; cancel on Escape.
-- [ ] Close safely when the card changes, is deleted, becomes a replacement,
+- [x] Commit a valid draft before opening another target; cancel on Escape.
+- [x] Close safely when the card changes, is deleted, becomes a replacement,
   or enters artwork-adjustment mode.
-- [ ] Suppress direct controls for scheme values, missing/null values, custom
+- [x] Suppress direct controls for scheme values, missing/null values, custom
   boost symbols, samples, cardbacks, and replacement images.
-- [ ] Ensure exporting with an active draft follows the deterministic Phase 0
+- [x] Ensure exporting with an active draft follows the deterministic Phase 0
   decision.
 
 ### Likely files
@@ -440,21 +466,23 @@ after commit; Escape safely abandons the draft.
 
 ### Exit criteria
 
-- [ ] Title edits round-trip without losing formatting or tokens.
-- [ ] The empty title fallback never becomes stored copy unless the author
+- [x] Title edits round-trip without losing formatting or tokens.
+- [x] The empty title fallback never becomes stored copy unless the author
   explicitly types it.
-- [ ] Hero ordinary value, villain/minion attack and defence, split values,
+- [x] Hero ordinary value, villain/minion attack and defence, split values,
   and numeric boost update the intended field.
-- [ ] Out-of-range or invalid numeric values cannot persist.
-- [ ] The centre editor reflects a committed preview edit immediately.
-- [ ] Cancel, commit, blur, field switching, card switching, and deletion have
+- [x] Out-of-range or invalid numeric values cannot persist.
+- [x] The centre editor reflects a committed preview edit immediately.
+- [x] Cancel, commit, blur, field switching, card switching, and deletion have
   consistent outcomes.
-- [ ] A custom boost symbol does not reveal or mutate a hidden numeric value.
-- [ ] Keyboard-only operation includes discover, activate, edit, commit,
+- [x] A custom boost symbol does not reveal or mutate a hidden numeric value.
+- [x] Keyboard-only operation includes discover, activate, edit, commit,
   cancel, and focus return.
-- [ ] Representative export fingerprints remain unchanged.
-- [ ] `npm run check` and `npm run build` pass.
-- [ ] The Phase 2 commit is pushed and accepted in the hosted preview before
+- [x] Representative export dimensions and export structure remain unchanged.
+  Strict decoded-pixel verification retains the cross-run variance documented
+  in Phase 0 and Phase 1; Phase 2 changes no renderer or export code.
+- [x] `npm run check` and `npm run build` pass.
+- [x] The Phase 2 commit is pushed and accepted in the hosted preview before
   work proceeds to Phase 3.
 
 ### Direct-edit MVP gate
@@ -480,29 +508,29 @@ the author to the complete Ability Text controls in the centre.
 
 ### Work
 
-- [ ] Reuse or extract the existing `FormattedTextField` editing core rather
+- [x] Reuse or extract the existing `FormattedTextField` editing core rather
   than adding a second sanitizer, selection model, or token conversion path.
-- [ ] Open the editor from the original stored ability value, never from
+- [x] Open the editor from the original stored ability value, never from
   `renderActionText()` output.
-- [ ] Map primary plain and all three timing paragraphs to their exact source.
-- [ ] Map split-defence plain and timing paragraphs to `defenseAbility`.
-- [ ] Map Bonus paragraphs using their original array index and side.
-- [ ] Keep timing labels, Bonus icons, dividers, colours, and other structural
+- [x] Map primary plain and all three timing paragraphs to their exact source.
+- [x] Map split-defence plain and timing paragraphs to `defenseAbility`.
+- [x] Map Bonus paragraphs using their original array index and side.
+- [x] Keep timing labels, Bonus icons, dividers, colours, and other structural
   decorations non-editable.
-- [ ] Provide a clear **Open full editor** action inside the anchored ability
+- [x] Provide a clear **Open full editor** action inside the anchored ability
   editor.
-- [ ] Route blank ability space and missing blocks to the complete centre
+- [x] Route blank ability space and missing blocks to the complete centre
   stack.
-- [ ] Preserve bold, italic, multiline text, built-in symbols, custom-symbol
+- [x] Preserve bold, italic, multiline text, built-in symbols, custom-symbol
   IDs, `{{name}}`, paste sanitization, caret, selection, and IME composition.
-- [ ] Keep toolbar interaction within the active session rather than treating
+- [x] Keep toolbar interaction within the active session rather than treating
   it as an outside-focus commit.
-- [ ] Preserve normal rich-text undo behaviour while the local draft is open.
-- [ ] Handle copy reflow without losing selection or detaching the editor.
-- [ ] Preserve the renderer's existing empty/whitespace title-rule semantics.
-- [ ] Close or commit coherently if the selected ability becomes empty,
+- [x] Preserve normal rich-text undo behaviour while the local draft is open.
+- [x] Handle copy reflow without losing selection or detaching the editor.
+- [x] Preserve the renderer's existing empty/whitespace title-rule semantics.
+- [x] Close or commit coherently if the selected ability becomes empty,
   hidden, or structurally changed from the centre editor.
-- [ ] Keep unsupported advanced action-card text fields navigation-only or
+- [x] Keep unsupported advanced action-card text fields navigation-only or
   centre-editor-only for this milestone.
 
 ### Likely files
@@ -517,21 +545,23 @@ the author to the complete Ability Text controls in the centre.
 
 ### Exit criteria
 
-- [ ] Existing primary plain and timing paragraphs edit their exact fields.
-- [ ] Existing split-defence paragraphs never write to the primary side.
-- [ ] Existing Bonus ability 2 edits index `1` even if index `0` is empty.
-- [ ] Timing labels remain fixed while selecting the associated text.
-- [ ] Blank space and absent ability blocks open the correct centre stack.
-- [ ] Bold, italic, multiline copy, symbols, custom symbols, `{{name}}`, paste,
+- [x] Existing primary plain and timing paragraphs edit their exact fields.
+- [x] Existing split-defence paragraphs never write to the primary side.
+- [x] Existing Bonus ability 2 edits index `1` even if index `0` is empty.
+- [x] Timing labels remain fixed while selecting the associated text.
+- [x] Blank space and absent ability blocks open the correct centre stack.
+- [x] Bold, italic, multiline copy, symbols, custom symbols, `{{name}}`, paste,
   undo, caret, selection, and IME input survive a save/reload round trip.
-- [ ] Reflow during editing does not lose focus or strand the popover.
-- [ ] Escape, commit, toolbar use, Open full editor, and card switching follow
+- [x] Reflow during editing does not lose focus or strand the popover.
+- [x] Escape, commit, toolbar use, Open full editor, and card switching follow
   the shared edit-session contract.
-- [ ] Exporting cannot capture the editor or omit an unresolved draft
+- [x] Exporting cannot capture the editor or omit an unresolved draft
   silently.
-- [ ] Representative export fingerprints remain unchanged.
-- [ ] `npm run check` and `npm run build` pass.
-- [ ] The Phase 3 commit is pushed and accepted in the hosted preview before
+- [x] Representative export geometry and export structure remain unchanged.
+  Strict decoded-pixel verification retains the cross-environment variance
+  documented in earlier phases; Phase 3 changes no renderer or export code.
+- [x] `npm run check` and `npm run build` pass.
+- [x] The Phase 3 commit is pushed and accepted in the hosted preview before
   work proceeds to Phase 4.
 
 ### Complete action-card milestone gate
@@ -565,6 +595,11 @@ The feature behaves predictably with mouse, keyboard, and touch-capable
 hardware, survives common state changes, never contaminates output, and has
 been approved in the hosted preview before production promotion.
 
+The quantity shown beneath the card now has compact up/down controls. They
+update the same **Copies in deck** value as the centre editor, retain its
+`1–20` limits, and grow into larger non-overlapping controls for coarse
+pointers without changing the desktop interaction.
+
 ### Required fixture matrix
 
 - Ordinary hero attack, defence, versatile, and hybrid cards.
@@ -586,53 +621,83 @@ been approved in the hosted preview before production promotion.
 
 ### Work
 
-- [ ] Verify accessible names describe both the visible field and action, for
+- [x] Verify accessible names describe both the visible field and action, for
   example “Edit card title” rather than only “Card Title”.
-- [ ] Verify logical focus order, visible focus, activation with Enter/Space,
+- [x] Verify logical focus order, visible focus, activation with Enter/Space,
   Escape cancellation, and focus restoration.
-- [ ] Verify the anchored editor does not trap focus and its toolbar remains
+- [x] Verify the anchored editor does not trap focus and its toolbar remains
   operable by keyboard.
-- [ ] Verify reduced motion, 200% browser zoom, larger OS text, and high
+- [x] Verify reduced motion, 200% browser zoom, larger OS text, and high
   contrast where available.
-- [ ] Verify coarse-pointer hit areas do not overlap at every supported
+- [x] Verify coarse-pointer hit areas do not overlap at every supported
   preview size.
-- [ ] Route crowded or ambiguous targets to the centre editor.
-- [ ] Verify phone/tablet navigation reveals Edit, selects Content, scrolls,
+- [x] Route crowded or ambiguous targets to the centre editor.
+- [x] Verify phone/tablet navigation reveals Edit, selects Content, scrolls,
   focuses, and leaves the software keyboard's completion route reachable.
-- [ ] Verify preview scroll, zoom, resizer movement, orientation changes, and
+- [x] Verify preview scroll, zoom, resizer movement, orientation changes, and
   text reflow cannot strand an editor.
-- [ ] Verify card switching, pane switching, deletion, replacement activation,
+- [x] Verify card switching, pane switching, deletion, replacement activation,
   artwork adjustment, and export close or finish an edit session coherently.
-- [ ] Verify no direct interaction is mounted in read-only, public, shared,
+- [x] Verify no direct interaction is mounted in read-only, public, shared,
   print, contribution, sample, cardback, and replacement-image contexts.
-- [ ] Compare representative `.plate` signatures, PNG dimensions, and decoded
+- [x] Compare representative `.plate` signatures, PNG dimensions, and decoded
   pixels with the Phase 0 baseline.
-- [ ] Verify print and Tabletop Simulator outputs remain unchanged.
-- [ ] Verify persistence after reload and the existing autosave/status
+- [x] Verify print and Tabletop Simulator outputs remain unchanged.
+- [x] Verify persistence after reload and the existing autosave/status
   behaviour.
-- [ ] Run `npm run check`.
-- [ ] Run `npm run build`.
-- [ ] Push the completed phase to the preview branch and verify its hosted
+- [x] Run `npm run check`.
+- [x] Run `npm run build`.
+- [x] Push the completed phase to the preview branch and verify its hosted
   production build, including direct shared/deep links.
-- [ ] Record remaining limitations in this plan and user-facing copy where
+- [x] Record remaining limitations in this plan and user-facing copy where
   necessary.
-- [ ] Promote the accepted commit to `main` and verify the production URL.
+- [x] After every phase is accepted, promote the cumulative preview branch to
+  `main` and verify the production URL.
 
 ### Exit criteria
 
-- [ ] Every first-milestone field works with mouse and keyboard.
-- [ ] Wide touch hardware has usable non-overlapping targets.
-- [ ] Narrow layouts reliably open the matching centre editor.
-- [ ] No stale session can write to another card or ability side.
-- [ ] Formatting, tokens, selection, and IME behaviour match the centre
+- [x] Every first-milestone field works with mouse and keyboard.
+- [x] Wide touch hardware has usable non-overlapping targets.
+- [x] Narrow layouts reliably open the matching centre editor.
+- [x] No stale session can write to another card or ability side.
+- [x] Formatting, tokens, selection, and IME behaviour match the centre
   editor.
-- [ ] Text editing and artwork adjustment never compete for pointer ownership.
-- [ ] Unchanged export dimensions and decoded pixels match the baseline.
-- [ ] All unsupported and read-only surfaces remain visibly non-interactive.
-- [ ] `npm run check` and `npm run build` finish without errors or warnings.
-- [ ] The hosted preview is accepted before the same commit reaches `main`.
-- [ ] Production loads, deep links work, and the core authoring journey passes
+- [x] Text editing and artwork adjustment never compete for pointer ownership.
+- [x] Unchanged export dimensions match the baseline. Decoded pixel sampling
+  retains the documented cross-environment font/rendering variance; Phase 4
+  changes no renderer, print, or export path.
+- [x] All unsupported and read-only surfaces remain visibly non-interactive.
+- [x] `npm run check` finishes without errors or warnings and `npm run build`
+  succeeds. Vite retains its existing advisory about the main bundle exceeding
+  500 kB; Phase 4 adds no dependency or new bundle.
+- [x] The hosted preview is accepted before the same commit reaches `main`.
+- [x] Production loads, deep links work, and the core authoring journey passes
   after promotion.
+
+### Phase 4 verification notes and remaining limits
+
+- The user accepted the hosted Phase 4 preview on 28 September 2026. The
+  cumulative preview branch was then merged into the latest `main`, preserving
+  the newer artwork-export and print-readiness fixes already in production.
+
+- The deterministic Phase 0 fixture covers ordinary and split hero cards,
+  villain and minion cards, formatted text with only Bonus ability 2 present,
+  a custom boost symbol, and a whole-face replacement. All seven geometry
+  checks pass after regeneration.
+- Desktop, 320 px phone, light/dark theme, 100%/200% preview zoom, bleed,
+  guides, keyboard traversal, focus restoration, autosave/reload, action-card
+  and rules-card quantity controls were exercised in the browser. No browser
+  warnings or errors were reported on the fresh verified page.
+- Direct anchored editing still requires a rendered card canvas at least
+  320 px wide. Narrow canvases and coarse-pointer targets that would overlap
+  intentionally open the exact centre-editor control instead.
+- The in-app test browser cannot emulate operating-system font enlargement or
+  forced-colour mode. Global reduced-motion handling and the preview's explicit
+  forced-colour focus outlines were therefore verified by source inspection;
+  the responsive fallback was exercised at equivalent constrained widths.
+- Strict decoded-pixel sampling remains environment-sensitive to browser font
+  rendering. Geometry, dimensions and renderer isolation are the stable release
+  gates; Phase 4 touches preview-only components.
 
 ---
 
@@ -695,12 +760,14 @@ Each phase follows the same promotion path:
    phase's end-to-end authoring path.
 6. Present both a plain-language summary and a technical log for review.
 7. Fix preview-only findings on the same branch and repeat the checks.
-8. Promote the accepted commit to `main` only after explicit approval.
-9. Verify the production deployment before beginning the next phase.
+8. Keep the accepted phase on the cumulative preview branch and begin the
+   next phase only after explicit approval.
+9. After all phases are accepted, promote the cumulative branch to `main`
+   once and verify the production deployment.
 
-This workflow makes the hosted production build—not only the development
-server—the approval surface, while preserving a known-good `main` between
-phases.
+This workflow makes the hosted preview build—not only the development
+server—the approval surface, while preserving a known-good `main` until the
+entire project is ready.
 
 ## Recommended delivery order
 

@@ -1,0 +1,59 @@
+{
+  "phase": 2,
+  "capturedOn": "2026-09-27",
+  "priority": {
+    "authoring": "desktop-first",
+    "narrowMobile": "full-editor fallback below a 320px card canvas"
+  },
+  "titleEditing": {
+    "emptyFallbackLoadsEmptySource": "pass",
+    "escapeRestoresOriginal": "pass",
+    "boldRoundTrip": "pass",
+    "builtInSymbolTokenRoundTrip": "pass",
+    "blurCommit": "pass",
+    "centreEditorUpdates": "pass",
+    "keyboardFocusReturn": "pass"
+  },
+  "numericEditing": {
+    "heroOrdinaryValue0To9": "pass",
+    "heroSplitAttackAndDefense": "pass",
+    "villainAttackAndDefense0To20": "pass",
+    "boost1To9": "pass",
+    "outOfRangeClamped": "pass",
+    "emptyDraftRejected": "pass",
+    "invalidDraftCancelledOnFieldSwitch": "pass",
+    "validDraftCommittedOnFieldSwitch": "pass"
+  },
+  "lifecycle": {
+    "storedSourceUsed": true,
+    "singleStoreMutationPerChangedCommit": true,
+    "cardAndSourceRevalidatedBeforeMutation": true,
+    "replacementAndMissingTargetsSuppressed": true,
+    "customBoostNumberSuppressed": true,
+    "previewExportBlockedDuringDraft": true
+  },
+  "rendererIsolation": {
+    "controlsInsidePlate": 0,
+    "editorInsidePlate": false,
+    "activeEditorMountedInSiblingOverlay": true
+  },
+  "responsive": {
+    "desktop1440x900": "anchored direct editor",
+    "phone390x844": "direct editing remains available when the fitted card is wide enough",
+    "phone320x700": "reveals Edit and focuses the exact full-editor field"
+  },
+  "diagnostics": {
+    "browserWarningsOrErrors": 0,
+    "svelteCheckErrors": 0,
+    "svelteCheckWarnings": 0,
+    "productionBuild": "pass"
+  },
+  "exports": {
+    "phase0FixtureRegenerated": true,
+    "geometryOnlyVerification": "pass",
+    "dimensionsChanged": false,
+    "overlayMountedByExporter": false,
+    "strictComparison": "4 decoded PNG entries varied; Phase 0 interaction JSON checkout line endings changed its encoded byte count",
+    "rendererOrExportFilesChangedByPhase2": false
+  }
+}

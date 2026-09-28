@@ -18,11 +18,13 @@
   import { BLEED_MM, CARD_FORMATS, trimBox } from '$lib/renderer/geometry';
   import { artworkAdjustmentView } from '$lib/state/artwork-adjustment-view.svelte';
   import { cardArtworkLayerView } from '$lib/state/card-artwork-layer-view.svelte';
+  import { cardEditorView } from '$lib/state/card-editor-view.svelte';
   import { characterEditorView } from '$lib/state/character-editor-view.svelte';
   import { findDeck, initiativeSubjectForCard } from '$lib/sets/queries';
   import { workshop } from '$lib/state/workshop.svelte';
   import { Button, EmptyState, Icon } from '$lib/ui';
   import ArtworkTransformOverlay from './ArtworkTransformOverlay.svelte';
+  import PreviewFieldOverlay from './PreviewFieldOverlay.svelte';
 
   let showBleed = $state(false);
   let showGuides = $state(false);
@@ -217,6 +219,19 @@
   let exporting = $state<string | null>(null);
   let exportError = $state<string | null>(null);
 
+  const MIN_CARD_QUANTITY = 1;
+  const MAX_CARD_QUANTITY = 20;
+
+  function changeCardQuantity(delta: -1 | 1): void {
+    if (!card) return;
+    const next = Math.min(
+      MAX_CARD_QUANTITY,
+      Math.max(MIN_CARD_QUANTITY, Math.trunc(card.quantity) + delta)
+    );
+    if (next === card.quantity) return;
+    workshop.editCard(card.id, (candidate) => (candidate.quantity = next));
+  }
+
   /**
    * A regular card exports through `renderCardImage`, which already knows how
    * to derive its own format and filename. The character card is not a
@@ -225,6 +240,7 @@
    * format and filename worked out here instead.
    */
   async function exportPng(bleed: boolean): Promise<void> {
+    if (cardEditorView.previewEditAddress) return;
     const plate = stage?.querySelector<HTMLElement>('.plate');
     if (!plate) return;
 
@@ -261,14 +277,20 @@
 
 {#snippet exportButtons()}
   <div class="exports">
-    <Button size="sm" disabled={exporting !== null} onclick={() => exportPng(false)}>
+    <Button
+      size="sm"
+      disabled={exporting !== null || cardEditorView.previewEditAddress !== null}
+      title={cardEditorView.previewEditAddress ? 'Commit or cancel the preview edit first' : undefined}
+      onclick={() => exportPng(false)}
+    >
       <Icon name="download" size={13} />
       {exporting === 'trim' ? 'Rendering…' : 'Export PNG'}
     </Button>
     <Button
       size="sm"
       variant="secondary"
-      disabled={exporting !== null}
+      disabled={exporting !== null || cardEditorView.previewEditAddress !== null}
+      title={cardEditorView.previewEditAddress ? 'Commit or cancel the preview edit first' : undefined}
       onclick={() => exportPng(true)}
     >
       <Icon name="download" size={13} />
@@ -369,6 +391,18 @@
             options={{ showBleed: bleeding, showGuides: showGuides && bleeding }}
             customSymbols={workshop.adventure.customSymbols}
           />
+          {#if card?.type === 'action'}
+            <PreviewFieldOverlay
+              cardId={card.id}
+              {zoom}
+              showBleed={bleeding}
+              {showGuides}
+              disabled={Boolean(
+                selectedMainArtwork ||
+                  (selectedArtworkTarget && artworkAdjustmentView.active(selectedArtworkTarget))
+              )}
+            />
+          {/if}
           {#if card?.type === 'action' && selectedMainArtwork && selectedMainArtworkTarget}
             <ArtworkTransformOverlay
               target={selectedMainArtworkTarget}
@@ -458,7 +492,27 @@
         <span class="fact type" style:--type-color="var({meta.colorVar})">{meta.label}</span>
         <span class="fact">{deck ? deckLabel(deck) : 'No deck'}</span>
         {#if owner}<span class="fact">{characterLabel(owner)}</span>{/if}
-        <span class="fact numeric">×{card.quantity}</span>
+        <div class="quantity-control" role="group" aria-label="Copies in deck">
+          <span class="fact numeric quantity-value" aria-live="polite">×{card.quantity}</span>
+          <span class="quantity-stepper">
+            <button
+              type="button"
+              class="quantity-step"
+              aria-label="Increase copies in deck"
+              title="Increase copies in deck"
+              disabled={card.quantity >= MAX_CARD_QUANTITY}
+              onclick={() => changeCardQuantity(1)}
+            ><span aria-hidden="true">▲</span></button>
+            <button
+              type="button"
+              class="quantity-step"
+              aria-label="Decrease copies in deck"
+              title="Decrease copies in deck"
+              disabled={card.quantity <= MIN_CARD_QUANTITY}
+              onclick={() => changeCardQuantity(-1)}
+            ><span aria-hidden="true">▼</span></button>
+          </span>
+        </div>
       </div>
 
       {#if dimensions}
@@ -685,6 +739,59 @@
     color: var(--text-muted);
   }
 
+  .quantity-control,
+  .quantity-stepper {
+    display: inline-flex;
+    align-items: center;
+  }
+
+  .quantity-control {
+    gap: var(--space-1);
+  }
+
+  .quantity-value {
+    min-width: 2.25ch;
+    text-align: right;
+  }
+
+  .quantity-stepper {
+    flex-direction: column;
+    overflow: hidden;
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-xs);
+    background: var(--surface-raised);
+  }
+
+  .quantity-step {
+    display: grid;
+    place-items: center;
+    width: 22px;
+    height: 15px;
+    color: var(--text-muted);
+    font-size: 7px;
+    line-height: 1;
+  }
+
+  .quantity-step + .quantity-step {
+    border-top: 1px solid var(--border-subtle);
+  }
+
+  .quantity-step:hover,
+  .quantity-step:focus-visible {
+    background: var(--surface-hover);
+    color: var(--text-primary);
+    outline: none;
+  }
+
+  .quantity-step:focus-visible {
+    box-shadow: inset 0 0 0 1px var(--accent);
+  }
+
+  .quantity-step:disabled {
+    opacity: 0.35;
+    cursor: default;
+  }
+
   .size {
     display: flex;
     align-items: center;
@@ -719,6 +826,21 @@
     height: 6px;
     border-radius: var(--radius-full);
     background: var(--type-color);
+  }
+
+  @media (hover: none), (any-pointer: coarse) {
+    .quantity-step {
+      width: var(--touch-target);
+      height: calc(var(--touch-target) / 2);
+      font-size: 9px;
+    }
+  }
+
+  @media (forced-colors: active) {
+    .quantity-step:focus-visible {
+      outline: 2px solid currentColor;
+      outline-offset: -2px;
+    }
   }
 
   .zoom {

@@ -56,6 +56,27 @@ export function actionTextIsEmpty(html: string): boolean {
   return richTextIsEmpty(sanitizeActionText(html));
 }
 
+function hasIntentionalWhitespace(html: string): boolean {
+  const template = document.createElement('template');
+  template.innerHTML = html;
+  const text = template.content.textContent ?? '';
+  return text.length > 0 && text.trim().length === 0;
+}
+
+/**
+ * The storage-ready value shared by the centre and preview action-text editors.
+ * Keeping this at the text boundary prevents the two surfaces from disagreeing
+ * about pasted blocks, empty markup, or an intentionally blank ability line.
+ */
+export function cleanActionText(
+  html: string,
+  options: { singleLine?: boolean; preserveWhitespace?: boolean } = {}
+): string {
+  if (options.preserveWhitespace && hasIntentionalWhitespace(html)) return ' ';
+  const clean = sanitizeActionText(html, options.singleLine);
+  return actionTextIsEmpty(clean) ? '' : clean;
+}
+
 /**
  * Resolve legacy `{{token}}` text inside each formatted run. Walking text
  * nodes, instead of tokenising the complete HTML string, keeps a bold or

@@ -10,6 +10,7 @@
   import { onMount, tick, type Snippet } from 'svelte';
   import { startPointerSession, type PointerSession } from '$lib/interaction/pointer-session';
   import { artworkAdjustmentView } from '$lib/state/artwork-adjustment-view.svelte';
+  import { cardEditorView } from '$lib/state/card-editor-view.svelte';
   import { workshop } from '$lib/state/workshop.svelte';
 
   interface Props {
@@ -158,6 +159,7 @@
    * signal and no pane state leaks into the document or browser history.
    */
   let observedSelection = workshop.selection;
+  let observedTargetRevision = 0;
   $effect(() => {
     const selection = workshop.selection;
     if (selection === observedSelection) return;
@@ -170,6 +172,16 @@
     if (layoutMode !== 'desktop' && shouldFocusEditor) {
       void tick().then(() => workspacePane?.focus({ preventScroll: true }));
     }
+  });
+
+  /* A preview fallback must reveal Edit before `CardEditor` focuses its target. */
+  $effect(() => {
+    const request = cardEditorView.request;
+    if (!request || request.revision === observedTargetRevision) return;
+    if (request.address.cardId !== workshop.selectedCard?.id) return;
+    observedTargetRevision = request.revision;
+    artworkAdjustmentView.end();
+    activePane = 'edit';
   });
 
   onMount(() => {

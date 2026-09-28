@@ -25,6 +25,8 @@
     onchange: (value: string) => void;
     /** Author-uploaded glyphs, offered alongside the built-in symbols. */
     customSymbols?: CustomSymbol[];
+    /** Stable destination for preview-to-editor navigation. */
+    editorTarget?: string;
   }
 
   let {
@@ -35,7 +37,8 @@
     onremove,
     formatted = false,
     onchange,
-    customSymbols = []
+    customSymbols = [],
+    editorTarget
   }: Props = $props();
 
   let field = $state<HTMLTextAreaElement | null>(null);
@@ -160,6 +163,7 @@
     preserveWhitespace
     {onchange}
     {customSymbols}
+    {editorTarget}
   />
 {:else}
 <div class="block">
@@ -184,6 +188,7 @@
     {rows}
     {placeholder}
     aria-label={label}
+    data-card-editor-target={editorTarget}
     onfocus={rememberSelection}
     onblur={rememberSelection}
     onselect={rememberSelection}
