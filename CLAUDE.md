@@ -185,7 +185,10 @@ Three files, split by what they know:
   no DOM.
 - `tts-sheets.ts` — a pile drawn onto one sheet. TTS reads a deck as a single
   image plus a grid, at most 10 × 7 and never over 4096px a side, so cell size
-  is *derived* from the card count rather than fixed.
+  is *derived* from the number of distinct designs rather than fixed. Copies
+  of one design share a cell and a `CardID` — TTS deals each contained object
+  as its own card whatever index it names — so a sheet no longer draws every
+  picture about twice, and the same bytes buy about twice the pixels a card.
 - `tts-bundle.ts` — renders once against an explicit `online` or `local` hosting
   target. Online returns one saved-object JSON after its dependencies are
   uploaded; local writes to `exports/` or falls back to a ZIP.

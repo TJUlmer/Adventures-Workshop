@@ -290,7 +290,10 @@ export interface TtsSheet {
   readonly uniqueBack: boolean;
   readonly columns: number;
   readonly rows: number;
+  /** Every physical card on this sheet, in deal order. */
   readonly cards: readonly TtsCardPlan[];
+  /** The cell each of `cards` is drawn in; copies of one design share a cell. */
+  readonly slots: readonly number[];
 }
 
 /**
@@ -529,8 +532,10 @@ function deckObject(images: TtsDeckImages, at: TtsTransform, sheetIdBase: number
   sheets.forEach((sheet, page) => {
     const sheetId = sheetIdBase + page;
     decks[sheetId] = customDeck(sheet);
-    sheet.cards.forEach((card, slot) => {
-      const cardId = sheetId * 100 + slot;
+    sheet.cards.forEach((card, index) => {
+      /* Copies repeat their design's cell, and so its `CardID`: TTS deals
+         each contained object as its own card whatever index it names. */
+      const cardId = sheetId * 100 + (sheet.slots[index] ?? index);
       deckIds.push(cardId);
       contained.push(cardObject(card, cardId, sheet, sheetId, at, sideways));
     });
