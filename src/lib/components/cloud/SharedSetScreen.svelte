@@ -156,6 +156,8 @@
   let actionsDialog = $state<HTMLDialogElement | null>(null);
   let cardSize = $state<number>(GALLERY_CARD_SIZE.start);
   let fullScreen = $state(false);
+  /** Every physical copy rather than each design once. Off on every visit. */
+  let showAllCopies = $state(false);
   const publishedCardPreviews = $derived(
     row && usableCardPreviewVersion(row.card_preview_version) ? row.card_previews : undefined
   );
@@ -1338,6 +1340,18 @@
 
               <button
                 type="button"
+                class="fullscreen-toggle copies-toggle"
+                class:active={showAllCopies}
+                aria-pressed={showAllCopies}
+                aria-label="Show every copy of each card"
+                title={showAllCopies ? 'Show each card once' : 'Show every copy of each card'}
+                onclick={() => (showAllCopies = !showAllCopies)}
+              >
+                All copies
+              </button>
+
+              <button
+                type="button"
                 class="fullscreen-toggle"
                 class:active={fullScreen}
                 aria-pressed={fullScreen}
@@ -1394,6 +1408,7 @@
             {cardSize}
             showZoom={false}
             anchorPrefix={EXPLORE_ANCHOR_PREFIX}
+            {showAllCopies}
           />
         </div>
 
@@ -1853,7 +1868,7 @@
 
   .explore-controls {
     display: grid;
-    grid-template-columns: minmax(170px, auto) minmax(200px, 1fr) auto auto;
+    grid-template-columns: minmax(170px, auto) minmax(200px, 1fr) auto auto auto;
     align-items: center;
     gap: var(--space-4);
     min-width: 0;
@@ -2185,9 +2200,11 @@
     }
 
     .explore-controls {
+      /* The copies toggle shares the picker's row: on the first row it
+         squeezed the section heading down to a clipped "Explor". */
       grid-template-areas:
         'copy zoom fullscreen'
-        'filter filter filter';
+        'filter filter copies';
       grid-template-columns: minmax(0, 1fr) auto auto;
       gap: var(--space-2) var(--space-3);
     }
@@ -2212,6 +2229,10 @@
 
     .fullscreen-toggle {
       grid-area: fullscreen;
+    }
+
+    .copies-toggle {
+      grid-area: copies;
     }
   }
 
@@ -2349,9 +2370,9 @@
 
     .explore-controls {
       grid-template-areas:
-        'copy fullscreen actions'
-        'filter zoom zoom';
-      grid-template-columns: minmax(0, 1fr) auto auto;
+        'copy copies fullscreen actions'
+        'filter filter zoom zoom';
+      grid-template-columns: minmax(0, 1fr) auto auto auto;
       gap: var(--space-2) var(--space-3);
     }
 
@@ -2425,6 +2446,10 @@
     .fullscreen-toggle {
       grid-area: fullscreen;
       min-height: 44px;
+    }
+
+    .copies-toggle {
+      grid-area: copies;
     }
 
     .mobile-actions {

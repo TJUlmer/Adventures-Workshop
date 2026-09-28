@@ -76,6 +76,12 @@
      * but omits cards and boards from that focused view.
      */
     figuresOnly?: boolean;
+    /**
+     * Lay out every physical copy — a card with ×3 as three tiles — rather
+     * than each design once with its quantity. Cards only; figures keep their
+     * count, since a component is not dealt from a deck.
+     */
+    showAllCopies?: boolean;
   }
 
   let {
@@ -90,7 +96,8 @@
     showZoom = true,
     onCardSizeChange,
     anchorPrefix,
-    figuresOnly = false
+    figuresOnly = false,
+    showAllCopies = false
   }: Props = $props();
 
   const set = $derived(given ?? workshop.adventure);
@@ -266,8 +273,16 @@
   const FRONT_ONLY = ['front'] as const;
   const EVENT_SIDES = ['front', 'back'] as const;
 
+  /** How many tiles each design is drawn as: its physical copies, or once. */
+  function copiesShown(card: Card): number {
+    return showAllCopies ? Math.max(1, card.quantity) : 1;
+  }
+
   function renderedCardCount(cards: readonly Card[]): number {
-    return cards.reduce((total, card) => total + (card.type === 'event' ? 2 : 1), 0);
+    return cards.reduce(
+      (total, card) => total + (card.type === 'event' ? 2 : 1) * copiesShown(card),
+      0
+    );
   }
 
   /** Figures in the order a set is read: who it is played as, then against. */
@@ -707,7 +722,11 @@
   <div class="deck-group">
     <h3 class="deck-title">
       {group.title}
-      <span class="group-count numeric">{group.cards.length}</span>
+      <span class="group-count numeric">
+        {showAllCopies
+          ? group.cards.reduce((total, card) => total + copiesShown(card), 0)
+          : group.cards.length}
+      </span>
     </h3>
     <div
       class="gallery"
@@ -718,6 +737,8 @@
       {#if isVisible}
         {#each group.cards as card (card.id)}
           {@const sides = card.type === 'event' ? EVENT_SIDES : FRONT_ONLY}
+          {@const copies = copiesShown(card)}
+          {#each Array.from({ length: copies }, (_, index) => index) as copy (copy)}
           {#each sides as side (side)}
             {@const previewSrc = publishedPreview(printedCardPreviewKey(card.id, side))}
             <figure class="tile">
@@ -728,7 +749,7 @@
                 role={previewControl ? 'button' : undefined}
                 aria-haspopup={inspectable && !interactive ? 'dialog' : undefined}
                 aria-label={previewControl
-                  ? `${interactive ? 'Edit' : 'View'} ${cardLabel(card)}${side === 'back' ? ', reverse' : ''}`
+                  ? `${interactive ? 'Edit' : 'View'} ${cardLabel(card)}${side === 'back' ? ', reverse' : ''}${copies > 1 ? `, copy ${copy + 1} of ${copies}` : ''}`
                   : undefined}
                 onclick={interactive
                   ? () => workshop.selectCard(card.id)
@@ -775,10 +796,12 @@
                 <span class="tile-name">{cardLabel(card)}</span>
                 <span class="tile-meta">
                   {side === 'back' ? 'Reverse' : CARD_TYPE_META[card.type].label}
-                  {#if card.quantity > 1}<span class="numeric">×{card.quantity}</span>{/if}
+                  <!-- Each tile is already one physical card when every copy is laid out. -->
+                  {#if !showAllCopies && card.quantity > 1}<span class="numeric">×{card.quantity}</span>{/if}
                 </span>
               </figcaption>
             </figure>
+          {/each}
           {/each}
         {/each}
       {:else}
