@@ -1,9 +1,11 @@
 # Unmatched Labs Direct Preview Editing Project
 
-**Status:** Complete; hosted preview accepted and promoted to `main`
+**Status:** Core milestone complete in production; Phase 5 special-effect
+editing planned
 **Last updated:** 28 September 2026
-**Scope:** Desktop-first editing of selected action-card fields from the live
-right-hand preview, with a safe centre-editor fallback on narrow layouts
+**Scope:** Desktop-first editing of selected action-card fields, including
+active special-effect text, from the live right-hand preview, with a safe
+centre-editor fallback on narrow layouts
 
 ## Purpose
 
@@ -15,6 +17,10 @@ value, boost value, or an existing ability paragraph should open an editor at
 that part of the card. Selecting an empty or structurally complex ability area
 should reveal and focus the corresponding Ability Text control in the centre
 workspace.
+
+The completed first milestone is already in production. Phase 5 extends the
+same interaction to visible Boost Effect, Bonus Attack, and Tuck Effect fields
+without changing how authors enable or configure those optional structures.
 
 This must not turn the rendered card into a form. The renderer is also the
 export, and it converts stored rich text, name tokens, and symbol tokens into
@@ -33,6 +39,13 @@ When this project is complete:
   value and edit it at the card.
 - An author can select an existing plain, timed, split-card, or Bonus ability
   paragraph and edit that exact stored field.
+- When a Boost Effect is active and has visible text, an author can edit that
+  text directly at the card.
+- When a Bonus Attack is active, an author can directly edit its visible
+  stored title, value, and non-empty ability text without accidentally saving
+  the derived **Bonus Attack** title fallback.
+- When a Tuck Effect is active and has visible text, an author can edit it in
+  either bottom or right orientation.
 - An author can adjust **Copies in deck** with accessible up/down controls
   beside the quantity beneath the preview.
 - Selecting an ability heading, empty ability region, unsupported value, or
@@ -48,9 +61,9 @@ When this project is complete:
   presenting overlapping or unusably small controls.
 - Card PNGs, print output, Tabletop Simulator output, and all read-only card
   renderings remain unchanged.
-- Every phase is committed separately and checked in the cumulative hosted
-  preview branch. Nothing is promoted to `main` until all phases have been
-  reviewed and explicitly approved together.
+- Every release phase is committed separately and checked in its hosted
+  preview branch. Phase 5 is not promoted to `main` until its hosted result
+  has been reviewed and explicitly approved.
 
 ## Non-goals
 
@@ -67,9 +80,13 @@ When this project is complete:
   title.
 - Adding or removing optional ability blocks from the card surface. Structural
   changes remain in the centre editor.
-- Direct editing of boost effect, tuck effect, corner badge, or Bonus Attack
-  fields in the first milestone. Phase 4 adds a separate, immediate quantity
-  stepper beneath the preview rather than treating quantity as rendered text.
+- The first production milestone intentionally excluded Boost Effect, Bonus
+  Attack, Tuck Effect, and corner-badge fields. Phase 5 adds the visible Boost
+  Effect, Bonus Attack, and Tuck Effect fields; the corner badge remains a
+  centre-editor task.
+- Enabling or disabling optional effects, changing Tuck Effect orientation,
+  or changing special-effect colours from the card surface. Those structural
+  and design choices remain in the centre editor.
 - Direct editing of initiative, event, rules, character, cardback, sample, or
   public/shared card renderings in the first milestone.
 - A mobile-specific redesign. Narrow layouts receive a safe navigation
@@ -202,14 +219,20 @@ requests are ephemeral view state.
 | Primary timing paragraph | `card.ability.immediately`, `.duringCombat`, or `.afterCombat` | Direct formatted editing when text exists | The fixed timing label targets the paragraph but is not editable |
 | Split defence plain/timing paragraph | `card.defenseAbility.*` | Direct formatted editing when text exists | It must never write to the primary side |
 | Bonus ability paragraph | `card.ability.bonusAbilities[index].text` or the split-side equivalent | Direct formatted editing when text exists | Preserve the original array index before filtering empty entries |
+| Boost Effect text | `card.boostEffect` | Phase 5 direct plain single-line editing when text exists | Only when `showBoostEffect` is on and a boost assembly is visibly rendered; target the visible copy, not its invisible title-clearance duplicate |
+| Bonus Attack title | `card.bonusAttackTitle` | Phase 5 direct formatted single-line editing when stored text exists | The derived **Bonus Attack** fallback opens the centre control and is never persisted as source text |
+| Bonus Attack value | `card.bonusAttackValue` | Phase 5 direct numeric editing | Only when `showBonusAttack` is on; use the centre control's `0–9` bounds |
+| Bonus Attack ability | `card.bonusAttackAbility` | Phase 5 direct formatted editing when text exists | Blank or absent text opens the centre control so optional structure stays explicit |
+| Tuck Effect text | `card.tuckEffect` | Phase 5 direct formatted single-line editing when text exists | Only when `showTuckEffect` is on; support both bottom and right orientations |
 | Empty or absent value | Relevant centre control | Centre-editor navigation | Optional structure is added or removed in the centre editor |
 | Ribbon/owner name | Derived owner/card-name source | Centre-editor navigation only | Do not overwrite a resolved display name |
 | Whole-face replacement | Image data | No direct targets | Explain that the composed text is part of the replacement image |
 | Read-only/sample/cardback surface | Not applicable | No interaction | Authoring overlay is not mounted |
 
-Bonus Attack, boost effect, tuck effect, corner badge, and other directly
-authored display fields may join a later extension after the first milestone
-proves the target and rich-text systems.
+Phase 5 implements the Boost Effect, Bonus Attack, and Tuck Effect rows above
+using the first milestone's proven target and editor systems. The corner badge
+and other directly authored display fields remain candidates for a later
+extension.
 
 ---
 
@@ -248,9 +271,8 @@ proves the target and rich-text systems.
   existing behaviour.
 - `npm run check` and `npm run build` pass before a phase is considered ready
   for hosted-preview review.
-- Each phase is committed and pushed to the cumulative preview branch and
-  accepted there before the next phase begins. Only the complete, reviewed
-  multi-phase result is promoted to `main`.
+- Each release phase is committed and pushed to its preview branch and
+  accepted there before its reviewed commit is promoted to `main`.
 
 ---
 
@@ -263,13 +285,15 @@ proves the target and rich-text systems.
 | 2 | Direct title and numeric editing | Medium | Direct-edit MVP |
 | 3 | Direct existing-ability editing | Medium–large | Complete action-card milestone |
 | 4 | Accessibility, responsive, export, and staged-release hardening | Medium | Release |
+| 5 | Active special-effect text and Bonus Attack value | Medium | Action-card extension |
 
 The navigation-only foundation is approximately 1–2 focused development days.
 A polished first action-card milestone is approximately 5–8 focused
 development days if the phases proceed cleanly. Allow a 1–2 week planning
 envelope for one implementer when hosted-preview feedback and edge-case fixes
-are included. Extending the interaction to every card template is a separate
-project estimate.
+are included. Phase 5 is a focused follow-on to that completed milestone;
+extending the interaction to every card template is a separate project
+estimate.
 
 ---
 
@@ -701,6 +725,122 @@ pointers without changing the desktop interaction.
 
 ---
 
+## Phase 5 — Active special-effect direct editing
+
+**Goal:** Extend the production interaction to Boost Effect, Bonus Attack, and
+Tuck Effect fields when those effects are active and their source is visibly
+represented on the card.
+
+### What the author gets
+
+An author can make quick corrections directly where active special-effect
+content appears. Non-empty Boost Effect and Tuck Effect text can be selected
+at the card. An active Bonus Attack exposes its stored title, numeric value,
+and non-empty ability text. Empty or derived content opens the exact centre
+control so the preview never invents or silently saves source text.
+
+Desktop pointer and keyboard behaviour remains the primary interaction. A
+small, crowded, or coarse-pointer target uses the existing centre-editor
+fallback instead of weakening the desktop experience.
+
+### Required fixture matrix
+
+- Boost Effect on and off, with numeric boost, custom-symbol boost, and no
+  visible boost assembly.
+- Non-empty and blank Boost Effect text, verifying that only the visible copy
+  is targeted when the renderer also emits an invisible title-clearance copy.
+- Bonus Attack on and off for hero, villain, and minion cards.
+- Non-empty formatted Bonus Attack title and the empty-source derived
+  **Bonus Attack** fallback.
+- Bonus Attack value at `0` and `9`, plus invalid drafts outside that range.
+- Non-empty formatted Bonus Attack ability and a blank ability.
+- Tuck Effect on and off, bottom and right orientations, with non-empty
+  formatted text and blank text.
+- `{{name}}`, built-in symbols, custom symbols, paste sanitization, selection,
+  undo, and IME composition in formatted special-effect fields.
+- Boost Effect, Bonus Attack, and Tuck Effect active together, including long
+  text that changes card layout.
+- Fitted preview, minimum preview width, 100% and 200% zoom, bleed and guides,
+  desktop/tablet/phone layouts, mouse, keyboard, and coarse pointer.
+- Artwork adjustment, whole-face replacement, sample, cardback, public,
+  shared, print, and export surfaces.
+
+### Work
+
+- [ ] Refine the typed advanced target address so Boost Effect, Bonus Attack
+  title/value/ability, and Tuck Effect identify exact stored fields rather
+  than a coarse section.
+- [ ] Add stable centre-editor targets for each Phase 5 field and route blank,
+  derived, hidden, narrow, crowded, or unsupported cases to those controls.
+- [ ] Add an inert marker only to the visible Boost Effect text; do not mark
+  the invisible copy used to reserve title clearance.
+- [ ] Add direct plain single-line editing for a non-empty visible
+  `card.boostEffect`, matching its existing centre `TextInput` semantics.
+- [ ] Add direct formatted single-line editing for a non-empty stored
+  `card.bonusAttackTitle`. Treat the displayed **Bonus Attack** fallback as
+  navigation-only so it can never become persisted copy by accident.
+- [ ] Add direct numeric editing for visible `card.bonusAttackValue`, reusing
+  the existing `0–9` validation and session lifecycle.
+- [ ] Add direct formatted editing for non-empty
+  `card.bonusAttackAbility`; route a blank ability to the centre editor.
+- [ ] Add direct formatted single-line editing for non-empty
+  `card.tuckEffect` in both bottom and right orientations.
+- [ ] Mount no target when the corresponding effect is off or the source is
+  not visibly rendered.
+- [ ] Keep effect toggles, Tuck Effect orientation, special-effect colours,
+  and corner-badge editing in the centre editor.
+- [ ] Reuse the established local-draft, commit/cancel, focus restoration,
+  stale-card validation, artwork mutual exclusion, and export-blocking rules.
+- [ ] Verify marker and anchored-editor geometry through text reflow, zoom,
+  scroll, pane resize, bleed, guides, and both Tuck Effect orientations.
+- [ ] Verify that no editor control enters `.plate` and that unchanged
+  renderer/export geometry remains stable.
+- [ ] Run `npm run check`, `npm run build`, `git diff --check`, focused browser
+  verification, and the Phase 0 geometry evidence check.
+- [ ] Commit Phase 5 separately on its new preview branch, push it, and verify
+  the exact hosted deployment and a direct shared link.
+- [ ] Present a layman summary and technical recap for review. Promote to
+  `main` only after explicit hosted-preview acceptance.
+
+### Likely files
+
+- `src/lib/cards/edit-targets.ts`
+- `src/lib/renderer/ActionCardFace.svelte`
+- `src/lib/components/preview/PreviewPanel.svelte`
+- `src/lib/components/preview/PreviewFieldOverlay.svelte`
+- `src/lib/components/preview/PreviewFieldEditor.svelte`
+- `src/lib/components/workspace/ActionCardContent.svelte`
+- `src/lib/components/workspace/FormattedTextField.svelte`
+- Existing direct-preview evidence fixtures and manifests
+
+No persisted field, schema version, normalizer, storage, cloud, publication,
+or collaboration change is expected: all Phase 5 source fields already exist.
+
+### Exit criteria
+
+- [ ] Every visible supported Phase 5 field opens the exact source field and
+  commits once through `workshop.editCard()`.
+- [ ] Inactive, blank, derived, hidden, narrow, crowded, and unsupported cases
+  navigate safely to the centre editor or remain inert as specified.
+- [ ] The derived **Bonus Attack** fallback is never persisted, and the
+  invisible Boost Effect clearance copy never creates a duplicate target.
+- [ ] Bottom and right Tuck Effect orientations retain aligned, non-overlapping
+  targets through supported preview geometry.
+- [ ] Plain Boost Effect and formatted Bonus Attack/Tuck Effect semantics match
+  their existing centre controls, including token and IME behaviour where
+  applicable.
+- [ ] Effects cannot be enabled, disabled, recoloured, or reoriented from the
+  card surface, and the corner badge remains centre-only.
+- [ ] No direct interaction appears in replacement, sample, cardback, public,
+  shared, print, export, or other read-only contexts.
+- [ ] No editor control enters `.plate`; export dimensions and geometry checks
+  remain stable.
+- [ ] `npm run check`, `npm run build`, and focused browser verification pass.
+- [ ] The hosted Phase 5 preview is accepted before the reviewed commit is
+  promoted to `main`.
+
+---
+
 ## Principal risks
 
 | Risk | Failure | Mitigation |
@@ -719,6 +859,10 @@ pointers without changing the desktop interaction.
 | Small previews create overlapping hotspots | The wrong field opens | Enforce a minimum usable screen-space region and fall back to centre navigation |
 | Derived labels appear editable | Timing or ribbon text writes to an unrelated field | Mark derived display as navigation-only and name targets by source field |
 | Placeholder copy is persisted | `Card Title` becomes real user data | Initialize from the empty source rather than renderer fallback text |
+| Bonus Attack fallback is persisted | The derived **Bonus Attack** label becomes authored text | Treat the fallback as navigation-only and initialize from the empty stored source |
+| Boost Effect exposes duplicate targets | Its visible text and invisible title-clearance copy both become interactive | Mark only the visible renderer node and include a fixture that asserts one target |
+| Inactive effect data becomes editable | Hidden stored Boost, Bonus Attack, or Tuck text is exposed from the preview | Emit a marker only when the effect is active and the exact source is visibly represented |
+| Right-oriented Tuck Effect geometry drifts | Its narrow vertical target overlaps or detaches after reflow | Measure the rendered marker in both orientations and apply the existing crowded-target fallback |
 | Export occurs with an unresolved draft | Export omits the visible edit or captures transient UI | Finish or block deterministically according to the Phase 0 contract |
 | Public renderer metadata is mistaken for authority | A shared card appears editable | Mount interaction only in the editable authoring `PreviewPanel`; metadata remains inert |
 
@@ -748,10 +892,13 @@ pointers without changing the desktop interaction.
 
 ## Preview-first delivery workflow
 
-Each phase follows the same promotion path:
+The completed Phases 0–4 were reviewed together and promoted to production on
+28 September 2026. Phase 5 is a separate follow-on release and follows the
+same preview-first promotion path:
 
 1. Begin from the current accepted `main` commit on a dedicated preview
-   branch, initially `codex/direct-preview-editing-preview`.
+   branch, recommended `codex/direct-preview-special-effects-preview`. Do not
+   reuse the historical Phases 0–4 branch.
 2. Implement only the current phase and update its checkboxes and evidence.
 3. Run `npm run check`, `npm run build`, export comparisons where applicable,
    and focused browser verification.
@@ -760,10 +907,8 @@ Each phase follows the same promotion path:
    phase's end-to-end authoring path.
 6. Present both a plain-language summary and a technical log for review.
 7. Fix preview-only findings on the same branch and repeat the checks.
-8. Keep the accepted phase on the cumulative preview branch and begin the
-   next phase only after explicit approval.
-9. After all phases are accepted, promote the cumulative branch to `main`
-   once and verify the production deployment.
+8. Promote the accepted Phase 5 preview commit to `main` only after explicit
+   approval, then verify the production deployment.
 
 This workflow makes the hosted preview build—not only the development
 server—the approval surface, while preserving a known-good `main` until the
@@ -776,6 +921,8 @@ entire project is ready.
 3. Phase 2 direct title and numeric editing.
 4. Phase 3 existing ability paragraph editing.
 5. Phase 4 hardening, hosted-preview acceptance, and production promotion.
+6. Phase 5 active Boost Effect, Bonus Attack, and Tuck Effect editing, followed
+   by a new hosted-preview review and explicit production approval.
 
 Do not begin by making renderer text `contenteditable`. It appears smaller in
 scope, but it would introduce the project's highest risks immediately: lossy
