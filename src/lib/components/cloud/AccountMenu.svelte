@@ -20,12 +20,18 @@
   import { draftRollout } from '$lib/persistence/rollout.svelte';
   import { fetchOwnProfile, updateOwnDisplayName } from '$lib/cloud/profile';
   import {
+    backfillPublishedTtsSave,
     listOutdatedCardPreviews,
     listOutdatedSocialPreviews,
+    listSetsMissingTtsSave,
     refreshPublishedCardPreviews,
     refreshPublishedSocialPreview
   } from '$lib/cloud/sets';
-  import type { CardPreviewRefreshTarget, SocialPreviewRefreshTarget } from '$lib/cloud/sets';
+  import type {
+    CardPreviewRefreshTarget,
+    SocialPreviewRefreshTarget,
+    TtsSaveBackfillTarget
+  } from '$lib/cloud/sets';
   import { Button, Icon, TextInput } from '$lib/ui';
   import SignInPanel from './SignInPanel.svelte';
 
@@ -66,6 +72,19 @@
   let cardPreviewFaceTotal = $state(0);
   let cardPreviewFailures = $state<string[]>([]);
   let cardPreviewError = $state<string | null>(null);
+  let ttsQueue = $state<TtsSaveBackfillTarget[]>([]);
+  let ttsQueueLoading = $state(false);
+  let ttsBackfilling = $state(false);
+  let ttsCompleted = $state(0);
+  let ttsTotal = $state(0);
+  let ttsCurrent = $state('');
+  let ttsStepDone = $state(0);
+  let ttsStepTotal = $state(0);
+  let ttsFailures = $state<string[]>([]);
+  let ttsError = $state<string | null>(null);
+
+  /** One rendering job at a time: each mounts its own off-screen card stage. */
+  const maintenanceBusy = $derived(previewRefreshing || cardPreviewRefreshing || ttsBackfilling);
 
   const dirty = $derived(displayName.trim() !== saved);
 
@@ -88,6 +107,7 @@
       isAdmin = false;
       previewQueue = [];
       cardPreviewQueue = [];
+      ttsQueue = [];
       return;
     }
 
@@ -103,6 +123,7 @@
         if (profile.isAdmin) {
           void loadPreviewQueue();
           void loadCardPreviewQueue();
+          void loadTtsQueue();
         }
       })
       .catch((cause) => {
@@ -131,7 +152,7 @@
   }
 
   async function refreshSocialPreviews(): Promise<void> {
-    if (previewRefreshing || cardPreviewRefreshing || previewQueue.length === 0) return;
+    if (maintenanceBusy || previewQueue.length === 0) return;
 
     const queue = [...previewQueue];
     previewRefreshing = true;
@@ -171,7 +192,7 @@
   }
 
   async function refreshCardPreviews(): Promise<void> {
-    if (cardPreviewRefreshing || previewRefreshing || cardPreviewQueue.length === 0) return;
+    if (maintenanceBusy || cardPreviewQueue.length === 0) return;
 
     const queue = [...cardPreviewQueue];
     cardPreviewRefreshing = true;
@@ -202,6 +223,53 @@
     cardPreviewFaceTotal = 0;
     cardPreviewRefreshing = false;
     await loadCardPreviewQueue();
+  }
+
+  async function loadTtsQueue(): Promise<void> {
+    ttsQueueLoading = true;
+    ttsError = null;
+    try {
+      ttsQueue = await listSetsMissingTtsSave();
+    } catch (cause) {
+      ttsError =
+        cause instanceof Error ? cause.message : 'Could not check the Tabletop Simulator queue.';
+    } finally {
+      ttsQueueLoading = false;
+    }
+  }
+
+  async function backfillTtsSaves(): Promise<void> {
+    if (maintenanceBusy || ttsQueue.length === 0) return;
+
+    const queue = [...ttsQueue];
+    ttsBackfilling = true;
+    ttsCompleted = 0;
+    ttsTotal = queue.length;
+    ttsFailures = [];
+    ttsError = null;
+
+    for (const target of queue) {
+      ttsCurrent = target.name;
+      ttsStepDone = 0;
+      ttsStepTotal = 0;
+      try {
+        await backfillPublishedTtsSave(target.id, (done, total) => {
+          ttsStepDone = done;
+          ttsStepTotal = total;
+        });
+      } catch (cause) {
+        const message = cause instanceof Error ? cause.message : 'Unknown error';
+        ttsFailures = [...ttsFailures, `${target.name}: ${message}`];
+      } finally {
+        ttsCompleted += 1;
+      }
+    }
+
+    ttsCurrent = '';
+    ttsStepDone = 0;
+    ttsStepTotal = 0;
+    ttsBackfilling = false;
+    await loadTtsQueue();
   }
 
   async function save(): Promise<void> {
@@ -387,7 +455,7 @@
                 <Button
                   size="sm"
                   variant="ghost"
-                  disabled={previewQueueLoading || previewQueue.length === 0 || cardPreviewRefreshing}
+                  disabled={previewQueueLoading || previewQueue.length === 0 || maintenanceBusy}
                   onclick={refreshSocialPreviews}
                 >
                   Refresh outdated previews
@@ -434,7 +502,7 @@
                 <Button
                   size="sm"
                   variant="ghost"
-                  disabled={cardPreviewQueueLoading || cardPreviewQueue.length === 0 || previewRefreshing}
+                  disabled={cardPreviewQueueLoading || cardPreviewQueue.length === 0 || maintenanceBusy}
                   onclick={refreshCardPreviews}
                 >
                   Refresh gallery card images
@@ -448,6 +516,52 @@
                 </small>
               {/if}
               {#if cardPreviewError}<p class="error" role="alert">{cardPreviewError}</p>{/if}
+            </section>
+
+            <section class="preview-maintenance">
+              <div>
+                <strong>Shared Tabletop Simulator copies</strong>
+                {#if ttsQueueLoading && !ttsBackfilling}
+                  <small>Checking published sets…</small>
+                {:else if ttsBackfilling}
+                  <small>
+                    Preparing {Math.min(ttsCompleted + 1, ttsTotal)} of {ttsTotal}: {ttsCurrent}
+                    {#if ttsStepTotal > 0}
+                      ({ttsStepDone} of {ttsStepTotal})
+                    {/if}
+                  </small>
+                {:else if ttsQueue.length > 0}
+                  <small>
+                    {ttsQueue.length} published
+                    {ttsQueue.length === 1 ? 'set has' : 'sets have'} no shared copy, so visitors’
+                    exports of {ttsQueue.length === 1 ? 'it' : 'them'} expire after 7 days.
+                  </small>
+                {:else}
+                  <small>Every published set has a shared copy for its latest revision.</small>
+                {/if}
+              </div>
+
+              {#if ttsBackfilling}
+                <progress max={ttsTotal} value={ttsCompleted}>
+                  {ttsCompleted} of {ttsTotal}
+                </progress>
+              {:else}
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  disabled={ttsQueueLoading || ttsQueue.length === 0 || maintenanceBusy}
+                  onclick={backfillTtsSaves}
+                >
+                  Prepare shared copies
+                </Button>
+              {/if}
+
+              {#if ttsFailures.length > 0}
+                <small class="preview-failures">
+                  {ttsFailures.length} failed and remain in the queue. {ttsFailures[0]}
+                </small>
+              {/if}
+              {#if ttsError}<p class="error" role="alert">{ttsError}</p>{/if}
             </section>
           {/if}
 

@@ -228,4 +228,26 @@ assert.match(temporaryTtsMigration, /then interval '7 days'/);
 assert.match(temporaryTtsMigration, /after insert on public\.tts_exports/);
 assert.match(temporaryTtsMigration, /temporaryTtsGraceSeconds/);
 
-console.log('Storage cleanup helpers, retention, schedule, and reporting: 38 assertions passed');
+const sharedTtsMigration = readFileSync(
+  new URL('../supabase/migrations/0043_shared_tts_exports.sql', import.meta.url),
+  'utf8',
+);
+/* One grace expression per path — the plan's `graced` CTE and the
+   deletion-time recheck — each putting `tts-assets` ahead of `superseded`, so a
+   replaced revision's files get seven days rather than three. */
+assert.equal(
+  sharedTtsMigration.match(/when candidate\.bucket_id = 'tts-assets' then/g)?.length,
+  2,
+);
+assert.match(
+  sharedTtsMigration,
+  /'tts-assets' then tts_grace\s+when candidate\.superseded then interval '3 days'/,
+);
+/* A visitor must never be able to register the copy every later visitor gets. */
+assert.match(sharedTtsMigration, /published\.owner_id = caller or caller_is_admin/);
+/* The first shared copy of a revision is never replaced while it is current. */
+assert.match(sharedTtsMigration, /and export\.save_path is not null\s+\) then/);
+assert.match(sharedTtsMigration, /grant execute on function public\.published_tts_save\(uuid\) to anon/);
+assert.match(sharedTtsMigration, /revoke all on function public\.published_sets_missing_tts_save\(\) from public, anon/);
+
+console.log('Storage cleanup helpers, retention, schedule, and reporting: 44 assertions passed');

@@ -14,12 +14,12 @@ turning ordinary edits, soft deletion, publication, or conflict recovery into da
   published document, thumbnails, social images, character cards, covers, and contribution
   payloads. Assets removed by a successful republish or unpublish become due after three days;
   abandoned uploads that never reached a published row keep the 30-day safety period.
-- `tts-assets`: generated files that are absent from the one retained manifest for the latest
-  published revision. Files unique to a replaced published revision become due after three days.
-  Every other export (from an editor, a gallery visitor, a scoped or pruned export, or a
-  collection) and legacy objects without a retained manifest become due seven days after the
-  latest export that named them. Re-exporting the exact current published snapshot replaces
-  its retained manifest; shared paths stay live while any retained manifest names them.
+- `tts-assets`: generated files that are absent from the one shared copy of each published
+  row's latest revision. Every other file is due seven days after the latest export that named
+  it: a replaced or unpublished revision's copy, and every temporary export (from an editor, a
+  scoped or pruned export, a collection, or a visitor exporting before a shared copy existed).
+  The shared copy is never replaced while its revision is current; shared paths stay live while
+  any current copy names them.
 
 Migration `0032_tts_export_retention.sql` adds the manifest that makes TTS cleanup provable.
 Exports made before that migration have no manifest and therefore receive a fresh 30-day grace
@@ -38,11 +38,16 @@ Migration `0042_temporary_tts_export_grace.sql` shortens that period to seven da
 SQL, because the Edge Function's request floor is the general 30. Registering any TTS manifest
 clears its paths' candidate rows so the seven days restart: an unchanged re-export reuses objects
 without rewriting them, and would otherwise leave the newest save pointing at files due tomorrow.
-The plan report carries `temporaryTtsGraceSeconds` beside `graceSeconds`.
+
+Migration `0043_shared_tts_exports.sql` makes the copy made at publish (or by the
+administrator's **Prepare shared copies** backfill) the one every visitor exporting that whole
+revision downloads, so a popular set is stored once and its saves never expire while it is the
+latest revision. It also extends the seven days to files of a replaced revision, which 0036 gave
+three. The plan report's key is now `ttsGraceSeconds` beside `graceSeconds`.
 
 Online TTS exports use content-hashed object names. Re-exporting the same set with byte-identical
 generated files reuses their existing Storage objects and writes only another small manifest row;
-the downloaded TTS JSON stays on the author's device. A changed generated file receives a new
+the saved-object JSON is hosted beside its images, and a copy is also downloaded to the exporter's device. A changed generated file receives a new
 path, and the old path is protected only while an active retained manifest still names it.
 
 ## Gallery card image conversion

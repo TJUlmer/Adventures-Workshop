@@ -18,11 +18,12 @@
     exportTabletopSimulator,
     getExporter,
     saveExport,
-    tabletopDeckSummary
+    tabletopDeckSummary,
+    ttsSaveFilename
   } from '$lib/export';
   import { auth } from '$lib/cloud/auth.svelte';
   import { cloudEnabled } from '$lib/cloud/config';
-  import { createTtsAssetHost } from '$lib/cloud/tts-assets';
+  import { createTtsAssetHost, fetchSharedTtsSave } from '$lib/cloud/tts-assets';
   import type { TtsPublishedSource } from '$lib/cloud/tts-assets';
   import {
     applyExportSelection,
@@ -203,6 +204,8 @@
     uploadedCount: number;
     reusedCount: number;
     retention: 'published-current' | 'temporary' | null;
+    /** Downloaded the revision's shared copy rather than rendering one. */
+    shared: boolean;
     warnings: string[];
   } | null>(null);
 
@@ -249,6 +252,33 @@
     try {
       const retainedPublishedSource =
         scope.kind === 'full' && !selectionActive ? publishedSource : null;
+
+      /* The whole published revision already has one copy everyone shares.
+         Handing that over, rather than rendering another, is what keeps a
+         popular set's saves working for as long as the revision is current
+         without storing it once per visitor. */
+      if (hostTtsAssets && retainedPublishedSource) {
+        ttsProgress = 'Fetching the shared copy…';
+        const shared = await fetchSharedTtsSave(retainedPublishedSource.id);
+        if (shared) {
+          const filename = ttsSaveFilename(finalSet);
+          saveExport({ filename, mimeType: 'application/json', blob: shared.blob });
+          ttsResult = {
+            hosting: 'online',
+            directory: null,
+            removedCount: 0,
+            uploadedCount: 0,
+            reusedCount: 0,
+            retention: 'published-current',
+            shared: true,
+            warnings: []
+          };
+          flash(`Exported ${filename} for multiplayer.`);
+          return;
+        }
+        ttsProgress = 'Rendering…';
+      }
+
       const hosting = hostTtsAssets
         ? {
             kind: 'online' as const,
@@ -268,6 +298,7 @@
         uploadedCount: result.uploadedCount,
         reusedCount: result.reusedCount,
         retention: result.retention,
+        shared: false,
         warnings: result.warnings
       };
       flash(
@@ -468,13 +499,18 @@
           {/if}
 
           {#if ttsResult}
-            {#if ttsResult.hosting === 'online'}
+            {#if ttsResult.shared}
+              <p class="landed hosted-result">
+                Downloaded this revision’s shared copy; nothing was uploaded. It keeps working while
+                this is the latest published revision, and for 7 days after a newer one replaces it.
+              </p>
+            {:else if ttsResult.hosting === 'online'}
               <p class="landed hosted-result">
                 Hosted {ttsResult.uploadedCount} new
                 {ttsResult.uploadedCount === 1 ? 'asset' : 'assets'}; reused {ttsResult.reusedCount}
                 unchanged {ttsResult.reusedCount === 1 ? 'asset' : 'assets'}.
                 {ttsResult.retention === 'published-current'
-                  ? ' This export is retained while it remains the latest published revision.'
+                  ? ' This is now the copy everyone exporting this revision shares. It keeps working while this is the latest published revision, and for 7 days after a newer one replaces it.'
                   : ' This export is temporary and becomes eligible for cleanup 7 days after its latest export.'}
               </p>
             {:else if ttsResult.directory}

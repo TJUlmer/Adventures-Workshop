@@ -71,6 +71,9 @@ async function uploadAsset(path: string, asset: TtsHostedAsset): Promise<void> {
   });
 }
 
+
+type Registrar = (paths: string[], savePath: string | null) => Promise<TtsUploadResult['retention']>;
+
 /**
  * Establish the identity Storage policies need and return the deterministic
  * host the exporter can use while it builds its object graph.
@@ -80,9 +83,9 @@ async function uploadAsset(path: string, asset: TtsHostedAsset): Promise<void> {
  * signed in. The export panel explains that this identity belongs to the
  * current browser and offers the ordinary account controls elsewhere.
  */
-export async function createTtsAssetHost(
+async function hostFor(
   setId: string,
-  publishedSource: TtsPublishedSource | null = null
+  register: (ownerRoot: string) => Registrar
 ): Promise<TtsOnlineAssetHost> {
   if (!auth.signedIn) await auth.signInAnonymously();
   await auth.ensureFresh();
@@ -92,12 +95,14 @@ export async function createTtsAssetHost(
 
   const ownerRoot = `${owner.id}/${setId}`;
   const prefix = publicPrefix(owner.id, setId);
+  const registrar = register(ownerRoot);
 
   return {
     urlFor: (relativePath) => `${prefix}${encodedPath(relativePath)}`,
     async upload(
       assets: readonly TtsHostedAsset[],
-      onProgress?: (progress: TtsUploadProgress) => void
+      onProgress?: (progress: TtsUploadProgress) => void,
+      savePath?: string
     ): Promise<TtsUploadResult> {
       let cursor = 0;
       let done = 0;
@@ -143,20 +148,118 @@ export async function createTtsAssetHost(
       /* Uploading first keeps a registered manifest from ever naming a missing
          object. A failure here leaves harmless, unregistered objects that the
          ordinary candidate scan can reclaim after seven days. */
-      const rows = await request<TtsRetentionRow[]>('/rest/v1/rpc/register_tts_export', {
-        method: 'POST',
-        body: {
-          p_source_key: setId,
-          p_asset_paths: assets.map((asset) => `${ownerRoot}/${asset.path}`),
-          p_published_set_id: publishedSource?.id ?? null,
-          p_published_revision: publishedSource?.revision ?? null
-        }
-      });
-      const retention = rows[0]?.retention;
-      if (retention !== 'published-current' && retention !== 'temporary') {
-        throw new CloudError('The hosted export did not receive a retention policy.', 0);
-      }
+      const retention = await registrar(
+        assets.map((asset) => `${ownerRoot}/${asset.path}`),
+        savePath ? `${ownerRoot}/${savePath}` : null
+      );
       return { uploaded, reused, retention };
     }
+  };
+}
+
+async function registerManifest(
+  setId: string,
+  paths: string[],
+  savePath: string | null,
+  publishedSource: TtsPublishedSource | null
+): Promise<'published-current' | 'temporary'> {
+  const rows = await request<TtsRetentionRow[]>('/rest/v1/rpc/register_tts_export', {
+    method: 'POST',
+    body: {
+      p_source_key: setId,
+      p_asset_paths: paths,
+      p_published_set_id: publishedSource?.id ?? null,
+      p_published_revision: publishedSource?.revision ?? null,
+      p_save_path: savePath
+    }
+  });
+  const retention = rows[0]?.retention;
+  if (retention !== 'published-current' && retention !== 'temporary') {
+    throw new CloudError('The hosted export did not receive a retention policy.', 0);
+  }
+  return retention;
+}
+
+/**
+ * A host that registers its manifest the moment its files are up.
+ *
+ * `publishedSource` asks for the export to become that revision's shared copy.
+ * The server grants it only to the row's owner or an administrator, and only
+ * while that revision has none; anything else is registered as temporary.
+ */
+export function createTtsAssetHost(
+  setId: string,
+  publishedSource: TtsPublishedSource | null = null
+): Promise<TtsOnlineAssetHost> {
+  return hostFor(setId, () => (paths, savePath) =>
+    registerManifest(setId, paths, savePath, publishedSource)
+  );
+}
+
+export interface DeferredTtsAssetHost {
+  host: TtsOnlineAssetHost;
+  /** Register what `host.upload` put online, once the published row exists. */
+  register(publishedSource: TtsPublishedSource): Promise<'published-current' | 'temporary'>;
+}
+
+/**
+ * A host whose manifest waits for a published row that does not exist yet.
+ *
+ * Publishing renders and uploads the shared copy *before* writing the row,
+ * the same order card previews use, so a failed export fails the publish
+ * rather than putting a revision online with no copy for visitors. But the
+ * server can only accept a manifest as a revision's shared copy once that
+ * revision exists, so registration is the one step left for afterwards.
+ */
+export async function createDeferredTtsAssetHost(setId: string): Promise<DeferredTtsAssetHost> {
+  let manifest: { paths: string[]; savePath: string | null } | null = null;
+  const host = await hostFor(setId, () => async (paths, savePath) => {
+    manifest = { paths, savePath };
+    return null;
+  });
+
+  return {
+    host,
+    register(publishedSource) {
+      if (!manifest) throw new CloudError('Nothing was uploaded to register.', 0);
+      return registerManifest(setId, manifest.paths, manifest.savePath, publishedSource);
+    }
+  };
+}
+
+export interface SharedTtsSave {
+  /** The published revision the save belongs to. */
+  revision: number;
+  blob: Blob;
+}
+
+/**
+ * The shared saved object for a published row's current revision, if it has
+ * one — so a visitor downloads the copy everyone shares rather than rendering
+ * and uploading their own, which would expire and cost storage per visitor.
+ *
+ * Anonymous, like every published read: a stale session must not be able to
+ * make this fail for its own owner (see `listPublicSets`).
+ */
+export async function fetchSharedTtsSave(publishedSetId: string): Promise<SharedTtsSave | null> {
+  const config = cloudConfig();
+  if (!config) return null;
+
+  const rows = await request<Array<{ save_path: string; revision: number }>>(
+    '/rest/v1/rpc/published_tts_save',
+    { method: 'POST', body: { p_set_id: publishedSetId }, anonymous: true }
+  );
+  const row = rows[0];
+  if (!row) return null;
+
+  const response = await fetch(
+    `${config.url}/storage/v1/object/public/${TTS_ASSET_BUCKET}/${encodedPath(row.save_path)}`
+  );
+  if (!response.ok) {
+    throw new CloudError('Could not download the shared Tabletop Simulator save.', response.status);
+  }
+  return {
+    revision: row.revision,
+    blob: new Blob([await response.text()], { type: 'application/json' })
   };
 }

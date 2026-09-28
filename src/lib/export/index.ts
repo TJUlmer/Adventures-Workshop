@@ -30,4 +30,4 @@ export type {
   TtsUploadProgress,
   TtsUploadResult
 } from './tts-bundle';
-export { exportTabletopSimulator, tabletopDeckSummary } from './tts-bundle';
+export { exportTabletopSimulator, tabletopDeckSummary, ttsSaveFilename } from './tts-bundle';

@@ -42,6 +42,8 @@ import type {
   ReusableCardPreviews
 } from './card-previews';
 import { renderSocialImage, SOCIAL_IMAGE_RENDERER_VERSION } from './social-image';
+import { exportTabletopSimulator } from '$lib/export/tts-bundle';
+import { createDeferredTtsAssetHost, createTtsAssetHost } from './tts-assets';
 import {
   AUTOMATIC_BOX_THUMBNAIL_STEM,
   CARD_PREVIEW_UPLOAD_STEM,
@@ -233,7 +235,7 @@ export function assetPrefix(): string {
 
 export interface PublishProgress {
   /** What is happening, for a status line. */
-  stage: 'assets' | 'previews' | 'document';
+  stage: 'assets' | 'previews' | 'tts' | 'document';
   done: number;
   total: number;
 }
@@ -492,6 +494,21 @@ export async function publishSet(
   );
 
   /*
+   * The revision's shared Tabletop Simulator copy, which every visitor who
+   * exports this whole revision downloads rather than rendering their own —
+   * so it stays working for as long as the revision is current, and costs
+   * storage once rather than once per visitor. Required, like the card
+   * previews, so a revision is never put online without one. Registered only
+   * after the row below exists, because the server grants shared status to a
+   * revision it can see.
+   */
+  const tts = await createDeferredTtsAssetHost(set.id);
+  await exportTabletopSimulator(scoped, {
+    hosting: { kind: 'online', host: tts.host },
+    onProgress: (done, total) => options.onProgress?.({ stage: 'tts', done, total })
+  });
+
+  /*
    * The tile picture, and a failure here must not fail the publish: a set with
    * no cover is a plainer row in the gallery, not a set that could not be
    * shared. An empty string leaves the column at its default and the gallery
@@ -655,6 +672,19 @@ export async function publishSet(
   );
 
   if (!published) throw new CloudError('The server accepted the set but returned nothing.', 0);
+
+  /*
+   * Not allowed to fail the publish: the row is already live. A republish
+   * whose document did not change keeps its revision, and with it the shared
+   * copy already registered, so this one is simply kept as temporary. A
+   * revision left without a copy heals itself — the author's own export from
+   * the set's page registers one, and so does the administrator backfill.
+   */
+  try {
+    await tts.register({ id: published.id, revision: published.revision });
+  } catch {
+    // See above.
+  }
 
   options.onProgress?.({ stage: 'document', done: 1, total: 1 });
   return published;
@@ -924,6 +954,67 @@ export async function refreshPublishedCardPreviews(
     }
   });
   return true;
+}
+
+/** One visible published row whose current revision has no shared TTS copy. */
+export interface TtsSaveBackfillTarget {
+  id: string;
+  name: string;
+  scope: PublishedSet['scope'];
+  visibility: Visibility;
+  revision: number;
+}
+
+/**
+ * Rows published before shared copies existed, or whose publish-time copy did
+ * not register. Answered by an administrator-only RPC, because the manifests
+ * that decide it are not readable by any client.
+ */
+export async function listSetsMissingTtsSave(): Promise<TtsSaveBackfillTarget[]> {
+  await auth.ensureFresh();
+  if (!auth.user) return [];
+
+  return request<TtsSaveBackfillTarget[]>('/rest/v1/rpc/published_sets_missing_tts_save', {
+    method: 'POST',
+    body: {}
+  });
+}
+
+/**
+ * Make one published revision's shared TTS copy from the administrator's
+ * browser, exactly as its author's publish would have.
+ *
+ * The files land under the administrator's own Storage prefix, which is all
+ * the upload policy allows; the server accepts them as the shared copy only
+ * because the caller is an administrator and the revision still has none.
+ */
+export async function backfillPublishedTtsSave(
+  targetId: string,
+  onProgress?: (done: number, total: number) => void
+): Promise<void> {
+  await auth.ensureFresh();
+  if (!auth.user) throw new CloudError('Sign in to prepare shared Tabletop Simulator copies.', 401);
+
+  const rows = await request<PublishedSetWithDocument[]>(
+    `/rest/v1/sets?select=${SUMMARY_COLUMNS},document&id=eq.${encodeURIComponent(targetId)}&limit=1`
+  );
+  const row = rows[0];
+  if (!row) throw new CloudError('That published set no longer exists.', 404);
+
+  const set = await hydratePublishedSet(row);
+  const result = await exportTabletopSimulator(set, {
+    hosting: {
+      kind: 'online',
+      host: await createTtsAssetHost(row.local_id, { id: row.id, revision: row.revision })
+    },
+    onProgress
+  });
+  if (result.retention !== 'published-current') {
+    throw new CloudError(
+      'The copy was not accepted as shared. The set may have been republished meanwhile.',
+      0
+    );
+  }
 }
 
 /**

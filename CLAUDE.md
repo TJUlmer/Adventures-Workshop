@@ -212,6 +212,28 @@ objects live under `<owner-id>/<set-id>/<content-hashed filename>`, enforced by
 if their JSON still points at `file://`, drive-letter or UNC assets, the exporter
 cannot upload bytes it was never given and warns the author to use Upload All.
 
+**A published revision has exactly one shared TTS copy, and everyone exporting
+that whole revision downloads it** (`0043_shared_tts_exports.sql`). An online
+export hosts its saved-object JSON beside its images; `tts_exports.save_path`
+records it, and `fetchSharedTtsSave` hands a visitor that JSON instead of
+rendering and uploading their own. Per-visitor copies were the alternative and
+fail twice: a popular set would be stored once per person, and they could never
+be shared anyway, because each browser renders slightly different bytes and
+every filename is a content hash. `publishSet` renders and uploads the copy
+before writing the row (required, like card previews) and registers it after,
+because the server grants shared status only to a revision it can see — hence
+`createDeferredTtsAssetHost`. Only the owner or an administrator can register
+one: whatever the first registrant uploads is what every later visitor gets, so
+a visitor's upload is never trusted for it. The first copy registered for a
+revision is **never replaced** while that revision is current — replacing it
+would retire files earlier visitors' saves already point at — so a republish
+with an unchanged document (same revision) keeps the old copy and its own
+becomes temporary. A new revision or an unpublish retires it, and every
+`tts-assets` candidate is due after seven days, so an older save has a week.
+A scoped or pruned visitor export is not the published revision and stays
+temporary. Rows published before this, or whose registration failed, are
+listed for the administrator's "Prepare shared copies" in `AccountMenu`.
+
 The piles are **one per figure**, plus rules, initiative and events — the
 author's decks merged by who holds them, then split by card format because a TTS
 sheet has one cell size. That split is also what gets the two scales right:
