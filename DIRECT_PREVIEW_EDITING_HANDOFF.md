@@ -20,9 +20,10 @@ and Tuck Effect fields when their source is visibly represented on the card.
 
 ## Repository state at handoff
 
-- The current checkout is `main` at
-  `9ef768998fb7254698f79af2b9d10c05519f6efd`; `origin/main` is the same commit.
-- That merge commit contains the exact reviewed Phase 4 tip
+- The production feature baseline is merge commit
+  `9ef768998fb7254698f79af2b9d10c05519f6efd`. The current `main` follows that
+  baseline with this documentation-only Phase 5 roadmap and handoff update.
+- The baseline merge contains the exact reviewed Phase 4 tip
   `1edb0b519b3303e6fe258c26a4cc7c7340eb025e` plus the production artwork-export
   and print-readiness fixes.
 - The historical `codex/direct-preview-editing-preview` branch must not be
