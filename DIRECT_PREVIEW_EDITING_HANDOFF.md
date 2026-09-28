@@ -22,7 +22,10 @@ and Tuck Effect fields when their source is visibly represented on the card.
 
 - The production feature baseline is merge commit
   `9ef768998fb7254698f79af2b9d10c05519f6efd`. The current `main` follows that
-  baseline with this documentation-only Phase 5 roadmap and handoff update.
+  baseline with the Phase 5 roadmap and handoff, unrelated Tabletop Simulator
+  storage work (`57404f0`, `70f02e8`), and a follow-up that corrects the
+  shipped Defense accessible names and records a pre-implementation code
+  review of Phase 5.
 - The baseline merge contains the exact reviewed Phase 4 tip
   `1edb0b519b3303e6fe258c26a4cc7c7340eb025e` plus the production artwork-export
   and print-readiness fixes.
@@ -86,19 +89,31 @@ not introduce a second renderer, persist new fields, or change normalization.
 
 | Visible field | Stored source | Direct behaviour | Fallback or guard |
 |---|---|---|---|
-| Boost Effect text | `card.boostEffect` | Plain single-line edit when active, visible, and non-empty | Blank text or a hidden boost assembly opens the centre field; never target the invisible title-clearance copy |
+| Boost Effect text | `card.boostEffect` | New **plain** single-line editor kind when active, visible, and non-empty | Mark `.boost-effect-label` only: never the capsule (it overlaps the boost value) or the invisible title-clearance copy. How a blank Boost Effect is reached is an open decision |
 | Bonus Attack title | `card.bonusAttackTitle` | Formatted single-line edit when stored text is non-empty | The derived **Bonus Attack** label opens the centre field and must never be persisted |
 | Bonus Attack value | `card.bonusAttackValue` | Numeric edit using existing `0–9` bounds while the effect is active | Hidden/off effects expose no preview target |
-| Bonus Attack ability | `card.bonusAttackAbility` | Formatted edit when non-empty | Blank text opens the centre field |
-| Tuck Effect text | `card.tuckEffect` | Formatted single-line edit when active and non-empty | Support both bottom and right orientation; blank text opens the centre field |
+| Bonus Attack ability | `card.bonusAttackAbility` | Formatted multiline edit when non-empty | A blank ability is not rendered, so it has no target; reach it through the title fallback or centre editor |
+| Tuck Effect text | `card.tuckEffect` | Formatted single-line edit when active and non-empty | Mark the whole bar in both orientations, so blank text still has a navigation target |
+
+### Pre-implementation code review (28 September 2026)
+
+The project plan's Phase 5 section, **Constraints found in the pre-implementation
+code review**, records four shipped behaviours that shape this work. In short:
+the overlay's crowded rule applies at every size, so a new target overlapping
+the boost value or title would silently turn their direct editing into
+navigation; zero-width markers are discarded, so blank text needs a sized
+target; Boost Effect needs a new plain-text editor kind because the renderer
+prints it literally; and the editor placeholder and accessible names must be
+made per-field. The `advanced` location exists but nothing emits or consumes it
+yet.
 
 Effect toggles, Tuck Effect orientation, special-effect colours, and the
 corner badge remain centre-editor controls. Desktop mouse and keyboard use the
 direct interaction; narrow, crowded, or ambiguous touch targets use the
 existing exact centre-editor fallback.
 
-Implementation must refine the existing coarse `advanced` target descriptors
-into exact field addresses, add stable renderer and centre-editor markers, and
+Implementation must add exact field addresses in place of the unused coarse
+`advanced` descriptor, add stable renderer and centre-editor markers, and
 reuse `workshop.editCard()`, the local-draft session, rich-text core, numeric
 validation, stale-card guards, focus restoration, artwork exclusion, and
 export blocking already delivered in Phases 0–4.
@@ -122,7 +137,7 @@ export blocking already delivered in Phases 0–4.
   rendering and line-ending variance. This is documented in Phase 3/4 evidence.
   Phase 4 changed no renderer, print, Tabletop Simulator, or export path.
 
-Evidence on the preview branch:
+Evidence, now on `main`:
 
 - `tools/baselines/direct-preview-editing-phase0/`
 - `tools/baselines/direct-preview-editing-phase1/`
@@ -140,9 +155,10 @@ Evidence on the preview branch:
    derived, hidden, narrow, crowded, and unsupported cases on the safe
    centre-editor or inert paths described in the project plan.
 3. Exercise the full Phase 5 fixture matrix, especially the duplicate invisible
-   Boost Effect copy, derived Bonus Attack title, Bonus Attack `0–9` bounds,
-   both Tuck Effect orientations, combined effects, formatted tokens, long-text
-   reflow, and read-only/export surfaces.
+   Boost Effect copy, the boost value and title staying directly editable (not
+   crowded) beside a Boost Effect, blank-text targets, derived Bonus Attack
+   title, Bonus Attack `0–9` bounds, both Tuck Effect orientations, combined
+   effects, formatted tokens, long-text reflow, and read-only/export surfaces.
 4. Run `npm run check`, `npm run build`, `git diff --check`, focused browser
    verification, and the Phase 0 geometry-only evidence verification.
 5. Commit Phase 5 separately and push only its preview branch. Verify the exact

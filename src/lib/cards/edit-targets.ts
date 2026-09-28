@@ -12,7 +12,7 @@ export type AbilityParagraphField =
  * The stored source behind one visible part of an action card.
  *
  * Keeping region and field separate makes the dangerous distinctions explicit:
- * primary and defence copy cannot alias, and a visible Bonus paragraph carries
+ * primary and defense copy cannot alias, and a visible Bonus paragraph carries
  * its original array index even when an earlier entry is empty and filtered out.
  */
 export type CardEditLocation =
@@ -69,7 +69,7 @@ export const DIRECT_PREVIEW_FIELD_CONTRACT = [
     key: 'combat:defense',
     behaviour: 'direct',
     milestone: 'first',
-    condition: 'visible numeric defence'
+    condition: 'visible numeric defense'
   },
   {
     key: 'boost:boost',
@@ -93,7 +93,7 @@ export const DIRECT_PREVIEW_FIELD_CONTRACT = [
     key: 'defense-ability:*',
     behaviour: 'direct',
     milestone: 'first',
-    condition: 'the addressed split-defence paragraph contains text'
+    condition: 'the addressed split-defense paragraph contains text'
   },
   {
     key: 'primary-ability:bonus[index]',
@@ -196,12 +196,12 @@ export function cardEditAddressLabel(address: CardEditAddress): string {
     case 'ribbon':
       return address.field === 'symbolValue' ? 'combat value' : 'name on the ribbon';
     case 'combat':
-      return address.field === 'attack' ? 'attack value' : 'defence value';
+      return address.field === 'attack' ? 'attack value' : 'defense value';
     case 'boost':
       return address.field === 'boost' ? 'boost value' : 'boost symbol';
     case 'primary-ability':
     case 'defense-ability': {
-      const side = address.region === 'defense-ability' ? 'defence-side ' : '';
+      const side = address.region === 'defense-ability' ? 'defense-side ' : '';
       if (address.field === 'bonus') return `${side}Bonus ability ${address.bonusIndex + 1}`;
       if (address.field === 'plain') return `${side}ability text`;
       if (address.field === 'duringCombat') return `${side}During Combat text`;
