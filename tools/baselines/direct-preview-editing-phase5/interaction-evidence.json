@@ -43,6 +43,17 @@
     "narrowCanvas280": "all Phase 5 targets navigate",
     "centreTargets": "Boost Effect TextInput, Bonus Attack title, NumberInput value, ability and Tuck Effect fields each receive focus"
   },
+  "numberStepper": {
+    "appliesTo": "every direct numeric field: hero combat value, attack, defense, boost, Bonus Attack value",
+    "mouseIncreaseToMaximum": "boost 8 -> 9, Increase then disabled",
+    "keyboardArrowToMinimum": "defense 1 -> 0, Decrease then disabled",
+    "focusStaysInNumber": "pass",
+    "draftOnlyUntilCommit": "card kept 8 while the draft read 9",
+    "escapeDiscards": "pass",
+    "reopenedSessionStartsFromStoredValue": "pass",
+    "enterCommitsSteppedValue": "boost 8 -> 7 on card and centre control",
+    "accessibleNames": ["Increase boost value", "Decrease defense value"]
+  },
   "fixesToSharedEditor": {
     "caretOpensAtEnd": "previously every preview text editor (title, ability, Phase 5) opened with the caret at the start",
     "singleLineEditorHeight": "capped at one line; previously a right Tuck Effect produced a card-height editor"

@@ -809,6 +809,12 @@ source or writer. Phase 5 adds these rather than refining existing ones.
   the text below stays direct elsewhere. The renderer's overlap itself (long
   ability lines partly hidden under the bar) predates Phase 5 and is recorded,
   not changed.
+- **On-card number editors gained up/down arrows** (the user's request during
+  review). Every direct numeric field — hero combat value, attack, defense,
+  boost and Bonus Attack value — shows stacked ▲/▼ buttons matching the Copies
+  in deck stepper. They step within the field's own bounds, disable at each
+  limit, keep focus in the number so Enter and Escape still commit and cancel,
+  and change only the draft until it is committed.
 - **Two defects shared with Phases 2–4 were fixed.** Every preview text editor
   opened with its caret at the start of the existing copy: focusing a
   contenteditable lets the browser place a caret there, which

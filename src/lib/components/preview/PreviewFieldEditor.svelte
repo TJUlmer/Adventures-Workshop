@@ -53,6 +53,18 @@
   let plainInput = $state<HTMLInputElement | null>(null);
   let coarsePointer = $state(false);
   let valid = $state(true);
+  /* The last valid number, so the arrows can step from it and disable at the
+     field's bounds; the input's own text may be mid-edit and unparseable. */
+  let numberValue = $state(0);
+  let seenFieldValue: string | number | undefined;
+  /* `field` is rebuilt on every draft update, so follow only a change of the
+     stored source (a different field, or a commit) — never the draft itself. */
+  $effect.pre(() => {
+    const source = field.value;
+    if (source === seenFieldValue) return;
+    seenFieldValue = source;
+    numberValue = typeof source === 'number' ? source : 0;
+  });
   const editorState = createActionTextEditorState();
   const textField = $derived(field.kind === 'title' || field.kind === 'ability');
   const multiline = $derived(field.kind === 'ability');
@@ -69,7 +81,7 @@
     const desired =
       textField || field.kind === 'plain'
         ? Math.max(width, multiline ? 320 : 240)
-        : Math.max(width, coarsePointer ? 140 : 96);
+        : Math.max(width, coarsePointer ? 200 : 124);
     return Math.min(desired, available);
   });
   const shellLeft = $derived(
@@ -129,6 +141,18 @@
     const next = clampPreviewNumber(field, parsed);
     if (next !== parsed) input.value = String(next);
     valid = true;
+    numberValue = next;
+    ondraft(next, true);
+  }
+
+  function stepNumber(delta: number): void {
+    const next = clampPreviewNumber(field, numberValue + delta);
+    if (numberInput) {
+      numberInput.value = String(next);
+      numberInput.focus({ preventScroll: true });
+    }
+    valid = true;
+    numberValue = next;
     ondraft(next, true);
   }
 
@@ -301,6 +325,28 @@
         oninput={handleNumberInput}
         onkeydown={handleKeydown}
       />
+      <!-- Pointer presses keep focus in the number, so Enter still commits and
+           Escape still cancels; keyboard users can still tab to the arrows. -->
+      <span class="stepper">
+        <button
+          type="button"
+          class="step"
+          aria-label="Increase {label}"
+          title="Increase {label}"
+          disabled={field.max !== undefined && numberValue >= field.max}
+          onpointerdown={(event) => event.preventDefault()}
+          onclick={() => stepNumber(1)}
+        ><span aria-hidden="true">▲</span></button>
+        <button
+          type="button"
+          class="step"
+          aria-label="Decrease {label}"
+          title="Decrease {label}"
+          disabled={field.min !== undefined && numberValue <= field.min}
+          onpointerdown={(event) => event.preventDefault()}
+          onclick={() => stepNumber(-1)}
+        ><span aria-hidden="true">▼</span></button>
+      </span>
       <button type="button" class="action" aria-label="Commit {label}" title="Commit" onclick={commitFromKeyboard}>✓</button>
       <button type="button" class="action" aria-label="Cancel editing {label}" title="Cancel" onclick={() => oncancel(true)}>×</button>
     </div>
@@ -472,6 +518,47 @@
     font-size: var(--text-sm);
   }
 
+  /* Same stacked arrows as the Copies in deck stepper beneath the preview. */
+  .stepper {
+    display: inline-flex;
+    flex: none;
+    flex-direction: column;
+    overflow: hidden;
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-xs);
+    background: var(--surface-raised);
+  }
+
+  .step {
+    display: grid;
+    place-items: center;
+    width: 22px;
+    height: 14px;
+    color: var(--text-muted);
+    font-size: 7px;
+    line-height: 1;
+  }
+
+  .step + .step {
+    border-top: 1px solid var(--border-subtle);
+  }
+
+  .step:hover,
+  .step:focus-visible {
+    background: var(--surface-hover);
+    color: var(--text-primary);
+    outline: none;
+  }
+
+  .step:focus-visible {
+    box-shadow: inset 0 0 0 1px var(--accent);
+  }
+
+  .step:disabled {
+    opacity: 0.35;
+    cursor: default;
+  }
+
   .plain-input::placeholder {
     color: var(--text-muted);
   }
@@ -499,12 +586,19 @@
       min-width: var(--touch-target);
       min-height: var(--touch-target);
     }
+
+    .step {
+      width: var(--touch-target);
+      height: calc(var(--touch-target) / 2);
+      font-size: 9px;
+    }
   }
 
   @media (forced-colors: active) {
     .text-input:focus,
     .number-input:focus,
     .plain-input:focus,
+    .step:focus-visible,
     .action:focus-visible,
     .open-full:focus-visible {
       outline: 2px solid currentColor;
