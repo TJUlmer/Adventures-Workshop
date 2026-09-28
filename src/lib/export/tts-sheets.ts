@@ -34,10 +34,12 @@ export const TTS_JPEG_QUALITY = 0.92;
  *
  * A card is a couple of inches on a table and TTS mip-maps it anyway, so a
  * two-card pile rendered near print resolution would cost a slow export and a
- * large file to show the same card. 600px preserves Alt-zoom detail without
- * letting small piles dominate storage.
+ * large file to show the same card. 820px keeps Alt-zoom legible on a 1440p
+ * screen. It was 600 while every physical copy took its own cell; drawing
+ * each design once (see `paginate`) roughly halved the cells a deck needs, so
+ * the same sheet bytes now buy about twice the pixels per card.
  */
-const MAX_CELL_WIDTH = 600;
+const MAX_CELL_WIDTH = 820;
 
 export interface SheetGrid {
   readonly columns: number;
@@ -72,12 +74,54 @@ export function chooseGrid(count: number, aspect: number): SheetGrid {
   return best;
 }
 
-/** Pages of at most one sheet's worth, in order. */
-export function paginate(cards: readonly TtsCardPlan[]): TtsCardPlan[][] {
-  const pages: TtsCardPlan[][] = [];
-  for (let start = 0; start < cards.length; start += MAX_SHEET_CARDS) {
-    pages.push(cards.slice(start, start + MAX_SHEET_CARDS));
+/** What makes two planned cards the same picture. */
+function designKey(planned: TtsCardPlan): string {
+  if (planned.card) return `card:${planned.card.id}:${planned.character?.id ?? ''}`;
+  return `stat:${planned.statCard?.id ?? ''}:${planned.statCardEntry?.id ?? ''}`;
+}
+
+/** One sheet's worth: its distinct pictures, and every physical card that uses them. */
+export interface SheetPage {
+  /** One representative per cell, in slot order. */
+  readonly designs: readonly TtsCardPlan[];
+  /** Every physical card on this sheet, in deal order. */
+  readonly cards: readonly TtsCardPlan[];
+  /** The cell each of `cards` is drawn in. */
+  readonly slots: readonly number[];
+}
+
+/**
+ * Pages of at most one sheet's worth of *designs*, in order.
+ *
+ * A card with ×3 is three physical cards but one picture. TTS lets several
+ * cards in a deck name the same `CardID`, so every copy points at one cell —
+ * giving each copy a cell of its own drew every picture about twice over
+ * (1,329 physical cards across 618 designs in the published gallery) and left
+ * each cell about half the size the sheet could afford.
+ */
+export function paginate(cards: readonly TtsCardPlan[]): SheetPage[] {
+  const pageOf = new Map<string, { page: number; slot: number }>();
+  const pages: Array<{ designs: TtsCardPlan[]; cards: TtsCardPlan[]; slots: number[] }> = [];
+
+  for (const planned of cards) {
+    const key = designKey(planned);
+    let cell = pageOf.get(key);
+    if (!cell) {
+      let last = pages[pages.length - 1];
+      if (!last || last.designs.length >= MAX_SHEET_CARDS) {
+        last = { designs: [], cards: [], slots: [] };
+        pages.push(last);
+      }
+      cell = { page: pages.length - 1, slot: last.designs.length };
+      last.designs.push(planned);
+      pageOf.set(key, cell);
+    }
+    const page = pages[cell.page];
+    if (!page) continue;
+    page.cards.push(planned);
+    page.slots.push(cell.slot);
   }
+
   return pages;
 }
 
@@ -130,9 +174,12 @@ async function composite(images: readonly Blob[], grid: SheetGrid): Promise<Blob
 
 export interface RenderedSheet {
   readonly grid: SheetGrid;
+  /** Every physical card on this sheet, in deal order. */
   readonly cards: readonly TtsCardPlan[];
+  /** The cell each of `cards` is drawn in; copies of one design share a cell. */
+  readonly slots: readonly number[];
   readonly face: Blob;
-  /** A cell per card, when the cards carry their own backs. */
+  /** A cell per design, when the cards carry their own backs. */
   readonly back: Blob | null;
 }
 
@@ -145,9 +192,10 @@ export interface SheetRenderContext {
 
 /** How many images a plan will produce, for a progress count. */
 export function imageCount(plan: TtsDeckPlan): number {
-  const perCardBacks = plan.back.kind === 'perCard' ? plan.cards.length : 0;
+  const designs = paginate(plan.cards).reduce((total, page) => total + page.designs.length, 0);
+  const perCardBacks = plan.back.kind === 'perCard' ? designs : 0;
   const sharedBack = plan.back.kind === 'character' || plan.back.kind === 'plain' ? 1 : 0;
-  return plan.cards.length + perCardBacks + sharedBack;
+  return designs + perCardBacks + sharedBack;
 }
 
 export async function renderDeckSheets(
@@ -159,7 +207,7 @@ export async function renderDeckSheets(
   const sheets: RenderedSheet[] = [];
 
   for (const page of paginate(plan.cards)) {
-    const grid = chooseGrid(page.length, trim.width / trim.height);
+    const grid = chooseGrid(page.designs.length, trim.width / trim.height);
 
     /*
      * Cards are photographed at trim rather than with bleed: bleed is a
@@ -170,7 +218,7 @@ export async function renderDeckSheets(
     const faces: Blob[] = [];
     const backs: Blob[] = [];
 
-    for (const planned of page) {
+    for (const planned of page.designs) {
       /* A character card has no `Card` to resolve a theme from, and needs
          none: `Character.characterCard` is its own design object and does not
          go through the style cascade at all. */
@@ -199,7 +247,8 @@ export async function renderDeckSheets(
 
     sheets.push({
       grid,
-      cards: page,
+      cards: page.cards,
+      slots: page.slots,
       face: await composite(faces, grid),
       back: perCardBacks ? await composite(backs, grid) : null
     });

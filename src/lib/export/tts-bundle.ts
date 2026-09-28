@@ -815,7 +815,8 @@ export async function exportTabletopSimulator(
           uniqueBack: sheet.back !== null,
           columns: sheet.grid.columns,
           rows: sheet.grid.rows,
-          cards: sheet.cards
+          cards: sheet.cards,
+          slots: sheet.slots
         });
       }
 
@@ -1141,7 +1142,8 @@ export async function exportCollectionBundle(
             uniqueBack: sheet.back !== null,
             columns: sheet.grid.columns,
             rows: sheet.grid.rows,
-            cards: sheet.cards
+            cards: sheet.cards,
+            slots: sheet.slots
           });
         }
 
