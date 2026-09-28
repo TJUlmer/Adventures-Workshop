@@ -2440,7 +2440,10 @@ not, inline layout moves the whole title below the float, taking the rule and
 the remaining copy with it. The float's height is a tuneable clearance for the
 lower title position, not a text-length threshold or a runtime measurement.
 Its hidden copy must remain the same font, size, border and
-padding as the visible capsule or the collision decision drifts.
+padding as the visible capsule or the collision decision drifts. The visible
+capsule's left padding lives on `.boost-effect-label`, which fills the capsule
+so a blank Boost Effect still has a direct-edit target; the total width is
+unchanged, and the hidden copy keeps both paddings on itself.
 
 **That bound is a `max-height`, and it must not go back to `-webkit-line-clamp`.**
 Clamping was the obvious way to do it and buys an ellipsis on the clipped line,

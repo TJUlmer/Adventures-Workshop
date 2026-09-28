@@ -1,0 +1,70 @@
+{
+  "phase": 5,
+  "capturedOn": "2026-09-28",
+  "fixture": "tools/mobile-baseline/fixture.js plus four Phase 5 cards (all effects filled; all effects blank with right tuck; long Boost Effect with non-empty right tuck; villain with no effects), seeded into an isolated development origin only",
+  "rendererIsolation": {
+    "pixelIdenticalBeforeAfter": "pass",
+    "cardsCompared": [
+      "hero and villain: short Boost Effect",
+      "hero and villain: long (ellipsised) Boost Effect",
+      "hero and villain: blank Boost Effect",
+      "hero and villain: Boost Effect with right Tuck Effect",
+      "hero and villain: Boost Effect, Bonus Attack and bottom Tuck Effect"
+    ],
+    "hashStabilityConfirmedBeforeChange": true,
+    "plateInteractiveElements": 0,
+    "phase0GeometryOnly": "7 of 7 verified"
+  },
+  "targets": {
+    "boostEffect": "direct plain editor, including blank (31x30 target at the fixture's preview size); marker on the label, never the capsule or the invisible title-clearance copy",
+    "boostValueBesideBoostEffect": "direct (not crowded)",
+    "titleBesideLongBoostEffect": "direct (not crowded)",
+    "bonusAttackTitle": "direct when stored; the derived label navigates and is never persisted",
+    "bonusAttackValue": "direct numeric 0-9; 12 clamps to 9",
+    "bonusAttackAbility": "direct formatted multiline; blank has no target",
+    "tuckEffectBottom": "direct formatted single-line",
+    "tuckEffectRight": "direct formatted single-line; layered above the ability column it covers, which stays direct",
+    "tuckEffectBlank": "navigates to the centre Tuck Effect field",
+    "effectsOff": "no Phase 5 targets"
+  },
+  "lifecycle": {
+    "enterCommitsSingleLine": "pass",
+    "enterAddsLineBreakInAbility": "pass",
+    "modEnterCommitsAbility": "pass",
+    "escapeCancelsWithoutWrite": "pass",
+    "focusRestoration": "pass",
+    "centreEditorSync": "pass",
+    "indexedDbPersistence": "pass",
+    "exportBlockedWhileEditing": "pass",
+    "nameTokenRoundTrip": "{{name}} stored, resolved name printed",
+    "boldRoundTrip": "pass"
+  },
+  "fallback": {
+    "narrowCanvas280": "all Phase 5 targets navigate",
+    "centreTargets": "Boost Effect TextInput, Bonus Attack title, NumberInput value, ability and Tuck Effect fields each receive focus"
+  },
+  "numberStepper": {
+    "appliesTo": "every direct numeric field: hero combat value, attack, defense, boost, Bonus Attack value",
+    "mouseIncreaseToMaximum": "boost 8 -> 9, Increase then disabled",
+    "keyboardArrowToMinimum": "defense 1 -> 0, Decrease then disabled",
+    "focusStaysInNumber": "pass",
+    "draftOnlyUntilCommit": "card kept 8 while the draft read 9",
+    "escapeDiscards": "pass",
+    "reopenedSessionStartsFromStoredValue": "pass",
+    "enterCommitsSteppedValue": "boost 8 -> 7 on card and centre control",
+    "accessibleNames": ["Increase boost value", "Decrease defense value"]
+  },
+  "fixesToSharedEditor": {
+    "caretOpensAtEnd": "previously every preview text editor (title, ability, Phase 5) opened with the caret at the start",
+    "singleLineEditorHeight": "capped at one line; previously a right Tuck Effect produced a card-height editor"
+  },
+  "knownPreExisting": [
+    "The baseline hero's long ribbon name overlaps its card title and first ability paragraph, so those targets are crowded and navigate on that fixture.",
+    "A right-hand Tuck Effect bar paints over the right edge of the ability column; long ability lines are partly hidden. Renderer layout unchanged in this phase."
+  ],
+  "notExercisedHere": [
+    "200% preview zoom and bleed/guides geometry are shared overlay behaviour verified in Phase 4; not re-run per field.",
+    "Phone one-pane reveal of the Edit pane is shared Phase 4 behaviour; the narrow-canvas fallback it relies on was exercised."
+  ],
+  "consoleErrors": 0
+}

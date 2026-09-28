@@ -1,7 +1,7 @@
 # Unmatched Labs Direct Preview Editing Project
 
 **Status:** Core milestone complete in production; Phase 5 special-effect
-editing planned
+editing implemented on its preview branch, awaiting hosted review
 **Last updated:** 28 September 2026
 **Scope:** Desktop-first editing of selected action-card fields, including
 active special-effect text, from the live right-hand preview, with a safe
@@ -12,7 +12,7 @@ centre-editor fallback on narrow layouts
 Let an author select visible text or values on the rendered card and edit the
 source field without first searching through the centre workspace.
 
-The intended experience is direct: selecting the title, combat value, defence
+The intended experience is direct: selecting the title, combat value, defense
 value, boost value, or an existing ability paragraph should open an editor at
 that part of the card. Selecting an empty or structurally complex ability area
 should reveal and focus the corresponding Ability Text control in the centre
@@ -35,7 +35,7 @@ formatted-text controls as the centre editor.
 When this project is complete:
 
 - An author can select a visible action-card title and edit it at the card.
-- An author can select a visible combat, attack, defence, or numeric boost
+- An author can select a visible combat, attack, defense, or numeric boost
   value and edit it at the card.
 - An author can select an existing plain, timed, split-card, or Bonus ability
   paragraph and edit that exact stored field.
@@ -212,18 +212,18 @@ requests are ephemeral view state.
 | Card title | `card.title` | Direct formatted editing | The display fallback `Card Title` edits the empty source; it is never saved as real copy |
 | Ordinary hero combat value | `card.symbolValue` | Direct numeric editing | Only when the number is visibly rendered |
 | Villain/minion attack | `card.attack` | Direct numeric editing | Includes the visible attack side of a split card |
-| Villain/minion defence | `card.defense` | Direct numeric editing | Includes the visible defence side of a split card |
-| Hero split attack/defence | `card.attack` / `card.defense` | Direct numeric editing | The target descriptor must preserve the side |
+| Villain/minion defense | `card.defense` | Direct numeric editing | Includes the visible defense side of a split card |
+| Hero split attack/defense | `card.attack` / `card.defense` | Direct numeric editing | The target descriptor must preserve the side |
 | Numeric boost | `card.boost` | Direct numeric editing | A custom boost symbol routes to the centre Boost control instead of exposing a hidden number |
 | Primary plain ability | `card.ability.plain` | Direct formatted editing when text exists | Blank ability space opens the primary Ability Text stack |
 | Primary timing paragraph | `card.ability.immediately`, `.duringCombat`, or `.afterCombat` | Direct formatted editing when text exists | The fixed timing label targets the paragraph but is not editable |
-| Split defence plain/timing paragraph | `card.defenseAbility.*` | Direct formatted editing when text exists | It must never write to the primary side |
+| Split defense plain/timing paragraph | `card.defenseAbility.*` | Direct formatted editing when text exists | It must never write to the primary side |
 | Bonus ability paragraph | `card.ability.bonusAbilities[index].text` or the split-side equivalent | Direct formatted editing when text exists | Preserve the original array index before filtering empty entries |
-| Boost Effect text | `card.boostEffect` | Phase 5 direct plain single-line editing when text exists | Only when `showBoostEffect` is on and a boost assembly is visibly rendered; target the visible copy, not its invisible title-clearance duplicate |
+| Boost Effect text | `card.boostEffect` | Phase 5 direct **plain** single-line editing, blank or not (a blank capsule edits in place like a blank title) | Only when `showBoostEffect` is on and `card.boost !== null` (the assembly renders only then). Mark `.boost-effect-label`, never the `.boost-effect` capsule, which runs under the boost disc, or the invisible `.boost-title-clearance` copy |
 | Bonus Attack title | `card.bonusAttackTitle` | Phase 5 direct formatted single-line editing when stored text exists | The derived **Bonus Attack** fallback opens the centre control and is never persisted as source text |
 | Bonus Attack value | `card.bonusAttackValue` | Phase 5 direct numeric editing | Only when `showBonusAttack` is on; use the centre control's `0–9` bounds |
-| Bonus Attack ability | `card.bonusAttackAbility` | Phase 5 direct formatted editing when text exists | Blank or absent text opens the centre control so optional structure stays explicit |
-| Tuck Effect text | `card.tuckEffect` | Phase 5 direct formatted single-line editing when text exists | Only when `showTuckEffect` is on; support both bottom and right orientations |
+| Bonus Attack ability | `card.bonusAttackAbility` | Phase 5 direct formatted multiline editing when text exists | A blank ability is not rendered at all, so it has no target; it is reached through the Bonus Attack title fallback or the centre editor |
+| Tuck Effect text | `card.tuckEffect` | Phase 5 direct formatted single-line editing when text exists | Only when `showTuckEffect` is on; mark the whole `.tuck-effect` bar in both bottom and right orientations so blank text still has a navigation target |
 | Empty or absent value | Relevant centre control | Centre-editor navigation | Optional structure is added or removed in the centre editor |
 | Ribbon/owner name | Derived owner/card-name source | Centre-editor navigation only | Do not overwrite a resolved display name |
 | Whole-face replacement | Image data | No direct targets | Explain that the composed text is part of the replacement image |
@@ -254,9 +254,10 @@ extension.
 - Empty-title fallback text is never persisted accidentally.
 - A visible second Bonus ability always maps to its original index even when
   the first Bonus entry is empty.
-- Primary and split-defence ability paths cannot cross-write.
+- Primary and split-defense ability paths cannot cross-write.
 - Direct numeric inputs use the same bounds as the centre controls: hero
-  value `0–9`, boost `1–9`, and villain/minion attack and defence `0–20`.
+  value `0–9`, boost `1–9`, villain/minion attack and defense `0–20`, and
+  Bonus Attack value `0–9`.
 - Pointer, keyboard, and coarse-pointer users receive an unambiguous target,
   visible focus, a cancellation path, and a way to open the full editor.
 - Overlay geometry remains attached through zoom, scroll, pane resize, text
@@ -385,11 +386,11 @@ the author in Preview.
 - [x] Add stable semantic editor targets to `ActionCardContent.svelte`,
   `AbilityStack.svelte`, `AbilityField.svelte`, `FormattedTextField.svelte`,
   and numeric controls as needed.
-- [x] Add inert renderer markers for title, hero value, attack, defence,
-  numeric boost, primary ability paths, split-defence paths, timing paths, and
+- [x] Add inert renderer markers for title, hero value, attack, defense,
+  numeric boost, primary ability paths, split-defense paths, timing paths, and
   Bonus paths.
 - [x] Pass a semantic source prefix into `AbilityText.svelte` so a paragraph
-  knows whether it belongs to the primary or split-defence ability.
+  knows whether it belongs to the primary or split-defense ability.
 - [x] Preserve each Bonus ability's original array index before filtering
   empty entries for display.
 - [x] Add a preview-only overlay that measures renderer markers and exposes
@@ -401,7 +402,7 @@ the author in Preview.
 - [x] Disable targets for samples, cardbacks, replacements, read-only
   surfaces, and while artwork adjustment is active.
 - [x] Route an empty rendered ability region to the correct Ability Text
-  stack. A blank split-defence side has no separate region on the composed
+  stack. A blank split-defense side has no separate region on the composed
   card and remains a structural centre-editor action rather than gaining an
   invented card-surface target.
 - [x] Route a custom boost symbol to the centre Boost control without exposing
@@ -425,12 +426,12 @@ the author in Preview.
 
 - [x] Every supported visible target focuses the exact centre-editor field.
 - [x] Empty rendered ability regions focus the correct stack without
-  inventing a target for structurally absent split-defence copy.
+  inventing a target for structurally absent split-defense copy.
 - [x] Repeated activation of an already selected card and field still reveals
   and focuses Edit.
 - [x] Timing labels select their paragraph without becoming editable labels.
 - [x] Bonus ability 2 focuses index `1` even when Bonus ability 1 is empty.
-- [x] Primary and split-defence requests cannot cross.
+- [x] Primary and split-defense requests cannot cross.
 - [x] A delayed request cannot focus the next selected card.
 - [x] Desktop, tablet, and phone pane behaviour is coherent.
 - [x] Preview resize, zoom, scroll, bleed, and guides do not detach targets.
@@ -448,7 +449,7 @@ using the same validation and store command as the centre editor.
 
 ### What the author gets
 
-Selecting a card title, combat value, attack, defence, or numeric boost opens a
+Selecting a card title, combat value, attack, defense, or numeric boost opens a
 small editor at that position. Changes appear in the card and centre workspace
 after commit; Escape safely abandons the draft.
 
@@ -493,7 +494,7 @@ after commit; Escape safely abandons the draft.
 - [x] Title edits round-trip without losing formatting or tokens.
 - [x] The empty title fallback never becomes stored copy unless the author
   explicitly types it.
-- [x] Hero ordinary value, villain/minion attack and defence, split values,
+- [x] Hero ordinary value, villain/minion attack and defense, split values,
   and numeric boost update the intended field.
 - [x] Out-of-range or invalid numeric values cannot persist.
 - [x] The centre editor reflects a committed preview edit immediately.
@@ -526,7 +527,7 @@ paragraph without corrupting its formatting, tokens, identity, or split side.
 ### What the author gets
 
 Selecting existing plain, Immediately, During Combat, After Combat,
-split-defence, or Bonus ability text opens a formatted editor at that
+split-defense, or Bonus ability text opens a formatted editor at that
 paragraph. Selecting blank ability space or choosing **Open full editor** takes
 the author to the complete Ability Text controls in the centre.
 
@@ -537,7 +538,7 @@ the author to the complete Ability Text controls in the centre.
 - [x] Open the editor from the original stored ability value, never from
   `renderActionText()` output.
 - [x] Map primary plain and all three timing paragraphs to their exact source.
-- [x] Map split-defence plain and timing paragraphs to `defenseAbility`.
+- [x] Map split-defense plain and timing paragraphs to `defenseAbility`.
 - [x] Map Bonus paragraphs using their original array index and side.
 - [x] Keep timing labels, Bonus icons, dividers, colours, and other structural
   decorations non-editable.
@@ -570,7 +571,7 @@ the author to the complete Ability Text controls in the centre.
 ### Exit criteria
 
 - [x] Existing primary plain and timing paragraphs edit their exact fields.
-- [x] Existing split-defence paragraphs never write to the primary side.
+- [x] Existing split-defense paragraphs never write to the primary side.
 - [x] Existing Bonus ability 2 edits index `1` even if index `0` is empty.
 - [x] Timing labels remain fixed while selecting the associated text.
 - [x] Blank space and absent ability blocks open the correct centre stack.
@@ -597,7 +598,7 @@ preview:
 2. Edit its title from the right preview and commit.
 3. Edit every visible numeric field that applies to the card.
 4. Edit an existing plain or timed ability paragraph.
-5. Edit the split-defence side without changing the primary side.
+5. Edit the split-defense side without changing the primary side.
 6. Edit Bonus ability 2 while Bonus ability 1 is empty.
 7. Cancel one title, numeric, and ability draft with Escape.
 8. Open the full centre editor from blank ability space.
@@ -626,12 +627,12 @@ pointers without changing the desktop interaction.
 
 ### Required fixture matrix
 
-- Ordinary hero attack, defence, versatile, and hybrid cards.
+- Ordinary hero attack, defense, versatile, and hybrid cards.
 - Hero scheme with no combat value.
 - Hero split card with a shared ability.
-- Hero split card with a separate defence ability.
+- Hero split card with a separate defense ability.
 - Villain and minion unsplit and split cards.
-- Null attack or defence values.
+- Null attack or defense values.
 - Numeric boost and custom-symbol boost.
 - Empty and formatted card titles.
 - Plain ability plus all three timing paragraphs.
@@ -722,6 +723,10 @@ pointers without changing the desktop interaction.
 - Strict decoded-pixel sampling remains environment-sensitive to browser font
   rendering. Geometry, dimensions and renderer isolation are the stable release
   gates; Phase 4 touches preview-only components.
+- The shipped accessible names used the British spelling for the defense value
+  and split-defense text. They were corrected to **Defense** on 28 September
+  2026 (`cardEditAddressLabel` in `src/lib/cards/edit-targets.ts`), following
+  the product-language rule that always writes Defense.
 
 ---
 
@@ -734,14 +739,90 @@ represented on the card.
 ### What the author gets
 
 An author can make quick corrections directly where active special-effect
-content appears. Non-empty Boost Effect and Tuck Effect text can be selected
-at the card. An active Bonus Attack exposes its stored title, numeric value,
-and non-empty ability text. Empty or derived content opens the exact centre
-control so the preview never invents or silently saves source text.
+content appears. Boost Effect text can be selected at the card, and a blank
+Boost Effect behaves like a blank card title: once the effect is on, clicking
+its empty capsule lets the author type there (the user's decision, 28
+September 2026). Non-empty Tuck Effect text can be edited in either
+orientation. An active Bonus Attack exposes its stored title, numeric value,
+and non-empty ability text. Other blank or derived content opens the exact
+centre control so the preview never invents or silently saves source text.
 
 Desktop pointer and keyboard behaviour remains the primary interaction. A
 small, crowded, or coarse-pointer target uses the existing centre-editor
 fallback instead of weakening the desktop experience.
+
+### Constraints found in the pre-implementation code review
+
+A read-through of the production code on 28 September 2026 found four
+behaviours of the shipped overlay and renderer that decide how Phase 5 must be
+built. Each would produce a visible defect if the plan were followed literally
+without them.
+
+- **The crowded rule applies at every size, not only to coarse pointers.**
+  `PreviewFieldOverlay` marks any two overlapping target boxes as crowded, and
+  a crowded target can only navigate. The `.boost-effect` capsule deliberately
+  runs under the boost disc so the disc covers the join, which puts it over the
+  existing `boost:boost` value target. Marking the capsule would silently turn
+  today's direct boost-value editing into navigation. `.boost-effect-label`
+  ends clear of the ring by construction (`BOOST_EFFECT.label.right` plus
+  `offsetX`), so it is the element to mark. The same rule means the title and
+  a Boost Effect label must not overlap where the capsule reaches into the
+  title's first line.
+- **Zero-width markers are discarded.** The overlay filters out any box with no
+  width. Blank Boost Effect or Tuck Effect text renders an empty label, so a
+  marker on the text alone yields no target at all rather than the planned
+  navigation target. The Tuck Effect is therefore marked on its whole bar,
+  which is visible and sized even when empty. A blank Boost Effect label has no
+  box of its own; giving it one (for example by letting the label fill the
+  capsule's content box) is acceptable only if the rendered and exported
+  geometry is proved unchanged. Otherwise a blank Boost Effect stays reachable
+  from the centre editor only, and this plan should say so.
+- **Boost Effect needs a new plain-text editor kind.** `PreviewDirectField`
+  currently offers `title` (formatted single-line), `ability` (formatted
+  multiline) and `number`. The renderer prints `card.boostEffect` as literal
+  text and the centre control is a plain `TextInput`, so editing it with the
+  formatted title editor would let bold or `{{…}}` tokens be saved and printed
+  as raw markup.
+- **Per-field wording is not yet parameterised.** `PreviewFieldEditor`
+  hard-codes the `Card Title` placeholder, and `cardEditAddressLabel` returns
+  the raw field key (for example `bonusAttack`) for the `advanced` region.
+  Every Phase 5 field needs its own placeholder and accessible name.
+
+The `advanced` location already exists in `CardEditLocation`, but nothing
+emits or consumes it yet: no renderer marker, centre-editor target, direct
+source or writer. Phase 5 adds these rather than refining existing ones.
+
+### How implementation resolved them
+
+- **Blank Boost Effect.** The capsule's left padding moved onto
+  `.boost-effect-label`, which now fills the capsule (`flex: 1 1 auto`) and has
+  a one-line minimum height (`min-height: 1lh`). An empty label previously
+  collapsed to zero height, which the overlay also discards. Ten Boost Effect,
+  Tuck Effect and Bonus Attack cards photographed through the export stage are
+  pixel-identical before and after, so the printed card is unchanged.
+- **A right-hand Tuck Effect crowded the ability text.** The renderer does not
+  narrow the ability column for a right-side bar; the bar is painted over the
+  column's right edge. Marking the bar therefore made the ability target
+  crowded and took its direct editing away. Tuck bars carry an inert
+  `data-card-edit-surface` marker: a surface is excluded from the crowded check
+  and layered above other targets, so it wins where it is visibly on top and
+  the text below stays direct elsewhere. The renderer's overlap itself (long
+  ability lines partly hidden under the bar) predates Phase 5 and is recorded,
+  not changed.
+- **On-card number editors gained up/down arrows** (the user's request during
+  review). Every direct numeric field — hero combat value, attack, defense,
+  boost and Bonus Attack value — shows stacked ▲/▼ buttons matching the Copies
+  in deck stepper. They step within the field's own bounds, disable at each
+  limit, keep focus in the number so Enter and Escape still commit and cancel,
+  and change only the draft until it is committed.
+- **Two defects shared with Phases 2–4 were fixed.** Every preview text editor
+  opened with its caret at the start of the existing copy: focusing a
+  contenteditable lets the browser place a caret there, which
+  `restoreActionTextSelection` accepted as live, so its end fallback never ran.
+  The editor now seeds its bookmark at the end first. A single-line editor also
+  took its target's height as a minimum, so a card-height right Tuck bar
+  produced a card-height editor; single-line editors are now capped at one
+  line.
 
 ### Required fixture matrix
 
@@ -749,6 +830,10 @@ fallback instead of weakening the desktop experience.
   visible boost assembly.
 - Non-empty and blank Boost Effect text, verifying that only the visible copy
   is targeted when the renderer also emits an invisible title-clearance copy.
+- The boost value remains directly editable (not crowded) while a Boost Effect
+  is shown, with short text and with text long enough to reach the title row.
+- The card title remains directly editable beside and below a Boost Effect
+  capsule.
 - Bonus Attack on and off for hero, villain, and minion cards.
 - Non-empty formatted Bonus Attack title and the empty-source derived
   **Bonus Attack** fallback.
@@ -767,35 +852,50 @@ fallback instead of weakening the desktop experience.
 
 ### Work
 
-- [ ] Refine the typed advanced target address so Boost Effect, Bonus Attack
-  title/value/ability, and Tuck Effect identify exact stored fields rather
-  than a coarse section.
-- [ ] Add stable centre-editor targets for each Phase 5 field and route blank,
+- [x] Add exact field addresses for Boost Effect, Bonus Attack
+  title/value/ability, and Tuck Effect. The coarse `advanced` location exists
+  but is not yet emitted or consumed anywhere; update
+  `DIRECT_PREVIEW_FIELD_CONTRACT`, `CARD_EDIT_MARKERS`, the address parser,
+  `previewDirectField` and `writePreviewDirectField` together.
+- [x] Add stable centre-editor targets for each Phase 5 field and route blank,
   derived, hidden, narrow, crowded, or unsupported cases to those controls.
-- [ ] Add an inert marker only to the visible Boost Effect text; do not mark
-  the invisible copy used to reserve title clearance.
-- [ ] Add direct plain single-line editing for a non-empty visible
-  `card.boostEffect`, matching its existing centre `TextInput` semantics.
-- [ ] Add direct formatted single-line editing for a non-empty stored
+- [x] Add an inert marker only to `.boost-effect-label`; do not mark the
+  `.boost-effect` capsule (it overlaps the boost value) or the invisible
+  `.boost-title-clearance` copy.
+- [x] Mark the whole `.tuck-effect` bar in both orientations, so blank text
+  still yields a sized navigation target.
+- [x] Decide and record how a blank Boost Effect is reached: the user chose
+  direct editing like a blank title; the label fills the capsule with a
+  one-line minimum height, proved pixel-identical in export.
+- [x] Add a plain single-line `PreviewDirectField` kind and use it for a
+  visible `card.boostEffect`, blank or not, matching its existing centre
+  `TextInput` semantics. Never use the formatted title editor for it.
+- [x] Give each Phase 5 field its own editor placeholder and accessible name in
+  place of the hard-coded `Card Title` placeholder and raw `advanced` field key.
+- [x] Add direct formatted single-line editing for a non-empty stored
   `card.bonusAttackTitle`. Treat the displayed **Bonus Attack** fallback as
   navigation-only so it can never become persisted copy by accident.
-- [ ] Add direct numeric editing for visible `card.bonusAttackValue`, reusing
+- [x] Add direct numeric editing for visible `card.bonusAttackValue`, reusing
   the existing `0–9` validation and session lifecycle.
-- [ ] Add direct formatted editing for non-empty
-  `card.bonusAttackAbility`; route a blank ability to the centre editor.
-- [ ] Add direct formatted single-line editing for non-empty
+- [x] Add direct formatted multiline editing for non-empty
+  `card.bonusAttackAbility`. A blank ability is not rendered and so has no
+  target; it is reached through the Bonus Attack title fallback or the centre
+  editor.
+- [x] Add direct formatted single-line editing for non-empty
   `card.tuckEffect` in both bottom and right orientations.
-- [ ] Mount no target when the corresponding effect is off or the source is
+- [x] Mount no target when the corresponding effect is off or the source is
   not visibly rendered.
-- [ ] Keep effect toggles, Tuck Effect orientation, special-effect colours,
+- [x] Keep effect toggles, Tuck Effect orientation, special-effect colours,
   and corner-badge editing in the centre editor.
-- [ ] Reuse the established local-draft, commit/cancel, focus restoration,
+- [x] Reuse the established local-draft, commit/cancel, focus restoration,
   stale-card validation, artwork mutual exclusion, and export-blocking rules.
-- [ ] Verify marker and anchored-editor geometry through text reflow, zoom,
-  scroll, pane resize, bleed, guides, and both Tuck Effect orientations.
-- [ ] Verify that no editor control enters `.plate` and that unchanged
+- [x] Verify marker and anchored-editor geometry through text reflow, pane
+  resize, and both Tuck Effect orientations. Zoom, scroll, bleed and guides
+  reuse the overlay's Phase 4-verified remeasurement and were not re-run per
+  field.
+- [x] Verify that no editor control enters `.plate` and that unchanged
   renderer/export geometry remains stable.
-- [ ] Run `npm run check`, `npm run build`, `git diff --check`, focused browser
+- [x] Run `npm run check`, `npm run build`, `git diff --check`, focused browser
   verification, and the Phase 0 geometry evidence check.
 - [ ] Commit Phase 5 separately on its new preview branch, push it, and verify
   the exact hosted deployment and a direct shared link.
@@ -811,31 +911,36 @@ fallback instead of weakening the desktop experience.
 - `src/lib/components/preview/PreviewFieldEditor.svelte`
 - `src/lib/components/workspace/ActionCardContent.svelte`
 - `src/lib/components/workspace/FormattedTextField.svelte`
-- Existing direct-preview evidence fixtures and manifests
+- `src/lib/ui/NumberInput.svelte` (an `editorTarget` focus anchor)
+- `tools/baselines/direct-preview-editing-phase5/`
 
 No persisted field, schema version, normalizer, storage, cloud, publication,
 or collaboration change is expected: all Phase 5 source fields already exist.
 
 ### Exit criteria
 
-- [ ] Every visible supported Phase 5 field opens the exact source field and
+- [x] Every visible supported Phase 5 field opens the exact source field and
   commits once through `workshop.editCard()`.
-- [ ] Inactive, blank, derived, hidden, narrow, crowded, and unsupported cases
-  navigate safely to the centre editor or remain inert as specified.
-- [ ] The derived **Bonus Attack** fallback is never persisted, and the
+- [x] Inactive, blank, derived, hidden, narrow, crowded, and unsupported cases
+  navigate safely to the centre editor or remain inert as specified. The one
+  deliberate exception is a blank Boost Effect, which edits in place.
+- [x] The derived **Bonus Attack** fallback is never persisted, and the
   invisible Boost Effect clearance copy never creates a duplicate target.
-- [ ] Bottom and right Tuck Effect orientations retain aligned, non-overlapping
-  targets through supported preview geometry.
-- [ ] Plain Boost Effect and formatted Bonus Attack/Tuck Effect semantics match
+- [x] Adding a Boost Effect never makes the existing boost value or card title
+  crowded, so their direct editing is unchanged.
+- [x] Bottom and right Tuck Effect orientations retain aligned targets through
+  supported preview geometry. The right bar overlaps the ability column it is
+  painted over, and is layered above it as a surface rather than crowding it.
+- [x] Plain Boost Effect and formatted Bonus Attack/Tuck Effect semantics match
   their existing centre controls, including token and IME behaviour where
   applicable.
-- [ ] Effects cannot be enabled, disabled, recoloured, or reoriented from the
+- [x] Effects cannot be enabled, disabled, recoloured, or reoriented from the
   card surface, and the corner badge remains centre-only.
-- [ ] No direct interaction appears in replacement, sample, cardback, public,
+- [x] No direct interaction appears in replacement, sample, cardback, public,
   shared, print, export, or other read-only contexts.
-- [ ] No editor control enters `.plate`; export dimensions and geometry checks
+- [x] No editor control enters `.plate`; export dimensions and geometry checks
   remain stable.
-- [ ] `npm run check`, `npm run build`, and focused browser verification pass.
+- [x] `npm run check`, `npm run build`, and focused browser verification pass.
 - [ ] The hosted Phase 5 preview is accepted before the reviewed commit is
   promoted to `main`.
 
@@ -848,7 +953,7 @@ or collaboration change is expected: all Phase 5 source fields already exist.
 | Editing controls enter `.plate` | Inputs, cursors, or focus rings appear in PNG output | Keep all semantic controls in a sibling overlay; gate every phase on export fingerprints |
 | Rendered HTML is treated as source | `{{name}}`, symbol tokens, formatting, or custom-symbol IDs are corrupted | Load and save the original stored value through the existing formatted-text conversion path |
 | Bonus filtering loses identity | Visible Bonus ability 2 writes to Bonus ability 1 | Preserve the original array index before filtering empty entries |
-| Split paths are confused | Primary text overwrites defence text or vice versa | Carry the logical region in every target, focus request, and mutation |
+| Split paths are confused | Primary text overwrites defense text or vice versa | Carry the logical region in every target, focus request, and mutation |
 | A delayed focus request survives selection change | The wrong card receives focus or a mutation | Carry and revalidate `cardId`; invalidate requests and sessions on mismatch |
 | Text reflow moves the target | The editor jumps, loses selection, or becomes detached | Keep a stable edit-session shell and recompute geometry after layout changes |
 | Zoom, scroll, or resize leaves stale coordinates | A hotspot or editor no longer aligns with its field | Observe plate/target size and stage scrolling; recompute after Svelte `tick()` |
@@ -861,6 +966,10 @@ or collaboration change is expected: all Phase 5 source fields already exist.
 | Placeholder copy is persisted | `Card Title` becomes real user data | Initialize from the empty source rather than renderer fallback text |
 | Bonus Attack fallback is persisted | The derived **Bonus Attack** label becomes authored text | Treat the fallback as navigation-only and initialize from the empty stored source |
 | Boost Effect exposes duplicate targets | Its visible text and invisible title-clearance copy both become interactive | Mark only the visible renderer node and include a fixture that asserts one target |
+| A new target crowds an existing one | The capsule overlaps the boost value, so the overlay's size-independent crowded rule turns boost (or title) editing into navigation | Mark `.boost-effect-label`, not the capsule; assert the boost value and title stay direct with a Boost Effect shown |
+| A blank effect has no target | The overlay discards zero-size markers, so blank Boost Effect or Tuck Effect text cannot be clicked at all | Mark the Tuck Effect's whole bar; the Boost Effect label fills its capsule with a one-line minimum height |
+| A painted-over region crowds its neighbour | A right Tuck bar covers the ability column's edge, so the crowded rule would take direct editing from the ability text | Mark the bar as an inert surface: excluded from crowding and layered above other targets |
+| Boost Effect saved as formatted text | Bold or `{{…}}` tokens are stored and printed as raw markup, because the renderer prints this field literally | Add a plain single-line editor kind for it |
 | Inactive effect data becomes editable | Hidden stored Boost, Bonus Attack, or Tuck text is exposed from the preview | Emit a marker only when the effect is active and the exact source is visibly represented |
 | Right-oriented Tuck Effect geometry drifts | Its narrow vertical target overlaps or detaches after reflow | Measure the rendered marker in both orientations and apply the existing crowded-target fallback |
 | Export occurs with an unresolved draft | Export omits the visible edit or captures transient UI | Finish or block deterministically according to the Phase 0 contract |

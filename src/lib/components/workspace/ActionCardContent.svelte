@@ -615,6 +615,7 @@
       <Field label="Effect text" hint="The attachment lengthens to fit longer text.">
         <TextInput
           value={card.boostEffect}
+          data-card-editor-target={CARD_EDIT_MARKERS.boostEffect}
           placeholder="Draw 2 cards"
           oninput={(event) =>
             edit((target) => (target.boostEffect = event.currentTarget.value))}
@@ -641,6 +642,7 @@
           multiline={false}
           onchange={(title) => edit((target) => (target.bonusAttackTitle = title))}
           customSymbols={workshop.adventure.customSymbols}
+          editorTarget={CARD_EDIT_MARKERS.bonusAttackTitle}
         />
 
         <Field label="Combat value">
@@ -648,6 +650,7 @@
             value={card.bonusAttackValue}
             min={0}
             max={9}
+            editorTarget={CARD_EDIT_MARKERS.bonusAttackValue}
             onchange={(value) => edit((target) => (target.bonusAttackValue = value))}
           />
         </Field>
@@ -661,6 +664,7 @@
         placeholder="Ability text…"
         onchange={(value) => edit((target) => (target.bonusAttackAbility = value))}
         customSymbols={workshop.adventure.customSymbols}
+        editorTarget={CARD_EDIT_MARKERS.bonusAttackAbility}
       />
     {/if}
   </div>
@@ -681,6 +685,7 @@
         multiline={false}
         onchange={(value) => edit((target) => (target.tuckEffect = value))}
         customSymbols={workshop.adventure.customSymbols}
+        editorTarget={CARD_EDIT_MARKERS.tuckEffect}
       />
 
       <Field label="Orientation">

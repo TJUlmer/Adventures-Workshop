@@ -11,6 +11,8 @@
     unit?: string;
     /** Accessible name for the numeric field when its visible label is outside this component. */
     ariaLabel?: string;
+    /** Direct-preview focus anchor, placed on the numeric field itself. */
+    editorTarget?: string;
     /** Called after the value changes, for store-mediated updates. */
     onchange?: (value: number) => void;
   }
@@ -23,6 +25,7 @@
     disabled = false,
     unit,
     ariaLabel,
+    editorTarget,
     onchange
   }: Props = $props();
 
@@ -78,6 +81,7 @@
       {disabled}
       {value}
       aria-label={ariaLabel}
+      data-card-editor-target={editorTarget}
       oninput={onInput}
       onblur={onBlur}
     />

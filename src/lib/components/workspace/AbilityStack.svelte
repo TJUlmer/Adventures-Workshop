@@ -37,7 +37,7 @@
     originFor: (key: keyof CardTheme) => string;
     /** Author-uploaded glyphs, offered in every block's symbol palette. */
     customSymbols?: CustomSymbol[];
-    /** Distinguishes the primary and split-defence document paths. */
+    /** Distinguishes the primary and split-defense document paths. */
     sourceRegion: AbilitySourceRegion;
   }
 

@@ -15,6 +15,7 @@
   } from '$lib/text/action-text-editor';
   import SymbolPalette from '$lib/components/workspace/SymbolPalette.svelte';
   import { clampPreviewNumber } from '$lib/cards/edit-targets';
+  import { rangeAtEnd } from '$lib/ui/contenteditable-selection';
 
   interface Props {
     field: PreviewDirectField;
@@ -49,18 +50,38 @@
   let root = $state<HTMLDivElement | null>(null);
   let editor = $state<HTMLDivElement | null>(null);
   let numberInput = $state<HTMLInputElement | null>(null);
+  let plainInput = $state<HTMLInputElement | null>(null);
   let coarsePointer = $state(false);
   let valid = $state(true);
+  /* The last valid number, so the arrows can step from it and disable at the
+     field's bounds; the input's own text may be mid-edit and unparseable. */
+  let numberValue = $state(0);
+  let seenFieldValue: string | number | undefined;
+  /* `field` is rebuilt on every draft update, so follow only a change of the
+     stored source (a different field, or a commit) — never the draft itself. */
+  $effect.pre(() => {
+    const source = field.value;
+    if (source === seenFieldValue) return;
+    seenFieldValue = source;
+    numberValue = typeof source === 'number' ? source : 0;
+  });
   const editorState = createActionTextEditorState();
   const textField = $derived(field.kind === 'title' || field.kind === 'ability');
   const multiline = $derived(field.kind === 'ability');
 
+  /* A single-line editor is one line tall whatever it replaces: a right-hand
+     tuck bar is the card's full height, and taking that as a minimum turned a
+     one-line field into a panel covering the card. */
+  const inputMinHeight = $derived(
+    multiline ? Math.max(height, 88) : Math.max(32, Math.min(height, 48))
+  );
+
   const shellWidth = $derived.by(() => {
     const available = Math.max(96, canvasWidth - 8);
     const desired =
-      textField
+      textField || field.kind === 'plain'
         ? Math.max(width, multiline ? 320 : 240)
-        : Math.max(width, coarsePointer ? 140 : 96);
+        : Math.max(width, coarsePointer ? 200 : 124);
     return Math.min(desired, available);
   });
   const shellLeft = $derived(
@@ -120,7 +141,24 @@
     const next = clampPreviewNumber(field, parsed);
     if (next !== parsed) input.value = String(next);
     valid = true;
+    numberValue = next;
     ondraft(next, true);
+  }
+
+  function stepNumber(delta: number): void {
+    const next = clampPreviewNumber(field, numberValue + delta);
+    if (numberInput) {
+      numberInput.value = String(next);
+      numberInput.focus({ preventScroll: true });
+    }
+    valid = true;
+    numberValue = next;
+    ondraft(next, true);
+  }
+
+  function handlePlainInput(event: Event): void {
+    valid = true;
+    ondraft((event.currentTarget as HTMLInputElement).value, true);
   }
 
   function commitFromKeyboard(): void {
@@ -178,7 +216,16 @@
         customSymbols,
         editorOptions()
       );
+      /* Seed the bookmark at the end first. Focusing a contenteditable lets the
+         browser put a caret at its start, which `restoreActionTextSelection`
+         then accepts as live, so its end fallback never ran and the first
+         keystroke landed before the existing copy. */
+      editorState.savedRange = rangeAtEnd(editor);
       restoreActionTextSelection(editor, editorState, true);
+    } else if (plainInput) {
+      plainInput.focus({ preventScroll: true });
+      const end = plainInput.value.length;
+      plainInput.setSelectionRange(end, end);
     } else if (numberInput) {
       numberInput.focus({ preventScroll: true });
       numberInput.select();
@@ -197,7 +244,7 @@
   class="field-editor"
   class:title={field.kind === 'title'}
   class:ability={field.kind === 'ability'}
-  class:number={field.kind === 'number'}
+  class:number={field.kind === 'number' || field.kind === 'plain'}
   class:invalid={!valid}
   style:left="{shellLeft}px"
   style:top="{top}px"
@@ -217,8 +264,8 @@
       tabindex="0"
       aria-label="{label} on card"
       aria-multiline={multiline}
-      data-placeholder={field.kind === 'title' ? 'Card Title' : 'Ability text'}
-      style:min-height="{Math.max(height, multiline ? 88 : 32)}px"
+      data-placeholder={field.placeholder ?? ''}
+      style:min-height="{inputMinHeight}px"
       spellcheck={multiline}
       oncompositionstart={() => (editorState.composing = true)}
       oncompositionend={() => {
@@ -246,6 +293,23 @@
         <button type="button" class="action" aria-label="Cancel editing {label}" title="Cancel" onclick={() => oncancel(true)}>×</button>
       </div>
     </div>
+  {:else if field.kind === 'plain'}
+    <span class="number-label">{label}</span>
+    <div class="number-row">
+      <input
+        bind:this={plainInput}
+        class="plain-input"
+        type="text"
+        value={field.value}
+        placeholder={field.placeholder}
+        spellcheck="false"
+        aria-label="{label} on card"
+        oninput={handlePlainInput}
+        onkeydown={handleKeydown}
+      />
+      <button type="button" class="action" aria-label="Commit {label}" title="Commit" onclick={commitFromKeyboard}>✓</button>
+      <button type="button" class="action" aria-label="Cancel editing {label}" title="Cancel" onclick={() => oncancel(true)}>×</button>
+    </div>
   {:else}
     <span class="number-label">{label}</span>
     <div class="number-row">
@@ -261,6 +325,28 @@
         oninput={handleNumberInput}
         onkeydown={handleKeydown}
       />
+      <!-- Pointer presses keep focus in the number, so Enter still commits and
+           Escape still cancels; keyboard users can still tab to the arrows. -->
+      <span class="stepper">
+        <button
+          type="button"
+          class="step"
+          aria-label="Increase {label}"
+          title="Increase {label}"
+          disabled={field.max !== undefined && numberValue >= field.max}
+          onpointerdown={(event) => event.preventDefault()}
+          onclick={() => stepNumber(1)}
+        ><span aria-hidden="true">▲</span></button>
+        <button
+          type="button"
+          class="step"
+          aria-label="Decrease {label}"
+          title="Decrease {label}"
+          disabled={field.min !== undefined && numberValue <= field.min}
+          onpointerdown={(event) => event.preventDefault()}
+          onclick={() => stepNumber(-1)}
+        ><span aria-hidden="true">▼</span></button>
+      </span>
       <button type="button" class="action" aria-label="Commit {label}" title="Commit" onclick={commitFromKeyboard}>✓</button>
       <button type="button" class="action" aria-label="Cancel editing {label}" title="Cancel" onclick={() => oncancel(true)}>×</button>
     </div>
@@ -421,6 +507,66 @@
     -moz-appearance: textfield;
   }
 
+  .plain-input {
+    min-width: 0;
+    width: 100%;
+    height: 28px;
+    padding-inline: var(--space-2);
+    border-radius: var(--radius-xs);
+    background: var(--surface-inset);
+    color: var(--text-primary);
+    font-size: var(--text-sm);
+  }
+
+  /* Same stacked arrows as the Copies in deck stepper beneath the preview. */
+  .stepper {
+    display: inline-flex;
+    flex: none;
+    flex-direction: column;
+    overflow: hidden;
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-xs);
+    background: var(--surface-raised);
+  }
+
+  .step {
+    display: grid;
+    place-items: center;
+    width: 22px;
+    height: 14px;
+    color: var(--text-muted);
+    font-size: 7px;
+    line-height: 1;
+  }
+
+  .step + .step {
+    border-top: 1px solid var(--border-subtle);
+  }
+
+  .step:hover,
+  .step:focus-visible {
+    background: var(--surface-hover);
+    color: var(--text-primary);
+    outline: none;
+  }
+
+  .step:focus-visible {
+    box-shadow: inset 0 0 0 1px var(--accent);
+  }
+
+  .step:disabled {
+    opacity: 0.35;
+    cursor: default;
+  }
+
+  .plain-input::placeholder {
+    color: var(--text-muted);
+  }
+
+  .plain-input:focus {
+    outline: none;
+  }
+
   .number-input::-webkit-outer-spin-button,
   .number-input::-webkit-inner-spin-button {
     appearance: none;
@@ -435,15 +581,24 @@
   @media (hover: none), (any-pointer: coarse) {
     .action,
     .open-full,
-    .number-input {
+    .number-input,
+    .plain-input {
       min-width: var(--touch-target);
       min-height: var(--touch-target);
+    }
+
+    .step {
+      width: var(--touch-target);
+      height: calc(var(--touch-target) / 2);
+      font-size: 9px;
     }
   }
 
   @media (forced-colors: active) {
     .text-input:focus,
     .number-input:focus,
+    .plain-input:focus,
+    .step:focus-visible,
     .action:focus-visible,
     .open-full:focus-visible {
       outline: 2px solid currentColor;

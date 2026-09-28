@@ -594,7 +594,6 @@
           style:border-radius={pu(BOOST_EFFECT.height / 2)}
           style:border-color={theme.divider}
           style:background={fillCss(theme.boost)}
-          style:padding-left={pu(BOOST_EFFECT.label.left - BOOST_EFFECT.borderWidth)}
           style:padding-right={pu(
             Math.max(
               0,
@@ -602,8 +601,15 @@
             )
           )}
         >
+          <!-- The label, not the capsule, is the edit target: the capsule runs
+               under the boost disc, and an overlapping target would make the
+               boost value's own target crowded. The left padding sits on the
+               label and it fills the capsule, so blank copy still leaves a
+               sized region to click — with the text exactly where it was. -->
           <div
             class="boost-effect-label"
+            data-card-edit-target={CARD_EDIT_MARKERS.boostEffect}
+            style:padding-left={pu(BOOST_EFFECT.label.left - BOOST_EFFECT.borderWidth)}
             style:font-size={pu(BOOST_EFFECT.label.size)}
             style:line-height={BOOST_EFFECT.label.lineHeight}
             style:transform="translateY({pu(BOOST_EFFECT.label.offsetY)})"
@@ -951,6 +957,7 @@
         />
         <span
           class="bonus-attack-value"
+          data-card-edit-target={CARD_EDIT_MARKERS.bonusAttackValue}
           style:left={pu(BONUS_ATTACK.banner.valueCenterX)}
           style:top={pu(
             digitMiddleToBoxTop(
@@ -981,6 +988,7 @@
         >
           <div
             class="bonus-attack-title"
+            data-card-edit-target={CARD_EDIT_MARKERS.bonusAttackTitle}
             style:font-size={pu(BONUS_ATTACK.title.size)}
             style:line-height={BONUS_ATTACK.title.lineHeight}
             style:letter-spacing="{BONUS_ATTACK.title.tracking}em"
@@ -1010,6 +1018,7 @@
             ></div>
             <div
               class="bonus-attack-ability"
+              data-card-edit-target={CARD_EDIT_MARKERS.bonusAttackAbility}
               style:margin-top={pu(BONUS_ATTACK.rule.gapBelow)}
               style:margin-left={pu(primaryAbilityLeft - BONUS_ATTACK.content.left)}
               style:width={pu(
@@ -1027,8 +1036,13 @@
     {/if}
 
     {#if hasBottomTuckEffect}
+      <!-- The whole bar is the target, so blank copy is still clickable. It is
+           a surface: painted over whatever it covers, so the overlay layers it
+           above other targets instead of treating the overlap as crowding. -->
       <div
         class="tuck-effect tuck-effect-bottom"
+        data-card-edit-target={CARD_EDIT_MARKERS.tuckEffect}
+        data-card-edit-surface
         style:height={pu(TUCK_EFFECT.thickness)}
         style:padding-inline={pu(TUCK_EFFECT.padding)}
         style:background={fillCss(theme.tuckEffect)}
@@ -1050,6 +1064,8 @@
          the much shorter body panel, and ordinary reminder copy needs that run. -->
     <div
       class="tuck-effect tuck-effect-right"
+      data-card-edit-target={CARD_EDIT_MARKERS.tuckEffect}
+      data-card-edit-surface
       style:width={pu(TUCK_EFFECT.thickness)}
       style:padding-block={pu(TUCK_EFFECT.padding)}
       style:background={fillCss(theme.tuckEffect)}
@@ -2196,6 +2212,11 @@
   }
 
   .boost-effect-label {
+    flex: 1 1 auto;
+    min-width: 0;
+    /* One line box even when blank: empty, it collapsed to no height and left
+       the direct-edit target unclickable. Non-empty copy is exactly one line. */
+    min-height: 1lh;
     overflow: hidden;
     font-family: var(--card-font-text);
     font-weight: var(--card-font-text-weight);
