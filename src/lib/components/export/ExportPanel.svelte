@@ -475,7 +475,7 @@
                 unchanged {ttsResult.reusedCount === 1 ? 'asset' : 'assets'}.
                 {ttsResult.retention === 'published-current'
                   ? ' This export is retained while it remains the latest published revision.'
-                  : ' This export is temporary and becomes eligible for cleanup after 30 days.'}
+                  : ' This export is temporary and becomes eligible for cleanup 7 days after its latest export.'}
               </p>
             {:else if ttsResult.directory}
               <p class="landed">{ttsResult.directory}</p>

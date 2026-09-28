@@ -142,7 +142,7 @@ export async function createTtsAssetHost(
 
       /* Uploading first keeps a registered manifest from ever naming a missing
          object. A failure here leaves harmless, unregistered objects that the
-         ordinary 30-day candidate scan can reclaim. */
+         ordinary candidate scan can reclaim after seven days. */
       const rows = await request<TtsRetentionRow[]>('/rest/v1/rpc/register_tts_export', {
         method: 'POST',
         body: {

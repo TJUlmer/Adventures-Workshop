@@ -16,8 +16,9 @@ turning ordinary edits, soft deletion, publication, or conflict recovery into da
   abandoned uploads that never reached a published row keep the 30-day safety period.
 - `tts-assets`: generated files that are absent from the one retained manifest for the latest
   published revision. Files unique to a replaced published revision become due after three days.
-  Unpublished exports, collection exports, and legacy objects without a retained manifest keep
-  the 30-day candidate grace period. Re-exporting the exact current published snapshot replaces
+  Every other export (from an editor, a gallery visitor, a scoped or pruned export, or a
+  collection) and legacy objects without a retained manifest become due seven days after the
+  latest export that named them. Re-exporting the exact current published snapshot replaces
   its retained manifest; shared paths stay live while any retained manifest names them.
 
 Migration `0032_tts_export_retention.sql` adds the manifest that makes TTS cleanup provable.
@@ -31,6 +32,13 @@ removed from a committed draft, gallery, or retained TTS revision with a three-d
 The ordinary 30-day grace period continues to cover uncommitted and temporary uploads, while
 every deletion still uses the same live-reference proof and deletion-time recheck as the
 owner-scoped cleanup path.
+
+Migration `0042_temporary_tts_export_grace.sql` shortens that period to seven days for
+`tts-assets` only; drafts and gallery assets keep the requested 30-90 days. Seven days is fixed in
+SQL, because the Edge Function's request floor is the general 30. Registering any TTS manifest
+clears its paths' candidate rows so the seven days restart: an unchanged re-export reuses objects
+without rewriting them, and would otherwise leave the newest save pointing at files due tomorrow.
+The plan report carries `temporaryTtsGraceSeconds` beside `graceSeconds`.
 
 Online TTS exports use content-hashed object names. Re-exporting the same set with byte-identical
 generated files reuses their existing Storage objects and writes only another small manifest row;

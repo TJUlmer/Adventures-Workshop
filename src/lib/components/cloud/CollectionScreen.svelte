@@ -1333,7 +1333,7 @@
       notice = result.directory
         ? `Wrote ${result.fileCount} files to ${result.directory}.`
         : result.hosting === 'online'
-          ? `Downloaded the box. ${result.uploadedCount} files uploaded, ${result.reusedCount} already online. Collection exports become eligible for cleanup after 30 days.`
+          ? `Downloaded the box. ${result.uploadedCount} files uploaded, ${result.reusedCount} already online. Collection exports become eligible for cleanup 7 days after their latest export.`
           : `Downloaded the box as ${result.download?.filename ?? 'an archive'}.`;
     } catch (error) {
       notice = error instanceof Error ? error.message : 'That export did not finish.';

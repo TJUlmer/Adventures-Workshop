@@ -212,4 +212,20 @@ assert.match(historyMigration, /recorded_at < now\(\) - interval '90 days'/);
 assert.match(historyMigration, /jsonb_typeof\(buckets\) = 'array'/);
 assert.match(historyMigration, /storage cleanup reporting is restricted to the service role/);
 
-console.log('Storage cleanup helpers, retention, schedule, and reporting: 33 assertions passed');
+const temporaryTtsMigration = readFileSync(
+  new URL('../supabase/migrations/0042_temporary_tts_export_grace.sql', import.meta.url),
+  'utf8',
+);
+/* Every non-superseded clause — the plan's due list, both totals, and the
+   deletion-time recheck — must carry the seven-day branch, or the report and
+   the deletion would disagree about what is due. */
+assert.equal(
+  temporaryTtsMigration.match(/when candidate\.bucket_id = 'tts-assets' then/g)?.length,
+  4,
+);
+assert.match(temporaryTtsMigration, /temporary_tts_grace constant interval := interval '7 days'/);
+assert.match(temporaryTtsMigration, /then interval '7 days'/);
+assert.match(temporaryTtsMigration, /after insert on public\.tts_exports/);
+assert.match(temporaryTtsMigration, /temporaryTtsGraceSeconds/);
+
+console.log('Storage cleanup helpers, retention, schedule, and reporting: 38 assertions passed');
