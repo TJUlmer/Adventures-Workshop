@@ -1,7 +1,7 @@
 # Unmatched Labs Direct Preview Editing Project
 
-**Status:** Core milestone complete in production; Phase 5 special-effect
-editing implemented on its preview branch, awaiting hosted review
+**Status:** Phases 0–5 complete in production (Phase 5 promoted 28 September
+2026 as merge `32305a2`)
 **Last updated:** 28 September 2026
 **Scope:** Desktop-first editing of selected action-card fields, including
 active special-effect text, from the live right-hand preview, with a safe
@@ -897,9 +897,9 @@ source or writer. Phase 5 adds these rather than refining existing ones.
   renderer/export geometry remains stable.
 - [x] Run `npm run check`, `npm run build`, `git diff --check`, focused browser
   verification, and the Phase 0 geometry evidence check.
-- [ ] Commit Phase 5 separately on its new preview branch, push it, and verify
+- [x] Commit Phase 5 separately on its new preview branch, push it, and verify
   the exact hosted deployment and a direct shared link.
-- [ ] Present a layman summary and technical recap for review. Promote to
+- [x] Present a layman summary and technical recap for review. Promote to
   `main` only after explicit hosted-preview acceptance.
 
 ### Likely files
@@ -941,8 +941,21 @@ or collaboration change is expected: all Phase 5 source fields already exist.
 - [x] No editor control enters `.plate`; export dimensions and geometry checks
   remain stable.
 - [x] `npm run check`, `npm run build`, and focused browser verification pass.
-- [ ] The hosted Phase 5 preview is accepted before the reviewed commit is
+- [x] The hosted Phase 5 preview is accepted before the reviewed commit is
   promoted to `main`.
+
+---
+
+### Phase 5 promotion
+
+- The user reviewed hosted preview `9b7969d`, including the number-editor
+  arrows added during review, and approved it on 28 September 2026.
+- Promoted as merge `32305a2` from `70f02e8`; its tree is identical to the
+  reviewed preview. On the merged tree `npm run check` reported 0 errors and 0
+  warnings, `npm run build` passed with the existing chunk-size advisory,
+  `git diff --check` was clean, and the Phase 0 geometry check verified 7 of 7.
+- The production deployment served the Phase 5 bundle with a clean console,
+  and a direct shared link exposed no preview-edit controls.
 
 ---
 

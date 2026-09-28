@@ -1,10 +1,10 @@
 # Direct Preview Editing — Session Handoff
 
 **Updated:** 28 September 2026  
-**Status:** Phases 0–4 are complete in production. Phase 5 (direct preview
-editing for active Boost Effect, Bonus Attack and Tuck Effect fields) is
-implemented on `codex/direct-preview-special-effects-preview` and awaits the
-user's review of its hosted preview. Nothing from it is on `main`.
+**Status:** Phases 0–5 are complete in production. Phase 5 (direct preview
+editing for active Boost Effect, Bonus Attack and Tuck Effect fields, plus
+up/down arrows on on-card number editors) was approved and promoted as merge
+`32305a2` on 28 September 2026. No direct-preview work is pending.
 
 ## User intent
 
@@ -166,15 +166,11 @@ Evidence, now on `main`:
 
 ## Remaining work
 
-1. Verify the hosted deployment of the pushed preview branch: persistence,
-   console cleanliness, `.plate` isolation, export safety, and a direct shared
-   link exposing no preview-edit controls.
-2. Report a layman explanation and a technical recap. Keep `main` untouched
-   while the user reviews the hosted preview; fix findings on the same branch.
-3. Only after explicit acceptance, promote the reviewed preview branch (both
-   commits) into the then-current `main`, rerun proportionate checks, push,
-   verify the exact production deployment, and tick the remaining Phase 5
-   checklist items.
+None for Phases 0–5. The corner badge and other card templates remain
+candidates for a later extension, and the right-hand Tuck Effect bar that hides
+the edge of long ability lines is a renderer question outside this project.
+Production for `32305a2`:
+<https://adventures-workshop-b805ueklb-adventures-workshop.vercel.app/>
 
 Suggested geometry command:
 
