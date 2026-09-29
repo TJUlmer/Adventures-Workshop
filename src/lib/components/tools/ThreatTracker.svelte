@@ -12,6 +12,7 @@
   import { characterLabel } from '$lib/characters/factory';
   import { createArtwork, hasArtwork } from '$lib/core/artwork';
   import { readArtworkFile } from '$lib/core/image-import';
+  import ImageLinkButton from '$lib/components/workspace/ImageLinkButton.svelte';
   import { renderThreatTrackImage, saveExport, slugify } from '$lib/export';
   import { createOperationGuard } from '$lib/interaction/operation-guard';
   import { startPointerSession } from '$lib/interaction/pointer-session';
@@ -226,7 +227,11 @@
     // Cleared at once, or picking the same file twice fires no event.
     event.currentTarget.value = '';
     if (!file) return;
+    await importLogo(file);
+  }
 
+  /** Shared by Choose and From link, so a linked picture takes the same path. */
+  async function importLogo(file: File): Promise<void> {
     const scope = set;
     const operation = logoOperations.begin({
       setId: scope.id,
@@ -956,6 +961,7 @@
             <p class="logo-name">{track.logo.label || 'Logo'}</p>
             <div class="logo-actions">
               <Button size="sm" onclick={() => logoInput?.click()}>Replace</Button>
+              <ImageLinkButton accept="image/*" onimport={importLogo} />
               <Button
                 size="sm"
                 variant="ghost"
@@ -965,10 +971,13 @@
               </Button>
             </div>
           {:else}
-            <Button size="sm" onclick={() => logoInput?.click()}>
-              <Icon name="image" size={13} />
-              Choose an image
-            </Button>
+            <div class="logo-actions">
+              <Button size="sm" onclick={() => logoInput?.click()}>
+                <Icon name="image" size={13} />
+                Choose an image
+              </Button>
+              <ImageLinkButton accept="image/*" onimport={importLogo} />
+            </div>
           {/if}
           {#if logoError}<p class="logo-error" role="alert">{logoError}</p>{/if}
         </div>

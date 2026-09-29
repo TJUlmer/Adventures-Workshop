@@ -12,6 +12,7 @@
   import { createOperationGuard } from '$lib/interaction/operation-guard';
   import { TEXT_SYMBOLS } from '$lib/renderer/assets';
   import { readArtworkFile } from '$lib/core/image-import';
+  import ImageLinkButton from '$lib/components/workspace/ImageLinkButton.svelte';
   import type { CustomSymbol, CustomSymbolId } from '$lib/symbols/types';
   import { customSymbolLabel } from '$lib/symbols/types';
   import { workshop } from '$lib/state/workshop.svelte';
@@ -51,7 +52,11 @@
     const file = event.currentTarget.files?.[0];
     event.currentTarget.value = '';
     if (!file) return;
+    await importImage(id, file);
+  }
 
+  /** Shared by the file picker and From link, so a linked picture takes the same path. */
+  async function importImage(id: CustomSymbolId, file: File): Promise<void> {
     const scope = workshop.adventure;
     const operation = imageOperations.begin({
       setId: scope.id,
@@ -199,6 +204,11 @@
                 Attach a transparent PNG
               </button>
             {/if}
+            <ImageLinkButton
+              variant="ghost"
+              accept="image/*"
+              onimport={(file) => importImage(symbol.id, file)}
+            />
           </div>
 
           <div class="symbol-actions">

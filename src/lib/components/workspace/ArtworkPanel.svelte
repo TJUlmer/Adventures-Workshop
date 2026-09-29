@@ -13,6 +13,7 @@
   import { hasArtwork } from '$lib/core/artwork';
   import type { ArtTransform } from '$lib/core/artwork';
   import { readArtworkFile } from '$lib/core/image-import';
+  import ImageLinkButton from './ImageLinkButton.svelte';
   import {
     ARTWORK_TRANSFORM_LIMITS,
     clampArtworkOffset,
@@ -94,7 +95,11 @@
     const file = event.currentTarget.files?.[0];
     event.currentTarget.value = '';
     if (!file) return;
+    await importFile(file);
+  }
 
+  /** Shared by Choose and From link, so a linked picture takes the same path. */
+  async function importFile(file: File): Promise<void> {
     const origin: EntityRef = { ...target };
     const scope = workshop.adventure;
     const operation = artworkPickGuard.begin({
@@ -285,10 +290,13 @@
       </span>
     </button>
 
-    <Button size="sm" onclick={() => fileInput?.click()}>
-      <Icon name="upload" size={13} />
-      {attached ? 'Replace' : 'Choose'}
-    </Button>
+    <div class="import-actions">
+      <Button size="sm" onclick={() => fileInput?.click()}>
+        <Icon name="upload" size={13} />
+        {attached ? 'Replace' : 'Choose'}
+      </Button>
+      <ImageLinkButton accept="image/*" onimport={importFile} />
+    </div>
   </div>
 </EditorSection>
 
@@ -593,6 +601,12 @@
     grid-template-columns: minmax(0, 1fr) auto;
     align-items: center;
     gap: var(--space-3);
+  }
+
+  .import-actions {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
   }
 
   .artwork-select {

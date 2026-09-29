@@ -11,6 +11,7 @@
   import { listMyPublishedSets } from '$lib/cloud/sets';
   import { hasArtwork } from '$lib/core/artwork';
   import { readArtworkFile } from '$lib/core/image-import';
+  import ImageLinkButton from '$lib/components/workspace/ImageLinkButton.svelte';
   import { createOperationGuard } from '$lib/interaction/operation-guard';
   import GeneratedBoxArt from '$lib/renderer/GeneratedBoxArt.svelte';
   import { usesAutomaticBoxArt } from '$lib/sets/box-art';
@@ -85,7 +86,11 @@
     const file = event.currentTarget.files?.[0];
     event.currentTarget.value = '';
     if (!file) return;
+    await importBoxArt(file);
+  }
 
+  /** Shared by Choose and From link, so a linked picture takes the same path. */
+  async function importBoxArt(file: File): Promise<void> {
     const scope = set;
     const operation = boxArtOperations.begin({
       setId: scope.id,
@@ -271,10 +276,13 @@
           {#if error}<span class="error">{error}</span>{/if}
         </div>
 
-        <Button size="sm" onclick={() => boxInput?.click()}>
-          <Icon name="upload" size={13} />
-          {hasArtwork(set.boxArt) ? 'Replace' : 'Choose'}
-        </Button>
+        <div class="pick-actions">
+          <Button size="sm" onclick={() => boxInput?.click()}>
+            <Icon name="upload" size={13} />
+            {hasArtwork(set.boxArt) ? 'Replace' : 'Choose'}
+          </Button>
+          <ImageLinkButton accept="image/*" onimport={importBoxArt} />
+        </div>
       </div>
     </EditorSection>
 
@@ -470,6 +478,12 @@
     border: 1px solid var(--border-subtle);
     font-size: var(--text-sm);
     color: var(--text-secondary);
+  }
+
+  .pick-actions {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
   }
 
   .box-row {

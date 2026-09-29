@@ -29,6 +29,11 @@
     var(--ui-dialog-inline-size),
     calc(100vw - var(--ui-dialog-safe-inline) - var(--ui-dialog-safe-inline))
   );
+  /* A modal dialog is centred by the browser's own `margin: auto`, and
+     `base.css`'s `* { margin: 0 }` reset cancels it: every dialog here opened
+     jammed into the top-left corner, flush against the edges this class
+     otherwise keeps a gutter from. Restored for every consumer at once. */
+  margin: auto;
   max-inline-size: none;
   max-block-size: min(
     var(--ui-dialog-block-cap),

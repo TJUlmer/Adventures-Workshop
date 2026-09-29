@@ -11,6 +11,7 @@
   import { characterLabel } from '$lib/characters/factory';
   import { hasArtwork } from '$lib/core/artwork';
   import { readArtworkFile } from '$lib/core/image-import';
+  import ImageLinkButton from '$lib/components/workspace/ImageLinkButton.svelte';
   import { saveExport, slugify } from '$lib/export';
   import { BOX_SKIN_HEIGHT, BOX_SKIN_WIDTH } from '$lib/export/tts-box';
   import { createOperationGuard } from '$lib/interaction/operation-guard';
@@ -126,6 +127,11 @@
     const file = input.files?.[0];
     input.value = '';
     if (!file) return;
+    await importBoxSkin(file);
+  }
+
+  /** Shared by Attach skin and From link, so a linked picture takes the same checks. */
+  async function importBoxSkin(file: File): Promise<void> {
     const scope = set;
     const operation = uploadOperations.begin({
       setId: scope.id,
@@ -243,7 +249,11 @@
     const file = event.currentTarget.files?.[0];
     event.currentTarget.value = '';
     if (!file) return;
+    await importReference(id, file);
+  }
 
+  /** Shared by the file picker and From link, so a linked picture takes the same path. */
+  async function importReference(id: FigureId, file: File): Promise<void> {
     const scope = set;
     const operation = uploadOperations.begin({
       setId: scope.id,
@@ -999,6 +1009,7 @@
             <a class="skin-link" href="/assets/templates/box_skin_guide.png" target="_blank" rel="noreferrer noopener">Preview layout</a>
             <input bind:this={boxSkinInput} class="sr-only" type="file" accept="image/png,image/jpeg,.png,.jpg,.jpeg" onchange={pickBoxSkin} />
             <Button size="sm" onclick={() => boxSkinInput?.click()}>{set.box.skin ? 'Replace skin' : 'Attach skin'}</Button>
+            <ImageLinkButton accept="image/png,image/jpeg,.png,.jpg,.jpeg" onimport={importBoxSkin} />
             {#if set.box.skin}
               <ConfirmAction
                 label="Remove box skin"
@@ -1173,6 +1184,12 @@
                   >
                     <Icon name="upload" size={12} />
                   </button>
+                  <ImageLinkButton
+                    iconOnly
+                    variant="ghost"
+                    accept="image/*"
+                    onimport={(file) => importReference(figure.id, file)}
+                  />
                   <ConfirmAction
                     label="Remove {imageLabel(figure)}"
                     variant="ghost"
@@ -1191,6 +1208,12 @@
                     <Icon name="image" size={12} />
                     {isDial(figure) ? 'Attach the dial face' : 'Attach an image'}
                   </button>
+                  <ImageLinkButton
+                    iconOnly
+                    variant="ghost"
+                    accept="image/*"
+                    onimport={(file) => importReference(figure.id, file)}
+                  />
                 {/if}
               </div>
 

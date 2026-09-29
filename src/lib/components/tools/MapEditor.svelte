@@ -18,6 +18,7 @@
   import { solid } from '$lib/cards/style';
   import { createArtwork, hasArtwork } from '$lib/core/artwork';
   import { readArtworkFile } from '$lib/core/image-import';
+  import ImageLinkButton from '$lib/components/workspace/ImageLinkButton.svelte';
   import { photographMapBoard, saveExport, slugify } from '$lib/export';
   import { startPointerSession } from '$lib/interaction/pointer-session';
   import type { PointerSession, PointerSessionCancelReason } from '$lib/interaction/pointer-session';
@@ -644,7 +645,13 @@
   async function pickZonePattern(event: Event & { currentTarget: HTMLInputElement }): Promise<void> {
     const file = event.currentTarget.files?.[0];
     event.currentTarget.value = '';
-    if (!file || !selectedZoneColor) return;
+    if (!file) return;
+    await importZonePattern(file);
+  }
+
+  /** Shared by Choose and From link, so a linked picture takes the same path. */
+  async function importZonePattern(file: File): Promise<void> {
+    if (!selectedZoneColor) return;
     const operation = ++zonePatternOperation;
     const setId = set.id;
     const mapId = map.id;
@@ -1355,6 +1362,11 @@
     // Cleared straight away, or choosing the same file twice fires no event.
     event.currentTarget.value = '';
     if (!file) return;
+    await importArtwork(file);
+  }
+
+  /** Shared by Choose and From link, so a linked picture takes the same path. */
+  async function importArtwork(file: File): Promise<void> {
     const operation = ++artworkOperation;
     const setId = set.id;
     const mapId = map.id;
@@ -1460,6 +1472,11 @@
   ): Promise<void> {
     const files = Array.from(event.currentTarget.files ?? []);
     event.currentTarget.value = '';
+    await importEnvironmentPieces(files);
+  }
+
+  /** Shared by Add PNG and From link, so a linked picture takes the same path. */
+  async function importEnvironmentPieces(files: readonly File[]): Promise<void> {
     const operation = ++environmentOperation;
     if (files.length === 0) {
       replacingEnvironment = null;
@@ -2060,6 +2077,12 @@
               <Icon name="image" size={13} />
               <span class="art-name">{map.artwork.label || 'Choose artwork'}</span>
             </button>
+            <ImageLinkButton
+              iconOnly
+              accept="image/*"
+              disabled={artworkView}
+              onimport={importArtwork}
+            />
             {#if hasArtwork(map.artwork)}
               <button
                 type="button"
@@ -2172,6 +2195,16 @@
                 <Icon name="upload" size={13} />
                 Replace
               </Button>
+              <!-- `importEnvironmentPieces` reads which layer to replace from
+                   the same state the Replace picker sets. -->
+              <ImageLinkButton
+                accept="image/png,.png"
+                disabled={artworkView}
+                onimport={(file) => {
+                  replacingEnvironment = piece.id;
+                  return importEnvironmentPieces([file]);
+                }}
+              />
               {#key piece.id}
                 <ConfirmAction
                   size="sm"
@@ -2356,16 +2389,25 @@
           <div class="block environment-col">
             <div class="environment-head">
               <h2 class="panel-title">Environment</h2>
-              <Button
-                size="sm"
-                onclick={() => {
-                  changeMode('environment');
-                  void openEnvironmentPicker();
-                }}
-              >
-                <Icon name="plus" size={13} />
-                Add PNG
-              </Button>
+              <div class="environment-add">
+                <Button
+                  size="sm"
+                  onclick={() => {
+                    changeMode('environment');
+                    void openEnvironmentPicker();
+                  }}
+                >
+                  <Icon name="plus" size={13} />
+                  Add PNG
+                </Button>
+                <ImageLinkButton
+                  accept="image/png,.png"
+                  onimport={(file) => {
+                    changeMode('environment');
+                    return importEnvironmentPieces([file]);
+                  }}
+                />
+              </div>
             </div>
             <p class="hint">Transparent scenery painted above every space. Drag layers to reorder.</p>
 
@@ -3387,10 +3429,13 @@
                       {/if}
                     </button>
                     <span class="filename">{zone?.customLabel || 'No image'}</span>
-                    <Button size="sm" onclick={() => zonePatternInput?.click()}>
-                      <Icon name="upload" size={13} />
-                      {zone?.customSource ? 'Replace' : 'Choose'}
-                    </Button>
+                    <div class="pick-actions">
+                      <Button size="sm" onclick={() => zonePatternInput?.click()}>
+                        <Icon name="upload" size={13} />
+                        {zone?.customSource ? 'Replace' : 'Choose'}
+                      </Button>
+                      <ImageLinkButton accept="image/*" onimport={importZonePattern} />
+                    </div>
                   </div>
                 </div>
 
@@ -4522,6 +4567,11 @@
     justify-content: space-between;
   }
 
+  .environment-add {
+    display: flex;
+    gap: var(--space-2);
+  }
+
   .environment-items {
     display: flex;
     flex-direction: column;
@@ -4723,6 +4773,12 @@
       var(--grey-600) calc(50% - 1px) calc(50% + 1px),
       transparent calc(50% + 1px)
     );
+  }
+
+  .pick-actions {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
   }
 
   .custom-pattern-slot {

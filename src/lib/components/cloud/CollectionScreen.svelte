@@ -92,6 +92,7 @@
   import CollectionDeckDiscussion from './CollectionDeckDiscussion.svelte';
   import CollectionShowcase from './CollectionShowcase.svelte';
   import CollectionTimeline from './CollectionTimeline.svelte';
+  import ImageLinkButton from '$lib/components/workspace/ImageLinkButton.svelte';
 
   interface Props {
     slug: string;
@@ -553,7 +554,13 @@
   async function pickBanner(event: Event & { currentTarget: HTMLInputElement }): Promise<void> {
     const file = event.currentTarget.files?.[0];
     event.currentTarget.value = '';
-    if (!file || !collection) return;
+    if (!file) return;
+    await importBanner(file);
+  }
+
+  /** Shared by the file picker and From link, so a linked picture takes the same path. */
+  async function importBanner(file: File): Promise<void> {
+    if (!collection) return;
     const accountId = auth.user?.id;
     if (!accountId) return;
     const operation = bannerOperations.begin({
@@ -1548,9 +1555,12 @@
               accept="image/*"
               onchange={pickBanner}
             />
-            <button type="button" class="banner-edit" onclick={() => bannerInput?.click()}>
-              {collection.banner_url ? 'Change banner' : 'Add a banner'}
-            </button>
+            <div class="banner-actions">
+              <button type="button" class="banner-edit" onclick={() => bannerInput?.click()}>
+                {collection.banner_url ? 'Change banner' : 'Add a banner'}
+              </button>
+              <ImageLinkButton size="md" accept="image/*" disabled={saving} onimport={importBanner} />
+            </div>
           {/if}
         </div>
 
@@ -2849,10 +2859,16 @@
   .banner {
     position: relative;
   }
-  .banner-edit {
+  .banner-actions {
     position: absolute;
     right: var(--space-3);
     bottom: var(--space-3);
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+  }
+
+  .banner-edit {
     border: 1px solid var(--border-strong);
     border-radius: var(--radius-sm);
     background: var(--surface-raised);

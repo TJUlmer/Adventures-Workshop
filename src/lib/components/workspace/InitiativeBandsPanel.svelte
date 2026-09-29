@@ -13,6 +13,7 @@
   import { initiativeBandLabel } from '$lib/cards/types';
   import { hasArtwork } from '$lib/core/artwork';
   import { readArtworkFile } from '$lib/core/image-import';
+  import ImageLinkButton from './ImageLinkButton.svelte';
   import { createOperationGuard } from '$lib/interaction/operation-guard';
   import { INITIATIVE_BAND_DEFAULTS } from '$lib/renderer/geometry';
   import { workshop } from '$lib/state/workshop.svelte';
@@ -49,7 +50,11 @@
     const file = event.currentTarget.files?.[0];
     event.currentTarget.value = '';
     if (!file) return;
+    await importFile(band, file);
+  }
 
+  /** Shared by Choose and From link, so a linked picture takes the same path. */
+  async function importFile(band: InitiativeBandKey, file: File): Promise<void> {
     const cardId = card.id;
     const scope = workshop.adventure;
     const operation = artworkPickGuard.begin({
@@ -200,10 +205,13 @@
         <span class="sub">Drawn over the fill.</span>
       </div>
 
-      <Button size="sm" onclick={() => inputs[band]?.click()}>
-        <Icon name="upload" size={13} />
-        {attached ? 'Replace' : 'Choose'}
-      </Button>
+      <div class="pick-actions">
+        <Button size="sm" onclick={() => inputs[band]?.click()}>
+          <Icon name="upload" size={13} />
+          {attached ? 'Replace' : 'Choose'}
+        </Button>
+        <ImageLinkButton accept="image/*" onimport={(file) => importFile(band, file)} />
+      </div>
     </div>
 
     {#if attached}
@@ -281,6 +289,12 @@
 {#if error}<p class="error">{error}</p>{/if}
 
 <style>
+  .pick-actions {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+  }
+
   .row {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));

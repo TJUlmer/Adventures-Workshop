@@ -93,6 +93,31 @@ file that did not need touching. IndexedDB lifted the acute ceiling this was
 first built to relieve, but a library of unresized photos is still needless
 weight on every parse, hash and save.
 
+**An image link is an import, never a link.** "From link" beside every image
+picker (`workspace/ImageLinkButton.svelte`, logic in `core/image-link.ts`)
+downloads the bytes once and hands the picker the same `File` a chosen file
+would be, so the picture goes through that picker's own import routine and
+`readArtworkFile` and is embedded like any other. Keeping the URL instead was
+rejected: every export photographs cards onto a canvas, which needs pixels the
+host lets another site read, and most hosts do not; it would also break offline
+editing and the one-file set, rot when the host deletes the file, and let a
+published picture be swapped after moderation. For a host that refuses the
+download, the dialog accepts a pasted image, which arrives as bytes. Imgur, the
+common case, is **rewritten, not followed**, each rule measured:
+
+- `imgur.com/<id>` is a page, and the redirect behind `imgur.com/<id>.png`
+  allows only imgur.com itself; `i.imgur.com` allows every site.
+- `i.imgur.com/<id>.png` returns the original bytes whatever the real format,
+  so the requested extension never means "the format you get".
+- A copied feed address (`_d.webp?maxwidth=520`) and an eighth `s/b/t/m/l/h`
+  letter are resampled copies — 435×773 against a 2268×4032 original — and are
+  undone.
+- A deleted image redirects to `removed.png` with status 200, so it is
+  detected by `response.url`; without that the placeholder imported as art.
+- A post or album (`/a/`, `/gallery/`) is refused with instructions. Its id is
+  not an image id and oEmbed returns only the post, and probing
+  `i.imgur.com/<post id>` could import an unrelated stranger's picture.
+
 The one exception is `exports/`, and it earns itself. The `exports-folder`
 plugin in `vite.config.ts` answers `/__workshop/export`: `GET` says where the
 folder is, `POST` writes one file into it, and `DELETE` prunes a bundle folder
@@ -2904,6 +2929,10 @@ Traps that have cost real time here:
   gap between the artwork and the frame". It is not a geometry bug — check
   the artwork's own alpha and `theme.artBackground` before hunting the
   corner maths.
+- **`base.css`'s `* { margin: 0 }` cancels the browser's own `margin: auto`
+  on a modal `<dialog>`**, which is what centres it: every dialog in the app
+  opened in the top-left corner until `.ui-dialog-viewport` (`ui/dialog.css`)
+  restored it. A new dialog takes that class rather than its own sizing.
 - `clip-path` clips `box-shadow` and `outline` away entirely.
 - A negative margin on a `flex: 1 1 0` item wins it extra width.
 - An SVG asked for a shape that is not its own letterboxes rather than

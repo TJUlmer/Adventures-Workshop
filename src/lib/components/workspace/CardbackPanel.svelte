@@ -14,6 +14,7 @@
   import type { Character } from '$lib/characters/types';
   import { createArtwork, hasArtwork } from '$lib/core/artwork';
   import { readArtworkFile } from '$lib/core/image-import';
+  import ImageLinkButton from './ImageLinkButton.svelte';
   import { createOperationGuard } from '$lib/interaction/operation-guard';
   import { workshop } from '$lib/state/workshop.svelte';
   import { Button, ColorInput, FillEditor, Icon, Slider, Switch, TextInput } from '$lib/ui';
@@ -69,7 +70,11 @@
     const file = event.currentTarget.files?.[0];
     event.currentTarget.value = '';
     if (!file) return;
+    await importFile(slot, file);
+  }
 
+  /** Shared by Choose and From link, so a linked picture takes the same path. */
+  async function importFile(slot: 'artwork', file: File): Promise<void> {
     const characterId = character.id;
     const scope = workshop.adventure;
     const operation = artworkPickGuard.begin({
@@ -253,10 +258,13 @@
         <span class="sub">Drawn under the template line art.</span>
       </div>
 
-      <Button size="sm" onclick={() => insetInput?.click()}>
-        <Icon name="upload" size={13} />
-        {hasInset ? 'Replace' : 'Choose'}
-      </Button>
+      <div class="pick-actions">
+        <Button size="sm" onclick={() => insetInput?.click()}>
+          <Icon name="upload" size={13} />
+          {hasInset ? 'Replace' : 'Choose'}
+        </Button>
+        <ImageLinkButton accept="image/*" onimport={(file) => importFile('artwork', file)} />
+      </div>
     </div>
 
     {#if hasInset}
@@ -459,6 +467,12 @@
 {#if error}<p class="error">{error}</p>{/if}
 
 <style>
+  .pick-actions {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+  }
+
   .slot {
     display: grid;
     grid-template-columns: auto minmax(0, 1fr) auto;

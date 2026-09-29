@@ -17,6 +17,7 @@
   import type { Artwork } from '$lib/core/artwork';
   import { hasArtwork } from '$lib/core/artwork';
   import { readArtworkFile } from '$lib/core/image-import';
+  import ImageLinkButton from './ImageLinkButton.svelte';
   import { createOperationGuard } from '$lib/interaction/operation-guard';
   import { workshop } from '$lib/state/workshop.svelte';
   import { Button, Icon, Switch } from '$lib/ui';
@@ -71,7 +72,11 @@
     const file = event.currentTarget.files?.[0];
     event.currentTarget.value = '';
     if (!file) return;
+    await importFile(file);
+  }
 
+  /** Shared by Choose and From link, so a linked picture takes the same path. */
+  async function importFile(file: File): Promise<void> {
     const scope = workshop.adventure;
     const operation = pickGuard.begin({
       setId: scope.id,
@@ -143,6 +148,7 @@
         <Icon name="upload" size={13} />
         {chosen ? 'Replace' : 'Choose'}
       </Button>
+      <ImageLinkButton accept="image/*" onimport={importFile} />
       {#if chosen}
         <Button size="sm" variant="ghost" onclick={clear}>Clear</Button>
       {/if}
@@ -162,7 +168,8 @@
 
   .slot-actions {
     display: flex;
-    gap: var(--space-2);
+    flex-direction: column;
+    gap: var(--space-1);
   }
 
   .thumb {

@@ -11,6 +11,7 @@
   import type { CardTheme, CustomPatternStyle, Fill, PatternStyle, TextureKind } from '$lib/cards/style';
   import { TEXTURE_LABELS, TEXTURES } from '$lib/cards/style';
   import { readArtworkFile } from '$lib/core/image-import';
+  import ImageLinkButton from '$lib/components/workspace/ImageLinkButton.svelte';
   import { createOperationGuard } from '$lib/interaction/operation-guard';
   import { PATTERN_NAMES, patternAspect, patternUrl } from '$lib/renderer/assets';
   import { artworkAdjustmentKey } from '$lib/state/artwork-adjustment-view.svelte';
@@ -127,7 +128,11 @@
     const file = event.currentTarget.files?.[0];
     event.currentTarget.value = '';
     if (!file) return;
+    await importCustomPattern(file);
+  }
 
+  /** Shared by Choose and From link, so a linked picture takes the same path. */
+  async function importCustomPattern(file: File): Promise<void> {
     const origin: StyleTarget = { ...target };
     const scope = workshop.adventure;
     const operation = customPatternPickGuard.begin({
@@ -344,10 +349,13 @@
 
     <span class="filename">{resolved.customPattern.label || 'No image'}</span>
 
-    <Button size="sm" onclick={() => customPatternInput?.click()}>
-      <Icon name="upload" size={13} />
-      {resolved.customPattern.source ? 'Replace' : 'Choose'}
-    </Button>
+    <div class="pick-actions">
+      <Button size="sm" onclick={() => customPatternInput?.click()}>
+        <Icon name="upload" size={13} />
+        {resolved.customPattern.source ? 'Replace' : 'Choose'}
+      </Button>
+      <ImageLinkButton accept="image/*" onimport={importCustomPattern} />
+    </div>
   </div>
 
   {#if customPatternError}<p class="error">{customPatternError}</p>{/if}
@@ -591,6 +599,12 @@
       var(--grey-600) calc(50% - 1px) calc(50% + 1px),
       transparent calc(50% + 1px)
     );
+  }
+
+  .pick-actions {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
   }
 
   .custom-pattern-slot {
