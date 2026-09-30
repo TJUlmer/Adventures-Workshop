@@ -738,7 +738,6 @@
                   title={set.author?.display_name || 'Anonymous'}
                   onclick={() => navigation.openAuthor(set.owner_id)}
                 >
-                  <Icon name="user" size={14} />
                   <span>{set.author?.display_name || 'Anonymous'}</span>
                 </button>
                 <button
@@ -753,10 +752,6 @@
                   <Icon name="thumbUp" size={14} />
                   <span class="numeric">{set.like_count ?? 0}</span>
                 </button>
-                <span class="comment-count" title="Comments">
-                  <Icon name="message" size={14} />
-                  <span class="numeric">{set.comment_count ?? 0}</span>
-                </span>
                 <button
                   type="button"
                   class="tile-action favourite"
@@ -769,7 +764,6 @@
                   onclick={() => void toggleFavourite(target)}
                 >
                   <Icon name="bookmark" size={14} />
-                  <span>Favourite</span>
                 </button>
               </div>
             </div>
@@ -921,14 +915,11 @@
                   title={authorName}
                   onclick={() => navigation.openAuthor(character.owner_id)}
                 >
-                  <Icon name="user" size={14} />
                   <span>{authorName}</span>
                 </button>
                 <span class="listing-engagement" title="Engagement on the listing this opens">
                   <Icon name="thumbUp" size={13} />
                   <span class="numeric">{character.like_count ?? 0}</span>
-                  <Icon name="message" size={13} />
-                  <span class="numeric">{character.comment_count ?? 0}</span>
                 </span>
                 <button
                   type="button"
@@ -942,7 +933,6 @@
                   onclick={() => void toggleFavourite(target)}
                 >
                   <Icon name="bookmark" size={14} />
-                  <span>Favourite</span>
                 </button>
               </div>
 
@@ -1327,7 +1317,6 @@
 
   .tile-action,
   .creator-action,
-  .comment-count,
   .listing-engagement {
     display: inline-flex;
     align-items: center;
@@ -1360,11 +1349,10 @@
     cursor: wait;
   }
 
-  .comment-count {
-    padding-inline: var(--space-2);
-  }
-
   .favourite {
+    flex: none;
+    min-width: var(--touch-target);
+    justify-content: center;
     margin-left: auto;
   }
 
@@ -1472,20 +1460,9 @@
 
     .tile-action,
     .creator-action,
-    .comment-count,
     .listing-engagement,
     .parent-link {
       min-height: var(--touch-target);
-    }
-
-    .favourite {
-      grid-column: 1 / -1;
-      justify-content: center;
-      margin-left: 0;
-    }
-
-    .character-actions .listing-engagement {
-      grid-column: 2 / 4;
     }
   }
 
