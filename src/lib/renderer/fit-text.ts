@@ -65,6 +65,40 @@ export function fitScaleWidth(
 }
 
 /**
+ * The vertical-writing equivalent of `fitWidth` below. A name ribbon has a
+ * fixed maximum run but should keep every authored character, shrinking its
+ * face only once that run is full rather than replacing the tail with an
+ * ellipsis.
+ */
+export function fitHeight(node: HTMLElement, _text: string): { update(text: string): void } {
+  fitScale(node, { min: 0.4 });
+
+  const refitAfterTextUpdate = (): void => {
+    queueMicrotask(() => {
+      if (node.isConnected) fitScale(node, { min: 0.4 });
+    });
+  };
+  refitAfterTextUpdate();
+
+  const font = getComputedStyle(node).font;
+  if (font) {
+    void document.fonts.load(font).then(
+      () => {
+        if (node.isConnected) fitScale(node, { min: 0.4 });
+      },
+      () => undefined
+    );
+  }
+
+  return {
+    update() {
+      fitScale(node, { min: 0.4 });
+      refitAfterTextUpdate();
+    }
+  };
+}
+
+/**
  * A Svelte action wrapper for `fitScaleWidth`, for text set inside a
  * `{#snippet}` rather than behind a `bind:this` — a snippet invoked more
  * than once (the HERO and SIDEKICK bands share one) has no single element

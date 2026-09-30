@@ -40,6 +40,7 @@
   } from './assets';
   import type { CardSymbolName } from './assets';
   import CardArt from './CardArt.svelte';
+  import { fitHeight } from './fit-text';
   import {
     ABILITY,
     ABILITY_RULE,
@@ -1198,10 +1199,13 @@
     -->
     <div
       class="hero-owner-text"
+      use:fitHeight={ownerLabel}
       data-card-edit-target={CARD_EDIT_MARKERS.ownerName}
       style:align-self="flex-start"
-      style:margin-left={pu(HERO_RIBBON_OWNER_LEFT - HERO_RIBBON.x)}
-      style:font-size={pu(HERO_RIBBON_OWNER.size)}
+      style:margin-left="calc({pu(HERO_RIBBON_OWNER_LEFT - HERO_RIBBON.x)} + {pu(
+        HERO_RIBBON.centerX - HERO_RIBBON_OWNER_LEFT
+      )} * (1 - var(--fit-scale, 1)))"
+      style:font-size="calc({pu(HERO_RIBBON_OWNER.size)} * var(--fit-scale, 1))"
       style:line-height={HERO_RIBBON_OWNER.lineHeight}
       style:max-height={pu(HERO_RIBBON_OWNER.maxLength)}
       style:color={theme.bannerInk}
@@ -1293,14 +1297,15 @@
     <!--
       Set vertically rather than rotated, so the name's length is its box's
       height and the column above can lay itself out around it. The half turn
-      puts the reading direction bottom-up, which also puts the last character —
-      and the ellipsis, when the name is too long — at the top, against the
-      clearance the frame is measured from.
+      puts the reading direction bottom-up, which also puts the last character
+      at the top, against the clearance the frame is measured from. Names that
+      fill that measured run shrink rather than losing their final characters.
     -->
     <div
       class="name"
+      use:fitHeight={ribbonName}
       data-card-edit-target={CARD_EDIT_MARKERS.ownerName}
-      style:font-size={pu(NAME.size)}
+      style:font-size="calc({pu(NAME.size)} * var(--fit-scale, 1))"
       style:max-height={pu(NAME.maxLength)}
       style:color={theme.bannerInk}
     >
@@ -2077,7 +2082,6 @@
     line-height: 0.88;
     white-space: nowrap;
     overflow: hidden;
-    text-overflow: ellipsis;
   }
 
   /* -- hero ribbon content ----------------------------------------------- */
@@ -2106,7 +2110,6 @@
     text-transform: uppercase;
     white-space: nowrap;
     overflow: hidden;
-    text-overflow: ellipsis;
   }
 
   /*

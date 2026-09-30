@@ -822,7 +822,7 @@ export const NAME = {
   /** Clear space between the start of the name and the pennant's shoulder. */
   headGap: 7,
   size: inName(140.5),
-  /** Longest run of type the ribbon will set before it ellipsises. */
+  /** Longest run of type the ribbon will set before its face shrinks. */
   maxLength: 700
 } as const;
 
@@ -995,7 +995,7 @@ export const HERO_RIBBON_OWNER = {
   /** Clear space between the start of the name and the pennant's shoulder. */
   pointGap: 33,
   /**
-   * Longest run of type the ribbon will set before it ellipsises. Chosen to
+   * Longest run of type the ribbon will set before its face shrinks. Chosen to
    * bring the point down no further than the hero card's own divider.
    */
   maxLength: 560
