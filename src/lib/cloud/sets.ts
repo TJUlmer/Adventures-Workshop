@@ -1102,9 +1102,9 @@ export interface GalleryCharacter {
    * The view (`0007_gallery_browse.sql`) has always selected this — `select
    * s.owner_id` sits right beside `s.local_id` — it was simply never typed
    * here because nothing yet needed to credit a character read out of a
-   * larger box on its own. `gallery_characters` carries no `profiles` join
-   * (kept lean for a page listing thirty characters at once), so this id is
-   * a lookup key, not a name — see `fetchProfile`.
+   * larger box on its own. `gallery_characters` carries no `profiles` join,
+   * so the Gallery resolves these ids together through `fetchAuthorNames`
+   * rather than fetching a profile for every tile.
    */
   owner_id: string;
   /** Stable local set identity used with owner and character for favourites. */
@@ -1287,6 +1287,26 @@ export async function fetchSetBySlug(
     anonymous: true
   });
   return rows[0] ?? null;
+}
+
+/**
+ * Names for a page of character tiles. Deduplicate owners because one creator
+ * may have several characters on the page; a failed credit lookup must not
+ * prevent the public gallery or the account's favourites from loading.
+ */
+export async function fetchAuthorNames(ownerIds: readonly string[]): Promise<Record<string, string>> {
+  const ids = [...new Set(ownerIds)];
+  if (ids.length === 0) return {};
+
+  try {
+    const rows = await request<{ id: string; display_name: string }[]>(
+      `/rest/v1/profiles?select=id,display_name&id=in.(${ids.map(encodeURIComponent).join(',')})`,
+      { anonymous: true }
+    );
+    return Object.fromEntries(rows.map((profile) => [profile.id, profile.display_name]));
+  } catch {
+    return {};
+  }
 }
 
 /**

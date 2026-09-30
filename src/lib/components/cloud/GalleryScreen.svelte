@@ -32,6 +32,7 @@
   } from '$lib/cloud/engagement';
   import type { FavouriteTarget } from '$lib/cloud/engagement';
   import {
+    fetchAuthorNames,
     listMyFavouriteCharacters,
     listMyFavouriteSets,
     listPublicCharacters,
@@ -106,6 +107,7 @@
   let sets = $state<GallerySet[]>([]);
   let collections = $state<PublicCollection[]>([]);
   let characters = $state<GalleryCharacter[]>([]);
+  let authorNames = $state<Record<string, string>>({});
   let loading = $state(true);
   let error = $state<string | null>(null);
   let search = $state('');
@@ -255,6 +257,9 @@
           offset: skip
         });
         if (version !== loadVersion) return;
+        const names = await fetchAuthorNames(page.map((character) => character.owner_id));
+        if (version !== loadVersion) return;
+        authorNames = append ? { ...authorNames, ...names } : names;
         characters = append ? [...characters, ...page] : page;
         maybeMore = page.length === PAGE;
       }
@@ -730,10 +735,11 @@
                   type="button"
                   class="creator-action"
                   aria-label={`View ${set.author?.display_name || 'this creator'}’s profile`}
+                  title={set.author?.display_name || 'Anonymous'}
                   onclick={() => navigation.openAuthor(set.owner_id)}
                 >
                   <Icon name="user" size={14} />
-                  <span>Creator</span>
+                  <span>{set.author?.display_name || 'Anonymous'}</span>
                 </button>
                 <button
                   type="button"
@@ -775,6 +781,7 @@
         {#each characters as character (character.set_id + character.character_id)}
           {@const peekKey = `${character.set_id}:${character.character_id}`}
           {@const parent = parentOf(character)}
+          {@const authorName = authorNames[character.owner_id] || 'Anonymous'}
           {@const target = {
             kind: 'character' as const,
             owner_id: character.owner_id,
@@ -910,11 +917,12 @@
                 <button
                   type="button"
                   class="creator-action"
-                  aria-label="View this character’s creator profile"
+                  aria-label={`View ${authorName}’s profile`}
+                  title={authorName}
                   onclick={() => navigation.openAuthor(character.owner_id)}
                 >
                   <Icon name="user" size={14} />
-                  <span>Creator</span>
+                  <span>{authorName}</span>
                 </button>
                 <span class="listing-engagement" title="Engagement on the listing this opens">
                   <Icon name="thumbUp" size={13} />
