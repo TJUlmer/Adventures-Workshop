@@ -1044,8 +1044,11 @@
         class="tuck-effect tuck-effect-bottom"
         data-card-edit-target={CARD_EDIT_MARKERS.tuckEffect}
         data-card-edit-surface
-        style:height={pu(TUCK_EFFECT.thickness)}
+        style:height={pu(TUCK_EFFECT.thickness + INTERIOR_RADIUS)}
+        style:padding-top={pu(INTERIOR_RADIUS)}
         style:padding-inline={pu(TUCK_EFFECT.padding)}
+        style:--tuck-radius={pu(INTERIOR_RADIUS)}
+        style:--tuck-mask-overlap={pu(1)}
         style:background={fillCss(theme.tuckEffect)}
         style:color={theme.tuckEffectInk}
       >
@@ -1775,6 +1778,19 @@
     right: 0;
     bottom: 0;
     left: 0;
+    /* The frame-coloured strip must round the body above it, so its upper
+       corners fill the space outside quarter-circles. Ordinary border radii
+       would cut those fills away and curve the body in the opposite direction.
+       The extra top padding keeps reminder text in its original strip.
+       Overlap the masks by one bleed pixel to prevent a hairline at fractional
+       render sizes, including the PNG export. */
+    mask:
+      radial-gradient(circle at top right, transparent var(--tuck-radius), var(--print-paper) var(--tuck-radius))
+        top left / var(--tuck-radius) calc(var(--tuck-radius) + var(--tuck-mask-overlap)) no-repeat,
+      radial-gradient(circle at top left, transparent var(--tuck-radius), var(--print-paper) var(--tuck-radius))
+        top right / var(--tuck-radius) calc(var(--tuck-radius) + var(--tuck-mask-overlap)) no-repeat,
+      linear-gradient(var(--print-paper), var(--print-paper))
+        bottom / 100% calc(100% - var(--tuck-radius)) no-repeat;
   }
 
   .tuck-effect-right {
