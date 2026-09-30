@@ -2435,12 +2435,16 @@ print([(y, round((a[y]>128).mean(),3)) for y in range(0, a.shape[0], 100)])
 "
 ```
 
-**Nothing measures text at runtime.** Dynamic sizes — the name ribbon's length,
-the body panel's height, the vertical rule's run — fall out of flex layout: type
-is set in a vertical writing mode so its length *is* its box's height, and the
-panel is bottom-anchored so growing it moves the divider. Where a size genuinely
-cannot be laid out (the event heading), it is derived from the face's mean
-advance in `renderer/fonts.ts`, still without measuring.
+**Nothing derives template geometry from runtime text measurement.** Dynamic
+sizes — the name ribbon's length, the body panel's height, the vertical rule's
+run — fall out of flex layout: type is set in a vertical writing mode so its
+length *is* its box's height, and the panel is bottom-anchored so growing it
+moves the divider. Author-length text inside a fixed measured box is the narrow
+exception: `renderer/fit-text.ts` measures overflow only to reduce the face's
+font scale, never to derive geometry. Name ribbons use that path once they fill
+their measured maximum instead of ellipsising. Where a size genuinely cannot be
+laid out (the event heading), it is derived from the face's mean advance in
+`renderer/fonts.ts`, still without measuring.
 
 The card title is the same trick turned sideways. It used to be pinned at
 `TITLE.capTop` with `white-space: nowrap` and an ellipsis, so a title one word

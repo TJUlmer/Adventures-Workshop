@@ -162,8 +162,9 @@
   import type { TextureKind } from '$lib/cards/style';
 
   /**
-   * Textures are generated rather than shipped: an SVG turbulence filter costs
-   * nothing to store and resolves at any print size.
+   * Textures are generated rather than shipped. Grain uses ordinary SVG
+   * circles rather than an SVG turbulence filter: filters paint on screen but
+   * disappear when this renderer is photographed through a foreignObject.
    *
    * `size` matters as much as the image. A weave or a grain is a *tile* and
    * must repeat at a fixed physical size; a vignette or a glow is a single
@@ -176,14 +177,29 @@
     blend: string;
   }
 
-  const noise = (frequency: number, opacity: number) =>
-    `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='240'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='${frequency}' numOctaves='3'/%3E%3C/filter%3E%3Crect width='240' height='240' filter='url(%23n)' opacity='${opacity}'/%3E%3C/svg%3E")`;
+  function noise(count: number, radius: number, opacity: number, seed: number): string {
+    let value = seed >>> 0;
+    const random = (): number => {
+      value = (Math.imul(value, 1664525) + 1013904223) >>> 0;
+      return value / 0x1_0000_0000;
+    };
+    const marks = Array.from({ length: count }, () => {
+      const x = (random() * 240).toFixed(2);
+      const y = (random() * 240).toFixed(2);
+      const r = (radius * (0.45 + random() * 0.9)).toFixed(2);
+      const ink = random() > 0.48 ? '#fff' : '#000';
+      const alpha = (opacity * (0.45 + random() * 0.55)).toFixed(2);
+      return `<circle cx='${x}' cy='${y}' r='${r}' fill='${ink}' fill-opacity='${alpha}'/>`;
+    }).join('');
+    const svg = `<svg xmlns='http://www.w3.org/2000/svg' width='240' height='240' viewBox='0 0 240 240'>${marks}</svg>`;
+    return `url("data:image/svg+xml,${encodeURIComponent(svg)}")`;
+  }
 
   const TEXTURE_SPECS: Record<TextureKind, TextureSpec | null> = {
     none: null,
-    grain: { image: noise(0.9, 1), size: '18cqw 18cqw', blend: 'overlay' },
-    paper: { image: noise(0.42, 0.85), size: '30cqw 30cqw', blend: 'overlay' },
-    speckle: { image: noise(1.6, 1), size: '9cqw 9cqw', blend: 'overlay' },
+    grain: { image: noise(520, 0.75, 0.9, 0x71a1), size: '18cqw 18cqw', blend: 'overlay' },
+    paper: { image: noise(260, 1.25, 0.7, 0x9a37), size: '30cqw 30cqw', blend: 'overlay' },
+    speckle: { image: noise(150, 1.7, 1, 0x5eec), size: '9cqw 9cqw', blend: 'overlay' },
     linen: {
       image:
         'repeating-linear-gradient(0deg, rgb(0 0 0 / 0.55) 0 8%, transparent 8% 50%), repeating-linear-gradient(90deg, rgb(255 255 255 / 0.5) 0 8%, transparent 8% 50%)',
@@ -343,6 +359,9 @@
   .face {
     position: absolute;
     inset: 0;
+    /* Keep the finish above every face's internal z-index layers while the
+       later trim-guide sibling still paints over the finished card. */
+    isolation: isolate;
   }
 
   /* Bleed edge to bleed edge: a replacement is the whole print file. */
@@ -367,6 +386,7 @@
   .texture {
     position: absolute;
     inset: 0;
+    z-index: 100;
     pointer-events: none;
   }
 
