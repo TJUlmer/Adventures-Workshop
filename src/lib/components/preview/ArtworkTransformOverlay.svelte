@@ -2,6 +2,7 @@
   import { onDestroy, onMount } from 'svelte';
   import type { Artwork, ArtTransform } from '$lib/core/artwork';
   import {
+    ARTWORK_TRANSFORM_LIMITS,
     clampArtworkOffset,
     clampArtworkScale,
     clampArtworkStretch,
@@ -39,9 +40,12 @@
       }
     | {
         kind: 'scale';
-        centerX: number;
-        centerY: number;
-        distance: number;
+        cornerX: number;
+        cornerY: number;
+        translateWidth: number;
+        translateHeight: number;
+        minRatio: number;
+        maxRatio: number;
       }
     | {
         kind: 'stretch-x' | 'stretch-y';
@@ -59,6 +63,9 @@
     target: EntityRef;
     transform: ArtTransform;
   };
+
+  const CORNERS = ['nw', 'ne', 'se', 'sw'] as const;
+  type Corner = (typeof CORNERS)[number];
 
   let {
     target,
@@ -187,18 +194,39 @@
     });
   }
 
-  function beginScale(event: PointerEvent): void {
-    if (!surface) return;
-    const rect = surface.getBoundingClientRect();
-    const centerX = rect.left + bounds.centerX;
-    const centerY = rect.top + bounds.centerY;
+  function beginScale(event: PointerEvent, corner: Corner): void {
+    const transform = snapshotArtworkTransform(artwork.transform);
+    const rotation = (bounds.rotation * Math.PI) / 180;
+    const halfWidth = (bounds.width / 2) * (corner.endsWith('w') ? -1 : 1);
+    const halfHeight = (bounds.height / 2) * (corner.startsWith('n') ? -1 : 1);
+    const cornerX = halfWidth * Math.cos(rotation) - halfHeight * Math.sin(rotation);
+    const cornerY = halfWidth * Math.sin(rotation) + halfHeight * Math.cos(rotation);
+    let minRatio = ARTWORK_TRANSFORM_LIMITS.scale.min / transform.scale;
+    let maxRatio = ARTWORK_TRANSFORM_LIMITS.scale.max / transform.scale;
+
+    // Stop the resize at a position limit as well: clamping the centre alone
+    // would let the opposite corner drift while the image continued to grow.
+    for (const [offset, shift] of [
+      [transform.offsetX, cornerX / baseBox.translateWidth],
+      [transform.offsetY, cornerY / baseBox.translateHeight]
+    ] as const) {
+      if (Math.abs(shift) < 1e-10) continue;
+      const first = 1 + (ARTWORK_TRANSFORM_LIMITS.offset.min - offset) / shift;
+      const second = 1 + (ARTWORK_TRANSFORM_LIMITS.offset.max - offset) / shift;
+      minRatio = Math.max(minRatio, Math.min(first, second));
+      maxRatio = Math.min(maxRatio, Math.max(first, second));
+    }
+
     beginInteraction(event, {
       kind: 'scale',
       target,
-      centerX,
-      centerY,
-      distance: Math.max(1, Math.hypot(event.clientX - centerX, event.clientY - centerY)),
-      transform: snapshotArtworkTransform(artwork.transform)
+      cornerX,
+      cornerY,
+      translateWidth: baseBox.translateWidth,
+      translateHeight: baseBox.translateHeight,
+      minRatio,
+      maxRatio,
+      transform
     });
   }
 
@@ -245,13 +273,23 @@
     }
 
     if (interaction.kind === 'scale') {
-      const distance = Math.hypot(
-        movement.clientX - interaction.centerX,
-        movement.clientY - interaction.centerY
-      );
+      // Project the pointer movement onto the diagonal from the fixed corner.
+      // Using deltas also avoids a jump when the press is off the handle centre.
+      const requestedRatio = 1 +
+        (movement.deltaX * interaction.cornerX + movement.deltaY * interaction.cornerY) /
+        (2 * (interaction.cornerX ** 2 + interaction.cornerY ** 2));
+      const ratio = Math.min(interaction.maxRatio, Math.max(interaction.minRatio, requestedRatio));
+      const scale = clampArtworkScale(interaction.transform.scale * ratio);
+      const centerShift = scale / interaction.transform.scale - 1;
       workshop.setTransform(interaction.target, {
-        scale: clampArtworkScale(
-          interaction.transform.scale * (distance / interaction.distance)
+        scale,
+        offsetX: clampArtworkOffset(
+          interaction.transform.offsetX +
+            (interaction.cornerX * centerShift) / interaction.translateWidth
+        ),
+        offsetY: clampArtworkOffset(
+          interaction.transform.offsetY +
+            (interaction.cornerY * centerShift) / interaction.translateHeight
         )
       });
       return;
@@ -386,13 +424,13 @@
         onpointerdown={beginRotate}
       ></button>
 
-      {#each ['nw', 'ne', 'se', 'sw'] as corner}
+      {#each CORNERS as corner}
         <button
           class="handle corner {corner}"
           type="button"
           aria-label="Resize artwork"
           title="Drag to resize"
-          onpointerdown={beginScale}
+          onpointerdown={(event) => beginScale(event, corner)}
         ></button>
       {/each}
 
