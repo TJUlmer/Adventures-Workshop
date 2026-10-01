@@ -373,6 +373,10 @@ async function dialMeshUrl(
   return urlFor(path);
 }
 
+function componentQuantity(figure: Figure): number {
+  return Number.isFinite(figure.quantity) ? Math.max(1, Math.trunc(figure.quantity)) : 1;
+}
+
 /**
  * The health dial: the app's own saved object, wearing the author's face.
  *
@@ -404,7 +408,7 @@ async function dialObjects(
   );
   const diffuseUrl = urlFor(texturePath);
 
-  return placeSavedObjects(states, index).map((state) => {
+  return placeSavedObjects(states, index, componentQuantity(figure)).map((state) => {
     const dial: Record<string, unknown> = { ...(state as Record<string, unknown>), Nickname: name };
 
     const mesh = dial['CustomMesh'];
@@ -479,7 +483,7 @@ async function componentFor(
               'open the object in TTS and use Cloud Manager → Upload All.'
           );
         }
-        return placeSavedObjects(states, index);
+        return placeSavedObjects(states, index, componentQuantity(figure));
       }
       warnings.push(`${name}: its Tabletop Simulator file holds no objects.`);
     } catch {
@@ -510,18 +514,22 @@ async function componentFor(
       files, taken, `models/${slug}`, 'png', await buildTokenArt(figure, 512)
     );
 
-    return [
-      modelObject(
-        {
-          nickname: name,
-          description: figure.notes,
-          meshUrl: urlFor(meshPath),
-          diffuseUrl: urlFor(texturePath),
-          convex: spec.shape !== 'silhouette'
-        },
-        index
-      )
-    ];
+    return placeSavedObjects(
+      [
+        modelObject(
+          {
+            nickname: name,
+            description: figure.notes,
+            meshUrl: urlFor(meshPath),
+            diffuseUrl: urlFor(texturePath),
+            convex: spec.shape !== 'silhouette'
+          },
+          0
+        )
+      ],
+      index,
+      componentQuantity(figure)
+    );
   }
 
   const model = figure.model;
@@ -546,12 +554,16 @@ async function componentFor(
     warnings.push(`${name}: no reference image, so its model arrives untextured.`);
   }
 
-  return [
-    modelObject(
-      { nickname: name, description: figure.notes, meshUrl: urlFor(meshPath), diffuseUrl },
-      index
-    )
-  ];
+  return placeSavedObjects(
+    [
+      modelObject(
+        { nickname: name, description: figure.notes, meshUrl: urlFor(meshPath), diffuseUrl },
+        0
+      )
+    ],
+    index,
+    componentQuantity(figure)
+  );
 }
 
 /**
@@ -660,6 +672,10 @@ function howToImport(
       return `  ${plan.nickname} — ${count} ${count === 1 ? 'card' : 'cards'}, ${plan.format.label}`;
     })
     .join('\n');
+  const componentCount = set.figures.reduce(
+    (count, figure) => count + componentQuantity(figure),
+    0
+  );
 
   return `Tabletop Simulator import — ${set.name}
 ${'='.repeat(30 + set.name.length)}
@@ -672,8 +688,8 @@ ${set.box.enabled
 
 ${piles || '  (no cards yet)'}
 ${set.threat.enabled ? '  The threat track, as a single wide card.\n' : ''}${
-    set.figures.length > 0
-      ? `  ${set.figures.length} ${set.figures.length === 1 ? 'component' : 'components'}, behind the piles.\n`
+    componentCount > 0
+      ? `  ${componentCount} ${componentCount === 1 ? 'component' : 'components'}, behind the piles.\n`
       : ''
   }${set.rulebooks.length > 0
     ? `  ${set.rulebooks.length} ${set.rulebooks.length === 1 ? 'rulebook PDF' : 'rulebook PDFs'}, as Custom PDF objects.\n`

@@ -822,29 +822,113 @@ export function rulebookObject(name: string, pdfUrl: string, index: number): obj
   };
 }
 
+function collectGuids(value: unknown, found: Set<string>): void {
+  if (Array.isArray(value)) {
+    value.forEach((entry) => collectGuids(entry, found));
+    return;
+  }
+  if (typeof value !== 'object' || value === null) return;
+
+  const source = value as Record<string, unknown>;
+  const guid = source['GUID'];
+  if (typeof guid === 'string' && /^[0-9a-f]{6}$/i.test(guid)) found.add(guid.toLowerCase());
+  Object.values(source).forEach((entry) => collectGuids(entry, found));
+}
+
+function freshGuid(seed: string, used: Set<string>): string {
+  let hash = 2166136261;
+  for (let index = 0; index < seed.length; index += 1) {
+    hash = Math.imul(hash ^ seed.charCodeAt(index), 16777619) >>> 0;
+  }
+
+  let value = hash & 0xffffff;
+  let guid = value.toString(16).padStart(6, '0');
+  while (used.has(guid)) {
+    value = (value + 1) & 0xffffff;
+    guid = value.toString(16).padStart(6, '0');
+  }
+  used.add(guid);
+  return guid;
+}
+
+function cloneWithFreshGuids(
+  value: unknown,
+  replacements: ReadonlyMap<string, string>
+): unknown {
+  if (typeof value === 'string') {
+    let copy = value;
+    replacements.forEach((replacement, original) => {
+      copy = copy.replace(new RegExp(`\\b${original}\\b`, 'gi'), replacement);
+    });
+    return copy;
+  }
+  if (Array.isArray(value)) {
+    return value.map((entry) => cloneWithFreshGuids(entry, replacements));
+  }
+  if (typeof value !== 'object' || value === null) return value;
+
+  return Object.fromEntries(
+    Object.entries(value as Record<string, unknown>).map(([key, entry]) => [
+      key,
+      cloneWithFreshGuids(entry, replacements)
+    ])
+  );
+}
+
+function copySavedObjects(
+  states: readonly Record<string, unknown>[],
+  index: number,
+  copy: number,
+  usedGuids: Set<string>
+): Record<string, unknown>[] {
+  if (copy === 0) return [...states];
+
+  const originals = new Set<string>();
+  states.forEach((state) => collectGuids(state, originals));
+  const replacements = new Map<string, string>();
+  originals.forEach((guid) => {
+    replacements.set(guid, freshGuid(`${index}:${copy}:${guid}`, usedGuids));
+  });
+  return states.map((state) => cloneWithFreshGuids(state, replacements) as Record<string, unknown>);
+}
+
 /**
- * Objects lifted out of a saved object the author attached, moved into the row.
+ * Objects lifted out of a saved object the author attached, copied and moved
+ * into the component row.
  *
- * Everything else in the file is left exactly as it was found. These are files
- * TTS itself wrote — health dials with their own Lua, models with hosted
- * meshes — and there is nothing in them this export understands better than
- * they do. Only the position is ours, and only so two of them do not land in
- * the same place.
+ * Everything else in the first copy is left exactly as it was found. These
+ * are files TTS itself wrote — health dials with their own Lua, models with
+ * hosted meshes — and there is nothing in them this export understands better
+ * than they do. Later copies receive fresh GUIDs recursively, including GUID
+ * references inside scripts, because TTS cannot keep two saved objects with
+ * the same identity. Only the position is otherwise ours, so copies do not
+ * land on top of one another.
  */
-export function placeSavedObjects(states: readonly unknown[], index: number): object[] {
-  return states.filter((state): state is Record<string, unknown> => {
+export function placeSavedObjects(
+  states: readonly unknown[],
+  index: number,
+  quantity = 1
+): object[] {
+  const valid = states.filter((state): state is Record<string, unknown> => {
     return typeof state === 'object' && state !== null;
-  }).map((state, offset) => ({
-    ...state,
-    Transform: {
-      ...(typeof state['Transform'] === 'object' && state['Transform'] !== null
-        ? (state['Transform'] as Record<string, unknown>)
-        : { rotX: 0, rotY: 0, rotZ: 0, scaleX: 1, scaleY: 1, scaleZ: 1 }),
-      posX: (index + offset) * 2,
-      posY: 1,
-      posZ: COMPONENT_ROW_Z
-    }
-  }));
+  });
+  const copies = Number.isFinite(quantity) ? Math.max(1, Math.trunc(quantity)) : 1;
+  const usedGuids = new Set<string>();
+  valid.forEach((state) => collectGuids(state, usedGuids));
+
+  return Array.from({ length: copies }, (_, copy) =>
+    copySavedObjects(valid, index, copy, usedGuids).map((state, offset) => ({
+      ...state,
+      Transform: {
+        ...(typeof state['Transform'] === 'object' && state['Transform'] !== null
+          ? (state['Transform'] as Record<string, unknown>)
+          : { rotX: 0, rotY: 0, rotZ: 0, scaleX: 1, scaleY: 1, scaleZ: 1 }),
+        posX: (index + copy * valid.length + offset) * 2,
+        posY: 1,
+        posZ: COMPONENT_ROW_Z
+      }
+    }))
+  ).flat();
 }
 
 /**
