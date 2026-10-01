@@ -59,6 +59,7 @@
     BOOST_RING,
     BOOST_VALUE,
     CORNER_BADGE,
+    CHROME_SEAM,
     capTopToBoxTop,
     digitMiddleToBoxTop,
     digitTopToBoxTop,
@@ -1044,8 +1045,15 @@
         class="tuck-effect tuck-effect-bottom"
         data-card-edit-target={CARD_EDIT_MARKERS.tuckEffect}
         data-card-edit-surface
-        style:height={pu(TUCK_EFFECT.thickness)}
-        style:padding-inline={pu(TUCK_EFFECT.padding)}
+        style:height={pu(TUCK_EFFECT.thickness + INTERIOR_RADIUS + CHROME_SEAM)}
+        style:bottom={pu(-CHROME_SEAM)}
+        style:left={pu(-CHROME_SEAM)}
+        style:right={pu(-CHROME_SEAM)}
+        style:padding-top={pu(INTERIOR_RADIUS)}
+        style:padding-bottom={pu(CHROME_SEAM)}
+        style:padding-inline={pu(TUCK_EFFECT.padding + CHROME_SEAM)}
+        style:--tuck-radius={pu(INTERIOR_RADIUS)}
+        style:--tuck-mask-overlap={pu(CHROME_SEAM)}
         style:background={fillCss(theme.tuckEffect)}
         style:color={theme.tuckEffectInk}
       >
@@ -1775,6 +1783,22 @@
     right: 0;
     bottom: 0;
     left: 0;
+    /* The frame-coloured strip must round the body above it, so its upper
+       corners fill the space outside quarter-circles. Ordinary border radii
+       would cut those fills away and curve the body in the opposite direction.
+       The extra top padding keeps reminder text in its original strip.
+       Extend the fill below and beside the interior clip so fractional mask
+       edges cannot expose the dark panel at the frame join; padding keeps text
+       fixed. Wider corner tiles keep their circle centres at the same position.
+       Overlap the masks by the chrome seam allowance so their rasterised edges
+       cannot leave a hairline at small preview scales. */
+    mask:
+      radial-gradient(circle at top right, transparent var(--tuck-radius), var(--print-paper) var(--tuck-radius))
+        top left / calc(var(--tuck-radius) + var(--tuck-mask-overlap)) calc(var(--tuck-radius) + var(--tuck-mask-overlap)) no-repeat,
+      radial-gradient(circle at top left, transparent var(--tuck-radius), var(--print-paper) var(--tuck-radius))
+        top right / calc(var(--tuck-radius) + var(--tuck-mask-overlap)) calc(var(--tuck-radius) + var(--tuck-mask-overlap)) no-repeat,
+      linear-gradient(var(--print-paper), var(--print-paper))
+        bottom / 100% calc(100% - var(--tuck-radius)) no-repeat;
   }
 
   .tuck-effect-right {
