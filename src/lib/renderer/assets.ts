@@ -59,6 +59,9 @@ export const TEMPLATE_ASSETS = {
   boostFill: `${TEMPLATES}/boost_fill.png`,
   /** Fixed red attack banner at the head of an action card's bonus-attack section. */
   bonusAttackBanner: `${TEMPLATES}/bonus_attack_banner.png`,
+  /** Inverse 46px inside-frame arcs, with the 6px chrome seam allowance. */
+  tuckCornerLeft: `${TEMPLATES}/tuck_corner_left.svg`,
+  tuckCornerRight: `${TEMPLATES}/tuck_corner_right.svg`,
   /** Separator between the halves of a split card, with curved shoulders. */
   splitSeparator: `${TEMPLATES}/split_effect_separator.png`,
   /**

@@ -1052,6 +1052,8 @@
         style:padding-top={pu(INTERIOR_RADIUS)}
         style:padding-bottom={pu(CHROME_SEAM)}
         style:padding-inline={pu(TUCK_EFFECT.padding + CHROME_SEAM)}
+        style:--tuck-corner-left={`url("${TEMPLATE_ASSETS.tuckCornerLeft}")`}
+        style:--tuck-corner-right={`url("${TEMPLATE_ASSETS.tuckCornerRight}")`}
         style:--tuck-radius={pu(INTERIOR_RADIUS)}
         style:--tuck-mask-overlap={pu(CHROME_SEAM)}
         style:background={fillCss(theme.tuckEffect)}
@@ -1789,13 +1791,14 @@
        The extra top padding keeps reminder text in its original strip.
        Extend the fill below and beside the interior clip so fractional mask
        edges cannot expose the dark panel at the frame join; padding keeps text
-       fixed. Wider corner tiles keep their circle centres at the same position.
+       fixed. SVG arcs provide antialiasing that hard gradient stops lack at
+       preview scale. Wider tiles keep the circle centres at the same position.
        Overlap the masks by the chrome seam allowance so their rasterised edges
        cannot leave a hairline at small preview scales. */
     mask:
-      radial-gradient(circle at top right, transparent var(--tuck-radius), var(--print-paper) var(--tuck-radius))
+      var(--tuck-corner-left)
         top left / calc(var(--tuck-radius) + var(--tuck-mask-overlap)) calc(var(--tuck-radius) + var(--tuck-mask-overlap)) no-repeat,
-      radial-gradient(circle at top left, transparent var(--tuck-radius), var(--print-paper) var(--tuck-radius))
+      var(--tuck-corner-right)
         top right / calc(var(--tuck-radius) + var(--tuck-mask-overlap)) calc(var(--tuck-radius) + var(--tuck-mask-overlap)) no-repeat,
       linear-gradient(var(--print-paper), var(--print-paper))
         bottom / 100% calc(100% - var(--tuck-radius)) no-repeat;
