@@ -162,9 +162,11 @@
   import type { TextureKind } from '$lib/cards/style';
 
   /**
-   * Textures are generated rather than shipped. Grain uses ordinary SVG
-   * circles rather than an SVG turbulence filter: filters paint on screen but
-   * disappear when this renderer is photographed through a foreignObject.
+   * Textures are generated rather than shipped. The three natural finishes
+   * deliberately use different mark vocabularies — fine grain, paper fibres
+   * and sparse flecks — so choosing a new label also changes the material the
+   * author sees. Ordinary SVG marks survive the foreignObject photograph;
+   * SVG filters do not.
    *
    * `size` matters as much as the image. A weave or a grain is a *tile* and
    * must repeat at a fixed physical size; a vignette or a glow is a single
@@ -177,12 +179,21 @@
     blend: string;
   }
 
-  function noise(count: number, radius: number, opacity: number, seed: number): string {
+  function seededRandom(seed: number): () => number {
     let value = seed >>> 0;
-    const random = (): number => {
+    return (): number => {
       value = (Math.imul(value, 1664525) + 1013904223) >>> 0;
       return value / 0x1_0000_0000;
     };
+  }
+
+  function svgTexture(marks: string): string {
+    const svg = `<svg xmlns='http://www.w3.org/2000/svg' width='240' height='240' viewBox='0 0 240 240'>${marks}</svg>`;
+    return `url("data:image/svg+xml,${encodeURIComponent(svg)}")`;
+  }
+
+  function grain(count: number, radius: number, opacity: number, seed: number): string {
+    const random = seededRandom(seed);
     const marks = Array.from({ length: count }, () => {
       const x = (random() * 240).toFixed(2);
       const y = (random() * 240).toFixed(2);
@@ -191,36 +202,66 @@
       const alpha = (opacity * (0.45 + random() * 0.55)).toFixed(2);
       return `<circle cx='${x}' cy='${y}' r='${r}' fill='${ink}' fill-opacity='${alpha}'/>`;
     }).join('');
-    const svg = `<svg xmlns='http://www.w3.org/2000/svg' width='240' height='240' viewBox='0 0 240 240'>${marks}</svg>`;
-    return `url("data:image/svg+xml,${encodeURIComponent(svg)}")`;
+    return svgTexture(marks);
+  }
+
+  function paperFibres(count: number, seed: number): string {
+    const random = seededRandom(seed);
+    const marks = Array.from({ length: count }, () => {
+      const x = random() * 240;
+      const y = random() * 240;
+      const length = 12 + random() * 32;
+      const angle = ((random() - 0.5) * Math.PI) / 5;
+      const x2 = x + Math.cos(angle) * length;
+      const y2 = y + Math.sin(angle) * length;
+      const ink = random() > 0.58 ? '#fff' : '#000';
+      const alpha = 0.3 + random() * 0.45;
+      const width = 0.8 + random() * 1.4;
+      return `<line x1='${x.toFixed(2)}' y1='${y.toFixed(2)}' x2='${x2.toFixed(2)}' y2='${y2.toFixed(2)}' stroke='${ink}' stroke-opacity='${alpha.toFixed(2)}' stroke-width='${width.toFixed(2)}' stroke-linecap='round'/>`;
+    }).join('');
+    return svgTexture(marks);
+  }
+
+  function speckles(count: number, seed: number): string {
+    const random = seededRandom(seed);
+    const marks = Array.from({ length: count }, () => {
+      const x = random() * 240;
+      const y = random() * 240;
+      const rx = 4 + random() * 4.5;
+      const ry = 2.5 + random() * 3.5;
+      const angle = Math.round(random() * 180);
+      const alpha = 0.48 + random() * 0.42;
+      return `<ellipse cx='${x.toFixed(2)}' cy='${y.toFixed(2)}' rx='${rx.toFixed(2)}' ry='${ry.toFixed(2)}' transform='rotate(${angle} ${x.toFixed(2)} ${y.toFixed(2)})' fill='#000' fill-opacity='${alpha.toFixed(2)}'/>`;
+    }).join('');
+    return svgTexture(marks);
   }
 
   const TEXTURE_SPECS: Record<TextureKind, TextureSpec | null> = {
     none: null,
-    grain: { image: noise(520, 0.75, 0.9, 0x71a1), size: '18cqw 18cqw', blend: 'overlay' },
-    paper: { image: noise(260, 1.25, 0.7, 0x9a37), size: '30cqw 30cqw', blend: 'overlay' },
-    speckle: { image: noise(150, 1.7, 1, 0x5eec), size: '9cqw 9cqw', blend: 'overlay' },
+    grain: { image: grain(680, 1.1, 1, 0x71a1), size: '18cqw 18cqw', blend: 'overlay' },
+    paper: { image: paperFibres(72, 0x9a37), size: '34cqw 34cqw', blend: 'overlay' },
+    speckle: { image: speckles(10, 0x5eec), size: '14cqw 14cqw', blend: 'multiply' },
     linen: {
       image:
-        'repeating-linear-gradient(0deg, rgb(0 0 0 / 0.55) 0 8%, transparent 8% 50%), repeating-linear-gradient(90deg, rgb(255 255 255 / 0.5) 0 8%, transparent 8% 50%)',
-      size: '1.1cqw 1.1cqw',
+        'repeating-linear-gradient(0deg, rgb(0 0 0 / 0.45) 0 10%, rgb(255 255 255 / 0.35) 10% 18%, transparent 18% 50%), repeating-linear-gradient(90deg, rgb(0 0 0 / 0.45) 0 10%, rgb(255 255 255 / 0.35) 10% 18%, transparent 18% 50%)',
+      size: '2.2cqw 2.2cqw',
       blend: 'overlay'
     },
     canvas: {
       image:
-        'repeating-linear-gradient(0deg, rgb(0 0 0 / 0.5) 0 14%, transparent 14% 50%), repeating-linear-gradient(90deg, rgb(0 0 0 / 0.5) 0 14%, transparent 14% 50%)',
-      size: '2.4cqw 2.4cqw',
+        'repeating-linear-gradient(0deg, rgb(0 0 0 / 0.55) 0 18%, transparent 18% 50%), repeating-linear-gradient(90deg, rgb(0 0 0 / 0.55) 0 18%, rgb(255 255 255 / 0.22) 18% 28%, transparent 28% 50%)',
+      size: '4cqw 4cqw',
       blend: 'overlay'
     },
     crosshatch: {
       image:
-        'repeating-linear-gradient(45deg, rgb(0 0 0 / 0.6) 0 6%, transparent 6% 50%), repeating-linear-gradient(-45deg, rgb(0 0 0 / 0.6) 0 6%, transparent 6% 50%)',
-      size: '1.8cqw 1.8cqw',
+        'repeating-linear-gradient(45deg, rgb(0 0 0 / 0.6) 0 10%, transparent 10% 50%), repeating-linear-gradient(-45deg, rgb(0 0 0 / 0.6) 0 10%, transparent 10% 50%)',
+      size: '3.6cqw 3.6cqw',
       blend: 'overlay'
     },
     halftone: {
-      image: 'radial-gradient(rgb(0 0 0 / 0.75) 22%, transparent 24%)',
-      size: '1.5cqw 1.5cqw',
+      image: 'radial-gradient(circle at center, rgb(0 0 0 / 0.78) 0 20%, transparent 22%)',
+      size: '2.4cqw 2.4cqw',
       blend: 'overlay'
     },
     /* Single-pass finishes: one gradient stretched across the card. */
