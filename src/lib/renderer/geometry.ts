@@ -770,8 +770,6 @@ export const BONUS_ATTACK = {
  */
 export const TUCK_EFFECT = {
   thickness: 120,
-  /** Half the printed bottom frame, excluding the bleed beyond the cut line. */
-  bottomFrameOverlap: (TRIM.y + TRIM.height - (INTERIOR.y + INTERIOR.height)) / 2,
   padding: 48,
   text: {
     /** Change this value to dial in the tuck-effect text size. */

@@ -182,7 +182,7 @@
   );
   const bodyBottomPadding = $derived(
     (isHero && !card.showBonusAttack ? HERO_BODY_PANEL_FOOT_CLEARANCE : 0) +
-      (hasBottomTuckEffect ? TUCK_EFFECT.thickness - TUCK_EFFECT.bottomFrameOverlap : 0)
+      (hasBottomTuckEffect ? TUCK_EFFECT.thickness : 0)
   );
 
   const artWindowHeight = $derived(
@@ -1035,6 +1035,31 @@
         </div>
       </div>
     {/if}
+
+    {#if hasBottomTuckEffect}
+      <!-- The whole bar is the target, so blank copy is still clickable. It is
+           a surface: painted over whatever it covers, so the overlay layers it
+           above other targets instead of treating the overlap as crowding. -->
+      <div
+        class="tuck-effect tuck-effect-bottom"
+        data-card-edit-target={CARD_EDIT_MARKERS.tuckEffect}
+        data-card-edit-surface
+        style:height={pu(TUCK_EFFECT.thickness + INTERIOR_RADIUS)}
+        style:padding-top={pu(INTERIOR_RADIUS)}
+        style:padding-inline={pu(TUCK_EFFECT.padding)}
+        style:--tuck-radius={pu(INTERIOR_RADIUS)}
+        style:--tuck-mask-overlap={pu(1)}
+        style:background={fillCss(theme.tuckEffect)}
+        style:color={theme.tuckEffectInk}
+      >
+        <span
+          class="tuck-effect-text"
+          style:font-size={pu(TUCK_EFFECT.text.size)}
+          style:line-height={TUCK_EFFECT.text.lineHeight}
+          style:transform="translateY({pu(TUCK_EFFECT.text.offsetY)})"
+        >{@html renderActionText(card.tuckEffect, ribbonName, customSymbols, 'tuck-effect-symbol')}</span>
+      </div>
+    {/if}
   </div>
   </div>
 
@@ -1074,7 +1099,7 @@
   style:top={py(
     capTopToBoxTop(
       (isHero ? OWNER_LINE.capTop : QUANTITY.capTop) -
-        (hasBottomTuckEffect ? TUCK_EFFECT.thickness - TUCK_EFFECT.bottomFrameOverlap : 0),
+        (hasBottomTuckEffect ? TUCK_EFFECT.thickness : 0),
       QUANTITY.size
     )
   )}
@@ -1447,41 +1472,6 @@
   style:z-index={layerZ('outer-frame')}
 ></div>
 
-<!-- The lowered strip crosses the printed frame, so it must sit outside the
-     clipped interior and paint after the frame. Artwork above both fixed
-     layers can still cover it according to the card's layer order. -->
-{#if hasBottomTuckEffect}
-  <!-- The whole bar is the target, so blank copy is still clickable. It is
-       a surface: painted over whatever it covers, so the overlay layers it
-       above other targets instead of treating the overlap as crowding. -->
-  <div
-    class="tuck-effect tuck-effect-bottom"
-    data-card-edit-target={CARD_EDIT_MARKERS.tuckEffect}
-    data-card-edit-surface
-    style:left={px(INTERIOR.x)}
-    style:top={py(
-      INTERIOR.y + INTERIOR.height + TUCK_EFFECT.bottomFrameOverlap -
-        TUCK_EFFECT.thickness - INTERIOR_RADIUS
-    )}
-    style:width={px(INTERIOR.width)}
-    style:height={pu(TUCK_EFFECT.thickness + INTERIOR_RADIUS)}
-    style:z-index={Math.max(layerZ('card-content'), layerZ('outer-frame'))}
-    style:padding-top={pu(INTERIOR_RADIUS)}
-    style:padding-inline={pu(TUCK_EFFECT.padding)}
-    style:--tuck-radius={pu(INTERIOR_RADIUS)}
-    style:--tuck-mask-overlap={pu(1)}
-    style:background={fillCss(theme.tuckEffect)}
-    style:color={theme.tuckEffectInk}
-  >
-    <span
-      class="tuck-effect-text"
-      style:font-size={pu(TUCK_EFFECT.text.size)}
-      style:line-height={TUCK_EFFECT.text.lineHeight}
-      style:transform="translateY({pu(TUCK_EFFECT.text.offsetY)})"
-    >{@html renderActionText(card.tuckEffect, ribbonName, customSymbols, 'tuck-effect-symbol')}</span>
-  </div>
-{/if}
-
 <style>
   .bed {
     position: absolute;
@@ -1785,12 +1775,13 @@
   }
 
   .tuck-effect-bottom {
-    border-radius: 0 0 var(--tuck-radius) var(--tuck-radius);
+    right: 0;
+    bottom: 0;
+    left: 0;
     /* The frame-coloured strip must round the body above it, so its upper
        corners fill the space outside quarter-circles. Ordinary border radii
        would cut those fills away and curve the body in the opposite direction.
-       The extra top padding keeps reminder text centred in the strip.
-       Its lower radii preserve the corners formerly clipped by the interior.
+       The extra top padding keeps reminder text in its original strip.
        Overlap the masks by one bleed pixel to prevent a hairline at fractional
        render sizes, including the PNG export. */
     mask:
