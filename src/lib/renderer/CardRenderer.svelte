@@ -163,7 +163,7 @@
 
   /**
    * Textures are generated rather than shipped. The three natural finishes
-   * deliberately use different mark vocabularies — fine grain, paper fibres
+   * deliberately use different mark vocabularies — fine grain, mottled pulp
    * and sparse flecks — so choosing a new label also changes the material the
    * author sees. Ordinary SVG marks survive the foreignObject photograph;
    * SVG filters do not.
@@ -192,6 +192,21 @@
     return `url("data:image/svg+xml,${encodeURIComponent(svg)}")`;
   }
 
+  function wrappedMark(
+    x: number,
+    y: number,
+    extent: number,
+    draw: (wrappedX: number, wrappedY: number) => string
+  ): string {
+    const xs = [x];
+    const ys = [y];
+    if (x < extent) xs.push(x + 240);
+    if (x > 240 - extent) xs.push(x - 240);
+    if (y < extent) ys.push(y + 240);
+    if (y > 240 - extent) ys.push(y - 240);
+    return xs.flatMap((wrappedX) => ys.map((wrappedY) => draw(wrappedX, wrappedY))).join('');
+  }
+
   function grain(count: number, radius: number, opacity: number, seed: number): string {
     const random = seededRandom(seed);
     const marks = Array.from({ length: count }, () => {
@@ -205,21 +220,41 @@
     return svgTexture(marks);
   }
 
-  function paperFibres(count: number, seed: number): string {
+  function paperPulp(fibreCount: number, moteCount: number, seed: number): string {
     const random = seededRandom(seed);
-    const marks = Array.from({ length: count }, () => {
+    const fibres = Array.from({ length: fibreCount }, () => {
       const x = random() * 240;
       const y = random() * 240;
-      const length = 12 + random() * 32;
-      const angle = ((random() - 0.5) * Math.PI) / 5;
-      const x2 = x + Math.cos(angle) * length;
-      const y2 = y + Math.sin(angle) * length;
-      const ink = random() > 0.58 ? '#fff' : '#000';
-      const alpha = 0.3 + random() * 0.45;
-      const width = 0.8 + random() * 1.4;
-      return `<line x1='${x.toFixed(2)}' y1='${y.toFixed(2)}' x2='${x2.toFixed(2)}' y2='${y2.toFixed(2)}' stroke='${ink}' stroke-opacity='${alpha.toFixed(2)}' stroke-width='${width.toFixed(2)}' stroke-linecap='round'/>`;
+      const halfLength = 1.5 + random() * 5;
+      const angle = random() * Math.PI * 2;
+      const dx = Math.cos(angle) * halfLength;
+      const dy = Math.sin(angle) * halfLength;
+      const ink = random() > 0.5 ? '#fff' : '#000';
+      const alpha = 0.16 + random() * 0.3;
+      const width = 0.35 + random() * 0.55;
+      return wrappedMark(
+        x,
+        y,
+        halfLength + width,
+        (wrappedX, wrappedY) =>
+          `<line x1='${(wrappedX - dx).toFixed(2)}' y1='${(wrappedY - dy).toFixed(2)}' x2='${(wrappedX + dx).toFixed(2)}' y2='${(wrappedY + dy).toFixed(2)}' stroke='${ink}' stroke-opacity='${alpha.toFixed(2)}' stroke-width='${width.toFixed(2)}' stroke-linecap='round'/>`
+      );
     }).join('');
-    return svgTexture(marks);
+    const motes = Array.from({ length: moteCount }, () => {
+      const x = random() * 240;
+      const y = random() * 240;
+      const radius = 0.25 + random() * 1.1;
+      const ink = random() > 0.5 ? '#fff' : '#000';
+      const alpha = 0.14 + random() * 0.28;
+      return wrappedMark(
+        x,
+        y,
+        radius,
+        (wrappedX, wrappedY) =>
+          `<circle cx='${wrappedX.toFixed(2)}' cy='${wrappedY.toFixed(2)}' r='${radius.toFixed(2)}' fill='${ink}' fill-opacity='${alpha.toFixed(2)}'/>`
+      );
+    }).join('');
+    return svgTexture(fibres + motes);
   }
 
   function speckles(count: number, seed: number): string {
@@ -227,11 +262,23 @@
     const marks = Array.from({ length: count }, () => {
       const x = random() * 240;
       const y = random() * 240;
-      const rx = 4 + random() * 4.5;
-      const ry = 2.5 + random() * 3.5;
-      const angle = Math.round(random() * 180);
-      const alpha = 0.48 + random() * 0.42;
-      return `<ellipse cx='${x.toFixed(2)}' cy='${y.toFixed(2)}' rx='${rx.toFixed(2)}' ry='${ry.toFixed(2)}' transform='rotate(${angle} ${x.toFixed(2)} ${y.toFixed(2)})' fill='#000' fill-opacity='${alpha.toFixed(2)}'/>`;
+      const radius = 3.5 + random() * 5;
+      const aspect = 0.55 + random() * 0.5;
+      const rotation = random() * Math.PI * 2;
+      const alpha = 0.45 + random() * 0.42;
+      const points = Array.from({ length: 7 }, (_, index) => {
+        const angle = rotation + (index / 7) * Math.PI * 2;
+        const wobble = 0.72 + random() * 0.42;
+        return [Math.cos(angle) * radius * wobble, Math.sin(angle) * radius * aspect * wobble] as const;
+      });
+      return wrappedMark(x, y, radius + 1, (wrappedX, wrappedY) => {
+        const path = points
+          .map(([dx, dy], index) =>
+            `${index === 0 ? 'M' : 'L'} ${(wrappedX + dx).toFixed(2)} ${(wrappedY + dy).toFixed(2)}`
+          )
+          .join(' ');
+        return `<path d='${path} Z' fill='#000' fill-opacity='${alpha.toFixed(2)}'/>`;
+      });
     }).join('');
     return svgTexture(marks);
   }
@@ -239,8 +286,8 @@
   const TEXTURE_SPECS: Record<TextureKind, TextureSpec | null> = {
     none: null,
     grain: { image: grain(680, 1.1, 1, 0x71a1), size: '18cqw 18cqw', blend: 'overlay' },
-    paper: { image: paperFibres(72, 0x9a37), size: '34cqw 34cqw', blend: 'overlay' },
-    speckle: { image: speckles(10, 0x5eec), size: '14cqw 14cqw', blend: 'multiply' },
+    paper: { image: paperPulp(180, 110, 0x9a37), size: '64cqw 64cqw', blend: 'normal' },
+    speckle: { image: speckles(34, 0x5eec), size: '48cqw 48cqw', blend: 'multiply' },
     linen: {
       image:
         'repeating-linear-gradient(0deg, rgb(0 0 0 / 0.45) 0 10%, rgb(255 255 255 / 0.35) 10% 18%, transparent 18% 50%), repeating-linear-gradient(90deg, rgb(0 0 0 / 0.45) 0 10%, rgb(255 255 255 / 0.35) 10% 18%, transparent 18% 50%)',
@@ -272,9 +319,9 @@
     },
     glow: {
       image:
-        'radial-gradient(ellipse 90% 55% at 50% 0%, rgb(255 255 255 / 0.7), transparent 70%)',
+        'radial-gradient(ellipse 78% 58% at 50% 26%, rgb(255 241 174 / 0.95) 0%, rgb(255 248 211 / 0.5) 44%, transparent 84%)',
       size: '100% 100%',
-      blend: 'soft-light'
+      blend: 'normal'
     }
   };
 </script>
