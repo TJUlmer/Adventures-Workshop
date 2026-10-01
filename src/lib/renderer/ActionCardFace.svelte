@@ -1047,11 +1047,13 @@
         data-card-edit-surface
         style:height={pu(TUCK_EFFECT.thickness + INTERIOR_RADIUS + CHROME_SEAM)}
         style:bottom={pu(-CHROME_SEAM)}
+        style:left={pu(-CHROME_SEAM)}
+        style:right={pu(-CHROME_SEAM)}
         style:padding-top={pu(INTERIOR_RADIUS)}
         style:padding-bottom={pu(CHROME_SEAM)}
-        style:padding-inline={pu(TUCK_EFFECT.padding)}
+        style:padding-inline={pu(TUCK_EFFECT.padding + CHROME_SEAM)}
         style:--tuck-radius={pu(INTERIOR_RADIUS)}
-        style:--tuck-mask-overlap={pu(1)}
+        style:--tuck-mask-overlap={pu(CHROME_SEAM)}
         style:background={fillCss(theme.tuckEffect)}
         style:color={theme.tuckEffectInk}
       >
@@ -1785,15 +1787,16 @@
        corners fill the space outside quarter-circles. Ordinary border radii
        would cut those fills away and curve the body in the opposite direction.
        The extra top padding keeps reminder text in its original strip.
-       Extend the fill below the interior clip so a fractional mask edge cannot
-       expose the dark panel at the frame join; bottom padding keeps text fixed.
-       Overlap the masks by one bleed pixel to prevent a hairline at fractional
-       render sizes, including the PNG export. */
+       Extend the fill below and beside the interior clip so fractional mask
+       edges cannot expose the dark panel at the frame join; padding keeps text
+       fixed. Wider corner tiles keep their circle centres at the same position.
+       Overlap the masks by the chrome seam allowance so their rasterised edges
+       cannot leave a hairline at small preview scales. */
     mask:
       radial-gradient(circle at top right, transparent var(--tuck-radius), var(--print-paper) var(--tuck-radius))
-        top left / var(--tuck-radius) calc(var(--tuck-radius) + var(--tuck-mask-overlap)) no-repeat,
+        top left / calc(var(--tuck-radius) + var(--tuck-mask-overlap)) calc(var(--tuck-radius) + var(--tuck-mask-overlap)) no-repeat,
       radial-gradient(circle at top left, transparent var(--tuck-radius), var(--print-paper) var(--tuck-radius))
-        top right / var(--tuck-radius) calc(var(--tuck-radius) + var(--tuck-mask-overlap)) no-repeat,
+        top right / calc(var(--tuck-radius) + var(--tuck-mask-overlap)) calc(var(--tuck-radius) + var(--tuck-mask-overlap)) no-repeat,
       linear-gradient(var(--print-paper), var(--print-paper))
         bottom / 100% calc(100% - var(--tuck-radius)) no-repeat;
   }
