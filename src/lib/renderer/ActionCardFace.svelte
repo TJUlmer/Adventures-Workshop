@@ -59,6 +59,7 @@
     BOOST_RING,
     BOOST_VALUE,
     CORNER_BADGE,
+    CHROME_SEAM,
     capTopToBoxTop,
     digitMiddleToBoxTop,
     digitTopToBoxTop,
@@ -1044,8 +1045,10 @@
         class="tuck-effect tuck-effect-bottom"
         data-card-edit-target={CARD_EDIT_MARKERS.tuckEffect}
         data-card-edit-surface
-        style:height={pu(TUCK_EFFECT.thickness + INTERIOR_RADIUS)}
+        style:height={pu(TUCK_EFFECT.thickness + INTERIOR_RADIUS + CHROME_SEAM)}
+        style:bottom={pu(-CHROME_SEAM)}
         style:padding-top={pu(INTERIOR_RADIUS)}
+        style:padding-bottom={pu(CHROME_SEAM)}
         style:padding-inline={pu(TUCK_EFFECT.padding)}
         style:--tuck-radius={pu(INTERIOR_RADIUS)}
         style:--tuck-mask-overlap={pu(1)}
@@ -1782,6 +1785,8 @@
        corners fill the space outside quarter-circles. Ordinary border radii
        would cut those fills away and curve the body in the opposite direction.
        The extra top padding keeps reminder text in its original strip.
+       Extend the fill below the interior clip so a fractional mask edge cannot
+       expose the dark panel at the frame join; bottom padding keeps text fixed.
        Overlap the masks by one bleed pixel to prevent a hairline at fractional
        render sizes, including the PNG export. */
     mask:
