@@ -1,5 +1,5 @@
 import { actionTextIsEmpty } from '$lib/text/action-text';
-import type { AbilityBlocks, ActionCard, CardId } from './types';
+import { usedTimings, type AbilityBlocks, type ActionCard, type CardId } from './types';
 
 export type AbilitySourceRegion = 'primary-ability' | 'defense-ability';
 /** Optional special effects whose stored source is visibly printed when active. */
@@ -94,13 +94,13 @@ export const DIRECT_PREVIEW_FIELD_CONTRACT = [
     key: 'primary-ability:*',
     behaviour: 'direct',
     milestone: 'first',
-    condition: 'the addressed paragraph contains text'
+    condition: 'the addressed paragraph or standalone timing heading is visible'
   },
   {
     key: 'defense-ability:*',
     behaviour: 'direct',
     milestone: 'first',
-    condition: 'the addressed split-defense paragraph contains text'
+    condition: 'the addressed split-defense paragraph or timing heading is visible'
   },
   {
     key: 'primary-ability:bonus[index]',
@@ -429,8 +429,14 @@ export function previewDirectField(
   }
 
   const ability = abilitySource(card, address);
-  if (ability && !actionTextIsEmpty(ability.value)) {
-    return { kind: 'ability', value: ability.value, placeholder: 'Ability text' };
+  if (ability) {
+    const visibleTiming =
+      (address.region === 'primary-ability' || address.region === 'defense-ability') &&
+      address.field !== 'plain' && address.field !== 'bonus' &&
+      usedTimings(ability.ability).includes(address.field);
+    if (visibleTiming || !actionTextIsEmpty(ability.value)) {
+      return { kind: 'ability', value: ability.value, placeholder: 'Ability text' };
+    }
   }
 
   return null;

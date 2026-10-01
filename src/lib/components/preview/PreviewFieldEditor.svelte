@@ -91,8 +91,9 @@
     )
   );
 
-  function editorOptions(): { singleLine: boolean } {
-    return { singleLine: !multiline };
+  function editorOptions(): { singleLine: boolean; preserveWhitespace: boolean } {
+    // Match the centre editor: a space can retain a timing heading or title rule.
+    return { singleLine: !multiline, preserveWhitespace: multiline };
   }
 
   function acceptTextDraft(next: ActionTextEditorValue | null): void {
