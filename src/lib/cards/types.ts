@@ -75,7 +75,8 @@ export function createBonusAbility(init: Partial<BonusAbility> = {}): BonusAbili
 /**
  * Timed ability blocks. Rendered in declaration order — plain text first, then
  * Immediately, During Combat, After Combat, then Bonus abilities last — and
- * only where non-empty, which keeps a one-line card from printing empty labels.
+ * only where an entry is present. An intentionally entered space retains its
+ * timing label without printing a sentence.
  */
 export interface AbilityBlocks {
   /** Untimed text, printed with no label. */
@@ -119,24 +120,24 @@ export function createAbilityBlocks(init: Partial<AbilityBlocks> = {}): AbilityB
  * stores only its small allowlist, so removing tags and non-breaking spaces is
  * enough to distinguish formatting scaffolding from printable copy.
  */
-function actionTextHasContent(value: string): boolean {
+function actionTextHasContent(value: string, preserveWhitespace = false): boolean {
   if (/<img\b/i.test(value)) return true;
-  return value
+  const text = value
     .replace(/<[^>]*>/g, '')
-    .replace(/&(?:nbsp|#160);/gi, ' ')
-    .trim().length > 0;
+    .replace(/&(?:nbsp|#160);/gi, ' ');
+  return (preserveWhitespace ? text : text.trim()).length > 0;
 }
 
-/** The blocks that actually carry text, in printed order. */
+/** A deliberate space keeps a timing heading, just as it keeps the title rule. */
 export function usedTimings(ability: AbilityBlocks): AbilityTiming[] {
-  return ABILITY_TIMINGS.filter((timing) => actionTextHasContent(ability[timing]));
+  return ABILITY_TIMINGS.filter((timing) => actionTextHasContent(ability[timing], true));
 }
 
 export function abilityIsEmpty(ability: AbilityBlocks): boolean {
   return (
     !actionTextHasContent(ability.plain) &&
     ability.bonusAbilities.every((bonus) => !actionTextHasContent(bonus.text)) &&
-    ABILITY_TIMINGS.every((timing) => !actionTextHasContent(ability[timing]))
+    usedTimings(ability).length === 0
   );
 }
 

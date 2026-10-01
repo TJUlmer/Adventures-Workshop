@@ -1,7 +1,8 @@
 <script lang="ts">
   /**
    * Ability copy: the untimed paragraph first, then Immediately, During Combat
-   * and After Combat in that fixed order, each printed only if it carries text.
+   * and After Combat in that fixed order. An intentional space keeps a timing
+   * heading visible without a sentence after it.
    * Inline `{{attack}}` tokens become print-resolution symbols, and `{{name}}`
    * becomes whoever the card belongs to.
    */
