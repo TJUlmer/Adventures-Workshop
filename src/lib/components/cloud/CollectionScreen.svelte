@@ -2142,23 +2142,51 @@
             {/if}
           </div>
 
-          <p class="hint">
-            Use one ordinary full set as this collection’s Shared Kit. It is the home for anything
-            everyone uses: maps, loose game pieces, rulebook PDFs, a threat track, shared cards and
-            box presentation. Character-specific cards and pieces stay in their own sets.
-          </p>
+          {#if organizer}
+            <p class="hint">
+              Use one ordinary full set as this collection’s Shared Kit. It is the home for anything
+              everyone uses: maps, loose game pieces, rulebook PDFs, a threat track, shared cards and
+              box presentation. Character-specific cards and pieces stay in their own sets.
+            </p>
 
-          <ol class="shared-assets-steps">
-            <li><strong>Create a full set</strong> named “{heading} Shared Kit” from Home.</li>
-            <li><strong>Add the common material</strong> in that set’s normal editors.</li>
-            <li><strong>Publish it with Private link</strong>, then select it here or paste its link.</li>
-            <li>
-              <strong>Collaborate through the Shared Kit.</strong> A teammate opens its published
-              page and chooses <em>Make a copy to work on</em>. After editing, their copy shows
-              <em>Offer your changes back</em> on Home. The owner accepts the changes, republishes,
-              then marks the new revision Ready here.
-            </li>
-          </ol>
+            <ol class="shared-assets-steps">
+              <li><strong>Create a full set</strong> named “{heading} Shared Kit” from Home.</li>
+              <li><strong>Add the common material</strong> in that set’s normal editors.</li>
+              <li><strong>Publish it with Private link</strong>, then select it here or paste its link.</li>
+              <li>
+                <strong>Collaborate through the Shared Kit.</strong> A teammate opens its published
+                page and chooses <em>Make a copy to work on</em>. After editing, their copy shows
+                <em>Offer your changes back</em> on Home. The owner accepts the changes, republishes,
+                then marks the new revision Ready here.
+              </li>
+            </ol>
+          {:else}
+            <p class="hint">
+              The Shared Kit keeps this collection’s maps, loose game pieces, PDFs, threat track,
+              shared cards and box material together. Character-specific cards and pieces stay in
+              their own sets.
+            </p>
+
+            {#if sharedAssetsMembership}
+              <div class="shared-assets-collaboration">
+                {#if sharedAssetsMembership.set?.owner_id === auth.user?.id}
+                  <strong>You maintain the Shared Kit</strong>
+                  <span>
+                    Teammates make a copy of its published version and offer their changes back.
+                    Review those offers from Home, republish the accepted work, then mark the new
+                    revision Ready in Your contribution.
+                  </span>
+                {:else}
+                  <strong>Want to help with the shared material?</strong>
+                  <span>
+                    Open the Shared Kit below and choose <em>Make a copy to work on</em>. After
+                    editing, use <em>Offer your changes back</em> from Home so its owner can review
+                    and publish them.
+                  </span>
+                {/if}
+              </div>
+            {/if}
+          {/if}
 
           {#if sharedAssetsMembership}
             <div class="shared-assets-current">
@@ -2182,7 +2210,7 @@
                   type="button"
                   class="btn"
                   onclick={() => viewPublishedContribution(sharedAssetsMembership)}
-                >View published</button>
+                >{organizer ? 'View published' : 'Open Shared Kit'}</button>
                 {#if sharedAssetsMembership.set?.owner_id === auth.user?.id}
                   {@const sharedPublication = publicationFor(sharedAssetsMembership.set_id)}
                   <button
@@ -3631,6 +3659,23 @@
 
   .shared-assets-steps strong {
     color: var(--text-primary);
+  }
+
+  .shared-assets-collaboration {
+    display: grid;
+    gap: var(--space-1);
+    margin: var(--space-3) 0;
+    padding: var(--space-3) var(--space-4);
+    border-left: 3px solid var(--accent);
+    background: var(--surface-inset);
+  }
+
+  .shared-assets-collaboration strong {
+    color: var(--text-primary);
+  }
+
+  .shared-assets-collaboration span {
+    color: var(--text-secondary);
   }
 
   .shared-assets-current,
