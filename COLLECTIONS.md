@@ -201,6 +201,36 @@ asking anyone.
 **A collection is deliberately not a `SetKind`.** That enum describes
 documents, and this is not one.
 
+### The Shared Kit is a membership, not a collection document
+
+A collection may designate one accepted member as its **Shared Kit**. It is an
+ordinary full Adventure set, usually named “{Collection name} Shared Kit”, and
+holds everything that belongs to the project rather than to one character:
+maps, loose figures and tokens, rulebook PDFs, shared cards, the threat track
+and box presentation. Character-specific cards and pieces remain in their own
+deck sets.
+
+`collection_members.entry_kind` classifies a row as `deck` or
+`shared_assets`. This is not a permission role. Organizer remains a person
+role in `collection_organizers`; ownership and contribution permissions remain
+those of the published set. There may be only one live Shared Kit membership
+per collection. Its owner must accept an organizer's invitation, controls its
+publication, and marks each published revision Ready just like any deck owner.
+
+That choice is what makes collaboration unsurprising: another creator forks
+the Shared Kit, changes the map or adds a PDF/component, and submits the normal
+set contribution. The Shared Kit owner reviews and accepts it into their local
+working copy, republishes, and the database resets collection readiness until
+they approve that new revision. The collection never owns or merges the
+editable document.
+
+On the public page, Characters and Sets show only `deck` memberships. **Shared
+maps & components** opens the one Shared Kit through the existing published-set
+viewer, including maps, components, PDFs and box material. Combined exports
+still require every `deck` member to be heroes-only; the designated Shared Kit
+is the one allowed full Adventure set and is appended once to TTS, print-sheet
+and card-image output.
+
 ---
 
 ## "Latest published" is the only thing on offer
@@ -264,8 +294,9 @@ outputs are joined:
   members is more pages in the same buckets.
 - **Card PNGs.** A folder per creator.
 
-> **The combined download is only offered when every member is a heroes-scope
-> deck.** A collection of full adventures, each with its own map and threat
+> **The combined download is only offered when every deck member is a heroes-scope
+> deck.** One designated full-adventure Shared Kit may contribute the common
+> map, threat track, components, PDFs and box. A collection of full adventures, each with its own map and threat
 > track, is not a box and should not pretend to be one — it stays a
 > browse-and-download-individually page.
 
@@ -865,8 +896,9 @@ document: `AdventureSet.kind` only exists from schema v28 and `normalizeSet`
 opens a kind-less document as an adventure, so two real published heroes decks
 were refused as "full adventures" by the first version of that check.
 
-Gated as recorded above: **offered only when every member is a heroes-scope
-deck.** A collection of full adventures, each with its own map and threat
+Gated as recorded above: **offered only when every deck member is a heroes-scope
+deck.** The one designated Shared Kit may be a full Adventure set and joins the
+finished object graph exactly once. A collection of full adventures, each with its own map and threat
 track, is not a box and must not pretend to be one — it stays a
 browse-and-download-individually page.
 

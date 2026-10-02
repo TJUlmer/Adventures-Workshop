@@ -25,7 +25,7 @@
   import { navigation } from '$lib/state/navigation.svelte';
   import { Button, Icon } from '$lib/ui';
 
-  type CollectionExplorerFocus = 'full' | 'components';
+  type CollectionExplorerFocus = 'full' | 'shared';
 
   interface Props {
     tile: CollectionTile | null;
@@ -251,7 +251,7 @@
   const publishedCardPreviews = $derived(
     row && usableCardPreviewVersion(row.card_preview_version) ? row.card_previews : undefined
   );
-  const figuresOnly = $derived(focus === 'components');
+  const sharedFocus = $derived(focus === 'shared');
 </script>
 
 {#if tile}
@@ -262,7 +262,7 @@
           <Icon name="chevronRight" size={13} />
           Back to {collectionName}
         </Button>
-        <p class="eyebrow">{figuresOnly ? 'Physical components' : 'Collection set'}</p>
+        <p class="eyebrow">{sharedFocus ? 'Shared maps & components' : 'Collection set'}</p>
         <h2 id="member-explorer-title" tabindex="-1">{tile.name || 'Untitled set'}</h2>
         {#if tile.subtitle}<p class="member-subtitle">{tile.subtitle}</p>{/if}
         <p class="member-credit">
@@ -320,7 +320,7 @@
         </div>
       </div>
 
-      <div class="viewer-frame" class:components-only={figuresOnly}>
+      <div class="viewer-frame">
         {#key `${tile.set_id}:${tile.revision}`}
           <AssetsOverview
             set={shown}
@@ -330,8 +330,8 @@
             cardPreviews={publishedCardPreviews}
             publishedPngsOnly
             heading={false}
-            showZoom={!figuresOnly}
-            figuresOnly={figuresOnly}
+            showZoom
+            figuresOnly={false}
             anchorPrefix={`collection-member-${tile.set_id}`}
           />
         {/key}
@@ -468,10 +468,6 @@
     background: var(--surface-canvas);
   }
 
-  .viewer-frame.components-only {
-    height: clamp(28rem, calc(100dvh - 14rem), 50rem);
-  }
-
   .viewer-frame :global(.page) {
     width: 100%;
   }
@@ -523,8 +519,7 @@
       max-width: 65%;
     }
 
-    .viewer-frame,
-    .viewer-frame.components-only {
+    .viewer-frame {
       min-height: 30rem;
       height: calc(100dvh - 9rem);
     }

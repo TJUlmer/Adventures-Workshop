@@ -19,8 +19,8 @@
   import { Button, Icon } from '$lib/ui';
   import CollectionMemberExplorer from './CollectionMemberExplorer.svelte';
 
-  type ExploreMode = 'characters' | 'sets' | 'components';
-  type ExplorerFocus = 'full' | 'components';
+  type ExploreMode = 'characters' | 'sets' | 'shared';
+  type ExplorerFocus = 'full' | 'shared';
 
   interface Props {
     collection: Collection;
@@ -95,17 +95,21 @@
   let touchPeekedCharacters = $state(new Set<string>());
 
   const title = $derived(collection.name.trim() || 'Untitled collection');
-  const tileById = $derived.by(() => new Map(tiles.map((tile) => [tile.set_id, tile])));
+  const deckTiles = $derived(tiles.filter((tile) => (tile.entry_kind ?? 'deck') === 'deck'));
+  const sharedAssetsTile = $derived(
+    tiles.find((tile) => tile.entry_kind === 'shared_assets') ?? null
+  );
+  const tileById = $derived.by(() => new Map(deckTiles.map((tile) => [tile.set_id, tile])));
   const totalCards = $derived(tiles.reduce((total, tile) => total + tile.card_count, 0));
   const totalCharacters = $derived(
     characters.length > 0
       ? characters.length
-      : tiles.reduce((total, tile) => total + tile.character_count, 0)
+      : deckTiles.reduce((total, tile) => total + tile.character_count, 0)
   );
   const representedSetCount = $derived.by(
     () =>
       new Set([
-        ...tiles.map((tile) => tile.set_id),
+        ...deckTiles.map((tile) => tile.set_id),
         ...characters.map((character) => character.set_id)
       ]).size
   );
@@ -160,13 +164,13 @@
   const heroImages = $derived.by(() => {
     const candidates = [
       ...characters.map((character) => character.card_url || character.image_url),
-      ...tiles.map((tile) => tile.preview_card_url || tile.thumbnail_url || tile.cover_url)
+      ...deckTiles.map((tile) => tile.preview_card_url || tile.thumbnail_url || tile.cover_url)
     ].filter(Boolean);
     return [...new Set(candidates)].slice(0, 4);
   });
 
   $effect(() => {
-    if (setFilter && !tiles.some((tile) => tile.set_id === setFilter)) setFilter = '';
+    if (setFilter && !deckTiles.some((tile) => tile.set_id === setFilter)) setFilter = '';
     if (selectedTile && !tiles.some((tile) => tile.set_id === selectedTile?.set_id)) {
       selectedTile = null;
       selectedCharacterId = undefined;
@@ -347,7 +351,7 @@
               ? 'Explore the collection'
               : 'Explore the sets'}
         </Button>
-        {#if tiles.length > 0}
+    {#if deckTiles.length > 0}
           <Button variant="secondary" onclick={() => showMode('sets')}>See every set</Button>
         {/if}
       </div>
@@ -397,23 +401,23 @@
       >Sets</button>
       <button
         type="button"
-        class:active={mode === 'components' && !selectedTile}
-        aria-pressed={mode === 'components' && !selectedTile}
-        onclick={() => showMode('components')}
-      >Components</button>
+        class:active={mode === 'shared' && !selectedTile}
+        aria-pressed={mode === 'shared' && !selectedTile}
+        onclick={() => showMode('shared')}
+      >Shared maps &amp; components</button>
     </div>
-    {#if !selectedTile && mode === 'characters' && tiles.length > 1}
+    {#if !selectedTile && mode === 'characters' && deckTiles.length > 1}
       <label class="set-filter">
         <span>Showing</span>
         <select bind:value={setFilter}>
           <option value="">All sets</option>
-          {#each tiles as tile (tile.set_id)}
+          {#each deckTiles as tile (tile.set_id)}
             <option value={tile.set_id}>{tile.name || 'Untitled set'}</option>
           {/each}
         </select>
       </label>
     {/if}
-    {#if tiles.length > 0}
+        {#if deckTiles.length > 0}
       <Button variant="ghost" onclick={jumpToPlay}>
         Play or print
         <Icon name="chevronRight" size={13} />
@@ -564,20 +568,20 @@
             <p class="eyebrow">Explore the sets</p>
             <h2 id="collection-sets-heading">Every creator’s contribution</h2>
           </div>
-          {#if tiles.length > 0}<span>{tiles.length} in collection order</span>{/if}
+          {#if deckTiles.length > 0}<span>{deckTiles.length} in collection order</span>{/if}
         </header>
 
         {#if tilesLoading}
           <p class="section-message" aria-live="polite">Opening the collection…</p>
         {:else if tilesFailed}
           <p class="section-message">The collection is here, but its sets could not be loaded.</p>
-        {:else if tiles.length === 0}
+        {:else if deckTiles.length === 0}
           <p class="section-message">
             No published sets have joined this collection yet.
           </p>
         {:else}
           <ul class="set-grid">
-            {#each tiles as tile (tile.set_id)}
+            {#each deckTiles as tile (tile.set_id)}
               <li>
                 <article class="set-tile">
                   <button
@@ -637,47 +641,45 @@
         <header class="section-heading">
           <div>
             <p class="eyebrow">On the table</p>
-            <h2 id="collection-components-heading">Inspect the physical pieces</h2>
+            <h2 id="collection-components-heading">Everything the collection shares</h2>
           </div>
         </header>
         <p class="section-intro">
-          Choose a set to open its published components. Miniatures and tokens, when included,
-          use the same interactive 3D viewer as the gallery.
+          The collection’s Shared Kit holds the material that belongs to everyone rather than to
+          one character: maps, loose pieces, PDFs, shared cards, threat track and box presentation.
         </p>
 
         {#if tilesLoading}
-          <p class="section-message" aria-live="polite">Finding the components…</p>
+          <p class="section-message" aria-live="polite">Opening the Shared Kit…</p>
         {:else if tilesFailed}
           <p class="section-message">The collection is here, but its sets could not be loaded.</p>
-        {:else if tiles.length === 0}
-          <p class="section-message">There are no published sets to inspect yet.</p>
+        {:else if !sharedAssetsTile}
+          <p class="section-message">This collection has not published a Shared Kit yet.</p>
         {:else}
           <ul class="component-set-grid">
-            {#each tiles as tile (tile.set_id)}
-              <li>
-                <button
-                  type="button"
-                  class="component-set"
-                  data-member-trigger={`components:${tile.set_id}`}
-                  onclick={() => openMember(tile, undefined, 'components', `components:${tile.set_id}`)}
-                >
-                  <span class="component-set-art" style:background={tint(tile.set_id)}>
-                    {#if tile.preview_card_url}
-                      <img src={tile.preview_card_url} alt="" loading="lazy" />
-                    {:else if tileImage(tile)}
-                      <img src={tileImage(tile)} alt="" loading="lazy" />
-                    {:else}
-                      {initials(tile.name)}
-                    {/if}
-                  </span>
-                  <span>
-                    <strong>{tile.name || 'Untitled set'}</strong>
-                    <small>Check its published components</small>
-                  </span>
-                  <Icon name="chevronRight" size={15} />
-                </button>
-              </li>
-            {/each}
+            <li>
+              <button
+                type="button"
+                class="component-set"
+                data-member-trigger={`shared:${sharedAssetsTile.set_id}`}
+                onclick={() => openMember(sharedAssetsTile, undefined, 'shared', `shared:${sharedAssetsTile.set_id}`)}
+              >
+                <span class="component-set-art" style:background={tint(sharedAssetsTile.set_id)}>
+                  {#if sharedAssetsTile.preview_card_url}
+                    <img src={sharedAssetsTile.preview_card_url} alt="" loading="lazy" />
+                  {:else if tileImage(sharedAssetsTile)}
+                    <img src={tileImage(sharedAssetsTile)} alt="" loading="lazy" />
+                  {:else}
+                    {initials(sharedAssetsTile.name)}
+                  {/if}
+                </span>
+                <span>
+                  <strong>{sharedAssetsTile.name || 'Untitled Shared Kit'}</strong>
+                  <small>Open every shared map, component and file</small>
+                </span>
+                <Icon name="chevronRight" size={15} />
+              </button>
+            </li>
           </ul>
         {/if}
       </section>

@@ -39,6 +39,15 @@ export type CollectionVisibility = 'private' | 'unlisted' | 'public';
  */
 export type MembershipStatus = 'invited' | 'submitted' | 'accepted' | 'declined' | 'removed';
 
+/**
+ * What one published set contributes to a collection.
+ *
+ * This is a collection classification, not a different kind of set or a
+ * permission role. A shared-assets entry remains an ordinary published set,
+ * so its owner and contributors keep the normal set collaboration rules.
+ */
+export type CollectionEntryKind = 'deck' | 'shared_assets';
+
 export interface Collection {
   id: string;
   /** Internal audit field; deliberately absent from the anonymous slug projection. */
@@ -92,6 +101,7 @@ export interface CollectionTile {
   description: string;
   /** Author-assigned play difficulty, from 1 to 5; absent until they choose one. */
   difficulty_rating: number | null;
+  entry_kind: CollectionEntryKind;
 }
 
 /**
@@ -138,6 +148,7 @@ export interface CollectionMembership {
   sort_order: number;
   description: string;
   difficulty_rating: number | null;
+  entry_kind: CollectionEntryKind;
   invited_by: string | null;
   created_at: string;
   updated_at: string;
@@ -239,6 +250,7 @@ interface MembershipRow {
   sort_order: number;
   description: string;
   difficulty_rating: number | null;
+  entry_kind: CollectionEntryKind;
   invited_by: string | null;
   created_at: string;
   updated_at: string;
@@ -267,6 +279,7 @@ function asMembership(row: MembershipRow): CollectionMembership {
     sort_order: row.sort_order,
     description: row.description,
     difficulty_rating: row.difficulty_rating,
+    entry_kind: row.entry_kind ?? 'deck',
     invited_by: row.invited_by,
     created_at: row.created_at,
     updated_at: row.updated_at,
@@ -287,6 +300,13 @@ function asMembership(row: MembershipRow): CollectionMembership {
       subtitle: row.collection_subtitle
     }
   };
+}
+
+function asCollectionTile(row: CollectionTile): CollectionTile {
+  /* The additive migration and client can roll out in either order. Rows from
+     the older projection are ordinary decks, which is also the column's
+     database default once the migration lands. */
+  return { ...row, entry_kind: row.entry_kind ?? 'deck' };
 }
 
 /** Both halves of the composite key, as a PostgREST filter. */
@@ -338,21 +358,23 @@ export async function fetchCollectionWorkspaceBySlug(
 
 /** The accepted decks in a collection, in the order its organizers set. */
 export async function fetchCollectionTiles(slug: string): Promise<CollectionTile[]> {
-  return request<CollectionTile[]>('/rest/v1/rpc/collection_members_by_slug', {
+  const rows = await request<CollectionTile[]>('/rest/v1/rpc/collection_members_by_slug', {
     method: 'POST',
     body: { share_slug: slug.trim() },
     anonymous: true
   });
+  return rows.map(asCollectionTile);
 }
 
 /** Accepted deck summaries available inside an authenticated working room. */
 export async function fetchCollectionWorkspaceTiles(slug: string): Promise<CollectionTile[]> {
   await auth.ensureFresh();
   if (!auth.user) return [];
-  return request<CollectionTile[]>('/rest/v1/rpc/collection_members_by_slug', {
+  const rows = await request<CollectionTile[]>('/rest/v1/rpc/collection_members_by_slug', {
     method: 'POST',
     body: { share_slug: slug.trim() }
   });
+  return rows.map(asCollectionTile);
 }
 
 /** The indexed characters in accepted decks, in collection and roster order. */
@@ -541,16 +563,19 @@ function isHeroesDeck(deck: CollectionDeck): boolean {
 /**
  * Whether a box can be assembled from these decks at all.
  *
- * **Heroes-scope only**, which is the gate `COLLECTIONS.md` sets and the
- * reason the combined export is tractable: a heroes deck has no threat track,
- * no map, no initiative deck and no box art, so N of them concatenate. A full
- * adventure brings singletons that have no meaning in multiple — whose map? —
- * and a box quietly built from two of them would be wrong in a way nobody
- * would see until they were at the table.
+ * **Heroes-scope deck entries only**, which is the gate `COLLECTIONS.md` sets
+ * and the reason the combined export is tractable. The one designated Shared
+ * Kit is excluded from that check: it is precisely the single agreed source
+ * for the map, threat track, loose pieces, PDFs and box presentation. Any
+ * other full adventure still brings competing singletons and is refused.
  */
-export function combinableProblem(decks: readonly CollectionDeck[]): string | null {
-  if (decks.length === 0) return 'There are no decks in this collection yet.';
-  const wrong = decks.filter((deck) => !isHeroesDeck(deck));
+export function combinableProblem(
+  decks: readonly CollectionDeck[],
+  sharedAssetsSetId?: string
+): string | null {
+  const playable = decks.filter((deck) => deck.tile.set_id !== sharedAssetsSetId);
+  if (playable.length === 0) return 'There are no decks in this collection yet.';
+  const wrong = playable.filter((deck) => !isHeroesDeck(deck));
   if (wrong.length === 0) return null;
   const names = wrong.map((deck) => deck.tile.name).join(', ');
   return (
@@ -738,12 +763,19 @@ async function join(
   collectionId: string,
   setId: string,
   status: MembershipStatus,
-  extra: Record<string, unknown> = {}
+  extra: Record<string, unknown> = {},
+  entryKind: CollectionEntryKind = 'deck'
 ): Promise<void> {
   try {
     await request('/rest/v1/collection_members', {
       method: 'POST',
-      body: { collection_id: collectionId, set_id: setId, status, ...extra },
+      body: {
+        collection_id: collectionId,
+        set_id: setId,
+        status,
+        ...(entryKind === 'shared_assets' ? { entry_kind: entryKind } : {}),
+        ...extra
+      },
       headers: { Prefer: 'return=minimal' }
     });
   } catch (error) {
@@ -752,15 +784,22 @@ async function join(
        records who opened the relationship, not who reopened it. Re-open only
        a finished relationship: a stale picker must never turn an accepted
        deck back into a submission just because its insert raced another tab. */
-    await request(
+    const reopened = await request<unknown[]>(
       `/rest/v1/collection_members?${memberFilter(collectionId, setId)}` +
-        '&status=in.(declined,removed)',
+        '&status=in.(declined,removed)' +
+        `&entry_kind=eq.${entryKind}`,
       {
         method: 'PATCH',
         body: { status },
-        headers: { Prefer: 'return=minimal' }
+        headers: { Prefer: 'return=representation' }
       }
     );
+    if (reopened.length === 0) {
+      throw new CloudError(
+        'That published set already has a different role in this collection.',
+        409
+      );
+    }
   }
 }
 
@@ -794,6 +833,27 @@ export async function submitDeck(collectionId: string, setId: string): Promise<v
 export async function addOwnDeckDirectly(collectionId: string, setId: string): Promise<void> {
   await auth.ensureFresh();
   await join(collectionId, setId, 'accepted');
+}
+
+/** Ask another set owner to let their published set serve as the Shared Kit. */
+export async function inviteSharedAssets(collectionId: string, setId: string): Promise<void> {
+  await auth.ensureFresh();
+  await join(
+    collectionId,
+    setId,
+    'invited',
+    { invited_by: auth.user?.id ?? null },
+    'shared_assets'
+  );
+}
+
+/** Designate an organizer's own published set as the collection's Shared Kit. */
+export async function addOwnSharedAssetsDirectly(
+  collectionId: string,
+  setId: string
+): Promise<void> {
+  await auth.ensureFresh();
+  await join(collectionId, setId, 'accepted', {}, 'shared_assets');
 }
 
 /**

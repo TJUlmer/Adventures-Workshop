@@ -163,6 +163,9 @@ export interface SetSummary {
   published_at: string | null;
   change_note: string;
   hidden: boolean;
+  /** Publication slice and document kind, used by lightweight link pickers. */
+  scope: 'full' | 'hero' | 'villain';
+  kind: SetKind | null;
 }
 
 /**

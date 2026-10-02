@@ -35,7 +35,9 @@
     fetchCollectionWorkspaceCharacters,
     fetchCollectionWorkspaceTiles,
     addOwnDeckDirectly,
+    addOwnSharedAssetsDirectly,
     inviteDeck,
+    inviteSharedAssets,
     listMemberships,
     claimInviteLink,
     createInviteLink,
@@ -190,6 +192,10 @@
   });
 
   const heading = $derived(collection?.name.trim() || 'Untitled collection');
+  const deckTiles = $derived(tiles.filter((tile) => (tile.entry_kind ?? 'deck') === 'deck'));
+  const sharedAssetsTile = $derived(
+    tiles.find((tile) => tile.entry_kind === 'shared_assets') ?? null
+  );
 
   // -- Organizer editing --------------------------------------------------
 
@@ -622,8 +628,8 @@
    * next to the click rather than in a help page.
    */
   const CONSENT =
-    'Accepting makes your deck reachable to anyone holding this collection\u2019s link, ' +
-    'even while the deck itself is unlisted.';
+    'Accepting makes this published set reachable to anyone holding this collection\u2019s link, ' +
+    'even while the set itself is unlisted.';
 
   let memberships = $state<CollectionMembership[]>([]);
   let myPublished = $state<PublishedSet[]>([]);
@@ -639,6 +645,8 @@
   let membershipRequest = 0;
   let membershipScope = '';
   let selectedOfferId = $state('');
+  let selectedSharedAssetsId = $state('');
+  let sharedAssetsLink = $state('');
 
   interface ContributionDetailsDraft {
     description: string;
@@ -707,6 +715,37 @@
 
   const selectedOffer = $derived(offerable.find((row) => row.id === selectedOfferId));
 
+  const sharedAssetsMembership = $derived(
+    memberships.find(
+      (row) =>
+        row.entry_kind === 'shared_assets' &&
+        (row.status === 'accepted' || row.status === 'invited' || row.status === 'submitted')
+    ) ?? null
+  );
+
+  /**
+   * A Shared Kit needs the full-set editor where maps and threat tracks live.
+   * Old kind-less publications are omitted: a new kit should be republished
+   * by the current app before it becomes collection infrastructure.
+   */
+  const sharedAssetsCandidates = $derived(
+    myPublished.filter(
+      (row) =>
+        row.scope === 'full' &&
+        row.kind === 'adventure' &&
+        !memberships.some((membership) => membership.set_id === row.id)
+    )
+  );
+
+  $effect(() => {
+    if (sharedAssetsCandidates.some((row) => row.id === selectedSharedAssetsId)) return;
+    selectedSharedAssetsId = sharedAssetsCandidates[0]?.id ?? '';
+  });
+
+  const selectedSharedAssets = $derived(
+    sharedAssetsCandidates.find((row) => row.id === selectedSharedAssetsId)
+  );
+
   /**
    * Home is an editable-draft library; this picker is a publication library.
    *
@@ -739,6 +778,7 @@
     memberships.some(
       (row) =>
         row.set?.owner_id === auth.user?.id &&
+        (row.entry_kind ?? 'deck') === 'deck' &&
         (row.status === 'accepted' || row.status === 'invited' || row.status === 'submitted')
     )
   );
@@ -950,6 +990,27 @@
     });
   }
 
+  async function addOwnSharedAssets(setId: string): Promise<void> {
+    await run(`shared-assets-${setId}`, () =>
+      addOwnSharedAssetsDirectly(collection!.id, setId)
+    );
+  }
+
+  async function inviteSharedAssetsSet(): Promise<void> {
+    const typed = sharedAssetsLink.trim();
+    if (!typed || !collection) return;
+    await run('invite-shared-assets', async () => {
+      const slug = /([A-Za-z0-9_-]+)\/?$/.exec(typed)?.[1] ?? typed;
+      const summary = await fetchSetSummaryBySlug(slug);
+      if (!summary) throw new Error('No published set at that link.');
+      if (summary.scope !== 'full' || summary.kind !== 'adventure') {
+        throw new Error('A Shared Kit must be published as a full Adventure set.');
+      }
+      await inviteSharedAssets(collection!.id, summary.id);
+      sharedAssetsLink = '';
+    });
+  }
+
   // -- Readiness, and the gate on going public ----------------------------
 
   /**
@@ -963,6 +1024,9 @@
    */
   const acceptedMemberships = $derived(
     memberships.filter((row) => row.status === 'accepted')
+  );
+  const acceptedDeckMemberships = $derived(
+    acceptedMemberships.filter((row) => (row.entry_kind ?? 'deck') === 'deck')
   );
   const readiness = $derived(
     readinessOf(
@@ -1131,7 +1195,7 @@
             count + deck.set.characters.filter((character) => character.role === 'hero').length,
           0
         )
-      : tiles.reduce((count, tile) => count + tile.hero_count, 0)
+      : deckTiles.reduce((count, tile) => count + tile.hero_count, 0)
   );
 
   const selectedCharacterCount = $derived(
@@ -1180,7 +1244,15 @@
       return null;
     }
 
-    const problem = combinableProblem(decks);
+    if (
+      sharedAssetsTile &&
+      !decks.some((deck) => deck.tile.set_id === sharedAssetsTile.set_id)
+    ) {
+      boxProblem = `The Shared Kit (${sharedAssetsTile.name || 'Untitled'}) could not be loaded, so this export would be incomplete.`;
+      return null;
+    }
+
+    const problem = combinableProblem(decks, sharedAssetsTile?.set_id);
     if (problem) {
       boxProblem = problem;
       return null;
@@ -1192,6 +1264,7 @@
   /** Apply the one character selection before any of the three exporters. */
   function selectedBox(decks: readonly CollectionDeck[]): CollectionDeck[] {
     return decks.flatMap((deck) => {
+      if (deck.tile.entry_kind === 'shared_assets') return [deck];
       const excluded = excludedExportCharacters.get(deck.tile.set_id);
       const included = new Set<CharacterId>(
         deck.set.characters
@@ -1606,7 +1679,10 @@
             </div>
             {#if collection.blurb}<p class="blurb">{collection.blurb}</p>{/if}
             <div class="hero-meta">
-              <span>{tiles.length} {tiles.length === 1 ? 'deck' : 'decks'}</span>
+              <span>
+                {deckTiles.length} {deckTiles.length === 1 ? 'deck' : 'decks'}
+                {sharedAssetsTile ? ' · Shared Kit' : ''}
+              </span>
               <span>{creators.length} {creators.length === 1 ? 'creator' : 'creators'}</span>
               {#if collection.visibility !== 'public' && membershipRowsCurrent && readiness.total > 0}
                 <span class:ready={readiness.waitingOn.length === 0}>
@@ -1759,7 +1835,11 @@
                 : 'Launch makes the finished collection page public and discoverable. Decks published with Private link appear inside it but remain out of the standalone Gallery.'}
             </p>
             <div class="launch-facts">
-              <span>{acceptedMemberships.length} {acceptedMemberships.length === 1 ? 'deck' : 'decks'}</span>
+              <span>
+                {acceptedDeckMemberships.length}
+                {acceptedDeckMemberships.length === 1 ? 'deck' : 'decks'}
+                {sharedAssetsMembership?.status === 'accepted' ? ' · Shared Kit' : ''}
+              </span>
               {#if membershipRowsCurrent && readiness.total > 0}
                 <span class:ready={readiness.waitingOn.length === 0}>
                   {readiness.ready} of {readiness.total} marked Ready
@@ -1966,15 +2046,15 @@
                 </button>
               </div>
               <span class="hint">
-                An organizer can invite decks, decide on offers, edit this page and publish it.
-                Anyone with a deck here can be one.
+                An organizer can invite sets, decide on offers, edit this page and publish it.
+                Anyone with a contribution here can be one.
               </span>
             {:else if tiles.length === 0}
               <span class="hint">
-                Once a deck is in the collection, its creator can be made an organizer too.
+                Once a contribution is in the collection, its creator can be made an organizer too.
               </span>
             {:else}
-              <span class="hint">Everyone with a deck here is already an organizer.</span>
+              <span class="hint">Every contributing creator is already an organizer.</span>
             {/if}
           </div>
 
@@ -2044,14 +2124,160 @@
 
       <div class="content-flow">
 
-      {#if pageMode === 'workspace' && manageTab === 'decks' && acceptedMemberships.length > 0}
+      {#if pageMode === 'workspace' && manageTab === 'decks'}
+        <section class="panel shared-assets-workspace">
+          <div class="shared-assets-heading">
+            <div>
+              <p class="eyebrow">Collection-wide material</p>
+              <h2>Shared maps &amp; components</h2>
+            </div>
+            {#if sharedAssetsMembership}
+              <span class="status-pill" class:ready={sharedAssetsMembership.ready}>
+                {sharedAssetsMembership.status === 'accepted'
+                  ? sharedAssetsMembership.ready ? 'Ready' : 'In progress'
+                  : sharedAssetsMembership.status === 'invited'
+                    ? 'Waiting for author'
+                    : 'Waiting for organizer'}
+              </span>
+            {/if}
+          </div>
+
+          <p class="hint">
+            Use one ordinary full set as this collection’s Shared Kit. It is the home for anything
+            everyone uses: maps, loose game pieces, rulebook PDFs, a threat track, shared cards and
+            box presentation. Character-specific cards and pieces stay in their own sets.
+          </p>
+
+          <ol class="shared-assets-steps">
+            <li><strong>Create a full set</strong> named “{heading} Shared Kit” from Home.</li>
+            <li><strong>Add the common material</strong> in that set’s normal editors.</li>
+            <li><strong>Publish it with Private link</strong>, then select it here or paste its link.</li>
+            <li>
+              <strong>Collaborate through the Shared Kit.</strong> A teammate opens its published
+              page and chooses <em>Make a copy to work on</em>. After editing, their copy shows
+              <em>Offer your changes back</em> on Home. The owner accepts the changes, republishes,
+              then marks the new revision Ready here.
+            </li>
+          </ol>
+
+          {#if sharedAssetsMembership}
+            <div class="shared-assets-current">
+              <span class="row-name deck-source">
+                <span>
+                  {sharedAssetsMembership.set?.name || 'Untitled Shared Kit'}
+                  <span class="row-by">
+                    {sharedAssetsMembership.set?.author?.display_name || 'Anonymous'}
+                  </span>
+                </span>
+                <span class="row-source">
+                  {sharedAssetsMembership.status === 'accepted'
+                    ? `Published revision ${sharedAssetsMembership.set?.revision ?? '—'}`
+                    : sharedAssetsMembership.status === 'invited'
+                      ? 'The set owner must accept this invitation.'
+                      : 'An organizer must accept this submission.'}
+                </span>
+              </span>
+              <span class="row-actions">
+                <button
+                  type="button"
+                  class="btn"
+                  onclick={() => viewPublishedContribution(sharedAssetsMembership)}
+                >View published</button>
+                {#if sharedAssetsMembership.set?.owner_id === auth.user?.id}
+                  {@const sharedPublication = publicationFor(sharedAssetsMembership.set_id)}
+                  <button
+                    type="button"
+                    class="btn"
+                    disabled={busy !== null || !sharedPublication || !draftIsOnHome(sharedPublication)}
+                    title={sharedPublication && draftIsOnHome(sharedPublication)
+                      ? undefined
+                      : 'The editable draft is not on this device.'}
+                    onclick={() => void editContribution(sharedAssetsMembership.set_id)}
+                  >Edit working copy</button>
+                {/if}
+                {#if organizer || sharedAssetsMembership.set?.owner_id === auth.user?.id}
+                  <button
+                    type="button"
+                    class="btn"
+                    disabled={busy !== null || membershipLoading || !membershipRowsCurrent}
+                    onclick={() =>
+                      run(`remove-${sharedAssetsMembership!.set_id}`, () =>
+                        removeMember(collection!.id, sharedAssetsMembership!.set_id))}
+                  >{organizer ? 'Remove Shared Kit' : 'Leave collection'}</button>
+                {/if}
+              </span>
+            </div>
+          {:else if organizer}
+            <div class="shared-assets-setup">
+              <div>
+                <h3>Use one of your published full sets</h3>
+                {#if sharedAssetsCandidates.length > 0}
+                  <div class="deck-picker">
+                    <label class="field" for="collection-shared-assets-picker">
+                      <span class="field-label">Published full set</span>
+                      <select id="collection-shared-assets-picker" bind:value={selectedSharedAssetsId}>
+                        {#each sharedAssetsCandidates as row (row.id)}
+                          <option value={row.id}>{row.name || 'Untitled'}</option>
+                        {/each}
+                      </select>
+                    </label>
+                    <button
+                      type="button"
+                      class="btn primary"
+                      disabled={busy !== null || membershipLoading || !selectedSharedAssets}
+                      onclick={() => selectedSharedAssets && void addOwnSharedAssets(selectedSharedAssets.id)}
+                    >{busy === `shared-assets-${selectedSharedAssetsId}` ? 'Adding…' : 'Use as Shared Kit'}</button>
+                  </div>
+                {:else}
+                  <p class="hint">
+                    No unused full Adventure set is published from this account yet. Create the
+                    Shared Kit on Home, publish it with Private link, then return here.
+                  </p>
+                  <button
+                    type="button"
+                    class="btn"
+                    onclick={() => navigation.leaveCollection({ kind: 'home' })}
+                  >Open your sets</button>
+                {/if}
+              </div>
+
+              <div>
+                <h3>Or invite somebody else’s published set</h3>
+                <p class="hint">
+                  Paste its share link. Its owner must accept before it becomes the Shared Kit.
+                </p>
+                <div class="invite-row">
+                  <input
+                    type="text"
+                    bind:value={sharedAssetsLink}
+                    placeholder="https://…/shared/… or the code at its end"
+                  />
+                  <button
+                    type="button"
+                    class="btn primary"
+                    disabled={busy !== null || membershipLoading || !membershipRowsCurrent || sharedAssetsLink.trim().length === 0}
+                    onclick={inviteSharedAssetsSet}
+                  >{busy === 'invite-shared-assets' ? 'Inviting…' : 'Invite as Shared Kit'}</button>
+                </div>
+              </div>
+            </div>
+          {:else}
+            <p class="hint">
+              No Shared Kit has been chosen yet. An organizer selects it; after that, its owner can
+              invite contributors and review their proposed map, component and PDF changes normally.
+            </p>
+          {/if}
+        </section>
+      {/if}
+
+      {#if pageMode === 'workspace' && manageTab === 'decks' && acceptedDeckMemberships.length > 0}
         <section class="panel collection-roster">
           <h2>Decks in this collection</h2>
           <p class="hint">
             The complete team lineup. Ready always belongs to the published revision shown here.
           </p>
           <ul class="rows roster-rows">
-            {#each acceptedMemberships as row (row.set_id)}
+            {#each acceptedDeckMemberships as row (row.set_id)}
               <li>
                 <span class="row-name deck-source">
                   <span>
@@ -2103,7 +2329,10 @@
                 <header class="contribution-head">
                   <span>
                     <strong>{row.set?.name || 'Untitled'}</strong>
-                    <small>Published revision {row.set?.revision ?? '—'}</small>
+                    <small>
+                      {row.entry_kind === 'shared_assets' ? 'Shared Kit · ' : ''}Published revision
+                      {row.set?.revision ?? '—'}
+                    </small>
                   </span>
                   <span class:ready={readyHere} class="status-pill">
                     {readyHere ? 'Ready' : 'In progress'}
@@ -2120,12 +2349,12 @@
                     {row.set?.visibility === 'unlisted'
                       ? 'This revision holds its place in the collection without appearing in the standalone Gallery.'
                       : row.set?.visibility === 'public'
-                        ? 'This deck is currently listed in the Gallery. Choose Private link in its publishing controls if it should launch only through this collection.'
+                        ? 'This set is currently listed in the Gallery. Choose Private link in its publishing controls if it should launch only through this collection.'
                         : 'The published copy is hidden. Share it by Private link so the collection can display it when the project launches.'}
                   </span>
                 </div>
 
-                {#if details}
+                {#if details && (row.entry_kind ?? 'deck') === 'deck'}
                   <div class="contribution-details">
                     <div class="details-intro">
                       <strong>Public roster details</strong>
@@ -2279,7 +2508,7 @@
         <section class="panel attention">
           <h2>Waiting for your decision</h2>
           <p class="hint">
-            These creators offered a deck to the project. Choose whether each one belongs in the
+            These creators offered a published set to the project. Choose whether each one belongs in the
             collection. This list refreshes when you return to the tab, or you can use Refresh project.
           </p>
           <ul class="rows">
@@ -2288,6 +2517,7 @@
                 <span class="row-name">
                   {row.set?.name || 'Untitled'}
                   <span class="row-by">{row.set?.author?.display_name || 'Anonymous'}</span>
+                  {#if row.entry_kind === 'shared_assets'}<span class="row-source">Shared Kit</span>{/if}
                 </span>
                 <span class="row-actions">
                   <button type="button" class="btn" onclick={() => viewPublishedContribution(row)}>
@@ -2302,7 +2532,7 @@
                         resolveSubmission(collection!.id, row.set_id, 'accepted')
                       )}
                   >
-                    Add to collection
+                    {row.entry_kind === 'shared_assets' ? 'Use as Shared Kit' : 'Add to collection'}
                   </button>
                   <button
                     type="button"
@@ -2330,7 +2560,10 @@
           <ul class="rows">
             {#each myInvitations as row (row.set_id)}
               <li>
-                <span class="row-name">{row.set?.name || 'Untitled'}</span>
+                <span class="row-name">
+                  {row.set?.name || 'Untitled'}
+                  {#if row.entry_kind === 'shared_assets'}<span class="row-source">Shared Kit</span>{/if}
+                </span>
                 <span class="row-actions">
                   <button
                     type="button"
@@ -2369,7 +2602,10 @@
               {@const publication = publicationFor(row.set_id)}
               <li>
                 <span class="row-name deck-source">
-                  <span>{row.set?.name || 'Untitled'}</span>
+                  <span>
+                    {row.set?.name || 'Untitled'}
+                    {#if row.entry_kind === 'shared_assets'}<span class="row-source">Shared Kit</span>{/if}
+                  </span>
                   <span class="row-source">Published revision {row.set?.revision ?? '—'}</span>
                 </span>
                 <span class="row-actions">
@@ -3352,6 +3588,69 @@
     margin-top: 0;
   }
 
+  .shared-assets-workspace {
+    border-color: var(--border-accent);
+    background:
+      linear-gradient(
+        145deg,
+        color-mix(in oklab, var(--accent) 7%, transparent),
+        transparent 46%
+      ),
+      var(--surface-base);
+  }
+
+  .shared-assets-heading,
+  .shared-assets-current {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: var(--space-3);
+  }
+
+  .shared-assets-heading h2,
+  .shared-assets-setup h3 {
+    margin: 0;
+    color: var(--text-primary);
+  }
+
+  .shared-assets-heading h2 {
+    font-family: var(--font-display);
+    font-size: var(--text-lg);
+  }
+
+  .shared-assets-steps {
+    display: grid;
+    gap: var(--space-2);
+    margin: var(--space-4) 0;
+    padding-left: var(--space-6);
+    color: var(--text-secondary);
+    font-size: var(--text-sm);
+    line-height: var(--leading-normal);
+  }
+
+  .shared-assets-steps strong {
+    color: var(--text-primary);
+  }
+
+  .shared-assets-current,
+  .shared-assets-setup > div {
+    padding: var(--space-4);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-md);
+    background: var(--surface-raised);
+  }
+
+  .shared-assets-setup {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--space-3);
+  }
+
+  .shared-assets-setup h3 {
+    font-size: var(--text-sm);
+  }
+
   .deck-picker {
     display: flex;
     align-items: flex-end;
@@ -4045,6 +4344,7 @@
 
     .workspace-heading,
     .deck-picker,
+    .shared-assets-current,
     .workspace-error,
     .project-status {
       align-items: stretch;
@@ -4053,6 +4353,10 @@
 
     .project-status {
       display: flex;
+    }
+
+    .shared-assets-setup {
+      grid-template-columns: 1fr;
     }
 
     .status-actions,
