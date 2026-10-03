@@ -12,6 +12,36 @@ import { idbDelete, idbGet, idbPut, META_STORE } from './indexeddb';
 
 const TTS_SAVED_OBJECTS_PATH_KEY = 'tts-saved-objects-path';
 const CLOUD_DRAFT_OPT_IN_PREFIX = 'cloud-draft-opt-in:';
+const BONUS_ABILITY_INK_PRESETS_KEY = 'bonus-ability-ink-presets';
+
+export type BonusAbilityInkPresets = [string | null, string | null, string | null];
+
+function emptyBonusAbilityInkPresets(): BonusAbilityInkPresets {
+  return [null, null, null];
+}
+
+/** Only concrete six-digit inks can be handed back to a native colour input. */
+function savedInk(value: unknown): string | null {
+  if (typeof value !== 'string' || !/^#[0-9a-f]{6}$/i.test(value)) return null;
+  return value.toLowerCase();
+}
+
+/** Three browser-level swatches, reusable in every set edited on this device. */
+export async function readBonusAbilityInkPresets(): Promise<BonusAbilityInkPresets> {
+  const value = await idbGet<unknown>(META_STORE, BONUS_ABILITY_INK_PRESETS_KEY);
+  if (!Array.isArray(value)) return emptyBonusAbilityInkPresets();
+  return [savedInk(value[0]), savedInk(value[1]), savedInk(value[2])];
+}
+
+export function writeBonusAbilityInkPresets(
+  presets: BonusAbilityInkPresets
+): Promise<boolean> {
+  return idbPut(META_STORE, BONUS_ABILITY_INK_PRESETS_KEY, [
+    savedInk(presets[0]),
+    savedInk(presets[1]),
+    savedInk(presets[2])
+  ]);
+}
 
 /**
  * Where this machine's Tabletop Simulator looks for Saved Objects — typed in

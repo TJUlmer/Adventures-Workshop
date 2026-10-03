@@ -10,6 +10,7 @@
   import { CARD_SYMBOLS, CARD_SYMBOL_LABELS } from '$lib/renderer/assets';
   import { cardEditTarget, type AbilitySourceRegion } from '$lib/cards/edit-targets';
   import { BONUS_ABILITY_INK_PRESETS, type CardTheme } from '$lib/cards/style';
+  import { bonusAbilityInkPresets } from '$lib/state/bonus-ability-ink-presets.svelte';
   import {
     ABILITY_TIMING_LABELS,
     ABILITY_TIMINGS,
@@ -24,7 +25,8 @@
   import type { CustomSymbol } from '$lib/symbols/types';
   import { customSymbolLabel } from '$lib/symbols/types';
   import { customSymbolToken, symbolToken } from '$lib/text/tokens';
-  import { ColorInput, Slider, Switch } from '$lib/ui';
+  import { ColorInput, Icon, Slider, Switch } from '$lib/ui';
+  import { onMount } from 'svelte';
   import AbilityField from './AbilityField.svelte';
   import EditorSection from './EditorSection.svelte';
 
@@ -57,6 +59,10 @@
   }: Props = $props();
 
   const SYMBOL_NAMES = TRADITIONAL_COMBAT_SYMBOLS;
+
+  onMount(() => {
+    void bonusAbilityInkPresets.load();
+  });
 
   function updateBonus(index: number, patch: Partial<BonusAbility>): void {
     onchange({
@@ -256,7 +262,51 @@
                   <span>{preset.label}</span>
                 </button>
               {/each}
+              {#each bonusAbilityInkPresets.values as presetInk, presetIndex (presetIndex)}
+                <span class="custom-ink-preset">
+                  <button
+                    type="button"
+                    class="custom-ink-swatch"
+                    class:empty={!presetInk}
+                    class:active={presetInk !== null &&
+                      (bonus.ink ?? resolved.bonusAbilityInk).toLowerCase() ===
+                        presetInk.toLowerCase()}
+                    style:--preset-ink={presetInk ?? undefined}
+                    aria-label={presetInk
+                      ? `Apply custom colour ${presetIndex + 1}: ${presetInk}`
+                      : `Save current colour as custom colour ${presetIndex + 1}`}
+                    title={presetInk
+                      ? `Custom ${presetIndex + 1}: ${presetInk}`
+                      : `Save current colour as Custom ${presetIndex + 1}`}
+                    onclick={() => {
+                      if (presetInk) updateBonus(index, { ink: presetInk });
+                      else {
+                        bonusAbilityInkPresets.set(
+                          presetIndex,
+                          bonus.ink ?? resolved.bonusAbilityInk
+                        );
+                      }
+                    }}
+                  >
+                    {#if !presetInk}<Icon name="plus" size={13} />{/if}
+                  </button>
+                  {#if presetInk}
+                    <button
+                      type="button"
+                      class="clear-custom-ink"
+                      aria-label={`Clear custom colour ${presetIndex + 1}`}
+                      title={`Clear Custom ${presetIndex + 1}`}
+                      onclick={() => bonusAbilityInkPresets.set(presetIndex, null)}
+                    >
+                      <Icon name="minus" size={10} />
+                    </button>
+                  {/if}
+                </span>
+              {/each}
             </div>
+            <span class="ink-preset-hint">
+              Use + to save the current colour; − clears a custom swatch.
+            </span>
           </div>
 
           <Slider
@@ -447,6 +497,12 @@
     gap: var(--space-1);
   }
 
+  .ink-preset-hint {
+    color: var(--text-muted);
+    font-size: var(--text-2xs);
+    line-height: 1.35;
+  }
+
   .ink-preset {
     display: inline-flex;
     align-items: center;
@@ -478,6 +534,56 @@
     background: var(--preset-ink);
   }
 
+  .custom-ink-preset {
+    position: relative;
+    display: inline-grid;
+    flex: none;
+  }
+
+  .custom-ink-swatch {
+    display: grid;
+    width: var(--space-7);
+    aspect-ratio: 1;
+    place-items: center;
+    border: var(--space-px) solid var(--border-default);
+    border-radius: var(--radius-sm);
+    background: var(--preset-ink);
+  }
+
+  .custom-ink-swatch.empty {
+    border-style: dashed;
+    background: var(--surface-inset);
+    color: var(--text-muted);
+  }
+
+  .custom-ink-swatch:hover {
+    border-color: var(--border-strong);
+  }
+
+  .custom-ink-swatch.active {
+    border-color: var(--border-accent);
+    box-shadow: 0 0 0 var(--space-1) var(--accent-soft);
+  }
+
+  .clear-custom-ink {
+    position: absolute;
+    inset-block-start: calc(-1 * var(--space-1));
+    inset-inline-end: calc(-1 * var(--space-1));
+    display: grid;
+    width: var(--space-4);
+    aspect-ratio: 1;
+    place-items: center;
+    border: var(--space-px) solid var(--border-default);
+    border-radius: var(--radius-full);
+    background: var(--surface-raised);
+    color: var(--text-muted);
+  }
+
+  .clear-custom-ink:hover {
+    color: var(--text-primary);
+    border-color: var(--border-strong);
+  }
+
   @container workspace (max-width: 620px) {
     .main-text-size {
       width: 100%;
@@ -503,6 +609,20 @@
 
     .icon-choice {
       height: auto;
+    }
+
+    .custom-ink-swatch {
+      width: var(--touch-target);
+    }
+
+    .custom-ink-preset {
+      display: inline-flex;
+      gap: var(--space-1);
+    }
+
+    .clear-custom-ink {
+      position: static;
+      width: var(--touch-target);
     }
   }
 </style>

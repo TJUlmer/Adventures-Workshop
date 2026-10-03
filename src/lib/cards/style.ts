@@ -204,7 +204,7 @@ export interface TextureStyle {
  * value a manual colour entry would.
  */
 export const BONUS_ABILITY_INK_PRESETS = [
-  { label: 'Ongoing', ink: '#D7B16F' }
+  { label: 'Ongoing', ink: '#FCB552' }
 ] as const;
 
 // -- Theme --------------------------------------------------------------
