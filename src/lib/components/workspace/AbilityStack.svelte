@@ -9,7 +9,7 @@
    */
   import { CARD_SYMBOLS, CARD_SYMBOL_LABELS } from '$lib/renderer/assets';
   import { cardEditTarget, type AbilitySourceRegion } from '$lib/cards/edit-targets';
-  import type { CardTheme } from '$lib/cards/style';
+  import { BONUS_ABILITY_INK_PRESETS, type CardTheme } from '$lib/cards/style';
   import {
     ABILITY_TIMING_LABELS,
     ABILITY_TIMINGS,
@@ -128,18 +128,20 @@
     {/each}
   </div>
 
-  <Slider
-    label="Main ability text size"
-    value={ability.textSize ?? DEFAULT_ABILITY_TEXT_SIZE}
-    min={MIN_ABILITY_TEXT_SIZE}
-    max={MAX_ABILITY_TEXT_SIZE}
-    step={1}
-    neutral={DEFAULT_ABILITY_TEXT_SIZE}
-    format={(value) => `${Math.round(value)}`}
-    onchange={(textSize) => onchange({
-      textSize: textSize === DEFAULT_ABILITY_TEXT_SIZE ? null : textSize
-    })}
-  />
+  <div class="main-text-size">
+    <Slider
+      label="Main ability text size"
+      value={ability.textSize ?? DEFAULT_ABILITY_TEXT_SIZE}
+      min={MIN_ABILITY_TEXT_SIZE}
+      max={MAX_ABILITY_TEXT_SIZE}
+      step={1}
+      neutral={DEFAULT_ABILITY_TEXT_SIZE}
+      format={(value) => `${Math.round(value)}`}
+      onchange={(textSize) => onchange({
+        textSize: textSize === DEFAULT_ABILITY_TEXT_SIZE ? null : textSize
+      })}
+    />
+  </div>
 
   <div class="bonus-abilities">
     {#each ability.bonusAbilities as bonus, index}
@@ -222,7 +224,7 @@
         </div>
 
         <div class="text-style">
-          <label class="ink">
+          <div class="ink">
             <span class="ink-label">Bonus ability colour</span>
             <ColorInput
               value={bonus.ink ?? undefined}
@@ -230,7 +232,32 @@
               origin={originFor('bonusAbilityInk')}
               onchange={(ink) => updateBonus(index, { ink: ink ?? null })}
             />
-          </label>
+            <div
+              class="ink-presets"
+              role="group"
+              aria-label="Established Bonus ability colours"
+            >
+              {#each BONUS_ABILITY_INK_PRESETS as preset (preset.label)}
+                <button
+                  type="button"
+                  class="ink-preset"
+                  class:active={(bonus.ink ?? resolved.bonusAbilityInk).toLowerCase() ===
+                    preset.ink.toLowerCase()}
+                  aria-pressed={(bonus.ink ?? resolved.bonusAbilityInk).toLowerCase() ===
+                    preset.ink.toLowerCase()}
+                  title={`${preset.label}: ${preset.ink}`}
+                  onclick={() => updateBonus(index, { ink: preset.ink })}
+                >
+                  <span
+                    class="ink-preset-swatch"
+                    style:--preset-ink={preset.ink}
+                    aria-hidden="true"
+                  ></span>
+                  <span>{preset.label}</span>
+                </button>
+              {/each}
+            </div>
+          </div>
 
           <Slider
             label="Bonus ability text size"
@@ -397,6 +424,11 @@
     padding-top: var(--space-1);
   }
 
+  .main-text-size {
+    width: calc((100% - 2 * var(--space-3)) / 3);
+    min-width: 0;
+  }
+
   .ink {
     display: flex;
     flex-direction: column;
@@ -409,7 +441,48 @@
     color: var(--text-tertiary);
   }
 
+  .ink-presets {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-1);
+  }
+
+  .ink-preset {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    min-height: var(--space-7);
+    padding-inline: var(--space-2);
+    border: var(--space-px) solid var(--border-subtle);
+    border-radius: var(--radius-sm);
+    color: var(--text-muted);
+    font-size: var(--text-xs);
+  }
+
+  .ink-preset:hover {
+    color: var(--text-secondary);
+    border-color: var(--border-strong);
+  }
+
+  .ink-preset.active {
+    color: var(--text-primary);
+    border-color: var(--border-accent);
+    background: var(--accent-soft);
+  }
+
+  .ink-preset-swatch {
+    width: var(--space-5);
+    aspect-ratio: 1;
+    border: var(--space-px) solid var(--border-default);
+    border-radius: var(--radius-xs);
+    background: var(--preset-ink);
+  }
+
   @container workspace (max-width: 620px) {
+    .main-text-size {
+      width: 100%;
+    }
+
     .text-style {
       grid-template-columns: minmax(0, 1fr);
     }
@@ -418,7 +491,8 @@
   @media (hover: none), (any-pointer: coarse) {
     .remove-bonus,
     .add-bonus,
-    .icon-choice {
+    .icon-choice,
+    .ink-preset {
       min-height: var(--touch-target);
     }
 

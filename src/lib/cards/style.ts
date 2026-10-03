@@ -198,6 +198,15 @@ export interface TextureStyle {
   opacity: number;
 }
 
+/**
+ * Named inks sampled from established card terminology. These are concrete
+ * print colours, not editor-chrome tokens, so choosing one persists the same
+ * value a manual colour entry would.
+ */
+export const BONUS_ABILITY_INK_PRESETS = [
+  { label: 'Ongoing', ink: '#D7B16F' }
+] as const;
+
 // -- Theme --------------------------------------------------------------
 
 /** A fully resolved look. Every field has a value; nothing is left to inherit. */
