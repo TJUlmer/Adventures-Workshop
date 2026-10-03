@@ -14,7 +14,10 @@
     ABILITY_TIMING_LABELS,
     ABILITY_TIMINGS,
     createBonusAbility,
+    DEFAULT_ABILITY_TEXT_SIZE,
+    MAX_ABILITY_TEXT_SIZE,
     MAX_BONUS_ABILITIES,
+    MIN_ABILITY_TEXT_SIZE,
     TRADITIONAL_COMBAT_SYMBOLS
   } from '$lib/cards/types';
   import type { AbilityBlocks, BonusAbility } from '$lib/cards/types';
@@ -125,6 +128,19 @@
     {/each}
   </div>
 
+  <Slider
+    label="Main ability text size"
+    value={ability.textSize ?? DEFAULT_ABILITY_TEXT_SIZE}
+    min={MIN_ABILITY_TEXT_SIZE}
+    max={MAX_ABILITY_TEXT_SIZE}
+    step={1}
+    neutral={DEFAULT_ABILITY_TEXT_SIZE}
+    format={(value) => `${Math.round(value)}`}
+    onchange={(textSize) => onchange({
+      textSize: textSize === DEFAULT_ABILITY_TEXT_SIZE ? null : textSize
+    })}
+  />
+
   <div class="bonus-abilities">
     {#each ability.bonusAbilities as bonus, index}
       <section class="bonus-ability">
@@ -217,7 +233,7 @@
           </label>
 
           <Slider
-            label="Ability text size"
+            label="Bonus ability text size"
             value={bonus.textSize ?? resolved.abilityFontSize}
             min={50}
             max={130}

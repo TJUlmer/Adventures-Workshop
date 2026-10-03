@@ -222,6 +222,7 @@
     {#if rightNowText}
       <AbilityText
         ability={{
+          textSize: null,
           plain: rightNowText,
           immediately: '',
           duringCombat: '',
@@ -289,6 +290,7 @@
     {#if card.endOfRound.trim()}
       <AbilityText
         ability={{
+          textSize: null,
           plain: card.endOfRound,
           immediately: '',
           duringCombat: '',

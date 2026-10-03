@@ -17,11 +17,13 @@ import {
   COMBAT_SYMBOLS,
   DEFAULT_CARD_LAYER_ORDER,
   DEFAULT_CARD_ARTWORK_LAYER_PLACEMENT,
+  MAX_ABILITY_TEXT_SIZE,
   createAbilityBlocks,
   createBonusAbility,
   createHeadingPlacement,
   HEADING_ALIGNMENTS,
-  MAX_BONUS_ABILITIES
+  MAX_BONUS_ABILITIES,
+  MIN_ABILITY_TEXT_SIZE
 } from '$lib/cards/types';
 import type {
   AdventureMap,
@@ -414,6 +416,7 @@ function cardArtworkState(
 
 function abilityBlocks(value: unknown) {
   const raw = asRecord(value);
+  const textSize = nullableNum(raw['textSize'], null);
   /* v59 and earlier stored one Bonus ability as two sibling strings. It becomes
      the first entry with inherited presentation, preserving both its copy and
      the card-theme values that already styled it. */
@@ -421,6 +424,12 @@ function abilityBlocks(value: unknown) {
     ? raw['bonusAbilities']
     : [{ text: raw['bonusAbility'], icon: raw['bonusIcon'] }];
   return createAbilityBlocks({
+    textSize: textSize === null
+      ? null
+      : Math.min(
+          MAX_ABILITY_TEXT_SIZE,
+          Math.max(MIN_ABILITY_TEXT_SIZE, textSize)
+        ),
     plain: str(raw['plain']),
     immediately: str(raw['immediately']),
     duringCombat: str(raw['duringCombat']),

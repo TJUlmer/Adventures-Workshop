@@ -79,6 +79,11 @@ export function createBonusAbility(init: Partial<BonusAbility> = {}): BonusAbili
  * timing label without printing a sentence.
  */
 export interface AbilityBlocks {
+  /**
+   * Artwork units shared by the untimed paragraph and all three timing blocks.
+   * `null` keeps the measured 90-unit template size.
+   */
+  textSize: number | null;
   /** Untimed text, printed with no label. */
   plain: string;
   immediately: string;
@@ -87,6 +92,10 @@ export interface AbilityBlocks {
   /** Printed last, in author order, without timing labels of their own. */
   bonusAbilities: BonusAbility[];
 }
+
+export const DEFAULT_ABILITY_TEXT_SIZE = 90;
+export const MIN_ABILITY_TEXT_SIZE = 50;
+export const MAX_ABILITY_TEXT_SIZE = 130;
 
 export const ABILITY_TIMINGS = ['immediately', 'duringCombat', 'afterCombat'] as const;
 export type AbilityTiming = (typeof ABILITY_TIMINGS)[number];
@@ -105,6 +114,7 @@ export function createAbilityBlocks(init: Partial<AbilityBlocks> = {}): AbilityB
           .map((bonus) => createBonusAbility(bonus))
       : [createBonusAbility()];
   return {
+    textSize: null,
     plain: '',
     immediately: '',
     duringCombat: '',

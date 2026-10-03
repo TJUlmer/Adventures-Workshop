@@ -478,10 +478,15 @@ export type SetId = Id<'Set'>;
  *      both uploaded artwork and the four built-in card-element groups. Older
  *      cards are expanded into the same back-to-front order they already drew.
  *
+ * v72 — each action-card ability block gained one main text-size value shared
+ *      by its untimed, Immediately, During Combat and After Combat paragraphs.
+ *      Existing cards retain the measured template size; older builds would
+ *      silently discard an author's adjustment.
+ *
  * Older documents are *repaired*, not rejected — see `sets/normalize.ts`. Only
  * a version newer than this build understands is refused.
  */
-export const SET_SCHEMA_VERSION = 71;
+export const SET_SCHEMA_VERSION = 72;
 
 /**
  * What a set is for.

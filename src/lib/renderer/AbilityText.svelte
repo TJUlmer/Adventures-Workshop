@@ -8,7 +8,11 @@
    */
   import { cardEditTarget, type AbilitySourceRegion } from '$lib/cards/edit-targets';
   import type { AbilityBlocks, BonusAbility } from '$lib/cards/types';
-  import { ABILITY_TIMING_LABELS, usedTimings } from '$lib/cards/types';
+  import {
+    ABILITY_TIMING_LABELS,
+    DEFAULT_ABILITY_TEXT_SIZE,
+    usedTimings
+  } from '$lib/cards/types';
   import type { CustomSymbol } from '$lib/symbols/types';
   import { actionTextIsEmpty, renderActionText } from '$lib/text/action-text';
   import { parseAbilityText } from '$lib/text/tokens';
@@ -43,6 +47,9 @@
   }: Props = $props();
 
   const timings = $derived(usedTimings(ability));
+  const mainTextScale = $derived(
+    (ability.textSize ?? DEFAULT_ABILITY_TEXT_SIZE) / DEFAULT_ABILITY_TEXT_SIZE
+  );
   const hasPlain = $derived(!actionTextIsEmpty(ability.plain));
   /* Preserve document identity before empty Bonus entries disappear from the face. */
   const bonuses = $derived(
@@ -79,7 +86,7 @@
 >
   {#if empty}
     {#if placeholder}
-      <p class="line placeholder">{placeholder}</p>
+      <p class="line placeholder" style:font-size={`${mainTextScale}em`}>{placeholder}</p>
     {/if}
   {:else}
     {#if hasPlain}
@@ -88,6 +95,7 @@
         data-card-edit-target={sourceRegion
           ? cardEditTarget({ region: sourceRegion, field: 'plain' })
           : undefined}
+        style:font-size={`${mainTextScale}em`}
       >{@html renderActionText(ability.plain, subject, customSymbols)}</p>
     {/if}
 
@@ -97,6 +105,7 @@
         data-card-edit-target={sourceRegion
           ? cardEditTarget({ region: sourceRegion, field: timing })
           : undefined}
+        style:font-size={`${mainTextScale}em`}
       >
         <span class="label">{ABILITY_TIMING_LABELS[timing]}:</span>
         {@html renderActionText(ability[timing], subject, customSymbols)}
