@@ -23,6 +23,7 @@ export function formatForCard(card: Card): CardFormat {
 }
 
 const dataUrlCache = new Map<string, string>();
+const flattenedWebpCache = new Map<string, string>();
 
 /** Fetch a same-origin asset and inline it, so the SVG has no external refs. */
 async function toDataUrl(url: string): Promise<string> {
@@ -61,13 +62,106 @@ function collectUrls(css: string): string[] {
   return [...found];
 }
 
-/** Settles either way: a picture that will not load must not hang an export. */
-function settled(image: HTMLImageElement): Promise<void> {
-  if (image.complete) return Promise.resolve();
-  return new Promise<void>((resolve) => {
-    image.addEventListener('load', () => resolve(), { once: true });
-    image.addEventListener('error', () => resolve(), { once: true });
+/** Wait for usable pixels, not merely `complete` (which is also true after an error). */
+function loaded(image: HTMLImageElement): Promise<void> {
+  if (image.complete && image.naturalWidth > 0 && image.naturalHeight > 0) {
+    return Promise.resolve();
+  }
+  if (image.complete) return Promise.reject(new Error('Could not load artwork for export.'));
+
+  return new Promise<void>((resolve, reject) => {
+    const finish = (): void => {
+      cleanup();
+      if (image.naturalWidth > 0 && image.naturalHeight > 0) resolve();
+      else reject(new Error('Could not load artwork for export.'));
+    };
+    const fail = (): void => {
+      cleanup();
+      reject(new Error('Could not load artwork for export.'));
+    };
+    const cleanup = (): void => {
+      image.removeEventListener('load', finish);
+      image.removeEventListener('error', fail);
+    };
+    image.addEventListener('load', finish, { once: true });
+    image.addEventListener('error', fail, { once: true });
   });
+}
+
+function ascii(bytes: Uint8Array, offset: number, length: number): string {
+  return String.fromCharCode(...bytes.subarray(offset, offset + length));
+}
+
+/**
+ * Whether a WebP data URI carries an EXIF chunk.
+ *
+ * An affected real-world upload displayed correctly as an ordinary `<img>`,
+ * yet a browser omitted it when that same WebP was nested inside the SVG
+ * `foreignObject` used by export. Its distinguishing feature was an EXIF chunk.
+ * Parsing RIFF chunks avoids flattening ordinary WebPs (or matching compressed
+ * bytes that merely happen to spell EXIF).
+ */
+function hasWebpExif(source: string): boolean {
+  const match = /^data:image\/webp;base64,([^#]*)$/i.exec(source);
+  if (!match?.[1]) return false;
+
+  try {
+    const binary = atob(match[1]);
+    const bytes = Uint8Array.from(binary, (character) => character.charCodeAt(0));
+    if (bytes.length < 12 || ascii(bytes, 0, 4) !== 'RIFF' || ascii(bytes, 8, 4) !== 'WEBP') {
+      return false;
+    }
+
+    const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+    for (let offset = 12; offset + 8 <= bytes.length; ) {
+      const kind = ascii(bytes, offset, 4);
+      const size = view.getUint32(offset + 4, true);
+      if (kind === 'EXIF') return true;
+      const next = offset + 8 + size + (size % 2);
+      if (next <= offset || next > bytes.length) return false;
+      offset = next;
+    }
+  } catch {
+    return false;
+  }
+  return false;
+}
+
+/** Replace metadata-bearing WebP bytes with the pixels the browser already decoded. */
+async function flattenWebpExif(image: HTMLImageElement): Promise<void> {
+  const source = image.getAttribute('src') ?? '';
+  if (!hasWebpExif(source)) return;
+
+  let flattened = flattenedWebpCache.get(source);
+  if (!flattened) {
+    const canvas = document.createElement('canvas');
+    canvas.width = image.naturalWidth;
+    canvas.height = image.naturalHeight;
+    const context = canvas.getContext('2d');
+    if (!context) throw new Error('Could not prepare artwork for export.');
+    context.drawImage(image, 0, 0);
+    flattened = canvas.toDataURL('image/png');
+    flattenedWebpCache.set(source, flattened);
+  }
+
+  const ready = new Promise<void>((resolve, reject) => {
+    const finish = (): void => {
+      cleanup();
+      resolve();
+    };
+    const fail = (): void => {
+      cleanup();
+      reject(new Error('Could not prepare artwork for export.'));
+    };
+    const cleanup = (): void => {
+      image.removeEventListener('load', finish);
+      image.removeEventListener('error', fail);
+    };
+    image.addEventListener('load', finish, { once: true });
+    image.addEventListener('error', fail, { once: true });
+  });
+  image.setAttribute('src', flattened);
+  await ready;
 }
 
 /**
@@ -104,7 +198,8 @@ async function prepareLiveImages(root: Element): Promise<void> {
     }
   }
 
-  await Promise.all(images.map(settled));
+  await Promise.all(images.map(loaded));
+  await Promise.all(images.map(flattenWebpExif));
 
   /*
    * Do not rely on Svelte's image-load state update winning the race with the
