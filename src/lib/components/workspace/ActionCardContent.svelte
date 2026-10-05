@@ -12,8 +12,11 @@
   import { STYLE_ORIGIN_LABELS } from '$lib/cards/theme';
   import {
     abilityIsEmpty,
+    DEFAULT_ABILITY_TEXT_SIZE,
     HYBRID_COMBAT_SYMBOLS,
     isHybridCombatSymbol,
+    MAX_ABILITY_TEXT_SIZE,
+    MIN_ABILITY_TEXT_SIZE,
     TRADITIONAL_COMBAT_SYMBOLS
   } from '$lib/cards/types';
   import type {
@@ -666,6 +669,23 @@
         customSymbols={workshop.adventure.customSymbols}
         editorTarget={CARD_EDIT_MARKERS.bonusAttackAbility}
       />
+
+      <div class="bonus-attack-text-size">
+        <Slider
+          label="Bonus attack ability text size"
+          value={card.bonusAttackAbilityTextSize ?? DEFAULT_ABILITY_TEXT_SIZE}
+          min={MIN_ABILITY_TEXT_SIZE}
+          max={MAX_ABILITY_TEXT_SIZE}
+          step={1}
+          neutral={DEFAULT_ABILITY_TEXT_SIZE}
+          format={(value) => `${Math.round(value)}`}
+          onchange={(textSize) =>
+            edit((target) => {
+              target.bonusAttackAbilityTextSize =
+                textSize === DEFAULT_ABILITY_TEXT_SIZE ? null : textSize;
+            })}
+        />
+      </div>
     {/if}
   </div>
 
@@ -841,6 +861,11 @@
     gap: var(--space-3);
   }
 
+  .bonus-attack-text-size {
+    width: calc((100% - 2 * var(--space-3)) / 3);
+    min-width: 0;
+  }
+
   .effect-colours {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -860,6 +885,10 @@
     .bonus-attack-head,
     .effect-colours {
       grid-template-columns: 1fr;
+    }
+
+    .bonus-attack-text-size {
+      width: 100%;
     }
   }
 

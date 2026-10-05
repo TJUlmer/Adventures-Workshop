@@ -981,6 +981,7 @@ function normalizeCard(value: unknown): Card | null {
 
     default: {
       const artworkState = cardArtworkState(raw['artworkLayers'], raw['layerOrder']);
+      const bonusAttackAbilityTextSize = nullableNum(raw['bonusAttackAbilityTextSize'], null);
       return {
         ...common,
         type: 'action',
@@ -1008,6 +1009,12 @@ function normalizeCard(value: unknown): Card | null {
         bonusAttackTitle: str(raw['bonusAttackTitle']),
         bonusAttackValue: num(raw['bonusAttackValue'], 2),
         bonusAttackAbility: str(raw['bonusAttackAbility']),
+        bonusAttackAbilityTextSize: bonusAttackAbilityTextSize === null
+          ? null
+          : Math.min(
+              MAX_ABILITY_TEXT_SIZE,
+              Math.max(MIN_ABILITY_TEXT_SIZE, bonusAttackAbilityTextSize)
+            ),
         /* Off on documents written before an exposed tuck reminder existed. */
         showTuckEffect: bool(raw['showTuckEffect'], false),
         tuckEffect: str(raw['tuckEffect']),

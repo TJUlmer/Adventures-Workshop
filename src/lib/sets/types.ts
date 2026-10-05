@@ -483,10 +483,14 @@ export type SetId = Id<'Set'>;
  *      Existing cards retain the measured template size; older builds would
  *      silently discard an author's adjustment.
  *
+ * v73 — action cards gained a separate Bonus Attack ability text-size value.
+ *      Existing cards retain the measured template size; older builds would
+ *      silently discard an author's adjustment.
+ *
  * Older documents are *repaired*, not rejected — see `sets/normalize.ts`. Only
  * a version newer than this build understands is refused.
  */
-export const SET_SCHEMA_VERSION = 72;
+export const SET_SCHEMA_VERSION = 73;
 
 /**
  * What a set is for.

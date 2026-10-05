@@ -134,6 +134,7 @@
 
   /** Ordinary ability copy stays at the size measured into the card geometry. */
   const abilitySize = ABILITY.size;
+  const bonusAttackAbilitySize = $derived(card.bonusAttackAbilityTextSize ?? abilitySize);
 
   /**
    * The primary character's name as the *ribbon* prints it.
@@ -1026,7 +1027,7 @@
               style:width={pu(
                 INTERIOR.width - primaryAbilityLeft - BONUS_ATTACK.content.right
               )}
-              style:font-size={pu(abilitySize)}
+              style:font-size={pu(bonusAttackAbilitySize)}
               style:line-height={ABILITY.lineHeight}
               style:letter-spacing="{ABILITY.tracking}em"
             >

@@ -343,6 +343,8 @@ export interface ActionCard extends CardCommon {
   bonusAttackTitle: string;
   bonusAttackValue: number;
   bonusAttackAbility: string;
+  /** Artwork units; `null` keeps the measured 90-unit template size. */
+  bonusAttackAbilityTextSize: number | null;
   /** A reminder kept visible when this card is tucked behind another card. */
   showTuckEffect: boolean;
   tuckEffect: string;

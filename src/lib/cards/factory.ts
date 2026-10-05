@@ -143,6 +143,7 @@ export function createCard<TType extends CardType>(
         bonusAttackTitle: '',
         bonusAttackValue: 2,
         bonusAttackAbility: '',
+        bonusAttackAbilityTextSize: null,
         showTuckEffect: false,
         tuckEffect: '',
         tuckEffectOrientation: 'bottom',
