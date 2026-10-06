@@ -172,7 +172,6 @@
     const extra = character?.additionalCards.find((entry) => entry.id === card.owner);
     return extra?.subtitle.trim() || extra?.name.trim() || shortName || 'Hero Name';
   });
-  const ribbonNameFitKey = $derived(`${ribbonName}:${card.ribbonNameCondense}`);
   const title = $derived(actionTextIsEmpty(card.title) ? 'Card Title' : card.title);
   const bonusAttackTitle = $derived(
     actionTextIsEmpty(card.bonusAttackTitle) ? 'Bonus Attack' : card.bonusAttackTitle
@@ -1213,13 +1212,13 @@
     -->
     <div
       class="hero-owner-text"
-      use:fitHeight={`${ownerLabel}:${card.ribbonNameCondense}`}
+      use:fitHeight={{ text: ownerLabel, condense: card.ribbonNameCondense }}
       data-card-edit-target={CARD_EDIT_MARKERS.ownerName}
       style:align-self="flex-start"
       style:margin-left="calc({pu(HERO_RIBBON_OWNER_LEFT - HERO_RIBBON.x)} + {pu(
         HERO_RIBBON.centerX - HERO_RIBBON_OWNER_LEFT
       )} * (1 - {card.ribbonNameCondense} * var(--fit-scale, 1)))"
-      style:font-size="calc({pu(HERO_RIBBON_OWNER.size)} * {card.ribbonNameCondense} * var(--fit-scale, 1))"
+      style:font-size="calc({pu(HERO_RIBBON_OWNER.size)} * var(--name-condense, 1) * var(--fit-scale, 1))"
       style:scale="{1 / card.ribbonNameCondense} 1"
       style:line-height={HERO_RIBBON_OWNER.lineHeight}
       style:max-height={pu(HERO_RIBBON_OWNER.maxLength)}
@@ -1318,9 +1317,9 @@
     -->
     <div
       class="name"
-      use:fitHeight={ribbonNameFitKey}
+      use:fitHeight={{ text: ribbonName, condense: card.ribbonNameCondense }}
       data-card-edit-target={CARD_EDIT_MARKERS.ownerName}
-      style:font-size="calc({pu(NAME.size)} * {card.ribbonNameCondense} * var(--fit-scale, 1))"
+      style:font-size="calc({pu(NAME.size)} * var(--name-condense, 1) * var(--fit-scale, 1))"
       style:scale="{1 / card.ribbonNameCondense} 1"
       style:max-height={pu(NAME.maxLength)}
       style:color={theme.bannerInk}

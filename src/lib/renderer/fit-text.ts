@@ -70,12 +70,33 @@ export function fitScaleWidth(
  * face only once that run is full rather than replacing the tail with an
  * ellipsis.
  */
-export function fitHeight(node: HTMLElement, _text: string): { update(text: string): void } {
-  fitScale(node, { min: 0.4 });
+export interface FitHeightOptions {
+  text: string;
+  condense: number;
+}
+
+export function fitHeight(
+  node: HTMLElement,
+  options: FitHeightOptions
+): { update(options: FitHeightOptions): void } {
+  let current = options;
+
+  /*
+   * Fit the authored name at its natural width, then apply the user's manual
+   * condensation. Measuring the already-condensed layout lets fitScale grow by
+   * the inverse amount, which cancels the first part of the slider's range.
+   */
+  const fitAtNaturalWidth = (): void => {
+    node.style.setProperty('--name-condense', '1');
+    fitScale(node, { min: 0.4 });
+    node.style.setProperty('--name-condense', String(current.condense));
+  };
+
+  fitAtNaturalWidth();
 
   const refitAfterTextUpdate = (): void => {
     queueMicrotask(() => {
-      if (node.isConnected) fitScale(node, { min: 0.4 });
+      if (node.isConnected) fitAtNaturalWidth();
     });
   };
   refitAfterTextUpdate();
@@ -84,16 +105,23 @@ export function fitHeight(node: HTMLElement, _text: string): { update(text: stri
   if (font) {
     void document.fonts.load(font).then(
       () => {
-        if (node.isConnected) fitScale(node, { min: 0.4 });
+        if (node.isConnected) fitAtNaturalWidth();
       },
       () => undefined
     );
   }
 
   return {
-    update() {
-      fitScale(node, { min: 0.4 });
-      refitAfterTextUpdate();
+    update(next) {
+      const textChanged = next.text !== current.text;
+      current = next;
+
+      if (textChanged) {
+        fitAtNaturalWidth();
+        refitAfterTextUpdate();
+      } else {
+        node.style.setProperty('--name-condense', String(current.condense));
+      }
     }
   };
 }
