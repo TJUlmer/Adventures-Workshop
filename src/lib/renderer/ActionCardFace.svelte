@@ -1217,7 +1217,7 @@
         HERO_RIBBON.centerX - HERO_RIBBON_OWNER_LEFT
       )} * (1 - {card.ribbonNameCondense} * var(--fit-scale, 1)))"
       style:font-size="calc({pu(HERO_RIBBON_OWNER.size)} * var(--name-condense, 1) * var(--fit-scale, 1))"
-      style:scale="{1 / card.ribbonNameCondense} 1"
+      style:scale="var(--name-cross-scale, 1) 1"
       style:line-height={HERO_RIBBON_OWNER.lineHeight}
       style:max-height={pu(HERO_RIBBON_OWNER.maxLength)}
       style:color={theme.bannerInk}
@@ -1311,14 +1311,15 @@
       height and the column above can lay itself out around it. The half turn
       puts the reading direction bottom-up, which also puts the last character
       at the top, against the clearance the frame is measured from. Names that
-      fill that measured run shrink rather than losing their final characters.
+      fill that measured run condense rather than losing their final characters
+      or shrinking across the ribbon.
     -->
     <div
       class="name"
       use:fitHeight={{ text: ribbonName, condense: card.ribbonNameCondense }}
       data-card-edit-target={CARD_EDIT_MARKERS.ownerName}
       style:font-size="calc({pu(NAME.size)} * var(--name-condense, 1) * var(--fit-scale, 1))"
-      style:scale="{1 / card.ribbonNameCondense} 1"
+      style:scale="var(--name-cross-scale, 1) 1"
       style:max-height={pu(NAME.maxLength)}
       style:color={theme.bannerInk}
     >

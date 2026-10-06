@@ -66,9 +66,9 @@ export function fitScaleWidth(
 
 /**
  * The vertical-writing equivalent of `fitWidth` below. A name ribbon has a
- * fixed maximum run but should keep every authored character, shrinking its
- * face only once that run is full rather than replacing the tail with an
- * ellipsis.
+ * fixed maximum run but should keep every authored character. Once that run
+ * is full, condense the face along the run rather than reducing its visible
+ * height or replacing the tail with an ellipsis.
  */
 export interface FitHeightOptions {
   text: string;
@@ -81,15 +81,28 @@ export function fitHeight(
 ): { update(options: FitHeightOptions): void } {
   let current = options;
 
+  const applyCondensation = (): void => {
+    const fit = Number.parseFloat(node.style.getPropertyValue('--fit-scale'));
+    const effectiveFit = Number.isFinite(fit) && fit > 0 ? fit : 1;
+    node.style.setProperty('--name-condense', String(current.condense));
+    node.style.setProperty(
+      '--name-cross-scale',
+      String(1 / (current.condense * effectiveFit))
+    );
+  };
+
   /*
    * Fit the authored name at its natural width, then apply the user's manual
    * condensation. Measuring the already-condensed layout lets fitScale grow by
    * the inverse amount, which cancels the first part of the slider's range.
+   * The inverse cross-axis scale restores the original cap height after both
+   * automatic and manual condensation have shortened the name's run.
    */
   const fitAtNaturalWidth = (): void => {
     node.style.setProperty('--name-condense', '1');
+    node.style.setProperty('--name-cross-scale', '1');
     fitScale(node, { min: 0.4 });
-    node.style.setProperty('--name-condense', String(current.condense));
+    applyCondensation();
   };
 
   fitAtNaturalWidth();
@@ -120,7 +133,7 @@ export function fitHeight(
         fitAtNaturalWidth();
         refitAfterTextUpdate();
       } else {
-        node.style.setProperty('--name-condense', String(current.condense));
+        applyCondensation();
       }
     }
   };
