@@ -532,6 +532,15 @@ export const TITLE = {
 export const TITLE_RULE = { x: 220, y: 1406, width: 1193, height: 10 } as const;
 
 /**
+ * Small optical trims around the measured title rule.
+ *
+ * These are deliberate tuning dials rather than new template measurements:
+ * increasing either value removes that many bleed pixels from that side of
+ * the rule, giving long cards a little more vertical room.
+ */
+export const TITLE_RULE_TIGHTEN = { above: 4, below: 4 } as const;
+
+/**
  * Where the title's own text box starts — the top of its *first* line box,
  * whether the title sets on one line or wraps to two. CSS stacks line boxes
  * of equal height under this point, so it never moves; only how far the text
@@ -554,7 +563,10 @@ export const TITLE_BOX_TOP = capTopToBoxTop(TITLE.capTop, TITLE.size, TITLE.line
  * rides along after it. CSS already knows how many line boxes a wrapped
  * paragraph sets; nothing here needs to ask it.
  */
-export const TITLE_RULE_GAP = TITLE_RULE.y - (TITLE_BOX_TOP + TITLE.size * TITLE.lineHeight);
+export const TITLE_RULE_GAP =
+  TITLE_RULE.y -
+  (TITLE_BOX_TOP + TITLE.size * TITLE.lineHeight) -
+  TITLE_RULE_TIGHTEN.above;
 
 /**
  * A position measured on the print template, as an offset below the title
@@ -567,7 +579,7 @@ export const TITLE_RULE_GAP = TITLE_RULE.y - (TITLE_BOX_TOP + TITLE.size * TITLE
  * past it. See `TITLE_RULE_GAP`.
  */
 export function belowTitleRule(y: number): number {
-  return y - TITLE_RULE.y - TITLE_RULE.height;
+  return y - TITLE_RULE.y - TITLE_RULE.height - TITLE_RULE_TIGHTEN.below;
 }
 
 /**
@@ -648,6 +660,9 @@ export const ABILITY = {
 
 /** Copies indicator, bottom right of the body panel. */
 export const QUANTITY = { right: 1488, capTop: 2045, size: inFace(55) } as const;
+
+/** Positive values move the owner/copies footer down towards the frame. */
+export const FOOTER_TEXT_OFFSET_Y = 5;
 
 /** Boost value, centred in the disc. */
 /**
@@ -820,7 +835,7 @@ export const NAME = {
   /** Clear space between the border's inner edge and the end of the name. */
   borderGap: 79,
   /** Clear space between the start of the name and the pennant's shoulder. */
-  headGap: 7,
+  headGap: 3,
   size: inName(140.5),
   /** Longest run of type the ribbon will set before its face shrinks. */
   maxLength: 700
@@ -993,7 +1008,7 @@ export const HERO_RIBBON_OWNER = {
    */
   lineHeight: 1.2,
   /** Clear space between the start of the name and the pennant's shoulder. */
-  pointGap: 33,
+  pointGap: 28,
   /**
    * Longest run of type the ribbon will set before its face shrinks. Chosen to
    * bring the point down no further than the hero card's own divider.

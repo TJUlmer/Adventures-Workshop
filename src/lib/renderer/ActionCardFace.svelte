@@ -77,6 +77,7 @@
     HERO_RIBBON_SYMBOL,
     HERO_SPLIT_RIBBON_SYMBOL,
     HERO_RIBBON_VALUE,
+    FOOTER_TEXT_OFFSET_Y,
     inPanel,
     INTERIOR,
     INTERIOR_RADIUS,
@@ -171,6 +172,7 @@
     const extra = character?.additionalCards.find((entry) => entry.id === card.owner);
     return extra?.subtitle.trim() || extra?.name.trim() || shortName || 'Hero Name';
   });
+  const ribbonNameFitKey = $derived(`${ribbonName}:${card.ribbonNameCondense}`);
   const title = $derived(actionTextIsEmpty(card.title) ? 'Card Title' : card.title);
   const bonusAttackTitle = $derived(
     actionTextIsEmpty(card.bonusAttackTitle) ? 'Bonus Attack' : card.bonusAttackTitle
@@ -1106,7 +1108,8 @@
   )}
   style:top={py(
     capTopToBoxTop(
-      (isHero ? OWNER_LINE.capTop : QUANTITY.capTop) -
+        (isHero ? OWNER_LINE.capTop : QUANTITY.capTop) +
+        FOOTER_TEXT_OFFSET_Y -
         (hasBottomTuckEffect ? TUCK_EFFECT.thickness : 0),
       QUANTITY.size
     )
@@ -1210,13 +1213,14 @@
     -->
     <div
       class="hero-owner-text"
-      use:fitHeight={ownerLabel}
+      use:fitHeight={`${ownerLabel}:${card.ribbonNameCondense}`}
       data-card-edit-target={CARD_EDIT_MARKERS.ownerName}
       style:align-self="flex-start"
       style:margin-left="calc({pu(HERO_RIBBON_OWNER_LEFT - HERO_RIBBON.x)} + {pu(
         HERO_RIBBON.centerX - HERO_RIBBON_OWNER_LEFT
-      )} * (1 - var(--fit-scale, 1)))"
-      style:font-size="calc({pu(HERO_RIBBON_OWNER.size)} * var(--fit-scale, 1))"
+      )} * (1 - {card.ribbonNameCondense} * var(--fit-scale, 1)))"
+      style:font-size="calc({pu(HERO_RIBBON_OWNER.size)} * {card.ribbonNameCondense} * var(--fit-scale, 1))"
+      style:scale="{1 / card.ribbonNameCondense} 1"
       style:line-height={HERO_RIBBON_OWNER.lineHeight}
       style:max-height={pu(HERO_RIBBON_OWNER.maxLength)}
       style:color={theme.bannerInk}
@@ -1314,9 +1318,10 @@
     -->
     <div
       class="name"
-      use:fitHeight={ribbonName}
+      use:fitHeight={ribbonNameFitKey}
       data-card-edit-target={CARD_EDIT_MARKERS.ownerName}
-      style:font-size="calc({pu(NAME.size)} * var(--fit-scale, 1))"
+      style:font-size="calc({pu(NAME.size)} * {card.ribbonNameCondense} * var(--fit-scale, 1))"
+      style:scale="{1 / card.ribbonNameCondense} 1"
       style:max-height={pu(NAME.maxLength)}
       style:color={theme.bannerInk}
     >

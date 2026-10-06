@@ -1015,6 +1015,7 @@ function normalizeCard(value: unknown): Card | null {
               MAX_ABILITY_TEXT_SIZE,
               Math.max(MIN_ABILITY_TEXT_SIZE, bonusAttackAbilityTextSize)
             ),
+        ribbonNameCondense: Math.min(1, Math.max(0.6, num(raw['ribbonNameCondense'], 1))),
         /* Off on documents written before an exposed tuck reminder existed. */
         showTuckEffect: bool(raw['showTuckEffect'], false),
         tuckEffect: str(raw['tuckEffect']),

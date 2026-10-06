@@ -345,6 +345,8 @@ export interface ActionCard extends CardCommon {
   bonusAttackAbility: string;
   /** Artwork units; `null` keeps the measured 90-unit template size. */
   bonusAttackAbilityTextSize: number | null;
+  /** Horizontal width of the name-ribbon glyphs, from 0.6 to the natural 1. */
+  ribbonNameCondense: number;
   /** A reminder kept visible when this card is tucked behind another card. */
   showTuckEffect: boolean;
   tuckEffect: string;

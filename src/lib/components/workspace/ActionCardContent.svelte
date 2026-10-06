@@ -230,6 +230,18 @@
     />
   {/if}
 
+  <Slider
+    label="Ribbon name width"
+    value={card.ribbonNameCondense}
+    min={0.6}
+    max={1}
+    step={0.01}
+    neutral={1}
+    format={(value) => `${Math.round(value * 100)}%`}
+    onchange={(ribbonNameCondense) =>
+      edit((target) => (target.ribbonNameCondense = ribbonNameCondense))}
+  />
+
   <Field label="Copies in deck">
     <NumberInput
       value={card.quantity}
