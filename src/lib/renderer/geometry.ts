@@ -609,7 +609,7 @@ export const VALUE_STACK = {
 export const ABILITY_RULE = { x: 484, y: 1451, width: 7, height: 414 } as const;
 
 /** Positive values move the ability copy and its body panel down towards the frame. */
-export const ABILITY_BOTTOM_TIGHTEN = 5;
+export const ABILITY_BOTTOM_TIGHTEN = 35;
 
 export const ABILITY = {
   x: 520,
