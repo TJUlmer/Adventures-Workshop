@@ -84,11 +84,10 @@ export function fitHeight(
   const applyCondensation = (): void => {
     const fit = Number.parseFloat(node.style.getPropertyValue('--fit-scale'));
     const effectiveFit = Number.isFinite(fit) && fit > 0 ? fit : 1;
+    const runScale = current.condense * effectiveFit;
     node.style.setProperty('--name-condense', String(current.condense));
-    node.style.setProperty(
-      '--name-cross-scale',
-      String(1 / (current.condense * effectiveFit))
-    );
+    node.style.setProperty('--name-run-scale', String(runScale));
+    node.style.setProperty('--name-cross-scale', String(1 / runScale));
   };
 
   /*
@@ -100,6 +99,7 @@ export function fitHeight(
    */
   const fitAtNaturalWidth = (): void => {
     node.style.setProperty('--name-condense', '1');
+    node.style.setProperty('--name-run-scale', '1');
     node.style.setProperty('--name-cross-scale', '1');
     fitScale(node, { min: 0.4 });
     applyCondensation();

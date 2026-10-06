@@ -1214,8 +1214,8 @@
       data-card-edit-target={CARD_EDIT_MARKERS.ownerName}
       style:align-self="flex-start"
       style:margin-left="calc({pu(HERO_RIBBON_OWNER_LEFT - HERO_RIBBON.x)} + {pu(
-        HERO_RIBBON.centerX - HERO_RIBBON_OWNER_LEFT
-      )} * (1 - {card.ribbonNameCondense} * var(--fit-scale, 1)))"
+        (HERO_RIBBON_OWNER.size * HERO_RIBBON_OWNER.lineHeight) / 2
+      )} * (1 - var(--name-run-scale, 1)))"
       style:font-size="calc({pu(HERO_RIBBON_OWNER.size)} * var(--name-condense, 1) * var(--fit-scale, 1))"
       style:scale="var(--name-cross-scale, 1) 1"
       style:line-height={HERO_RIBBON_OWNER.lineHeight}
