@@ -183,11 +183,11 @@
        Bonus ability's colour without gaining a second colour control.
 
        The ordinary row gap supplies 0.45em above the rule. Pulling this row
-       back by 0.05em leaves 0.4em above; `padding-top` leaves 0.35em below.
+       back by 0.05em leaves 0.4em above; `padding-top` leaves 0.15em below.
        These are the two manual dials for Bonus-divider breathing room. */
     border-top: var(--bonus-divider-thickness) solid currentColor;
     margin-top: -0.05em;
-    padding-top: 0.35em;
+    padding-top: 0.15em;
   }
 
   .bonus-icon {

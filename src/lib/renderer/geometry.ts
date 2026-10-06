@@ -1008,7 +1008,7 @@ export const HERO_RIBBON_OWNER = {
    */
   lineHeight: 1.2,
   /** Clear space between the start of the name and the pennant's shoulder. */
-  pointGap: 28,
+  pointGap: 20,
   /**
    * Longest run of type the ribbon will set before its face shrinks. Chosen to
    * bring the point down no further than the hero card's own divider.
