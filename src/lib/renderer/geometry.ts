@@ -608,6 +608,9 @@ export const VALUE_STACK = {
  */
 export const ABILITY_RULE = { x: 484, y: 1451, width: 7, height: 414 } as const;
 
+/** Positive values move the ability copy and its body panel down towards the frame. */
+export const ABILITY_BOTTOM_TIGHTEN = 5;
+
 export const ABILITY = {
   x: 520,
   /** Cap height top of the first line. */
@@ -623,7 +626,7 @@ export const ABILITY = {
    * the last line just above the copies count — the one thing sharing the
    * panel's bottom corner — so the two can never collide.
    */
-  bottomInset: INTERIOR_RADIUS,
+  bottomInset: INTERIOR_RADIUS - ABILITY_BOTTOM_TIGHTEN,
   /*
    * The template's leading I stands 57px, and Knockout's caps are 0.666em —
    * that measurement is 85.5, still the number `lineHeight` below is fitted
@@ -660,9 +663,6 @@ export const ABILITY = {
 
 /** Copies indicator, bottom right of the body panel. */
 export const QUANTITY = { right: 1488, capTop: 2045, size: inFace(55) } as const;
-
-/** Positive values move the owner/copies footer down towards the frame. */
-export const FOOTER_TEXT_OFFSET_Y = 5;
 
 /** Boost value, centred in the disc. */
 /**

@@ -77,7 +77,6 @@
     HERO_RIBBON_SYMBOL,
     HERO_SPLIT_RIBBON_SYMBOL,
     HERO_RIBBON_VALUE,
-    FOOTER_TEXT_OFFSET_Y,
     inPanel,
     INTERIOR,
     INTERIOR_RADIUS,
@@ -1107,9 +1106,8 @@
   )}
   style:top={py(
     capTopToBoxTop(
-        (isHero ? OWNER_LINE.capTop : QUANTITY.capTop) +
-        FOOTER_TEXT_OFFSET_Y -
-        (hasBottomTuckEffect ? TUCK_EFFECT.thickness : 0),
+        (isHero ? OWNER_LINE.capTop : QUANTITY.capTop) -
+          (hasBottomTuckEffect ? TUCK_EFFECT.thickness : 0),
       QUANTITY.size
     )
   )}
