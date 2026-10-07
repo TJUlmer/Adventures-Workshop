@@ -18,7 +18,7 @@ import { usesAutomaticBoxArt } from '$lib/sets/box-art';
 import { charactersByRole, setStats } from '$lib/sets/queries';
 import { computeScopedSet } from '$lib/sets/scope';
 import type { PublishScope } from '$lib/sets/scope';
-import type { AdventureSet, SetKind } from '$lib/sets/types';
+import type { AdventureSet, SetKind, SetOrigin } from '$lib/sets/types';
 import { SET_SCHEMA_VERSION } from '$lib/sets/types';
 import {
   collectEmbeddedAssets,
@@ -258,6 +258,28 @@ export interface PublishOptions {
 }
 
 /**
+ * Keep a fork relationship only while its published parent still resolves to
+ * the same row. A withdrawn parent leaves its id in every local/cloud copy,
+ * and sending that stale id would make the foreign key reject the whole
+ * publish. The document keeps its origin either way, so its human credit is
+ * not rewritten merely because the database relationship can no longer be
+ * followed.
+ */
+async function publishableOrigin(origin: SetOrigin | null): Promise<SetOrigin | null> {
+  if (!origin) return null;
+  const published = await fetchSetSummaryBySlug(origin.slug);
+  return published?.id === origin.setId ? origin : null;
+}
+
+function isMissingForkParent(error: unknown): error is CloudError {
+  return (
+    error instanceof CloudError &&
+    error.code === '23503' &&
+    error.message.includes('sets_forked_from_fkey')
+  );
+}
+
+/**
  * Upload one asset, and answer with its public URL.
  *
  * The path is `<user>/<set>/<hash>.<ext>`, and each segment earns itself: the
@@ -451,6 +473,7 @@ export async function publishSet(
    * paths and `local_id` below, deliberately — see those call sites.
    */
   const scoped = computeScopedSet(set, scope);
+  const origin = await publishableOrigin(scoped.origin);
   const previousCardPreviews = await storedCardPreviewSnapshot(user.id, set.id, scope);
 
   /*
@@ -626,15 +649,16 @@ export async function publishSet(
     /*
      * Lineage, taken from the document rather than from anything the publisher
      * chose here. `set.origin` is written once when the copy is taken and never
-     * again, so re-publishing a fork cannot quietly re-parent it — and a set
-     * with no origin sends nulls, which is what clears the columns if one is
-     * ever removed by hand. Reads `scoped.origin`, which is always exactly
-     * `set.origin` — `computeScopedSet` never touches it — so a hero sliced out
-     * of a set that was itself forked from someone else's box still carries
-     * that lineage.
+     * again, so re-publishing a fork cannot quietly re-parent it. `origin` is
+     * that record only while its published row still resolves; a withdrawn
+     * parent sends nulls so stale lineage cannot block the publish. The full
+     * origin remains in `document`, preserving its human credit. Reads from
+     * `scoped.origin`, which is always exactly `set.origin` —
+     * `computeScopedSet` never touches it — so a hero sliced out of a set that
+     * was itself forked from someone else's box still carries that lineage.
      */
-    forked_from: scoped.origin?.setId ?? null,
-    forked_from_revision: scoped.origin?.revision ?? null,
+    forked_from: origin?.setId ?? null,
+    forked_from_revision: origin?.revision ?? null,
     scope: scope.kind,
     character_id: scope.kind === 'hero' ? scope.characterId : '',
     /*
@@ -663,16 +687,30 @@ export async function publishSet(
    * `slug` is left out of the payload on purpose so the existing one survives.
    */
   options.onProgress?.({ stage: 'document', done: 0, total: 1 });
-  const [published] = await request<PublishedSet[]>(
-    '/rest/v1/sets?on_conflict=owner_id,local_id,scope,character_id',
-    {
-      method: 'POST',
-      body: row,
-      headers: {
-        Prefer: 'resolution=merge-duplicates,return=representation'
+  const upsert = (body: typeof row) =>
+    request<PublishedSet[]>(
+      '/rest/v1/sets?on_conflict=owner_id,local_id,scope,character_id',
+      {
+        method: 'POST',
+        body,
+        headers: {
+          Prefer: 'resolution=merge-duplicates,return=representation'
+        }
       }
-    }
-  );
+    );
+
+  let rows: PublishedSet[];
+  try {
+    rows = await upsert(row);
+  } catch (error) {
+    /* Rendering and uploading take long enough that a valid parent can be
+       withdrawn after the check above. Retry only that exact constraint; a
+       different foreign-key failure still needs to surface rather than being
+       disguised as stale lineage. */
+    if (!row.forked_from || !isMissingForkParent(error)) throw error;
+    rows = await upsert({ ...row, forked_from: null, forked_from_revision: null });
+  }
+  const [published] = rows;
 
   if (!published) throw new CloudError('The server accepted the set but returned nothing.', 0);
 
