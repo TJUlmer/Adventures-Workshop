@@ -97,7 +97,7 @@
   const SHOW_FORK = true;
 
   let row = $state<PublishedSetWithDocument | null>(null);
-  /** Immediate URL-backed copy, promoted to embedded assets after first paint. */
+  /** Immediate URL-backed copy used for ordinary browsing. */
   let set = $state<AdventureSet | null>(null);
   /** Fully embedded copy required by exports, printing and offline forks. */
   let portableSet = $state.raw<AdventureSet | null>(null);
@@ -202,6 +202,13 @@
     });
   }
 
+  function prepareCurrentSet(): Promise<AdventureSet> {
+    const published = row;
+    return published
+      ? preparePortable(published)
+      : Promise.reject(new Error('This set is no longer open.'));
+  }
+
   function preparePortable(
     published: PublishedSetWithDocument,
     generation = loadGeneration,
@@ -224,9 +231,8 @@
     )
       .then((hydrated) => {
         if (generation === loadGeneration && row?.id === published.id) {
-          /* Canvas and WebGL component previews cannot safely consume the
-             public URLs used for first paint. Keep that fast paint, then
-             promote the viewer to the embedded copy once it is available. */
+          /* Canvas, WebGL and exports cannot safely consume public URLs.
+             Promote only after one of those paths explicitly asks for it. */
           set = hydrated;
           portableSet = hydrated;
           portableProgress = null;
@@ -480,11 +486,10 @@
   $effect(() => {
     const wanted = slug;
     const hint = characterHint;
-    const generation = ++loadGeneration;
+    ++loadGeneration;
     const controller = new AbortController();
     sharedLoadController = controller;
     let current = true;
-    let cancelPreparation = (): void => {};
     loading = true;
     error = null;
     row = null;
@@ -562,27 +567,6 @@
         requestAnimationFrame(() => scrollToExplore('top', false));
         progress = null;
 
-        /* Let the masthead and first Overview placeholders paint before the
-           work needed only by export/fork begins. It still starts on its own,
-           so those actions are usually ready by the time someone reaches
-           them; an immediate click simply awaits the same promise. */
-        const beginPreparation = (): void => {
-          if (!current || generation !== loadGeneration) return;
-          void preparePortable(found, generation, controller.signal).catch(() => {
-            // `portableError` is the user-facing result of a background failure.
-          });
-        };
-        const idleWindow = window as unknown as {
-          requestIdleCallback?: Window['requestIdleCallback'];
-          cancelIdleCallback?: Window['cancelIdleCallback'];
-        };
-        if (idleWindow.requestIdleCallback) {
-          const idleId = idleWindow.requestIdleCallback(beginPreparation, { timeout: 1200 });
-          cancelPreparation = () => idleWindow.cancelIdleCallback?.(idleId);
-        } else {
-          const timeoutId = window.setTimeout(beginPreparation, 250);
-          cancelPreparation = () => window.clearTimeout(timeoutId);
-        }
       } catch (cause) {
         if (current) error = cause instanceof Error ? cause.message : 'Could not open that set.';
       } finally {
@@ -592,7 +576,6 @@
 
     return () => {
       current = false;
-      cancelPreparation();
       controller.abort();
       if (sharedLoadController === controller) sharedLoadController = null;
     };
@@ -1258,18 +1241,20 @@
           <p class="panel-hint">
             Shares the "Showing" pick above — change either one and the other follows.
           </p>
-          {#if portableSet}
+          {#if set}
             <ExportPanel
-              set={portableSet}
+              set={portableSet ?? set}
               onprint={openPrint}
               bind:scope={viewScope}
               projectFileMode="copy"
               publishedSource={row ? { id: row.id, revision: row.revision } : null}
+              prepareSet={prepareCurrentSet}
             />
-          {:else}
+            {#if portableProgress || portableError}
             <p class="panel-hint" aria-live="polite">
-              {portableError ?? portableProgress ?? 'Preparing download tools…'}
+              {portableError ?? portableProgress}
             </p>
+            {/if}
             {#if portableError}
               <Button size="sm" variant="ghost" disabled={portableBusy} onclick={retryPreparation}>
                 Try again
@@ -1402,6 +1387,7 @@
             interactive={false}
             inspectable
             componentPreviewsReady={portableSet !== null}
+            prepareComponentPreviews={prepareCurrentSet}
             cardPreviews={publishedCardPreviews}
             publishedPngsOnly
             heading={false}

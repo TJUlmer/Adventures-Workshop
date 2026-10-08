@@ -15,6 +15,7 @@
    * view instead of an editor. What is *drawn* is identical, which is the point:
    * a viewer sees the set, not a summary of it.
    */
+  import { tick } from 'svelte';
   import { cardLabel } from '$lib/cards/factory';
   import type { Card } from '$lib/cards/types';
   import { CARD_TYPE_META, INITIATIVE_VARIANTS } from '$lib/cards/types';
@@ -57,6 +58,12 @@
      * views turn this on after their public Storage URLs have been embedded.
      */
     componentPreviewsReady?: boolean;
+    /**
+     * Prepare remote figure assets when a published viewer asks to inspect a
+     * component. Keeping this behind the click avoids downloading every
+     * original asset merely because somebody browsed the publication.
+     */
+    prepareComponentPreviews?: () => Promise<unknown>;
     /** Fixed publication pixels. Omitted by the editable Overview. */
     cardPreviews?: CardPreviewManifest;
     /** A shared publication must never substitute a live reconstructed card. */
@@ -89,6 +96,7 @@
     interactive = true,
     inspectable = false,
     componentPreviewsReady = true,
+    prepareComponentPreviews,
     cardPreviews,
     publishedPngsOnly = false,
     heading = true,
@@ -127,7 +135,9 @@
   const editorTile = $derived(interactive ? 'button' : 'div');
   const previewTile = $derived(interactive || inspectable ? 'button' : 'div');
   const previewControl = $derived(interactive || inspectable);
-  const figurePreviewControl = $derived(interactive || (inspectable && componentPreviewsReady));
+  const figurePreviewControl = $derived(
+    interactive || (inspectable && (componentPreviewsReady || prepareComponentPreviews !== undefined))
+  );
   const figurePreviewTile = $derived(figurePreviewControl ? 'button' : 'div');
 
   /** The villain the track names, for the board's nameplate and burst. */
@@ -557,6 +567,23 @@
     }
   }
 
+  async function requestFigure(figure: Figure): Promise<void> {
+    if (!inspectable) return;
+    if (!componentPreviewsReady) {
+      if (!prepareComponentPreviews) return;
+      try {
+        await prepareComponentPreviews();
+        /* Parent state swaps the URL-backed document for the embedded copy.
+           Wait for that prop update before mounting canvas/WebGL with it. */
+        await tick();
+      } catch {
+        // The owning published view reports preparation failures beside the gallery.
+        return;
+      }
+    }
+    if (componentPreviewsReady) openFigure(figure);
+  }
+
   /**
    * One tile failing must not take the page with it.
    *
@@ -945,14 +972,14 @@
             class="figure"
             type={figurePreviewControl ? 'button' : undefined}
             role={figurePreviewControl ? 'button' : undefined}
-            aria-haspopup={inspectable && !interactive && componentPreviewsReady ? 'dialog' : undefined}
+            aria-haspopup={inspectable && !interactive && figurePreviewControl ? 'dialog' : undefined}
             aria-label={figurePreviewControl
               ? `${interactive ? 'Edit' : 'View'} ${figureLabel(figure, figureOwnerName(figure))}`
               : undefined}
             onclick={interactive
               ? () => navigation.go('figures')
-              : inspectable && componentPreviewsReady
-                ? () => openFigure(figure)
+              : inspectable && figurePreviewControl
+                ? () => void requestFigure(figure)
                 : undefined}
           >
             <span
@@ -966,7 +993,7 @@
               {:else}
                 <Icon name="image" size={16} />
               {/if}
-              {#if inspectable && !interactive && componentPreviewsReady}
+              {#if inspectable && !interactive && figurePreviewControl}
                 <span class="inspect-cue" aria-hidden="true"><Icon name="rotate" size={14} /></span>
               {/if}
             </span>

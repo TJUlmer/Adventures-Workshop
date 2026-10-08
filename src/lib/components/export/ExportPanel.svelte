@@ -63,6 +63,12 @@
     projectFileMode?: 'backup' | 'copy';
     /** Exact server snapshot being viewed; only its unmodified full export may be retained. */
     publishedSource?: TtsPublishedSource | null;
+    /**
+     * A published viewer can browse URL-backed artwork without downloading
+     * every original. Export paths call this only when their output actually
+     * needs a self-contained document.
+     */
+    prepareSet?: () => Promise<AdventureSet>;
   }
 
   let {
@@ -70,7 +76,8 @@
     onprint,
     scope = $bindable({ kind: 'full' }),
     projectFileMode = 'backup',
-    publishedSource = null
+    publishedSource = null,
+    prepareSet
   }: Props = $props();
 
   /**
@@ -118,6 +125,8 @@
 
   let message = $state<string | null>(null);
   let messageKind = $state<'success' | 'error'>('success');
+  let preparingSet = $state(false);
+  let preparationPromise: Promise<AdventureSet> | null = null;
 
   function flash(text: string, kind: 'success' | 'error' = 'success'): void {
     message = text;
@@ -125,16 +134,34 @@
     setTimeout(() => (message = null), 3000);
   }
 
+  function readySet(): Promise<AdventureSet> {
+    if (!prepareSet) return Promise.resolve(set);
+    if (preparationPromise) return preparationPromise;
+    preparingSet = true;
+    const task = prepareSet().finally(() => {
+      preparingSet = false;
+      if (preparationPromise === task) preparationPromise = null;
+    });
+    preparationPromise = task;
+    return task;
+  }
+
+  function selectedFrom(source: AdventureSet): AdventureSet {
+    return applyExportSelection(computeScopedSet(source, scope), selection);
+  }
+
   async function runExport(id: string): Promise<void> {
     const exporter = getExporter(id);
     if (!exporter) return;
     try {
+      const prepared = await readySet();
+      const preparedSelection = selectedFrom(prepared);
       const source =
         exporter.input === 'selected-content'
-          ? finalSet
+          ? preparedSelection
           : projectFileMode === 'copy'
-            ? makeIndependentSetCopy(finalSet)
-            : set;
+            ? makeIndependentSetCopy(preparedSelection)
+            : prepared;
       saveExport(await exporter.run(source));
       flash(`Exported ${exportLabel(exporter)}.`);
     } catch (error) {
@@ -154,8 +181,13 @@
       : exporter.description;
   }
 
-  function printSheets(): void {
-    onprint?.(finalSet);
+  async function printSheets(): Promise<void> {
+    if (preparingSet) return;
+    try {
+      onprint?.(selectedFrom(await readySet()));
+    } catch (error) {
+      flash(error instanceof Error ? error.message : 'Could not prepare print sheets.', 'error');
+    }
   }
 
   /**
@@ -168,9 +200,11 @@
 
   async function exportPngs(): Promise<void> {
     if (pngProgress !== null) return;
-    pngProgress = 'Rendering…';
+    pngProgress = prepareSet ? 'Preparing artwork…' : 'Rendering…';
     try {
-      const result = await exportCardPngs(finalSet, {
+      const preparedSelection = selectedFrom(await readySet());
+      pngProgress = 'Rendering…';
+      const result = await exportCardPngs(preparedSelection, {
         bleed: pngBleed,
         onProgress: (done, total) => (pngProgress = `Rendering ${done} of ${total}…`)
       });
@@ -247,7 +281,7 @@
       );
       return;
     }
-    ttsProgress = 'Rendering…';
+    ttsProgress = 'Preparing…';
     ttsResult = null;
     try {
       const retainedPublishedSource =
@@ -276,16 +310,19 @@
           flash(`Exported ${filename} for multiplayer.`);
           return;
         }
-        ttsProgress = 'Rendering…';
       }
+
+      ttsProgress = prepareSet ? 'Preparing artwork…' : 'Rendering…';
+      const preparedSelection = selectedFrom(await readySet());
+      ttsProgress = 'Rendering…';
 
       const hosting = hostTtsAssets
         ? {
             kind: 'online' as const,
-            host: await createTtsAssetHost(finalSet.id, retainedPublishedSource)
+            host: await createTtsAssetHost(preparedSelection.id, retainedPublishedSource)
           }
         : { kind: 'local' as const, savedObjectsPath };
-      const result = await exportTabletopSimulator(finalSet, {
+      const result = await exportTabletopSimulator(preparedSelection, {
         hosting,
         onProgress: (done, total, label) => (ttsProgress = `${label} — ${done} of ${total}…`)
       });
@@ -392,7 +429,7 @@
       <div class="group-actions">
         <!-- Print sheets are a browser screen rather than a file exporter. -->
         {#if onprint}
-          <button type="button" class="export" onclick={printSheets}>
+          <button type="button" class="export" disabled={preparingSet} onclick={printSheets}>
             <Icon name="printer" size={14} />
             <span class="export-text">
               <span class="export-label">Open print sheets</span>
@@ -404,7 +441,7 @@
         {/if}
 
         <div class="bundle">
-          <button type="button" class="export" disabled={pngProgress !== null} onclick={exportPngs}>
+          <button type="button" class="export" disabled={pngProgress !== null || preparingSet} onclick={exportPngs}>
             <Icon name="download" size={14} />
             <span class="export-text">
               <span class="export-label">Download individual card PNGs</span>
@@ -415,7 +452,7 @@
           </button>
 
           <label class="bleed">
-            <input type="checkbox" bind:checked={pngBleed} disabled={pngProgress !== null} />
+            <input type="checkbox" bind:checked={pngBleed} disabled={pngProgress !== null || preparingSet} />
             <span>
               <strong>Include bleed</strong>
               <small>Extra artwork beyond the cut line for professional printing.</small>
@@ -436,7 +473,7 @@
 
       <div class="group-actions">
         <div class="bundle tts-bundle">
-          <button type="button" class="export" disabled={ttsProgress !== null} onclick={exportTts}>
+          <button type="button" class="export" disabled={ttsProgress !== null || preparingSet} onclick={exportTts}>
             <Icon name="download" size={14} />
             <span class="export-text">
               <span class="export-label">Export Tabletop Simulator object</span>
@@ -450,7 +487,7 @@
           </button>
 
           <label class="tts-hosting">
-            <input type="checkbox" bind:checked={hostTtsAssets} disabled={ttsProgress !== null} />
+            <input type="checkbox" bind:checked={hostTtsAssets} disabled={ttsProgress !== null || preparingSet} />
             <span>
               <strong>Host assets online</strong>
               <small>Recommended — other players can see the artwork in multiplayer.</small>
@@ -544,7 +581,7 @@
           <button
             type="button"
             class="export"
-            disabled={!exporter.available}
+            disabled={!exporter.available || preparingSet}
             onclick={() => runExport(exporter.id)}
           >
             <Icon name="download" size={14} />

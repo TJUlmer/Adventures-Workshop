@@ -54,6 +54,8 @@
   let preparationError = $state<string | null>(null);
   let retryVersion = $state(0);
   let loadGeneration = 0;
+  let memberLoadController: AbortController | null = null;
+  let portablePromise: Promise<void> | null = null;
 
   /* Kept for this component's lifetime, so returning to a member during the
      same collection visit is instant. Revision is part of the key: a newly
@@ -70,41 +72,6 @@
       if (oldest === undefined) break;
       cache.delete(oldest);
     }
-  }
-
-  function waitForPreparationWindow(signal: AbortSignal): Promise<void> {
-    return new Promise((resolve) => {
-      if (signal.aborted) {
-        resolve();
-        return;
-      }
-
-      const idleWindow = window as unknown as {
-        requestIdleCallback?: Window['requestIdleCallback'];
-        cancelIdleCallback?: Window['cancelIdleCallback'];
-      };
-      let settled = false;
-      let cancel = (): void => {};
-      const finish = (): void => {
-        if (settled) return;
-        settled = true;
-        signal.removeEventListener('abort', abort);
-        resolve();
-      };
-      const abort = (): void => {
-        cancel();
-        finish();
-      };
-
-      if (idleWindow.requestIdleCallback) {
-        const idleId = idleWindow.requestIdleCallback(finish, { timeout: 1200 });
-        cancel = () => idleWindow.cancelIdleCallback?.(idleId);
-      } else {
-        const timeoutId = window.setTimeout(finish, 250);
-        cancel = () => window.clearTimeout(timeoutId);
-      }
-      signal.addEventListener('abort', abort, { once: true });
-    });
   }
 
   function cacheKey(selected: CollectionTile): string {
@@ -149,6 +116,7 @@
     progress = null;
     loadError = null;
     preparationError = null;
+    portablePromise = null;
   }
 
   async function loadMember(
@@ -194,42 +162,66 @@
     opening = false;
     progress = null;
 
-    /* Cards use the publication's immutable PNGs immediately. Canvas/WebGL
-       component work waits for a local embedded copy of every remote asset. */
-    if (cachedPortable || readable.figures.length === 0) return;
+  }
+
+  function prepareComponents(): Promise<void> {
+    if (portableSet) return Promise.resolve();
+    if (portablePromise) return portablePromise;
+
+    const published = row;
+    const selected = tile;
+    const signal = memberLoadController?.signal;
+    const generation = loadGeneration;
+    if (!published || !selected || !signal || signal.aborted) {
+      return Promise.reject(new Error('This set is no longer open.'));
+    }
 
     preparing = true;
+    preparationError = null;
     progress = 'Preparing interactive components…';
-    await waitForPreparationWindow(signal);
-    if (signal.aborted || generation !== loadGeneration) return;
+    const key = cacheKey(selected);
+    const task = hydratePublishedSet(
+      published,
+      (done, total) => {
+        if (signal.aborted || generation !== loadGeneration) return;
+        progress =
+          total > 0
+            ? `Preparing component artwork ${done} of ${total}…`
+            : 'Preparing interactive components…';
+      },
+      signal
+    )
+      .then((hydrated) => {
+        remember(portableCache, key, hydrated, 1);
+        if (signal.aborted || generation !== loadGeneration) return;
+        displaySet = hydrated;
+        portableSet = hydrated;
+        progress = null;
+      })
+      .catch((cause: unknown) => {
+        if (!signal.aborted && generation === loadGeneration) {
+          preparationError =
+            cause instanceof Error
+              ? cause.message
+              : 'Interactive components could not be prepared.';
+          progress = null;
+        }
+        throw cause;
+      })
+      .finally(() => {
+        if (!signal.aborted && generation === loadGeneration) {
+          preparing = false;
+          if (portablePromise === task) portablePromise = null;
+        }
+      });
+    portablePromise = task;
+    return task;
+  }
 
-    try {
-      const hydrated = await hydratePublishedSet(
-        published,
-        (done, total) => {
-          if (signal.aborted || generation !== loadGeneration) return;
-          progress =
-            total > 0
-              ? `Preparing component artwork ${done} of ${total}…`
-              : 'Preparing interactive components…';
-        },
-        signal
-      );
-      remember(portableCache, key, hydrated, 1);
-      if (signal.aborted || generation !== loadGeneration) return;
-      displaySet = hydrated;
-      portableSet = hydrated;
-      progress = null;
-    } catch (cause) {
-      if (signal.aborted || generation !== loadGeneration) return;
-      preparationError =
-        cause instanceof Error
-          ? cause.message
-          : 'Interactive components could not be prepared.';
-      progress = null;
-    } finally {
-      if (!signal.aborted && generation === loadGeneration) preparing = false;
-    }
+  function retryComponents(): void {
+    void prepareComponents().catch(() => {
+      // `prepareComponents` leaves the useful error in the viewer toolbar.
+    });
   }
 
   $effect(() => {
@@ -239,11 +231,15 @@
     void retryVersion;
     const generation = ++loadGeneration;
     const controller = new AbortController();
+    memberLoadController = controller;
     resetPresentation();
 
     if (selected) void loadMember(selected, hint, generation, controller.signal);
 
-    return () => controller.abort();
+    return () => {
+      controller.abort();
+      if (memberLoadController === controller) memberLoadController = null;
+    };
   });
 
   const scopeOptions = $derived(displaySet ? scopeOptionsFor(displaySet) : []);
@@ -309,13 +305,13 @@
             <span>{progress}</span>
           {:else if preparationError}
             <span class="preparation-error">Interactive components could not be prepared.</span>
-            <Button size="sm" variant="ghost" disabled={preparing} onclick={() => (retryVersion += 1)}>
+            <Button size="sm" variant="ghost" disabled={preparing} onclick={retryComponents}>
               Retry
             </Button>
           {:else if portableSet}
             <span>Interactive components ready</span>
           {:else if shown.figures.length > 0}
-            <span>Component previews are preparing in the background</span>
+            <span>Select a component to prepare its interactive preview</span>
           {/if}
         </div>
       </div>
@@ -327,6 +323,7 @@
             interactive={false}
             inspectable
             componentPreviewsReady={portableSet !== null}
+            prepareComponentPreviews={prepareComponents}
             cardPreviews={publishedCardPreviews}
             publishedPngsOnly
             heading={false}

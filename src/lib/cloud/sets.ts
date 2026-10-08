@@ -299,6 +299,8 @@ export async function uploadAsset(
     method: 'POST',
     headers: headers({
       'Content-Type': asset.contentType,
+      /* The filename is the content hash, so this URL can never change bytes. */
+      'cache-control': '31536000',
       /*
        * Re-publishing writes the same hash to the same path. Without this the
        * second publish fails on a duplicate that is, by construction, byte for
@@ -336,7 +338,12 @@ async function uploadBlob(
 
   const response = await fetch(endpoint(`/storage/v1/object/${ASSET_BUCKET}/${path}`), {
     method: 'POST',
-    headers: headers({ 'Content-Type': blob.type, 'x-upsert': 'true' }),
+    headers: headers({
+      'Content-Type': blob.type,
+      /* Generated images include their byte hash in the path as well. */
+      'cache-control': '31536000',
+      'x-upsert': 'true'
+    }),
     body: blob
   });
 
