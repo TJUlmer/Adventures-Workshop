@@ -63,6 +63,7 @@
     onplay
   }: Props = $props();
 
+  const FEATURED_CREATOR_LIMIT = 16;
   const CARD_BLEED = CARD_FORMATS.action.bleed;
   const CARD_TRIM = trimBox(CARD_FORMATS.action);
   const TRIM_SCALE_TALL = CARD_BLEED.height / CARD_TRIM.height;
@@ -99,6 +100,10 @@
   const sharedAssetsTile = $derived(
     tiles.find((tile) => tile.entry_kind === 'shared_assets') ?? null
   );
+  // The shared tab owns its viewer directly; only deck views need a selected entry.
+  const explorerTile = $derived(
+    selectedTile ?? (mode === 'shared' && !tilesLoading && !tilesFailed ? sharedAssetsTile : null)
+  );
   const tileById = $derived.by(() => new Map(deckTiles.map((tile) => [tile.set_id, tile])));
   const totalCards = $derived(tiles.reduce((total, tile) => total + tile.card_count, 0));
   const totalCharacters = $derived(
@@ -116,7 +121,7 @@
 
   const creators = $derived.by(() => {
     const grouped = new Map<string, CreatorCredit>();
-    for (const tile of tiles) {
+    for (const tile of deckTiles) {
       const existing = grouped.get(tile.owner_id);
       if (existing) {
         existing.setNames.push(tile.name || 'Untitled set');
@@ -133,6 +138,7 @@
 
     if (characters.length > 0) {
       for (const character of characters) {
+        if (character.set_id === sharedAssetsTile?.set_id) continue;
         let creator = grouped.get(character.owner_id);
         if (!creator) {
           creator = {
@@ -149,7 +155,7 @@
         creator.characterCount += 1;
       }
     } else {
-      for (const tile of tiles) {
+      for (const tile of deckTiles) {
         const creator = grouped.get(tile.owner_id);
         if (creator) creator.characterCount += tile.character_count;
       }
@@ -360,7 +366,7 @@
         <div class="hero-creators">
           <span>Featuring work by</span>
           <div class="creator-chips">
-            {#each creators.slice(0, 8) as creator (creator.id)}
+            {#each creators.slice(0, FEATURED_CREATOR_LIMIT) as creator (creator.id)}
               <button type="button" onclick={() => onopenauthor(creator.id)}>
                 {#if creator.avatar}
                   <img src={creator.avatar} alt="" />
@@ -370,8 +376,8 @@
                 {creator.name}
               </button>
             {/each}
-            {#if creators.length > 8}
-              <span class="creator-overflow">+{creators.length - 8} more below</span>
+            {#if creators.length > FEATURED_CREATOR_LIMIT}
+              <span class="creator-overflow">+{creators.length - FEATURED_CREATOR_LIMIT} more below</span>
             {/if}
           </div>
         </div>
@@ -426,14 +432,6 @@
   </nav>
 
   <div class="explore-body">
-    <CollectionMemberExplorer
-      tile={selectedTile}
-      collectionName={title}
-      characterId={selectedCharacterId}
-      focus={explorerFocus}
-      onback={closeMember}
-    />
-
     {#if !selectedTile && mode === 'characters'}
       <section class="showcase-section" aria-labelledby="collection-characters-heading">
         <header class="section-heading">
@@ -655,35 +653,18 @@
           <p class="section-message">The collection is here, but its sets could not be loaded.</p>
         {:else if !sharedAssetsTile}
           <p class="section-message">This collection has not published a Shared Kit yet.</p>
-        {:else}
-          <ul class="component-set-grid">
-            <li>
-              <button
-                type="button"
-                class="component-set"
-                data-member-trigger={`shared:${sharedAssetsTile.set_id}`}
-                onclick={() => openMember(sharedAssetsTile, undefined, 'shared', `shared:${sharedAssetsTile.set_id}`)}
-              >
-                <span class="component-set-art" style:background={tint(sharedAssetsTile.set_id)}>
-                  {#if sharedAssetsTile.preview_card_url}
-                    <img src={sharedAssetsTile.preview_card_url} alt="" loading="lazy" />
-                  {:else if tileImage(sharedAssetsTile)}
-                    <img src={tileImage(sharedAssetsTile)} alt="" loading="lazy" />
-                  {:else}
-                    {initials(sharedAssetsTile.name)}
-                  {/if}
-                </span>
-                <span>
-                  <strong>{sharedAssetsTile.name || 'Untitled Shared Kit'}</strong>
-                  <small>Open every shared map, component and file</small>
-                </span>
-                <Icon name="chevronRight" size={15} />
-              </button>
-            </li>
-          </ul>
         {/if}
       </section>
     {/if}
+
+    <CollectionMemberExplorer
+      tile={explorerTile}
+      collectionName={title}
+      characterId={selectedCharacterId}
+      focus={mode === 'shared' && !selectedTile ? 'shared' : explorerFocus}
+      embedded={mode === 'shared' && !selectedTile}
+      onback={closeMember}
+    />
 
     {#if !selectedTile && creators.length > 0}
       <section class="showcase-section creator-section" aria-labelledby="collection-creators-heading">
@@ -1105,7 +1086,6 @@
 
   .character-grid,
   .set-grid,
-  .component-set-grid,
   .creator-grid {
     display: grid;
     margin: 0;
@@ -1510,71 +1490,6 @@
     padding-top: var(--space-5);
   }
 
-  .component-set-grid {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: var(--space-3);
-  }
-
-  .component-set-grid li {
-    display: flex;
-  }
-
-  .component-set {
-    display: grid;
-    grid-template-columns: 64px minmax(0, 1fr) auto;
-    width: 100%;
-    min-height: 84px;
-    align-items: center;
-    gap: var(--space-3);
-    padding: var(--space-2);
-    border: 1px solid var(--border-default);
-    border-radius: var(--radius-md);
-    background: var(--surface-raised);
-    color: var(--text-primary);
-    font: inherit;
-    text-align: left;
-    cursor: pointer;
-  }
-
-  .component-set:hover {
-    border-color: var(--border-accent);
-    background: var(--surface-hover);
-  }
-
-  .component-set-art {
-    display: grid;
-    width: 64px;
-    height: 64px;
-    place-items: center;
-    overflow: hidden;
-    border-radius: var(--radius-sm);
-    color: var(--text-on-accent);
-    font-weight: var(--weight-semibold);
-  }
-
-  .component-set-art img {
-    width: 100%;
-    height: 100%;
-    object-fit: contain;
-  }
-
-  .component-set > span:nth-child(2) {
-    display: grid;
-    gap: var(--space-1);
-    min-width: 0;
-  }
-
-  .component-set strong,
-  .component-set small {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .component-set small {
-    color: var(--text-muted);
-  }
-
   .creator-section {
     margin-top: var(--space-10);
     padding-top: var(--space-8);
@@ -1664,10 +1579,6 @@
 
     .set-grid {
       grid-template-columns: 1fr;
-    }
-
-    .component-set-grid {
-      grid-template-columns: repeat(2, minmax(0, 1fr));
     }
   }
 
@@ -1814,10 +1725,6 @@
 
     .set-art {
       min-height: 16rem;
-    }
-
-    .component-set-grid {
-      grid-template-columns: 1fr;
     }
 
     .creator-grid {

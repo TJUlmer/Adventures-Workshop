@@ -32,6 +32,8 @@
     collectionName: string;
     characterId?: string;
     focus?: CollectionExplorerFocus;
+    /** The Shared Kit is already the active tab, so it needs no return step. */
+    embedded?: boolean;
     onback: () => void;
   }
 
@@ -40,6 +42,7 @@
     collectionName,
     characterId,
     focus = 'full',
+    embedded = false,
     onback
   }: Props = $props();
 
@@ -254,19 +257,23 @@
   <section class="member-explorer" aria-labelledby="member-explorer-title">
     <header class="member-context">
       <div class="context-copy">
-        <Button variant="ghost" onclick={onback}>
-          <Icon name="chevronRight" size={13} />
-          Back to {collectionName}
-        </Button>
+        {#if !embedded}
+          <Button variant="ghost" onclick={onback}>
+            <Icon name="chevronRight" size={13} />
+            Back to {collectionName}
+          </Button>
+        {/if}
         <p class="eyebrow">{sharedFocus ? 'Shared maps & components' : 'Collection set'}</p>
         <h2 id="member-explorer-title" tabindex="-1">{tile.name || 'Untitled set'}</h2>
         {#if tile.subtitle}<p class="member-subtitle">{tile.subtitle}</p>{/if}
-        <p class="member-credit">
-          By
-          <button type="button" onclick={() => navigation.openAuthor(tile!.owner_id)}>
-            {tile.author_name || 'Anonymous'}
-          </button>
-        </p>
+        {#if tile.entry_kind !== 'shared_assets'}
+          <p class="member-credit">
+            By
+            <button type="button" onclick={() => navigation.openAuthor(tile!.owner_id)}>
+              {tile.author_name || 'Anonymous'}
+            </button>
+          </p>
+        {/if}
       </div>
       <Button variant="secondary" onclick={() => navigation.openShared(tile!.slug, characterId)}>
         Open full set
