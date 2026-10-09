@@ -203,6 +203,14 @@ assert.match(scheduleMigration, /storage-cleanup-daily/);
 assert.match(scheduleMigration, /storage_cleanup_cron_token/);
 assert.match(scheduleMigration, /"dryRun":false,"limit":500/);
 
+const sixHourScheduleMigration = readFileSync(
+  new URL('../supabase/migrations/0046_six_hour_storage_cleanup.sql', import.meta.url),
+  'utf8',
+);
+assert.match(sixHourScheduleMigration, /storage-cleanup-six-hourly/);
+assert.match(sixHourScheduleMigration, /20 \*\/6 \* \* \*/);
+assert.match(sixHourScheduleMigration, /"dryRun":false,"limit":100/);
+
 const historyMigration = readFileSync(
   new URL('../supabase/migrations/0039_storage_cleanup_run_history.sql', import.meta.url),
   'utf8',
