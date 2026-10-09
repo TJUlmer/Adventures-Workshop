@@ -13,6 +13,8 @@
     label: string;
     /** `null` when the card does not print this value. */
     value: number | null;
+    /** Required combat values remain editable without offering a hide action. */
+    removable?: boolean;
     /** Symbol image, or a drawn ring for boost. */
     symbol?: string;
     min?: number;
@@ -27,6 +29,7 @@
   let {
     label,
     value,
+    removable = true,
     symbol,
     min = 0,
     max = 20,
@@ -58,6 +61,7 @@
   }
 
   function toggle(): void {
+    if (on && !removable) return;
     onchange(on ? null : clamp(remembered ?? defaultValue));
   }
 
@@ -84,24 +88,29 @@
 </script>
 
 <div class="value" class:on>
-  <!--
-    The whole tile is the switch, not just the label: the stepper sits on top
-    of it and stops the click, so anywhere else in the control toggles.
-  -->
-  <button
-    type="button"
-    class="toggle"
-    aria-pressed={on}
-    title={on ? `Remove ${label.toLowerCase()}` : `Add ${label.toLowerCase()}`}
-    onclick={toggle}
-  >
+  {#snippet valueLabel()}
     {#if symbol}
       <img class="symbol" src={symbol} alt="" />
     {:else}
       <span class="ring"></span>
     {/if}
     <span class="name">{label}</span>
-  </button>
+  {/snippet}
+
+  {#if removable || !on}
+    <!-- Existing cards with a hidden required value can still add it back. -->
+    <button
+      type="button"
+      class="toggle"
+      aria-pressed={on}
+      title={on ? `Remove ${label.toLowerCase()}` : `Add ${label.toLowerCase()}`}
+      onclick={toggle}
+    >
+      {@render valueLabel()}
+    </button>
+  {:else}
+    <div class="toggle fixed">{@render valueLabel()}</div>
+  {/if}
 
   {#if on && value !== null}
     <div class="stepper">
@@ -171,7 +180,7 @@
     color: var(--text-secondary);
   }
 
-  .toggle:hover {
+  .toggle:not(.fixed):hover {
     color: var(--text-primary);
   }
 

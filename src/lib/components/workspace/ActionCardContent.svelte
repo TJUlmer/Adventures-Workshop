@@ -327,6 +327,7 @@
           <div class="value-slot">
             <ValueControl
               label="Value"
+              removable={false}
               editorTarget={CARD_EDIT_MARKERS.symbolValue}
               symbol={CARD_SYMBOLS[card.symbol ?? 'attack']}
               value={card.symbolValue}
