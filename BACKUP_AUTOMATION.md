@@ -1,11 +1,15 @@
 # Encrypted off-site backup automation
 
-The unattended backup is deliberately a two-copy process:
+The unattended backup has two cadences so routine protection does not download the whole of
+Supabase Storage every day:
 
-1. Create a complete local PostgreSQL-and-Storage backup.
-2. Verify every local byte against its manifests.
-3. Encrypt and deduplicate the verified directory with restic.
-4. Upload only the encrypted restic data to a private off-site bucket.
+1. Every day, create and verify a complete PostgreSQL archive.
+2. Every 30 days, refresh a persistent Storage mirror with `rclone sync`, downloading only new
+   or changed objects, then run one complete `rclone check --download` verification.
+3. On a full run, copy the verified mirror locally into the established self-contained backup
+   layout.
+4. Encrypt and deduplicate the verified directory with restic and upload only its encrypted
+   data to the private off-site bucket.
 5. Check the off-site repository structure and record the snapshot ID.
 
 If local verification fails, nothing is uploaded. If the upload fails, the verified local
@@ -104,9 +108,15 @@ Run one complete job manually:
 pwsh -NoProfile -File .\tools\run-backup-automation.ps1
 ```
 
-This reads production data but does not change it. It creates a new local full backup, verifies
-it, uploads encrypted chunks, checks the repository, and records the snapshot in
-`%LOCALAPPDATA%\UnmatchedLabs\backup-automation\last-success.json`.
+This reads production data but does not change it. When no completed full backup exists, the
+first run includes Storage. Otherwise, a full run is due only after 30 days. Completed local
+full-backup manifests participate in that decision so a failed off-site upload cannot cause the
+same Storage bytes to be downloaded again the next day.
+
+Every successful off-site run records its database snapshot in
+`%LOCALAPPDATA%\UnmatchedLabs\backup-automation\last-database-success.json`. A successful full
+run also replaces `last-success.json`, which remains the default used by the full off-site
+restore test.
 
 Then prove the off-site copy can be recovered:
 
@@ -122,13 +132,22 @@ verifier rejects any missing, extra, or altered backup file.
 
 ## Schedule and monitor
 
-Create the daily schedule only after both commands above pass. The intended starting schedule
-is once per day at 2:00 AM local time. Install the ordinary Microsoft PowerShell 7 package
+Create the daily schedule only after both commands above pass. It runs once per day at 2:00 AM
+local time; Storage is included only when its 30-day cadence is due. Install the ordinary
+Microsoft PowerShell 7 package
 first; do not point the task at a PowerShell executable bundled inside an editor or AI tool.
 Then register the native Windows task:
 
 ```powershell
 pwsh -NoProfile -File .\tools\install-windows-backup-task.ps1
+```
+
+The task retains its historical name, **Unmatched Labs Daily Full Backup**, so running the
+installer with `-Replace` updates the old egress-heavy task instead of registering a second
+daily task beside it:
+
+```powershell
+pwsh -NoProfile -File .\tools\install-windows-backup-task.ps1 -Replace
 ```
 
 The task uses the same Windows account that configured the DPAPI-protected credentials. It
@@ -139,63 +158,24 @@ a second copy while one is running. A powered-off computer cannot be woken. The 
 also be online and able to access the local backup drive.
 
 To prove the scheduler itself can read the credentials and reach both destinations, start the
-task once from Task Scheduler or register it with `-RunNow`. Do not disable an earlier scheduler
-until this task completes successfully and updates `last-success.json`.
+task once from Task Scheduler or register it with `-RunNow`. A database-only run updates
+`last-database-success.json`; `last-success.json` changes only after a due full run.
 
 Every run writes a private transcript under
-`%LOCALAPPDATA%\UnmatchedLabs\backup-automation\logs` and replaces `last-success.json` only
-after both local verification and the off-site repository check pass. Check that file at least
-weekly and run `test-offsite-backup.ps1` monthly.
+`%LOCALAPPDATA%\UnmatchedLabs\backup-automation\logs`. Check
+`last-database-success.json` at least weekly and run `test-offsite-backup.ps1` monthly after a
+full snapshot succeeds.
 
-The daily full-backup task still has no automatic retention deletion. Its local backups and
-off-site snapshots remain until the separate 30-daily/12-monthly full-backup policy is built
-and restore-tested.
+The persistent mirror lives at `storage-mirror` beneath the configured local backup directory.
+It is working state, not a standalone recovery point. Each monthly full run takes a local
+self-contained snapshot from it, verifies that snapshot with the existing manifest verifier,
+and uploads the snapshot through restic. The full downloaded-byte check happens only on that
+monthly run; ordinary daily runs never request Storage object bytes.
 
-The daily task remains the only task that downloads Supabase Storage object bytes. The hourly
-runner creates a complete logical PostgreSQL archive, verifies its size, SHA-256, and table-of-
-contents readability, then sends an encrypted, deduplicated snapshot to the same private restic
-repository:
-
-```powershell
-pwsh -NoProfile -File .\tools\run-hourly-database-backup.ps1
-```
-
-After that manual proof passes, register the native hourly task:
-
-```powershell
-pwsh -NoProfile -File .\tools\install-windows-hourly-backup-task.ps1
-```
-
-It runs at 15 minutes past each hour, leaving a buffer after the daily full backup starts at
-2:00 AM. Both runners share `backup.lock`, so an hourly run cannot overlap a daily run even
-though Windows sees them as different tasks. A collision returns a failure and the task retries
-after 15 minutes. Hourly archives live under the local `hourly-database` folder, use the restic
-tag `unmatched-labs-hourly-database`, write private `hourly-database-*.log` transcripts, and
-replace `last-hourly-success.json` only after local verification, off-site verification, and
-hourly retention pass.
-
-Hourly recovery points include tables, authentication records, draft documents, published-set
-rows, and Storage metadata. They deliberately omit the actual artwork and other object bytes;
-those remain protected by the daily full backup.
-
-After each successful hourly upload, the runner previews restic's deletion plan and rejects it
-unless every proposed removal has the production host, both hourly/project tags, and exactly one
-path inside `hourly-database`. It then keeps the newest recovery point in each of the latest 48
-hours, prunes unreferenced encrypted chunks, and checks the repository again. A local hourly
-directory is removable only when it has an atomic `offsite-snapshot.json` success marker and that
-snapshot is no longer among the retained off-site points. Unmarked, incomplete, unexpected, and
-daily full-backup directories are never removed by the hourly policy.
-
-The destructive logic is exercised independently with:
-
-```powershell
-pwsh -NoProfile -File .\tools\test-hourly-backup-retention.ps1
-```
-
-That test uses a uniquely named temporary local restic repository. It proves that two old hourly
-points are removed while newer hourly points, a daily snapshot, and an unmarked incomplete local
-directory remain. The test never connects to Backblaze or Supabase. The separate planned
-30-daily/12-monthly full-backup policy is still not implemented.
+The task still performs no automatic retention deletion. Local backups and off-site snapshots
+remain until a separately reviewed retention policy is restore-tested. The legacy hourly
+database scripts remain available, but the production hourly task is disabled and is not part
+of this cadence.
 
 ## First production result
 

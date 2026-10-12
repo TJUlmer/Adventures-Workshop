@@ -1,5 +1,7 @@
 [CmdletBinding(SupportsShouldProcess)]
 param(
+    # Keep the installed legacy name so -Replace updates the egress-heavy task instead of
+    # accidentally registering a second daily backup beside it.
     [string] $TaskName = 'Unmatched Labs Daily Full Backup',
     [datetime] $DailyAt = '02:00',
     [string] $PowerShellExecutable,
@@ -80,7 +82,7 @@ $definition = New-ScheduledTask `
     -Trigger $trigger `
     -Principal $principal `
     -Settings $settings `
-    -Description 'Creates and verifies a full Supabase backup, then uploads an encrypted deduplicated restic snapshot. No retention or deletion is performed.'
+    -Description 'Creates a daily verified database backup. Every 30 days it also refreshes an incremental Storage mirror and performs a full downloaded-byte verification before uploading the encrypted restic snapshot.'
 
 if ($PSCmdlet.ShouldProcess($TaskName, 'Register daily Windows backup task')) {
     $registrationParameters = @{

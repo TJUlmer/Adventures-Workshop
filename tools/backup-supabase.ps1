@@ -15,6 +15,8 @@ param(
 
     [switch] $IncludeStorage,
 
+    [string] $StorageMirrorDirectory,
+
     [string] $RcloneBin = "$env:LOCALAPPDATA\UnmatchedLabs\rclone\1.75.0\rclone.exe",
 
     [string] $StorageEndpoint = 'https://kyqcvbnxfmpnbwtikzxp.storage.supabase.co/storage/v1/s3',
@@ -43,6 +45,15 @@ $repositoryPrefix = $repositoryRoot.TrimEnd([System.IO.Path]::DirectorySeparator
 if ($resolvedOutput.Equals($repositoryRoot, [System.StringComparison]::OrdinalIgnoreCase) -or
     $resolvedOutput.StartsWith($repositoryPrefix, [System.StringComparison]::OrdinalIgnoreCase)) {
     throw 'Backups can contain private user data and must be written outside the repository.'
+}
+
+$resolvedStorageMirror = $null
+if ($IncludeStorage -and -not [string]::IsNullOrWhiteSpace($StorageMirrorDirectory)) {
+    $resolvedStorageMirror = [System.IO.Path]::GetFullPath($StorageMirrorDirectory)
+    if ($resolvedStorageMirror.Equals($repositoryRoot, [System.StringComparison]::OrdinalIgnoreCase) -or
+        $resolvedStorageMirror.StartsWith($repositoryPrefix, [System.StringComparison]::OrdinalIgnoreCase)) {
+        throw 'The persistent Storage mirror must be outside the repository.'
+    }
 }
 
 $pgDump = Join-Path $PostgresBin 'pg_dump.exe'
@@ -258,22 +269,34 @@ from (
 
         $storagePath = Join-Path $backupPath 'storage'
         $storageBucketsPath = Join-Path $storagePath 'buckets'
+        $mirrorBucketsPath = if ($null -ne $resolvedStorageMirror) {
+            Join-Path $resolvedStorageMirror 'buckets'
+        }
+        else {
+            $storageBucketsPath
+        }
         $storageLogPath = Join-Path $storagePath 'rclone.log'
         $storageManifestPath = Join-Path $storagePath 'manifest.json'
         $storageManifestPartialPath = "$storageManifestPath.partial"
         New-Item -ItemType Directory -Path $storageBucketsPath -Force | Out-Null
+        New-Item -ItemType Directory -Path $mirrorBucketsPath -Force | Out-Null
 
         $bucketResults = @()
+        $activeBucketIds = [System.Collections.Generic.HashSet[string]]::new(
+            [System.StringComparer]::OrdinalIgnoreCase
+        )
         foreach ($bucket in $bucketInventory) {
             $bucketId = [string] $bucket.id
             if ($bucketId -notmatch '^[a-z0-9][a-z0-9._-]{0,62}$') {
                 throw "Storage bucket cannot be represented safely in this backup: $bucketId"
             }
+            $null = $activeBucketIds.Add($bucketId)
 
-            $localBucketPath = Join-Path $storageBucketsPath $bucketId
+            $localBucketPath = Join-Path $mirrorBucketsPath $bucketId
             New-Item -ItemType Directory -Path $localBucketPath -Force | Out-Null
-            Write-Host "Downloading Storage bucket: $bucketId"
-            & $RcloneBin copy "awbackup:$bucketId" $localBucketPath `
+            $transferCommand = if ($null -ne $resolvedStorageMirror) { 'sync' } else { 'copy' }
+            Write-Host "Updating Storage bucket with rclone $transferCommand`: $bucketId"
+            & $RcloneBin $transferCommand "awbackup:$bucketId" $localBucketPath `
                 --create-empty-src-dirs `
                 --metadata `
                 --transfers 4 `
@@ -283,7 +306,7 @@ from (
                 --log-file $storageLogPath `
                 --log-level INFO
             if ($LASTEXITCODE -ne 0) {
-                throw "Storage download failed for bucket: $bucketId"
+                throw "Storage mirror update failed for bucket: $bucketId"
             }
 
             $remoteSizeJson = & $RcloneBin size "awbackup:$bucketId" --json
@@ -310,6 +333,32 @@ from (
                 id = $bucketId
                 object_count = [long] $remoteSize.count
                 total_bytes = [long] $remoteSize.bytes
+            }
+        }
+
+        if ($null -ne $resolvedStorageMirror) {
+            $mirrorPrefix = $mirrorBucketsPath.TrimEnd([System.IO.Path]::DirectorySeparatorChar) +
+                [System.IO.Path]::DirectorySeparatorChar
+            foreach ($directory in @(Get-ChildItem -LiteralPath $mirrorBucketsPath -Directory)) {
+                if ($activeBucketIds.Contains($directory.Name)) {
+                    continue
+                }
+                $resolvedDirectory = [System.IO.Path]::GetFullPath($directory.FullName)
+                if (-not $resolvedDirectory.StartsWith(
+                    $mirrorPrefix,
+                    [System.StringComparison]::OrdinalIgnoreCase
+                )) {
+                    throw "Refusing to remove a stale mirror directory outside the mirror root: $resolvedDirectory"
+                }
+                Remove-Item -LiteralPath $resolvedDirectory -Recurse -Force
+            }
+
+            # The persistent mirror prevents Supabase from serving unchanged objects again.
+            # A local snapshot keeps the established self-contained restore format intact.
+            foreach ($bucket in $bucketInventory) {
+                $bucketId = [string] $bucket.id
+                $sourceBucketPath = Join-Path $mirrorBucketsPath $bucketId
+                Copy-Item -LiteralPath $sourceBucketPath -Destination $storageBucketsPath -Recurse
             }
         }
 

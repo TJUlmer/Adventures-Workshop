@@ -62,6 +62,13 @@ If any stage fails, no manifest may truthfully claim that the directory is a com
 backup. Existing remote objects are read only; the backup command never deletes or changes
 Supabase data.
 
+The unattended runner supplies `-StorageMirrorDirectory`. That changes the first transfer to
+`rclone sync`: unchanged remote objects remain in the persistent local mirror and are not
+downloaded again. The complete `rclone check --download` still runs when a full backup is due,
+currently every 30 days. A local copy of the verified mirror is then placed into the ordinary
+self-contained backup layout below, so restore and integrity tooling do not depend on the
+working mirror.
+
 ## Backup layout
 
 Each run creates a new `supabase-<project>-<UTC timestamp>` directory containing:
@@ -128,8 +135,7 @@ in `BACKUP_AUTOMATION.md`. Keep every verified full backup until that setup has 
 successful off-site restore test. Do not enable the Storage cleanup deletion switch merely
 because a local archive exists. The intended steady state is:
 
-- up to 48 hourly database recovery points;
-- 30 daily full recovery points;
+- daily database recovery points;
 - 12 monthly full recovery points;
 - one local copy and one encrypted off-site copy; and
 - a monthly restore rehearsal.

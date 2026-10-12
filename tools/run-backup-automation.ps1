@@ -59,6 +59,8 @@ $supabaseSecretKey = $null
 $repositoryPassword = $null
 $offsiteAccessKey = $null
 $offsiteSecretKey = $null
+$fullStorageCadenceDays = 30
+$storageMirrorPath = Join-Path $backupOutput 'storage-mirror'
 
 try {
     try {
@@ -75,11 +77,29 @@ try {
 
     Start-Transcript -LiteralPath $logPath | Out-Null
     $transcriptStarted = $true
-    Write-Host "Starting verified full backup at $timestamp"
+    . (Join-Path $PSScriptRoot 'storage-backup-cadence.ps1')
+    $nowUtc = [DateTimeOffset]::UtcNow
+    $latestFullStorageBackupUtc = Get-LatestFullStorageBackupUtc `
+        -StateDirectory $resolvedState `
+        -BackupOutputDirectory $backupOutput
+    $includeStorageThisRun = Test-FullStorageBackupDue `
+        -LatestFullBackupUtc $latestFullStorageBackupUtc `
+        -NowUtc $nowUtc `
+        -CadenceDays $fullStorageCadenceDays
+    $backupKind = if ($includeStorageThisRun) { 'full' } else { 'database_only' }
+    Write-Host "Starting verified $backupKind backup at $timestamp"
+    if ($includeStorageThisRun) {
+        Write-Host 'The monthly Storage mirror refresh and downloaded-byte verification are due.'
+    }
+    elseif ($null -ne $latestFullStorageBackupUtc) {
+        Write-Host "Storage download skipped; latest completed full backup: $($latestFullStorageBackupUtc.ToString('o'))"
+    }
 
     $databasePassword = ConvertTo-SecureString ([string] $config.database_password_dpapi)
-    $supabaseAccessKey = ConvertTo-SecureString ([string] $config.supabase_storage_access_key_dpapi)
-    $supabaseSecretKey = ConvertTo-SecureString ([string] $config.supabase_storage_secret_key_dpapi)
+    if ($includeStorageThisRun) {
+        $supabaseAccessKey = ConvertTo-SecureString ([string] $config.supabase_storage_access_key_dpapi)
+        $supabaseSecretKey = ConvertTo-SecureString ([string] $config.supabase_storage_secret_key_dpapi)
+    }
 
     $existingDirectories = [System.Collections.Generic.HashSet[string]]::new(
         [System.StringComparer]::OrdinalIgnoreCase
@@ -88,12 +108,17 @@ try {
         $null = $existingDirectories.Add($directory.FullName)
     }
 
-    & (Join-Path $PSScriptRoot 'backup-supabase.ps1') `
-        -OutputDirectory $backupOutput `
-        -IncludeStorage `
-        -DatabasePassword $databasePassword `
-        -StorageAccessKey $supabaseAccessKey `
-        -StorageSecretKey $supabaseSecretKey
+    $backupArguments = @{
+        OutputDirectory = $backupOutput
+        DatabasePassword = $databasePassword
+    }
+    if ($includeStorageThisRun) {
+        $backupArguments['IncludeStorage'] = $true
+        $backupArguments['StorageMirrorDirectory'] = $storageMirrorPath
+        $backupArguments['StorageAccessKey'] = $supabaseAccessKey
+        $backupArguments['StorageSecretKey'] = $supabaseSecretKey
+    }
+    & (Join-Path $PSScriptRoot 'backup-supabase.ps1') @backupArguments
 
     $newDirectories = @(
         Get-ChildItem -LiteralPath $backupOutput -Directory -Filter 'supabase-kyqcvbnxfmpnbwtikzxp-*' |
@@ -103,9 +128,11 @@ try {
         throw "Expected exactly one new backup directory, found $($newDirectories.Count)."
     }
     $backupPath = $newDirectories[0].FullName
-    $null = & (Join-Path $PSScriptRoot 'verify-supabase-backup.ps1') `
-        -BackupDirectory $backupPath `
-        -RequireStorage
+    $verificationArguments = @{ BackupDirectory = $backupPath }
+    if ($includeStorageThisRun) {
+        $verificationArguments['RequireStorage'] = $true
+    }
+    $null = & (Join-Path $PSScriptRoot 'verify-supabase-backup.ps1') @verificationArguments
 
     $repositoryPassword = ConvertTo-SecureString ([string] $config.repository_password_dpapi)
     $offsiteAccessKey = ConvertTo-SecureString ([string] $config.offsite_access_key_dpapi)
@@ -119,9 +146,15 @@ try {
     $env:AWS_SECRET_ACCESS_KEY = [Runtime.InteropServices.Marshal]::PtrToStringBSTR($secretPointers[2])
 
     Write-Host 'Uploading encrypted, deduplicated backup to the private off-site repository...'
+    $resticKindTag = if ($includeStorageThisRun) {
+        'unmatched-labs-full'
+    }
+    else {
+        'unmatched-labs-database'
+    }
     $resticOutput = & $restic backup $backupPath `
         --host 'unmatched-labs-production' `
-        --tag 'unmatched-labs-full' `
+        --tag $resticKindTag `
         --tag 'project-kyqcvbnxfmpnbwtikzxp' `
         --json 2>&1
     $resticExitCode = $LASTEXITCODE
@@ -158,22 +191,34 @@ try {
     $runRecord = [ordered]@{
         format_version = 1
         completed_at_utc = [DateTime]::UtcNow.ToString('o')
+        backup_kind = $backupKind
         backup_directory = $backupPath
         database_archive_sha256 = [string] $manifest.archive_sha256
-        storage_object_count = [long] $manifest.storage_object_count
-        storage_total_bytes = [long] $manifest.storage_total_bytes
+        storage_object_count = if ($includeStorageThisRun) { [long] $manifest.storage_object_count } else { 0L }
+        storage_total_bytes = if ($includeStorageThisRun) { [long] $manifest.storage_total_bytes } else { 0L }
         offsite_snapshot_id = [string] $summary.snapshot_id
         offsite_repository_check_passed = $true
         retention_applied = $false
     }
-    $runRecordPath = Join-Path $resolvedState "last-success.json"
+    $runRecordPath = Join-Path $resolvedState 'last-database-success.json'
     $partialRunRecordPath = "$runRecordPath.partial"
     $runRecord | ConvertTo-Json -Depth 4 |
         Set-Content -LiteralPath $partialRunRecordPath -Encoding utf8
     Move-Item -LiteralPath $partialRunRecordPath -Destination $runRecordPath -Force
 
+    if ($includeStorageThisRun) {
+        $fullRunRecordPath = Join-Path $resolvedState 'last-success.json'
+        $partialFullRunRecordPath = "$fullRunRecordPath.partial"
+        $runRecord | ConvertTo-Json -Depth 4 |
+            Set-Content -LiteralPath $partialFullRunRecordPath -Encoding utf8
+        Move-Item -LiteralPath $partialFullRunRecordPath -Destination $fullRunRecordPath -Force
+    }
+
     Write-Host "Backup automation passed: $backupPath"
     Write-Host "Encrypted off-site snapshot: $($summary.snapshot_id)"
+    if (-not $includeStorageThisRun) {
+        Write-Host 'Supabase Storage object bytes were not downloaded.'
+    }
     Write-Host 'No local or off-site recovery point was deleted.'
 }
 finally {
