@@ -12,7 +12,7 @@
    * This is a little more ceremony than desktop click-and-drag, but it is what
    * keeps a scroll, pinch or interrupted pointer from becoming document data.
    */
-  import { tick } from 'svelte';
+  import { tick, untrack } from 'svelte';
   import { analyseMap } from '$lib/analysis/map';
   import MapBoard from '$lib/renderer/MapBoard.svelte';
   import { solid } from '$lib/cards/style';
@@ -1230,13 +1230,20 @@
     }
   }
 
-  /** Keep inspector selections valid when undo removes the thing they name. */
-  function undoMap(): void {
+  $effect(() => workshop.onBeforeHistoryChange(() => {
     interactionRevision += 1;
     invalidateAsyncMapOperations();
     cancelPointerSession('manual');
     stopViewGesture();
-    if (!workshop.undoMap()) return;
+  }));
+
+  $effect(() => {
+    workshop.historyRevision;
+    untrack(refreshAfterHistory);
+  });
+
+  /** Keep inspector selections valid when undo or redo removes their subject. */
+  function refreshAfterHistory(): void {
     moveTarget = null;
     placementArmed = null;
 
@@ -1265,24 +1272,7 @@
   function onKeyDown(event: KeyboardEvent): void {
     if (event.key === 'Escape' && reorderingEnvironment) {
       finishEnvironmentReorder();
-      return;
     }
-    if (artworkView) return;
-    if (!(event.ctrlKey || event.metaKey) || event.shiftKey || event.key.toLowerCase() !== 'z') {
-      return;
-    }
-    const target = event.target;
-    if (
-      target instanceof HTMLInputElement ||
-      target instanceof HTMLTextAreaElement ||
-      target instanceof HTMLSelectElement ||
-      (target instanceof HTMLElement && target.isContentEditable)
-    ) {
-      return;
-    }
-    if (!workshop.canUndoMap) return;
-    event.preventDefault();
-    undoMap();
   }
 
   $effect(() => () => {
@@ -1814,15 +1804,6 @@
       the same component the overview and any future print will draw.
     -->
     <div class="head-actions">
-      <Button
-        size="sm"
-        disabled={artworkView || !workshop.canUndoMap}
-        title="Undo last map change (Ctrl+Z)"
-        onclick={undoMap}
-      >
-        <Icon name="undo" size={13} />
-        Undo
-      </Button>
       <Button size="sm" disabled={!map.enabled || exporting} onclick={exportMap}>
         <Icon name="download" size={13} />
         {exporting ? 'Rendering…' : 'Export PNG'}

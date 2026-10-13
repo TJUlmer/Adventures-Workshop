@@ -334,6 +334,13 @@
     };
   }
 
+  $effect(() => workshop.onBeforeHistoryChange(() => {
+    notePointerSession?.cancel('manual');
+    notePointerSession = null;
+    draggingNoteId = null;
+    armedNoteId = null;
+  }));
+
   function startNoteDrag(event: PointerEvent, note: ThreatNote): void {
     if (armedNoteId !== note.id || selectedNoteId !== note.id) return;
 

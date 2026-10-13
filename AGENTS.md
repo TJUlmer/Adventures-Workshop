@@ -78,6 +78,9 @@ TypeScript is pinned to `~6` because `svelte-check` does not run on 7 yet.
   store, never as a prop. Shared child editors address subjects by typed reference
   (`{ entity: 'card', id }`) and mutate through store commands. Library commands are
   `async` (IndexedDB has no sync API).
+- **Undo/Redo is session-only** (`state/edit-history.ts`), shared across the open
+  document and recorded by the deep autosave observer. Do not add separate editor
+  histories or persist checkpoints. Document loads and accepted contributions reset it.
 - **Any new persisted field needs a branch in `sets/normalize.ts`**, or existing
   documents load without it. `SET_SCHEMA_VERSION` is 65; newer files are refused.
   `normalizeSet` must be idempotent.

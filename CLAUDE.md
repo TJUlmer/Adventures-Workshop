@@ -82,6 +82,23 @@ Recently Deleted would silently restore it. No sweep ever purges an old
 deletion automatically; Recently Deleted holds everything until an author
 acts on it.
 
+**Undo and Redo belong to the open editing session.** `state/edit-history.ts`
+keeps fifty document checkpoints, sharing unchanged branches so embedded artwork
+is not retained fifty times. The deep autosave observer records edits because
+some editors still bind fields directly; a command-only history would miss them.
+Recording is untracked so changing the history buttons does not restart autosave.
+Typing and sliders coalesce while the same field stays active, and a pointer
+gesture becomes one checkpoint after all handlers have committed or rolled back.
+Dirty timestamps alone create no checkpoint. Undo/Redo restores mutable copies,
+entity selection and the selected map, then follows ordinary autosave. Opening
+or replacing a document, including an accepted contribution, resets history;
+it never enters the saved schema or reverses cloud publication or library actions.
+The title bar owns the shared arrow buttons and Ctrl/Command shortcuts. Text
+fields keep native keyboard undo so their caret and browser typing groups survive;
+the buttons still undo those document edits. Maps use this same history, and
+canvas pointer sessions must be cancelled before a restored document replaces
+what they were editing.
+
 Downscaling large images stays worth doing independently of which store backs
 the library — see `core/image-import.ts`. `readArtworkFile` is what every
 "choose an image" control in the app reads a file through: it decodes, and if

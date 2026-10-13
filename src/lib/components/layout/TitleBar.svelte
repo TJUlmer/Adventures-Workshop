@@ -32,6 +32,48 @@
     } else flash('Saved locally.');
   }
 
+  function undo(): void {
+    if (workshop.undo()) flash('Undid the last edit.');
+  }
+
+  function redo(): void {
+    if (workshop.redo()) flash('Redid the last edit.');
+  }
+
+  function onHistoryKey(event: KeyboardEvent): void {
+    if (event.defaultPrevented || event.isComposing || event.altKey || !(event.ctrlKey || event.metaKey)) return;
+    const key = event.key.toLowerCase();
+    if (key !== 'z' && key !== 'y') return;
+    const target = event.target;
+    // Native text undo preserves the caret and the browser's own typing groups.
+    if (target instanceof HTMLTextAreaElement || target instanceof HTMLSelectElement ||
+        target instanceof HTMLElement && target.isContentEditable ||
+        target instanceof HTMLInputElement && !['number', 'range', 'checkbox', 'radio', 'button'].includes(target.type)) return;
+    event.preventDefault();
+    if (key === 'y' || event.shiftKey) redo();
+    else undo();
+  }
+
+  const historyPointers = new Set<number>();
+
+  function beginPointerHistory(event: PointerEvent): void {
+    historyPointers.add(event.pointerId);
+    workshop.beginHistoryGesture();
+  }
+
+  function finishPointerHistory(event: PointerEvent): void {
+    historyPointers.delete(event.pointerId);
+    // Let every drag handler commit or roll back before taking the checkpoint.
+    queueMicrotask(() => {
+      if (historyPointers.size === 0) workshop.endHistoryGesture();
+    });
+  }
+
+  function finishInterruptedHistory(): void {
+    historyPointers.clear();
+    queueMicrotask(() => workshop.endHistoryGesture());
+  }
+
   let exportOpen = $state(false);
   let exportHost = $state<HTMLDivElement | null>(null);
 
@@ -66,6 +108,14 @@
 
 </script>
 
+<svelte:window
+  onkeydown={onHistoryKey}
+  onpointerdowncapture={beginPointerHistory}
+  onpointerup={finishPointerHistory}
+  onpointercancel={finishPointerHistory}
+  onblur={finishInterruptedHistory}
+/>
+
 <div class="bar">
   <button class="doc" type="button" onclick={() => workshop.selectSet()} title="Set details">
     <Icon name="book" size={14} />
@@ -77,21 +127,33 @@
       <span class="message" role="status" aria-live="polite">{message}</span>
     {/if}
 
-    <Button size="sm" variant="ghost" title="Save now" onclick={saveNow}>
+    <div class="history-actions" role="group" aria-label="Edit history">
+      <Button size="sm" iconOnly variant="ghost" aria-label="Undo" title="Undo (Ctrl/⌘+Z)"
+        aria-keyshortcuts="Control+Z Meta+Z" disabled={!workshop.canUndo} onclick={undo}>
+        <Icon name="undo" size={17} />
+      </Button>
+      <Button size="sm" iconOnly variant="ghost" aria-label="Redo" title="Redo (Ctrl/⌘+Shift+Z or Ctrl+Y)"
+        aria-keyshortcuts="Control+Shift+Z Meta+Shift+Z Control+Y" disabled={!workshop.canRedo} onclick={redo}>
+        <Icon name="redo" size={17} />
+      </Button>
+    </div>
+
+    <Button size="sm" variant="ghost" title="Save now" aria-label="Save" onclick={saveNow}>
       <Icon name="save" size={14} />
-      Save
+      <span class="action-label">Save</span>
     </Button>
 
     <div class="export" bind:this={exportHost}>
       <Button
         size="sm"
         variant="secondary"
+        aria-label="Export"
         aria-haspopup="menu"
         aria-expanded={exportOpen}
         onclick={() => (exportOpen = !exportOpen)}
       >
         <Icon name="download" size={14} />
-        Export
+        <span class="action-label">Export</span>
       </Button>
 
       {#if exportOpen}
@@ -165,6 +227,16 @@
     justify-content: flex-end;
     flex: none;
     gap: var(--space-2);
+  }
+
+  .history-actions {
+    display: flex;
+    gap: var(--space-1);
+  }
+
+  .history-actions :global(.btn) {
+    width: 32px;
+    height: 32px;
   }
 
   .export {
@@ -250,6 +322,17 @@
       overflow: hidden;
       clip-path: inset(50%);
       white-space: nowrap;
+    }
+  }
+
+  @media (max-width: 480px) {
+    .action-label { display: none; }
+  }
+
+  @media (max-width: 760px), (any-pointer: coarse) {
+    .actions :global(.btn) {
+      min-width: var(--touch-target);
+      min-height: var(--touch-target);
     }
   }
 

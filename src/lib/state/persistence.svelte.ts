@@ -2,6 +2,8 @@
  * Wires the store to the set library. Call `useAutosave()` once, from the root
  * component's setup — it registers an effect and cleans up with it.
  */
+import { untrack } from 'svelte';
+import { focusedEditGroup } from './edit-history';
 import { serializeSet } from '$lib/export/json';
 import { auth } from '$lib/cloud/auth.svelte';
 import { persistenceCoordinator } from '$lib/persistence/coordinator.svelte';
@@ -82,6 +84,12 @@ export function useAutosave(store: WorkshopStore, delayMs = 500): void {
   persistenceCoordinator.start();
 
   $effect(() => {
+    store.selection;
+    store.mapEditingId;
+    untrack(() => store.updateHistoryContext());
+  });
+
+  $effect(() => {
     // The preference is account-scoped. A provider redirect or another tab
     // changing the session must never inherit the previous account's choice.
     auth.user?.id;
@@ -112,7 +120,9 @@ export function useAutosave(store: WorkshopStore, delayMs = 500): void {
     const set = store.adventure;
     store.syncSingleHeroName();
     const json = serializeSet(set);
-    const snapshot = structuredClone($state.snapshot(set));
+    const editableSnapshot = $state.snapshot(set);
+    untrack(() => store.recordHistory(editableSnapshot, focusedEditGroup()));
+    const snapshot = structuredClone(editableSnapshot);
     latest = { set: snapshot, json };
 
     // Nothing to save while Home is on screen.

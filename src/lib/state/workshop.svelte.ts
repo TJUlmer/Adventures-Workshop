@@ -129,6 +129,12 @@ import {
 import type { AdventureSet, SetId, SetKind } from '$lib/sets/types';
 import type { Selection } from './selection';
 import { SET_SELECTION } from './selection';
+import { copyEditSnapshot, EditHistory } from './edit-history';
+
+interface EditContext {
+  selection: Selection;
+  mapId: AdventureMapId | null;
+}
 
 /**
  * An adventure has at most one villain.
@@ -192,13 +198,17 @@ export class WorkshopStore {
   /** The open document. The single source of truth for everything on screen. */
   adventure = $state<AdventureSet>(createEmptySet());
 
-  /** Map history is session-only; the document remains the sole persisted state. */
-  #mapUndo: AdventureMap[][] = [];
-  #mapHistorySetId: SetId | null = null;
-  #mapEditStart: AdventureMap[] | null = null;
+  /** History stays on this device for this editing session, outside the saved document. */
+  #history = new EditHistory<AdventureSet, EditContext>();
+  #historyGesture = false;
+  #beforeHistoryChange = new Set<() => void>();
+  #mapEditActive = false;
+  undoCount = $state(0);
+  redoCount = $state(0);
+  canUndo = $derived(this.undoCount > 0);
+  canRedo = $derived(this.redoCount > 0);
+  historyRevision = $state(0);
   mapEditingId = $state<AdventureMapId | null>(null);
-  mapUndoCount = $state(0);
-  canUndoMap = $derived(this.mapUndoCount > 0);
 
   selection = $state<Selection>(SET_SELECTION);
 
@@ -751,8 +761,96 @@ export class WorkshopStore {
   load(set: AdventureSet): void {
     this.adventure = set;
     this.selection = SET_SELECTION;
-    this.#resetMapHistory(set.id);
+    this.mapEditingId = set.maps[0]?.id ?? null;
+    this.syncSingleHeroName();
+    this.#resetHistory();
     persistenceCoordinator.activate(set.id);
+  }
+
+  #editContext(): EditContext {
+    return { selection: { ...this.selection }, mapId: this.mapEditingId };
+  }
+
+  #resetHistory(): void {
+    this.#historyGesture = false;
+    this.#mapEditActive = false;
+    this.#history.reset($state.snapshot(this.adventure), this.#editContext());
+    this.#syncHistoryCounts();
+    this.historyRevision += 1;
+  }
+
+  #syncHistoryCounts(): void {
+    this.undoCount = this.#history.undoCount;
+    this.redoCount = this.#history.redoCount;
+  }
+
+  /** The autosave observer also sees direct bindings, not only store commands. */
+  recordHistory(snapshot: AdventureSet, group: object | null = null): void {
+    if (this.#historyGesture) return;
+    this.#history.record(snapshot, this.#editContext(), group);
+    this.#syncHistoryCounts();
+  }
+
+  updateHistoryContext(): void {
+    this.#history.updateContext($state.snapshot(this.adventure), this.#editContext());
+  }
+
+  /** Capture a drag once, rather than one step for every pointer movement. */
+  beginHistoryGesture(): void {
+    if (this.#historyGesture) return;
+    this.recordHistory($state.snapshot(this.adventure));
+    this.#history.breakGroup();
+    this.#historyGesture = true;
+  }
+
+  endHistoryGesture(): void {
+    if (!this.#historyGesture) return;
+    this.#historyGesture = false;
+    this.recordHistory($state.snapshot(this.adventure));
+    this.#history.breakGroup();
+  }
+
+  onBeforeHistoryChange(callback: () => void): () => void {
+    this.#beforeHistoryChange.add(callback);
+    return () => { this.#beforeHistoryChange.delete(callback); };
+  }
+
+  undo(): boolean {
+    for (const callback of this.#beforeHistoryChange) callback();
+    this.endHistoryGesture();
+    this.syncSingleHeroName();
+    this.recordHistory($state.snapshot(this.adventure));
+    const previous = this.#history.undo();
+    if (!previous) return false;
+    this.#restoreEdit(previous.value, previous.context);
+    return true;
+  }
+
+  redo(): boolean {
+    for (const callback of this.#beforeHistoryChange) callback();
+    this.endHistoryGesture();
+    this.syncSingleHeroName();
+    this.recordHistory($state.snapshot(this.adventure));
+    const next = this.#history.redo();
+    if (!next) return false;
+    this.#restoreEdit(next.value, next.context);
+    return true;
+  }
+
+  #restoreEdit(set: AdventureSet, context: EditContext): void {
+    this.#mapEditActive = false;
+    this.adventure = copyEditSnapshot(set);
+    this.selection = context.selection;
+    if (this.selection.target === 'card' && !findCard(this.adventure, this.selection.id) ||
+        this.selection.target === 'character' && !findCharacter(this.adventure, this.selection.id)) {
+      this.selection = SET_SELECTION;
+    }
+    this.mapEditingId = this.adventure.maps.some((map) => map.id === context.mapId)
+      ? context.mapId : this.adventure.maps[0]?.id ?? null;
+    this.touch();
+    this.#syncHistoryCounts();
+    // Canvas selections and in-flight map imports must follow the restored document.
+    this.historyRevision += 1;
   }
 
   markSaved(at: IsoDateTime = now()): void {
@@ -875,11 +973,10 @@ export class WorkshopStore {
   applyContribution(entries: readonly ChangeEntry[]): void {
     const merged = applyEntries($state.snapshot(this.adventure), entries);
     this.adventure = normalizeSet({ ...merged, id: this.adventure.id });
-    /* An accepted contribution may replace the map wholesale. Older local
-       checkpoints no longer describe this document and must not be allowed
-       to undo across that external change. */
-    this.#resetMapHistory(this.adventure.id);
+    /* An accepted contribution is an external change. Local history must not
+       silently undo the document half of an already accepted proposal. */
     this.touch();
+    this.#resetHistory();
   }
 
   // -- Threat track -----------------------------------------------------
@@ -898,31 +995,22 @@ export class WorkshopStore {
    * dirty flag would not move, and the status bar would quietly lie.
    */
   editMap(mutate: (map: AdventureMap) => void): void {
-    this.#ensureMapHistory();
-    /* A second control cannot normally fire while a pointer owns the board,
-       but committing here makes an interrupted drag a valid history step
-       instead of leaving its starting snapshot attached to the next edit. */
-    if (this.#mapEditStart) this.#commitMapSnapshot(this.#mapEditStart);
-    this.#mapEditStart = null;
-    const before = this.#snapshotMaps();
+    // Preserve an interrupted drag as its own action before another control edits.
+    if (this.#mapEditActive) this.commitMapEdit();
     const map =
       this.adventure.maps.find((entry) => entry.id === this.mapEditingId) ??
       this.adventure.maps[0];
     if (!map) return;
     this.mapEditingId = map.id;
     mutate(map);
-    this.#commitMapSnapshot(before);
     this.touch();
   }
 
   /** Add a blank, enabled board and make the whole operation undoable. */
   addMap(): AdventureMapId {
-    this.#ensureMapHistory();
-    const before = this.#snapshotMaps();
     const map = createAdventureMap(true, `Map ${this.adventure.maps.length + 1}`);
     this.adventure.maps.push(map);
     this.mapEditingId = map.id;
-    this.#commitMapSnapshot(before);
     this.touch();
     return map.id;
   }
@@ -932,13 +1020,10 @@ export class WorkshopStore {
     if (this.adventure.maps.length <= 1) return false;
     const index = this.adventure.maps.findIndex((map) => map.id === mapId);
     if (index < 0) return false;
-    this.#ensureMapHistory();
-    const before = this.#snapshotMaps();
     this.adventure.maps.splice(index, 1);
     if (this.mapEditingId === mapId) {
       this.mapEditingId = this.adventure.maps[Math.min(index, this.adventure.maps.length - 1)]?.id ?? null;
     }
-    this.#commitMapSnapshot(before);
     this.touch();
     return true;
   }
@@ -950,61 +1035,22 @@ export class WorkshopStore {
 
   /** Begin one pointer gesture whose live movement mutates the map directly. */
   beginMapEdit(): void {
-    this.#ensureMapHistory();
-    if (!this.#mapEditStart) this.#mapEditStart = this.#snapshotMaps();
+    this.beginHistoryGesture();
+    this.#mapEditActive = true;
   }
 
   /** Finish a pointer gesture as one undoable edit. */
   commitMapEdit(): void {
-    if (!this.#mapEditStart) return;
-    this.#commitMapSnapshot(this.#mapEditStart);
-    this.#mapEditStart = null;
+    if (!this.#mapEditActive) return;
+    this.#mapEditActive = false;
     this.touch();
+    this.endHistoryGesture();
   }
 
-  /** Drop a pointer checkpoint when the pointer never actually moved. */
+  /** The pointer session has already restored its starting geometry. */
   cancelMapEdit(): void {
-    this.#mapEditStart = null;
-  }
-
-  /** Restore the map immediately before its most recent authoring action. */
-  undoMap(): boolean {
-    this.#ensureMapHistory();
-    this.#mapEditStart = null;
-    const previous = this.#mapUndo.pop();
-    if (!previous) return false;
-    this.adventure.maps = previous;
-    if (!this.adventure.maps.some((map) => map.id === this.mapEditingId)) {
-      this.mapEditingId = this.adventure.maps[0]?.id ?? null;
-    }
-    this.mapUndoCount = this.#mapUndo.length;
-    this.touch();
-    return true;
-  }
-
-  #snapshotMaps(): AdventureMap[] {
-    return structuredClone($state.snapshot(this.adventure.maps));
-  }
-
-  #ensureMapHistory(): void {
-    if (this.#mapHistorySetId !== this.adventure.id) this.#resetMapHistory(this.adventure.id);
-  }
-
-  #resetMapHistory(id: SetId): void {
-    this.#mapUndo = [];
-    this.#mapHistorySetId = id;
-    this.#mapEditStart = null;
-    this.mapEditingId = this.adventure.maps[0]?.id ?? null;
-    this.mapUndoCount = 0;
-  }
-
-  #commitMapSnapshot(snapshot: AdventureMap[]): void {
-    this.#mapUndo.push(snapshot);
-    /* Embedded board artwork can be large. Thirty deliberate actions is a
-       useful working history without letting a long map session retain an
-       unbounded number of multi-megabyte snapshots. */
-    if (this.#mapUndo.length > 30) this.#mapUndo.shift();
-    this.mapUndoCount = this.#mapUndo.length;
+    this.#mapEditActive = false;
+    this.endHistoryGesture();
   }
 
   /**

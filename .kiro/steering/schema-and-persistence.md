@@ -62,6 +62,10 @@ Consequences worth knowing before touching this code:
   in Recently Deleted. `saveSet` rebuilds its index row on every write (including
   autosave) and must carry `deletedAt` forward explicitly, or an autosave on a
   trashed set would silently restore it.
+- **Undo/Redo checkpoints are session-only**, held by `state/edit-history.ts`
+  outside the saved document. The deep autosave observer catches both commands
+  and direct bindings. Restored edits use normal autosave; opening/replacing a
+  document or accepting a contribution clears history. No schema field is needed.
 - Large images never reach the document at full size — `core/image-import.ts`
   downscales anything above `ARTWORK_MAX_DIMENSION` and re-encodes as WebP before
   it is embedded. This is orthogonal to the IndexedDB move and stays worth doing
