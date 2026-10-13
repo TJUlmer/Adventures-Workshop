@@ -1080,7 +1080,11 @@ a stack of rectangles and masked artwork; a map is a graph. Paths stop at the
 the disc, because a pale wedge would show the line through as a chord — and a
 space split three ways is three arcs meeting at a point. Both are one line of
 geometry in SVG and a pile of clip-paths in DOM. The artwork stays outside the
-SVG as an ordinary element so `CardArt` can go on owning crop and grade.
+SVG as an ordinary element so `CardArt` can go on owning crop and grade. The
+Board artwork panel edits the existing `Artwork.transform` scale and offsets
+through `editMap`; it uses the shared artwork limits and precision sliders.
+These are document changes (with Undo/Redo and autosave), so the same `CardArt`
+placement appears in previews and exports. Viewport pan/zoom remains editor-only.
 
 Paths are quadratic beziers even when `MapPath.curve` is zero, so straight and
 bowed routes share one trim/render path. `curve` is the bow as a fraction of

@@ -7,10 +7,9 @@
    * screen-sized hit targets, selection rings and move handles must never be
    * able to alter the photographed map geometry.
    *
-   * Touch editing is intentionally stateful. Navigate owns one-finger pan and
-   * pinch; authoring modes only mutate after an explicit Add or Move action.
-   * This is a little more ceremony than desktop click-and-drag, but it is what
-   * keeps a scroll, pinch or interrupted pointer from becoming document data.
+   * Spaces and Text place on an empty-board tap and drag existing items directly.
+   * Placement waits for a completed tap, so a pan or pinch creates nothing;
+   * interrupted item drags restore their starting geometry.
    */
   import { tick, untrack } from 'svelte';
   import { analyseMap } from '$lib/analysis/map';
@@ -20,6 +19,7 @@
   import { readArtworkFile } from '$lib/core/image-import';
   import ImageLinkButton from '$lib/components/workspace/ImageLinkButton.svelte';
   import { photographMapBoard, saveExport, slugify } from '$lib/export';
+  import { ARTWORK_TRANSFORM_LIMITS } from '$lib/interaction/artwork-transform';
   import { startPointerSession } from '$lib/interaction/pointer-session';
   import type { PointerSession, PointerSessionCancelReason } from '$lib/interaction/pointer-session';
   import {
@@ -122,7 +122,6 @@
   let mode = $state<Mode>('navigate');
   let interactionRevision = 0;
   let selectMultiple = $state(false);
-  let placementArmed = $state<'space' | 'text' | null>(null);
   let moveTarget = $state<MoveTarget | null>(null);
   let movingTarget = $state<MoveTarget | null>(null);
   let pointerSession: PointerSession | null = null;
@@ -193,7 +192,6 @@
     linkFrom = null;
     selectedNote = null;
     selectedEnvironment = null;
-    placementArmed = null;
     moveTarget = null;
     selectMultiple = false;
     artworkView = false;
@@ -443,10 +441,10 @@
     {
       value: 'spaces',
       label: 'Spaces',
-      hint: 'Select spaces here. Add Space and Move are deliberate one-action tools.'
+      hint: 'Click or tap empty board to add a space. Drag a space to move it.'
     },
     { value: 'link', label: 'Link', hint: 'Choose two endpoints. The same pair unlinks.' },
-    { value: 'text', label: 'Text', hint: 'Select text here. Add Text and Move are deliberate.' },
+    { value: 'text', label: 'Text', hint: 'Click or tap empty board to add text. Drag text to move it.' },
     {
       value: 'environment',
       label: 'Environment',
@@ -502,7 +500,7 @@
     selectedEnvironment = null;
     selectedNote = null;
     if (!additive) {
-      if (moveTarget?.kind !== 'space' || moveTarget.id !== id) moveTarget = null;
+      moveTarget = null;
       selected = id;
       colorSelection = new Set([id]);
       return;
@@ -525,7 +523,6 @@
     interactionRevision += 1;
     selected = null;
     colorSelection = new Set();
-    if (moveTarget?.kind === 'space') moveTarget = null;
   }
 
   function selectNote(id: MapNoteId | null): void {
@@ -533,7 +530,7 @@
     selectedNote = id;
     selectedEnvironment = null;
     clearSelection();
-    if (!id || moveTarget?.kind !== 'note' || moveTarget.id !== id) moveTarget = null;
+    moveTarget = null;
   }
 
   /**
@@ -800,7 +797,6 @@
     finishEnvironmentReorder();
     mode = next;
     artworkView = false;
-    placementArmed = null;
     moveTarget = null;
     linkFrom = null;
     replacingEnvironment = null;
@@ -815,7 +811,6 @@
     const next = !artworkView;
     if (next) invalidateAsyncMapOperations();
     artworkView = next;
-    placementArmed = null;
     moveTarget = null;
     linkFrom = null;
     replacingEnvironment = null;
@@ -831,7 +826,6 @@
     cancelPointerSession('mode-change');
     finishEnvironmentReorder();
     artworkView = false;
-    placementArmed = null;
     linkFrom = null;
     const same = moveTarget?.kind === target.kind && moveTarget.id === target.id;
     moveTarget = same ? null : target;
@@ -871,6 +865,7 @@
     const space = findSpace(map, id);
     if (!point || !space) return;
     cancelPointerSession('superseded');
+    selectSpace(id, false);
     movingTarget = { kind: 'space', id };
     const session = startPointerSession(event, {
       snapshot: {
@@ -923,6 +918,7 @@
     const note = map.notes.find((entry) => entry.id === id);
     if (!point || !note) return;
     cancelPointerSession('superseded');
+    selectNote(id);
     movingTarget = { kind: 'note', id };
     const session = startPointerSession(event, {
       snapshot: {
@@ -1062,21 +1058,19 @@
     if (mode === 'spaces') {
       if (!map.showSpacesAndPaths) return;
       if (hit) {
-        if (moveTarget?.kind === 'space' && moveTarget.id === hit) {
-          beginSpaceMove(event, hit);
+        if (selectMultiple || event.shiftKey) {
+          startTapOrPan(event, () => selectSpace(hit, true));
         } else {
-          startTapOrPan(event, () => selectSpace(hit, selectMultiple || event.shiftKey));
+          beginSpaceMove(event, hit);
         }
         return;
       }
       startTapOrPan(event, (upEvent) => {
-        if (placementArmed !== 'space') return;
         const point = toModel(upEvent);
         if (!point) return;
         const at = clampModelPoint(point);
         const space = createMapSpace(at.x, at.y);
         workshop.editMap((m) => m.spaces.push(space));
-        placementArmed = null;
         selectSpace(space.id, false);
       });
       return;
@@ -1093,15 +1087,10 @@
         attributeId<MapNoteId>(event, 'data-map-note-target') ??
         attributeId<MapNoteId>(event, 'data-map-note');
       if (noteId) {
-        if (moveTarget?.kind === 'note' && moveTarget.id === noteId) {
-          beginNoteMove(event, noteId);
-        } else {
-          startTapOrPan(event, () => selectNote(noteId));
-        }
+        beginNoteMove(event, noteId);
         return;
       }
       startTapOrPan(event, (upEvent) => {
-        if (placementArmed !== 'text') return;
         const point = toModel(upEvent);
         if (!point) return;
         const at = clampModelPoint(point);
@@ -1109,7 +1098,6 @@
         note.x = at.x;
         note.y = at.y;
         workshop.editMap((m) => m.notes.push(note));
-        placementArmed = null;
         selectNote(note.id);
       });
       return;
@@ -1245,7 +1233,6 @@
   /** Keep inspector selections valid when undo or redo removes their subject. */
   function refreshAfterHistory(): void {
     moveTarget = null;
-    placementArmed = null;
 
     const spaceIds = new Set(map.spaces.map((space) => space.id));
     if (selected && !spaceIds.has(selected)) selected = null;
@@ -1302,7 +1289,6 @@
     colorSelection = remaining;
     const [next] = remaining;
     selected = next ?? null;
-    if (moveTarget?.kind === 'space' && moveTarget.id === id) moveTarget = null;
     if (linkFrom === id) linkFrom = null;
   }
 
@@ -1767,7 +1753,6 @@
     cancelPointerSession('manual');
     workshop.editMap((m) => (m.notes = m.notes.filter((n) => n.id !== note.id)));
     if (selectedNote === note.id) selectedNote = null;
-    if (moveTarget?.kind === 'note' && moveTarget.id === note.id) moveTarget = null;
   }
 
   function setZoneCount(count: number): void {
@@ -1901,22 +1886,8 @@
               {entry.label}
             </button>
           {/each}
-          <span class="mode-hint">{MODES.find((entry) => entry.value === mode)?.hint}</span>
 
           {#if mode === 'spaces'}
-            <button
-              type="button"
-              class="mode action-mode"
-              class:active={placementArmed === 'space'}
-              aria-pressed={placementArmed === 'space'}
-              onclick={() => {
-                moveTarget = null;
-                placementArmed = placementArmed === 'space' ? null : 'space';
-              }}
-            >
-              <Icon name="plus" size={13} />
-              {placementArmed === 'space' ? 'Cancel add' : 'Add space'}
-            </button>
             <button
               type="button"
               class="mode"
@@ -1929,33 +1900,13 @@
             >
               Select multiple
             </button>
-            <span class="selection-count" role="status">
-              {colorSelection.size} selected
-            </span>
             <button
               type="button"
               class="mode"
               disabled={colorSelection.size === 0}
               onclick={clearSelection}
             >Clear</button>
-          {:else if mode === 'text'}
-            <button
-              type="button"
-              class="mode action-mode"
-              class:active={placementArmed === 'text'}
-              aria-pressed={placementArmed === 'text'}
-              onclick={() => {
-                moveTarget = null;
-                placementArmed = placementArmed === 'text' ? null : 'text';
-              }}
-            >
-              <Icon name="plus" size={13} />
-              {placementArmed === 'text' ? 'Cancel add' : 'Add text'}
-            </button>
           {:else if mode === 'link'}
-            <span class="selection-count" role="status">
-              {linkFrom ? `${spaceName(linkFrom)} chosen · choose the second endpoint` : 'Choose the first endpoint'}
-            </span>
             {#if linkFrom}
               <button type="button" class="mode" onclick={() => (linkFrom = null)}>Cancel link</button>
             {/if}
@@ -2077,6 +2028,17 @@
               </button>
             {/if}
           </div>
+        </div>
+
+        <div class="mode-support">
+          <p class="mode-hint" aria-live="polite">{MODES.find((entry) => entry.value === mode)?.hint}</p>
+          {#if mode === 'spaces'}
+            <span class="selection-count" role="status">{colorSelection.size} selected</span>
+          {:else if mode === 'link'}
+            <span class="selection-count" role="status">
+              {linkFrom ? `${spaceName(linkFrom)} chosen · choose the second endpoint` : 'Choose the first endpoint'}
+            </span>
+          {/if}
         </div>
 
         {#if artError}<p class="error" role="alert">{artError}</p>{/if}
@@ -2509,7 +2471,7 @@
                         type="button"
                         class="map-hit-target space-hit-target"
                         class:selected={colorSelection.has(space.id) || linkFrom === space.id}
-                        class:move-armed={moveTarget?.kind === 'space' && moveTarget.id === space.id}
+                        class:draggable={mode === 'spaces' && !selectMultiple}
                         data-map-space-target={space.id}
                         style:--target-x="{(space.x * 100).toFixed(3)}%"
                         style:--target-y="{((space.y / mapHeight(map)) * 100).toFixed(3)}%"
@@ -2530,7 +2492,7 @@
                         type="button"
                         class="map-hit-target note-hit-target"
                         class:selected={selectedNote === note.id}
-                        class:move-armed={moveTarget?.kind === 'note' && moveTarget.id === note.id}
+                        class:draggable={true}
                         data-map-note-target={note.id}
                         style:--target-x="{(note.x * 100).toFixed(3)}%"
                         style:--target-y="{((note.y / mapHeight(map)) * 100).toFixed(3)}%"
@@ -2606,7 +2568,7 @@
               ? 'Artwork-only view. Editing is paused and exports are unchanged.'
               : mode === 'navigate'
                 ? 'Drag to pan · pinch or use +/− to zoom'
-                : 'Drag empty board to pan · use two fingers to pinch · editing only happens after a tap or explicit Move'}
+                : 'Drag empty board to pan · pinch with two fingers · tap to add or select · drag spaces and text to move'}
           </p>
           </div>
           </div>
@@ -2711,18 +2673,6 @@
                   />
                 </div>
                 <div class="inspector-actions">
-                  <Button
-                    size="sm"
-                    variant={moveTarget?.kind === 'note' && moveTarget.id === selectedNoteEntry.id
-                      ? 'primary'
-                      : 'secondary'}
-                    onclick={() => toggleMove({ kind: 'note', id: selectedNoteEntry.id })}
-                  >
-                    <Icon name="move" size={13} />
-                    {moveTarget?.kind === 'note' && moveTarget.id === selectedNoteEntry.id
-                      ? 'Done moving'
-                      : 'Move'}
-                  </Button>
                   {#key selectedNoteEntry.id}
                     <ConfirmAction
                       label="Delete placed text"
@@ -2801,25 +2751,6 @@
               {/if}
 
               {#if colorSelection.size === 1 && selectedSpace}
-                <div class="inspector-actions">
-                  <Button
-                    size="sm"
-                    variant={moveTarget?.kind === 'space' && moveTarget.id === selectedSpace.id
-                      ? 'primary'
-                      : 'secondary'}
-                    onclick={() => toggleMove({ kind: 'space', id: selectedSpace.id })}
-                  >
-                    <Icon name="move" size={13} />
-                    {moveTarget?.kind === 'space' && moveTarget.id === selectedSpace.id
-                      ? 'Done moving'
-                      : 'Move'}
-                  </Button>
-                  <span class="hint">
-                    {moveTarget?.kind === 'space' && moveTarget.id === selectedSpace.id
-                      ? 'Drag this space on the board. Escape or an interruption restores its position.'
-                      : 'Choose Move before a drag can change its position.'}
-                  </span>
-                </div>
                 <label class="field">
                   <span class="field-label">Label</span>
                   <TextInput
@@ -3221,25 +3152,67 @@
             </div>
 
             <div class="side-col">
+            {#if hasArtwork(map.artwork)}
+              <section class="block artwork-block" aria-label="Board artwork controls">
+                <h2 class="panel-title">Board artwork</h2>
+                <p class="hint">Scale and reposition the picture underneath the spaces. These changes also appear in exports.</p>
+                <Slider
+                  label="Artwork scale"
+                  value={map.artwork.transform.scale}
+                  min={ARTWORK_TRANSFORM_LIMITS.scale.min}
+                  max={ARTWORK_TRANSFORM_LIMITS.scale.max}
+                  step={0.01}
+                  neutral={1}
+                  editable
+                  inputMultiplier={100}
+                  inputUnit="%"
+                  onchange={(scale) => workshop.editMap((m) => (m.artwork.transform.scale = scale))}
+                />
+                <Slider
+                  label="Artwork horizontal position"
+                  value={map.artwork.transform.offsetX}
+                  min={ARTWORK_TRANSFORM_LIMITS.offset.min}
+                  max={ARTWORK_TRANSFORM_LIMITS.offset.max}
+                  step={0.005}
+                  neutral={0}
+                  editable
+                  inputMultiplier={100}
+                  inputUnit="%"
+                  onchange={(offsetX) => workshop.editMap((m) => (m.artwork.transform.offsetX = offsetX))}
+                />
+                <Slider
+                  label="Artwork vertical position"
+                  value={map.artwork.transform.offsetY}
+                  min={ARTWORK_TRANSFORM_LIMITS.offset.min}
+                  max={ARTWORK_TRANSFORM_LIMITS.offset.max}
+                  step={0.005}
+                  neutral={0}
+                  editable
+                  inputMultiplier={100}
+                  inputUnit="%"
+                  onchange={(offsetY) => workshop.editMap((m) => (m.artwork.transform.offsetY = offsetY))}
+                />
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  disabled={map.artwork.transform.scale === 1 && map.artwork.transform.offsetX === 0 && map.artwork.transform.offsetY === 0}
+                  onclick={() => workshop.editMap((m) => {
+                    m.artwork.transform.scale = 1;
+                    m.artwork.transform.offsetX = 0;
+                    m.artwork.transform.offsetY = 0;
+                  })}
+                >Reset artwork placement</Button>
+              </section>
+            {/if}
             {@render environmentPanel()}
 
             <div class="block placed-block">
               <div class="environment-head">
                 <h2 class="panel-title">Placed text</h2>
-                <Button
-                  size="sm"
-                  onclick={() => {
-                    changeMode('text');
-                    placementArmed = 'text';
-                  }}
-                >
-                  <Icon name="plus" size={13} />
-                  Add
-                </Button>
               </div>
 
               {#if map.notes.length === 0}
-                <p class="hint">Choose Add, then tap once on the board.</p>
+                <p class="hint">Choose Text, then click or tap the board to place text.</p>
               {:else}
                 <ul class="note-items">
                   {#each map.notes as note, index (note.id)}
@@ -3621,14 +3594,22 @@
     opacity: 0.5;
   }
 
+  .mode-support {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-2) var(--space-4);
+  }
+
   .mode-hint {
+    margin: 0;
     font-size: var(--text-xs);
     color: var(--text-muted);
   }
 
   /*
    * Pushed to the row's own far right rather than given a place in flow —
-   * `.modes` already wraps its buttons and hint left-to-right, and this is
+   * `.modes` already wraps its buttons left-to-right, and this is
    * the one thing on the row that belongs at the *other* end of whatever
    * width they left behind.
    */
@@ -3821,6 +3802,10 @@
     border-color: var(--accent);
     background: var(--accent-soft);
     outline: none;
+  }
+
+  .map-hit-target.draggable {
+    cursor: grab;
   }
 
   .map-hit-target.move-armed {
@@ -4152,6 +4137,11 @@
     border: 1px solid var(--border-default);
     border-radius: var(--radius-sm);
     background: var(--surface-inset);
+  }
+
+  .block.artwork-block {
+    align-items: stretch;
+    margin-bottom: var(--space-3);
   }
 
   .block.selected-block {
