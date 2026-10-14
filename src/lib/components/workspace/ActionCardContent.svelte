@@ -200,24 +200,28 @@
       editorTarget={CARD_EDIT_MARKERS.title}
     />
 
-    <Field label="Name override">
-      <TextInput
-        value={card.name}
-        data-card-editor-target={CARD_EDIT_MARKERS.ownerName}
-        placeholder="Leave blank to use the selected character’s name"
-        oninput={(event) => edit((target) => (target.name = event.currentTarget.value))}
-      />
-    </Field>
+    <AbilityField
+      label="Name override"
+      value={card.name}
+      placeholder="Leave blank to use the selected character’s name"
+      singleLine
+      customOnly
+      customSymbols={workshop.adventure.customSymbols}
+      editorTarget={CARD_EDIT_MARKERS.ownerName}
+      onchange={(name) => edit((target) => (target.name = name))}
+    />
   {:else}
-    <Field label="Name on the ribbon">
-      <TextInput
-        value={card.name}
-        data-card-editor-target={CARD_EDIT_MARKERS.ownerName}
-        placeholder="Villain name"
-        prominent
-        oninput={(event) => edit((target) => (target.name = event.currentTarget.value))}
-      />
-    </Field>
+    <AbilityField
+      label="Name on the ribbon"
+      value={card.name}
+      placeholder="Villain name"
+      singleLine
+      customOnly
+      prominent
+      customSymbols={workshop.adventure.customSymbols}
+      editorTarget={CARD_EDIT_MARKERS.ownerName}
+      onchange={(name) => edit((target) => (target.name = name))}
+    />
 
     <FormattedTextField
       label="Card title"

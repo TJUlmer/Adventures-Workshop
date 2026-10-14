@@ -22,6 +22,9 @@
     onremove?: () => void;
     /** Action-card copy supports bold and italic selected text. */
     formatted?: boolean;
+    singleLine?: boolean;
+    customOnly?: boolean;
+    prominent?: boolean;
     onchange: (value: string) => void;
     /** Author-uploaded glyphs, offered alongside the built-in symbols. */
     customSymbols?: CustomSymbol[];
@@ -36,12 +39,15 @@
     rows = 3,
     onremove,
     formatted = false,
+    singleLine = false,
+    customOnly = false,
+    prominent = false,
     onchange,
     customSymbols = [],
     editorTarget
   }: Props = $props();
 
-  let field = $state<HTMLTextAreaElement | null>(null);
+  let field = $state<HTMLTextAreaElement | HTMLInputElement | null>(null);
 
   /**
    * What the textarea holds: the document's text with every custom symbol
@@ -90,8 +96,8 @@
 
   function rememberSelection(): void {
     if (!field) return;
-    savedSelectionStart = field.selectionStart;
-    savedSelectionEnd = field.selectionEnd;
+    savedSelectionStart = field.selectionStart ?? display.length;
+    savedSelectionEnd = field.selectionEnd ?? display.length;
   }
 
   function emit(next: string): void {
@@ -121,7 +127,7 @@
    * unaffected.
    */
   function handleKeydown(event: KeyboardEvent): void {
-    if (event.key !== 'Enter' || event.isComposing) return;
+    if (singleLine || event.key !== 'Enter' || event.isComposing) return;
     const element = event.currentTarget as HTMLTextAreaElement;
     event.preventDefault();
     element.setRangeText('\n', element.selectionStart, element.selectionEnd, 'end');
@@ -171,7 +177,7 @@
     <span class="label">{label}</span>
 
     <div class="tools">
-      <SymbolPalette oninsert={insert} {customSymbols} />
+      <SymbolPalette oninsert={insert} {customSymbols} {customOnly} />
 
       {#if onremove}
         <button type="button" class="remove" title="Remove {label}" onclick={onremove}>
@@ -181,25 +187,48 @@
     </div>
   </div>
 
-  <textarea
-    bind:this={field}
-    bind:value={display}
-    class="input"
-    {rows}
-    {placeholder}
-    aria-label={label}
-    data-card-editor-target={editorTarget}
-    onfocus={rememberSelection}
-    onblur={rememberSelection}
-    onselect={rememberSelection}
-    onpointerup={rememberSelection}
-    onkeyup={rememberSelection}
-    oninput={(event) => {
-      emit(event.currentTarget.value);
-      rememberSelection();
-    }}
-    onkeydown={handleKeydown}
-  ></textarea>
+  {#if singleLine}
+    <input
+      bind:this={field}
+      bind:value={display}
+      class="input single-line"
+      class:prominent
+      type="text"
+      spellcheck="false"
+      {placeholder}
+      aria-label={label}
+      data-card-editor-target={editorTarget}
+      onfocus={rememberSelection}
+      onblur={rememberSelection}
+      onselect={rememberSelection}
+      onpointerup={rememberSelection}
+      onkeyup={rememberSelection}
+      oninput={(event) => {
+        emit(event.currentTarget.value);
+        rememberSelection();
+      }}
+    />
+  {:else}
+    <textarea
+      bind:this={field}
+      bind:value={display}
+      class="input"
+      {rows}
+      {placeholder}
+      aria-label={label}
+      data-card-editor-target={editorTarget}
+      onfocus={rememberSelection}
+      onblur={rememberSelection}
+      onselect={rememberSelection}
+      onpointerup={rememberSelection}
+      onkeyup={rememberSelection}
+      oninput={(event) => {
+        emit(event.currentTarget.value);
+        rememberSelection();
+      }}
+      onkeydown={handleKeydown}
+    ></textarea>
+  {/if}
 </div>
 {/if}
 
@@ -276,6 +305,21 @@
     line-height: var(--leading-normal);
     resize: vertical;
     transition: border-color var(--duration-fast) var(--ease-out);
+  }
+
+  .input.single-line {
+    height: 32px;
+    padding-block: 0;
+  }
+
+  .input.prominent {
+    height: 40px;
+    font-family: var(--font-display);
+    font-size: var(--text-lg);
+  }
+
+  @media (any-pointer: coarse) {
+    .input.single-line { min-height: var(--touch-target); }
   }
 
   .input::placeholder {

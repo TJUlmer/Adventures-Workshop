@@ -790,6 +790,19 @@ wide. The line beside the copies count takes the full hero name too; it has a
 whole card's width to run in. A card's Name override wins over the selected
 hero, additional identity or sidekick's shortened and full names.
 
+Name override (and Name on the ribbon for villains/minions) uses the single-line
+plain `AbilityField` with a custom-only `SymbolPalette`: no combat symbols,
+subject token or formatting buttons. The display/stored-token round trip keeps
+uploaded symbols readable by name in the editor and stable by id in `card.name`.
+`renderCustomSymbolText` treats HTML and built-in tokens as literal name text;
+only custom-id tokens become images. Both ribbon layouts use it, with icons at
+the name face's measured cap height and turned with the vertical text. Their
+alignment uses the vertical central baseline plus half of
+`cap - ascent + descent`, centring the icon on the caps; `vertical-align: middle`
+shifts icons towards the tops of the letters in this writing mode. A custom
+override also wins for an ANY card. `renderActionText` uses that same projection
+when resolving `{{name}}`, so references to the override show its symbols too.
+
 An action card's inherited `name` field is therefore ribbon copy only. Its
 `title` is the card's label in the workspace, export filenames, print sheets
 and accessible renderer name; `cardLabel()` never lets a ribbon override take

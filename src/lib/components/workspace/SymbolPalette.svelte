@@ -37,9 +37,11 @@
     onformat?: (format: InlineFormat) => void;
     /** Author-uploaded glyphs, offered alongside the built-in symbols. */
     customSymbols?: CustomSymbol[];
+    /** Name overrides accept uploaded symbols, without combat or subject tokens. */
+    customOnly?: boolean;
   }
 
-  let { oninsert, onformat, customSymbols = [] }: Props = $props();
+  let { oninsert, onformat, customSymbols = [], customOnly = false }: Props = $props();
 
   const SYMBOL_NAMES = INSERTABLE_TEXT_SYMBOL_NAMES;
 
@@ -75,37 +77,40 @@
     ><span class="format-glyph italic" aria-hidden="true">I</span></button>
   {/if}
 
-  {#each SYMBOL_NAMES as name (name)}
+  {#if !customOnly}
+    {#each SYMBOL_NAMES as name (name)}
+      <button
+        type="button"
+        class="symbol"
+        title="Insert {TEXT_SYMBOL_LABELS[name]} symbol"
+        aria-label="Insert {TEXT_SYMBOL_LABELS[name]} symbol"
+        onpointerdown={preserveSelectionForPointer}
+        onclick={() => oninsert(symbolToken(name))}
+      >
+        <img
+          class:bonus-attack-symbol={name === 'bonus_attack'}
+          src={TEXT_SYMBOLS[name]}
+          alt={TEXT_SYMBOL_LABELS[name]}
+        />
+      </button>
+    {/each}
+
+    <!--
+      Prints the figure the card belongs to, so a card that names its owner
+      keeps naming it after a rename or a move to another deck.
+    -->
     <button
       type="button"
-      class="symbol"
-      title="Insert {TEXT_SYMBOL_LABELS[name]} symbol"
-      aria-label="Insert {TEXT_SYMBOL_LABELS[name]} symbol"
+      class="symbol token"
+      title="Insert the figure’s name"
+      aria-label="Insert the figure’s name"
       onpointerdown={preserveSelectionForPointer}
-      onclick={() => oninsert(symbolToken(name))}
+      onclick={() => oninsert(SUBJECT_TOKEN)}
     >
-      <img
-        class:bonus-attack-symbol={name === 'bonus_attack'}
-        src={TEXT_SYMBOLS[name]}
-        alt={TEXT_SYMBOL_LABELS[name]}
-      />
+      Name
     </button>
-  {/each}
 
-  <!--
-    Prints the figure the card belongs to, so a card that names its owner
-    keeps naming it after a rename or a move to another deck.
-  -->
-  <button
-    type="button"
-    class="symbol token"
-    title="Insert the figure’s name"
-    aria-label="Insert the figure’s name"
-    onpointerdown={preserveSelectionForPointer}
-    onclick={() => oninsert(SUBJECT_TOKEN)}
-  >
-    Name
-  </button>
+  {/if}
 
   {#each customSymbols.filter((s) => s.source) as symbol (symbol.id)}
     <button

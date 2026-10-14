@@ -27,7 +27,7 @@
   import type { Character } from '$lib/characters/types';
   import type { CustomSymbol } from '$lib/symbols/types';
   import { CARD_EDIT_MARKERS } from '$lib/cards/edit-targets';
-  import { actionTextIsEmpty, renderActionText } from '$lib/text/action-text';
+  import { actionTextIsEmpty, renderActionText, renderCustomSymbolText } from '$lib/text/action-text';
   import { parseAbilityText } from '$lib/text/tokens';
   import AbilityText from './AbilityText.svelte';
   import {
@@ -217,7 +217,7 @@
    * has a whole card's width to run in — takes the full one.
    */
   const ownerLabel = $derived.by(() => {
-    if (card.owner === 'any') return 'ANY';
+    if (card.owner === 'any' && !card.name.trim()) return 'ANY';
     return ribbonName;
   });
 
@@ -1210,6 +1210,8 @@
     -->
     <div
       class="hero-owner-text"
+      style:--ribbon-name-symbol-cap={NAME_METRICS.cap}
+      style:--ribbon-name-symbol-align={(NAME_METRICS.cap - NAME_METRICS.ascent + NAME_METRICS.descent) / 2}
       use:fitHeight={{ text: ownerLabel, condense: card.ribbonNameCondense }}
       data-card-edit-target={CARD_EDIT_MARKERS.ownerName}
       style:align-self="flex-start"
@@ -1222,7 +1224,7 @@
       style:max-height={pu(HERO_RIBBON_OWNER.maxLength)}
       style:color={theme.bannerInk}
     >
-      {ownerLabel}
+      {@html renderCustomSymbolText(ownerLabel, customSymbols, 'ribbon-name-symbol')}
     </div>
 
     <div class="banner-tail" style:height={pu(HERO_RIBBON_OWNER.pointGap)}></div>
@@ -1316,6 +1318,8 @@
     -->
     <div
       class="name"
+      style:--ribbon-name-symbol-cap={NAME_METRICS.cap}
+      style:--ribbon-name-symbol-align={(NAME_METRICS.cap - NAME_METRICS.ascent + NAME_METRICS.descent) / 2}
       use:fitHeight={{ text: ribbonName, condense: card.ribbonNameCondense }}
       data-card-edit-target={CARD_EDIT_MARKERS.ownerName}
       style:font-size="calc({pu(NAME.size)} * var(--name-condense, 1) * var(--fit-scale, 1))"
@@ -1323,7 +1327,7 @@
       style:max-height={pu(NAME.maxLength)}
       style:color={theme.bannerInk}
     >
-      {ribbonName}
+      {@html renderCustomSymbolText(ribbonName, customSymbols, 'ribbon-name-symbol')}
     </div>
 
     <div class="banner-tail" style:height={pu(NAME.headGap)}></div>
@@ -2113,6 +2117,20 @@
     line-height: 0.88;
     white-space: nowrap;
     overflow: hidden;
+  }
+
+  .name :global(.ribbon-name-symbol),
+  .hero-owner-text :global(.ribbon-name-symbol) {
+    display: inline-block;
+    width: calc(1em * var(--ribbon-name-symbol-cap));
+    height: calc(1em * var(--ribbon-name-symbol-cap));
+    object-fit: contain;
+    /* In vertical text, `middle` shifts the image towards the cap tops.
+       Match the central baseline, then offset from the em centre to the caps. */
+    vertical-align: calc(1em * var(--ribbon-name-symbol-align));
+    margin-inline: 0.08em;
+    /* Replaced elements stay upright in vertical text; turn with the letters. */
+    rotate: 90deg;
   }
 
   /* -- hero ribbon content ----------------------------------------------- */

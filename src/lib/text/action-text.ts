@@ -77,6 +77,31 @@ export function cleanActionText(
   return actionTextIsEmpty(clean) ? '' : clean;
 }
 
+/** Plain names never interpret HTML or built-in tokens. Only stable custom ids
+ * become images, so old names containing angle brackets remain literal text. */
+export function renderCustomSymbolText(
+  text: string,
+  customSymbols: readonly CustomSymbol[],
+  symbolClass = 'symbol'
+): string {
+  const holder = document.createElement('span');
+  let cursor = 0;
+  for (const match of text.matchAll(/\{\{custom:([a-zA-Z0-9_-]+)\}\}/g)) {
+    holder.append(document.createTextNode(text.slice(cursor, match.index)));
+    const symbol = customSymbols.find((entry) => entry.id === match[1]);
+    if (symbol?.source) {
+      const image = document.createElement('img');
+      image.className = symbolClass;
+      image.src = symbol.source;
+      image.alt = symbol.name;
+      holder.append(image);
+    }
+    cursor = match.index + match[0].length;
+  }
+  holder.append(document.createTextNode(text.slice(cursor)));
+  return holder.innerHTML;
+}
+
 /**
  * Resolve legacy `{{token}}` text inside each formatted run. Walking text
  * nodes, instead of tokenising the complete HTML string, keeps a bold or
@@ -102,7 +127,9 @@ export function renderActionText(
       if (segment.kind === 'text') {
         fragment.append(document.createTextNode(segment.value));
       } else if (segment.kind === 'subject') {
-        fragment.append(document.createTextNode(subject));
+        const name = document.createElement('template');
+        name.innerHTML = renderCustomSymbolText(subject, customSymbols, symbolClass);
+        fragment.append(name.content);
       } else {
         const source =
           segment.kind === 'symbol'
