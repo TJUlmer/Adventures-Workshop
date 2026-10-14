@@ -82,7 +82,8 @@ export function cleanActionText(
 export function renderCustomSymbolText(
   text: string,
   customSymbols: readonly CustomSymbol[],
-  symbolClass = 'symbol'
+  symbolClass = 'symbol',
+  symbolWrapperClass?: string
 ): string {
   const holder = document.createElement('span');
   let cursor = 0;
@@ -94,7 +95,18 @@ export function renderCustomSymbolText(
       image.className = symbolClass;
       image.src = symbol.source;
       image.alt = symbol.name;
-      holder.append(image);
+      if (symbolWrapperClass) {
+        const slot = document.createElement('span');
+        slot.className = symbolWrapperClass;
+        if (match.index === 0) slot.classList.add(`${symbolWrapperClass}-start`);
+        if (match.index + match[0].length === text.length) {
+          slot.classList.add(`${symbolWrapperClass}-end`);
+        }
+        slot.append(image);
+        holder.append(slot);
+      } else {
+        holder.append(image);
+      }
     }
     cursor = match.index + match[0].length;
   }

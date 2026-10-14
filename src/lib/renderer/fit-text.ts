@@ -78,7 +78,7 @@ export interface FitHeightOptions {
 export function fitHeight(
   node: HTMLElement,
   options: FitHeightOptions
-): { update(options: FitHeightOptions): void } {
+): { update(options: FitHeightOptions): void; destroy(): void } {
   let current = options;
 
   const applyCondensation = (): void => {
@@ -98,6 +98,12 @@ export function fitHeight(
    * automatic and manual condensation have shortened the name's run.
    */
   const fitAtNaturalWidth = (): void => {
+    for (const image of node.querySelectorAll<HTMLImageElement>('.ribbon-name-symbol')) {
+      const slot = image.parentElement;
+      if (slot && image.naturalWidth > 0 && image.naturalHeight > 0) {
+        slot.style.setProperty('--ribbon-name-symbol-aspect', String(image.naturalWidth / image.naturalHeight));
+      }
+    }
     node.style.setProperty('--name-condense', '1');
     node.style.setProperty('--name-run-scale', '1');
     node.style.setProperty('--name-cross-scale', '1');
@@ -105,6 +111,9 @@ export function fitHeight(
     applyCondensation();
   };
 
+  // Image dimensions arrive independently of text; refit before export clones
+  // the live DOM, and when a symbol image is replaced without renaming it.
+  node.addEventListener('load', fitAtNaturalWidth, true);
   fitAtNaturalWidth();
 
   const refitAfterTextUpdate = (): void => {
@@ -135,6 +144,9 @@ export function fitHeight(
       } else {
         applyCondensation();
       }
+    },
+    destroy() {
+      node.removeEventListener('load', fitAtNaturalWidth, true);
     }
   };
 }

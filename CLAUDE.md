@@ -799,7 +799,13 @@ only custom-id tokens become images. Both ribbon layouts use it, with icons at
 the name face's measured cap height and turned with the vertical text. Their
 alignment uses the vertical central baseline plus half of
 `cap - ascent + descent`, centring the icon on the caps; `vertical-align: middle`
-shifts icons towards the tops of the letters in this writing mode. A custom
+shifts icons towards the tops of the letters in this writing mode. The ribbon
+projection wraps each image in a slot whose run follows its rotated aspect ratio,
+updated by `fitHeight` from loaded image dimensions. A square slot padded narrow
+symbols and made the pennant's clearance look too large. Edge symbols omit their
+outer inline margin; spacing beside letters and the template's text clearances
+stay unchanged. Captured image-load events refit the name before export prepares
+and clones the live images. A custom
 override also wins for an ANY card. `renderActionText` uses that same projection
 when resolving `{{name}}`, so references to the override show its symbols too.
 

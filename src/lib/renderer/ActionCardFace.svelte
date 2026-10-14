@@ -1224,7 +1224,7 @@
       style:max-height={pu(HERO_RIBBON_OWNER.maxLength)}
       style:color={theme.bannerInk}
     >
-      {@html renderCustomSymbolText(ownerLabel, customSymbols, 'ribbon-name-symbol')}
+      {@html renderCustomSymbolText(ownerLabel, customSymbols, 'ribbon-name-symbol', 'ribbon-name-symbol-slot')}
     </div>
 
     <div class="banner-tail" style:height={pu(HERO_RIBBON_OWNER.pointGap)}></div>
@@ -1327,7 +1327,7 @@
       style:max-height={pu(NAME.maxLength)}
       style:color={theme.bannerInk}
     >
-      {@html renderCustomSymbolText(ribbonName, customSymbols, 'ribbon-name-symbol')}
+      {@html renderCustomSymbolText(ribbonName, customSymbols, 'ribbon-name-symbol', 'ribbon-name-symbol-slot')}
     </div>
 
     <div class="banner-tail" style:height={pu(NAME.headGap)}></div>
@@ -2119,17 +2119,42 @@
     overflow: hidden;
   }
 
-  .name :global(.ribbon-name-symbol),
-  .hero-owner-text :global(.ribbon-name-symbol) {
+  .name :global(.ribbon-name-symbol-slot),
+  .hero-owner-text :global(.ribbon-name-symbol-slot) {
+    position: relative;
     display: inline-block;
     width: calc(1em * var(--ribbon-name-symbol-cap));
-    height: calc(1em * var(--ribbon-name-symbol-cap));
-    object-fit: contain;
+    height: calc(1em * var(--ribbon-name-symbol-cap) * var(--ribbon-name-symbol-aspect, 1));
     /* In vertical text, `middle` shifts the image towards the cap tops.
        Match the central baseline, then offset from the em centre to the caps. */
     vertical-align: calc(1em * var(--ribbon-name-symbol-align));
     margin-inline: 0.08em;
-    /* Replaced elements stay upright in vertical text; turn with the letters. */
+  }
+
+  /* Keep spacing between symbols and letters, without adding to the ribbon's
+     measured outer clearance when a symbol starts or ends the name. */
+  .name :global(.ribbon-name-symbol-slot-start),
+  .hero-owner-text :global(.ribbon-name-symbol-slot-start) {
+    margin-inline-start: 0;
+  }
+
+  .name :global(.ribbon-name-symbol-slot-end),
+  .hero-owner-text :global(.ribbon-name-symbol-slot-end) {
+    margin-inline-end: 0;
+  }
+
+  .name :global(.ribbon-name-symbol),
+  .hero-owner-text :global(.ribbon-name-symbol) {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: calc(1em * var(--ribbon-name-symbol-cap) * var(--ribbon-name-symbol-aspect, 1));
+    height: calc(1em * var(--ribbon-name-symbol-cap));
+    max-width: none;
+    object-fit: contain;
+    translate: -50% -50%;
+    /* The slot reserves the rotated bounds, rather than a square with empty
+       space either side of a narrow glyph. */
     rotate: 90deg;
   }
 
