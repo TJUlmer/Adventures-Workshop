@@ -214,10 +214,13 @@
 
 <EditorSection
   title="Body"
-  hint="Bold, italic, underline, lists and text size are printed as written."
+  hint={card.type === 'rules'
+    ? 'Bold, italic, underline, lists and text size are printed as written. Type {{break}} or choose Insert divider to separate sections.'
+    : 'Bold, italic, underline, lists and text size are printed as written.'}
 >
   <RichTextEditor
     value={card.body}
+    allowDividers={card.type === 'rules'}
     minHeight={220}
     placeholder="Write the rules for this card…"
     onchange={(body) => edit((target) => (target.body = body))}

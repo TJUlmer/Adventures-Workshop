@@ -43,6 +43,7 @@
     onchange: (html: string) => void;
     /** Author-uploaded glyphs, offered alongside the built-in symbols. */
     customSymbols?: CustomSymbol[];
+    allowDividers?: boolean;
   }
 
   let {
@@ -50,7 +51,8 @@
     placeholder = 'Write the rules…',
     minHeight = 140,
     onchange,
-    customSymbols = []
+    customSymbols = [],
+    allowDividers = false
   }: Props = $props();
 
   let editor = $state<HTMLDivElement | null>(null);
@@ -453,6 +455,12 @@
     commit(kept, false);
   }
 
+  function insertDivider(): void {
+    restoreEditorSelection(true, true);
+    document.execCommand('insertText', false, '{{break}}');
+    commit();
+  }
+
 	function insertSymbol(name: InsertableTextSymbolName): void {
     restoreEditorSelection(true, true);
     document.execCommand(
@@ -615,6 +623,17 @@
     </div>
 
     <span class="divider"></span>
+
+    {#if allowDividers}
+      <button
+        type="button"
+        class="tool"
+        title={'Insert divider ({{break}})'}
+        aria-label="Insert divider"
+        onpointerdown={preserveSelectionForPointer}
+        onclick={insertDivider}
+      ><Icon name="minus" size={13} /></button>
+    {/if}
 
     {#each SYMBOL_NAMES as name (name)}
       <button
@@ -906,6 +925,12 @@
   .swatch input {
     position: absolute;
     inset: 0;
+    /* Native colour inputs keep a default width despite inset: 0, which
+       otherwise covers the neighbouring divider and symbol buttons. */
+    width: 100%;
+    height: 100%;
+    min-width: 0;
+    padding: 0;
     opacity: 0;
     cursor: pointer;
   }

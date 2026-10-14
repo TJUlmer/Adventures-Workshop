@@ -1797,7 +1797,10 @@ export const RULES = {
    * two can differ.
    */
   headerHeight: 403 - 141,
-  heading: { x: 232, capTop: 246, width: 1170, size: inFace(118) },
+  dividerHeight: 426 - 403,
+  /* The supplied Vibranium Suit reference has ~32px caps in a ~60px band.
+     Keep that proportion in both orientations; long headings fit separately. */
+  heading: { x: 232, capTop: 202, width: 1170, size: inFace(210) },
   /* 93px of advance on a 68px face, read off the template's three lines. */
   body: {
     x: 232,
@@ -1848,7 +1851,7 @@ export const RULES_LANDSCAPE = {
    * card's own printed rule reads at, not a copy of any of its numbers.
    */
   dividerHeight: 10,
-  heading: { x: 232, capTop: 248, width: 1756, size: inFace(118) },
+  heading: { x: 232, capTop: 204, width: 1756, size: inFace(210) },
   body: {
     x: 232,
     capTop: 502,

@@ -11,6 +11,7 @@ import type { Card } from '$lib/cards/types';
 import { cardLabel } from '$lib/cards/factory';
 import { CARD_FORMATS, THREAT_TRACK, trimBox } from '$lib/renderer/geometry';
 import type { CardFormat } from '$lib/renderer/geometry';
+import { fitScaleWidth } from '$lib/renderer/fit-text';
 import { slugify } from './json';
 import type { ExportResult } from './types';
 
@@ -340,6 +341,11 @@ async function rasterise(
 
   let markup: string;
   try {
+    // The stage is only 420px wide. Its integer text widths can leave a long
+    // Rules title clipped once the clone reaches print size, so fit there too.
+    for (const heading of clone.querySelectorAll<HTMLElement>('.rules-heading')) {
+      fitScaleWidth(heading);
+    }
     freezeStyles(clone);
     await inlineStyleAssets(clone);
     markup = new XMLSerializer().serializeToString(clone);

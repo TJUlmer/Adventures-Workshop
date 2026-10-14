@@ -1396,14 +1396,29 @@ has no such field, so `RulesCardFace`'s `headingAlign` derivation falls back
 to `'left'` for it, matching what every card printed before this. The
 landscape divider between the header band and the body is a second thing
 `RULES_LANDSCAPE` cannot borrow from a template: portrait's rule is baked
-into `rules_border.png`, so landscape draws its own — a plain `theme.divider`
-bar centred on the header/body boundary (`RULES_LANDSCAPE.dividerHeight`, a
-chosen weight rather than a measured one, same as the rest of that geometry
-block). It is not exposed as its own `StylePanel` surface: `divider` was
-never added to `PROSE_SURFACES` — doing so would offer a "Divider line"
-control on a portrait rules card and on an event card, neither of which has
-one to colour — so the landscape rule simply reads whatever `theme.divider`
-already resolves to from the existing cascade.
+into `rules_border.png`, so landscape draws its own bar centred on the
+header/body boundary (`RULES_LANDSCAPE.dividerHeight`, a chosen weight rather
+than a measured one, same as the rest of that geometry block). It uses
+`fillCss(theme.frame)` to match portrait's masked frame, including gradients.
+The body dividers use the same fill in both orientations, so changing orientation
+cannot switch either divider to the unrelated `theme.divider` ink colour.
+
+**Rules headings and authored dividers.** Both Rules orientations use the
+supplied Vibranium Suit reference's cap-height/header proportion (about 32/60),
+with width fitting for long titles and cap-centred placement as the type shrinks.
+Orientation changes remount the heading to discard its previous fit; width changes
+from mobile pane switches or preview transitions also refit, with height-only
+ResizeObserver notifications ignored to avoid a fitting loop. A one-pixel
+inset avoids fractional text overflow being replaced by an ellipsis; the PNG
+clone also refits at print size before computed styles are frozen. Event cards
+share this renderer but retain their previous heading size and position.
+
+Rules body copy accepts `{{break}}`, including the rich-text toolbar's Insert
+divider button. The token stays literal in saved HTML, preserving caret and
+native undo; `renderRichTextBreaks` projects sanitised text nodes into separator
+spans for rendering only. Spans remain valid within paragraphs, formatting and
+lists. Divider height and fill match that orientation's header/body divider.
+Event cards retain literal tokens and do not show the divider toolbar button.
 
 **The rich text sanitiser allows more than one inline style now, and reads
 them independently rather than as alternatives.** It used to allow exactly

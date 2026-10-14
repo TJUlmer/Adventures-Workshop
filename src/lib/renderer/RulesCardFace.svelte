@@ -8,11 +8,13 @@
   import { customPatternFilter, fillCss } from '$lib/cards/style';
   import type { EventCard, RulesCard } from '$lib/cards/types';
   import type { CustomSymbol } from '$lib/symbols/types';
-  import { resolveCustomSymbolImages, richTextIsEmpty, sanitizeRichText } from '$lib/text/rich-text';
+  import { renderRichTextBreaks, resolveCustomSymbolImages, richTextIsEmpty, sanitizeRichText } from '$lib/text/rich-text';
   import { patternAspect } from './assets';
-  import { fitScale } from './fit-text';
+  import { fitScale, fitScaleWidth, fitWidth } from './fit-text';
   import {
     capTopToBoxTop,
+    FONT_METRICS,
+    inFace,
     px,
     pu,
     py,
@@ -40,14 +42,36 @@
   const heading = $derived(card.heading.trim() || (card.type === 'event' ? 'Event' : 'Rules'));
   /** Only a rules card carries this — an event's heading is always left. */
   const headingAlign = $derived(card.type === 'rules' ? card.headingAlign : 'left');
-  const body = $derived(resolveCustomSymbolImages(sanitizeRichText(card.body), customSymbols));
+  const cleanBody = $derived(resolveCustomSymbolImages(sanitizeRichText(card.body), customSymbols));
+  const body = $derived(card.type === 'rules' ? renderRichTextBreaks(cleanBody) : cleanBody);
+  const headingBoxOffset = $derived(
+    -capTopToBoxTop(-FONT_METRICS.cap * geom.heading.size / 2, geom.heading.size, 0.9)
+  );
   const empty = $derived(richTextIsEmpty(card.body));
 
   let bodyBox: HTMLDivElement | null = $state(null);
+  let headingBox: HTMLDivElement | null = $state(null);
+
+  $effect(() => {
+    const node = headingBox;
+    if (!node) return;
+    let fittedWidth = node.clientWidth;
+    // Mobile pane switches and the preview width transition settle after tick.
+    // Ignore height notifications caused by fitting the text itself.
+    const observer = new ResizeObserver(() => {
+      const width = node.clientWidth;
+      if (width === 0 || width === fittedWidth) return;
+      fittedWidth = width;
+      fitScaleWidth(node);
+    });
+    observer.observe(node);
+    return () => observer.disconnect();
+  });
 
   /** Re-fit whenever the printed body (post-sanitise, post-symbol-resolve) changes. */
   $effect(() => {
     void body;
+    void landscape;
     if (bodyBox) fitScale(bodyBox);
   });
 </script>
@@ -132,22 +156,36 @@
       class="rule"
       style:top={py(RULES_LANDSCAPE.headerHeight, geom.interior)}
       style:height={py(RULES_LANDSCAPE.dividerHeight, geom.interior)}
-      style:background={theme.divider}
+      style:background={fillCss(theme.frame)}
     ></div>
   {/if}
 </div>
 
-<div
-  class="heading"
-  style:left={px(geom.heading.x, FRAME)}
-  style:top={py(capTopToBoxTop(geom.heading.capTop, geom.heading.size), FRAME)}
-  style:width={px(geom.heading.width, FRAME)}
-  style:font-size={pu(geom.heading.size, FRAME)}
-  style:color={theme.headerInk}
-  style:text-align={headingAlign}
->
-  {heading}
-</div>
+{#if card.type === 'rules'}
+  {#key landscape}
+  <div
+    class="heading rules-heading"
+    bind:this={headingBox}
+    use:fitWidth={`${landscape}:${heading}`}
+    style:left={px(geom.heading.x, FRAME)}
+    style:top="calc({py(geom.interior.y + geom.headerHeight / 2, FRAME)} - {pu(headingBoxOffset, FRAME)} * var(--fit-scale, 1))"
+    style:width={px(geom.heading.width, FRAME)}
+    style:--heading-size={pu(geom.heading.size, FRAME)}
+    style:color={theme.headerInk}
+    style:text-align={headingAlign}
+  >{heading}</div>
+  {/key}
+{:else}
+  <!-- Event cards share the prose renderer, but retain their original heading. -->
+  <div
+    class="heading"
+    style:left={px(geom.heading.x, FRAME)}
+    style:top={py(capTopToBoxTop(246, inFace(118)), FRAME)}
+    style:width={px(geom.heading.width, FRAME)}
+    style:font-size={pu(inFace(118), FRAME)}
+    style:color={theme.headerInk}
+  >{heading}</div>
+{/if}
 
 <div
   bind:this={bodyBox}
@@ -160,6 +198,8 @@
   style:width={px(geom.body.width, FRAME)}
   style:height={py(geom.body.height, FRAME)}
   style:--copy-size={pu(geom.body.size, FRAME)}
+  style:--divider-height={pu(geom.dividerHeight, FRAME)}
+  style:--divider-fill={fillCss(theme.frame)}
   style:line-height={geom.body.lineHeight}
   style:color={theme.bodyInk}
 >
@@ -236,6 +276,21 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+  }
+
+  .rules-heading {
+    /* Integer scroll widths can call a fractional overflow fitted, while the
+       exported face replaces the last letters with an ellipsis. */
+    box-sizing: border-box;
+    padding-inline: 1px;
+    font-size: calc(var(--heading-size) * var(--fit-scale, 1));
+  }
+
+  .body :global(.prose-divider) {
+    display: block;
+    height: var(--divider-height);
+    margin-block: 0.7em;
+    background: var(--divider-fill);
   }
 
   /*

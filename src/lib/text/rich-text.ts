@@ -293,6 +293,33 @@ export function resolveCustomSymbolImages(html: string, symbols: readonly Custom
   return template.innerHTML;
 }
 
+/** Render-only projection: keeping the token in storage preserves the editor caret
+ * and native text undo, while a span stays valid inside paragraphs and lists. */
+export function renderRichTextBreaks(html: string): string {
+  const template = document.createElement('template');
+  template.innerHTML = html;
+  const walker = document.createTreeWalker(template.content, NodeFilter.SHOW_TEXT);
+  const nodes: Text[] = [];
+  for (let node = walker.nextNode(); node; node = walker.nextNode()) nodes.push(node as Text);
+  for (const node of nodes) {
+    const matches = [...node.data.matchAll(/\{\{\s*break\s*\}\}/gi)];
+    if (matches.length === 0) continue;
+    const fragment = document.createDocumentFragment();
+    let cursor = 0;
+    for (const match of matches) {
+      fragment.append(document.createTextNode(node.data.slice(cursor, match.index)));
+      const divider = document.createElement('span');
+      divider.className = 'prose-divider';
+      divider.setAttribute('role', 'separator');
+      fragment.append(divider);
+      cursor = match.index + match[0].length;
+    }
+    fragment.append(document.createTextNode(node.data.slice(cursor)));
+    node.replaceWith(fragment);
+  }
+  return template.innerHTML;
+}
+
 /** Plain-text projection, for search, counts and empty checks. */
 export function richTextToPlain(html: string): string {
   const template = document.createElement('template');
