@@ -13,11 +13,13 @@ security definer
 set search_path = ''
 as $$
 declare
-  bounded_limit integer := greatest(1, least(requested_limit, 500));
+  bounded_limit integer := greatest(1, least(coalesce(requested_limit, 100), 500));
   purged_count bigint := 0;
   queued_object_count bigint := 0;
+  affected_objects bigint := 0;
+  expired record;
 begin
-  with expired as materialized (
+  for expired in
     select draft.id,
            draft.owner_id,
            draft.local_id,
@@ -26,24 +28,40 @@ begin
      where draft.deleted_at <= now() - interval '30 days'
      order by draft.deleted_at, draft.id
      limit bounded_limit
-  ), queued as (
+       for update skip locked
+  loop
+    delete from public.set_drafts as draft
+     where draft.id = expired.id
+       and draft.deleted_at = expired.deleted_at
+       and draft.deleted_at <= now() - interval '30 days';
+
+    if not found then
+      continue;
+    end if;
+
+    purged_count := purged_count + 1;
+
+    -- Migration 0036's delete trigger queues document-referenced objects as
+    -- superseded at `now()`. Re-upsert the whole draft prefix afterwards so
+    -- every private object inherits the already-elapsed deletion window.
     insert into public.storage_cleanup_candidates (
       bucket_id,
       name,
       first_observed_at,
       last_observed_at,
       object_updated_at,
-      size_bytes
+      size_bytes,
+      superseded
     )
     select object.bucket_id,
            object.name,
            expired.deleted_at,
            now(),
            coalesce(object.updated_at, object.created_at, now()),
-           coalesce((object.metadata ->> 'size')::bigint, 0)
-      from expired
-      join storage.objects as object
-        on object.bucket_id = 'draft-assets'
+           coalesce((object.metadata ->> 'size')::bigint, 0),
+           true
+      from storage.objects as object
+     where object.bucket_id = 'draft-assets'
        and split_part(object.name, '/', 1) = expired.owner_id::text
        and split_part(object.name, '/', 2) = expired.local_id
     on conflict (bucket_id, name) do update
@@ -53,19 +71,12 @@ begin
           ),
           last_observed_at = now(),
           object_updated_at = excluded.object_updated_at,
-          size_bytes = excluded.size_bytes
-    returning 1
-  ), removed as (
-    delete from public.set_drafts as draft
-      using expired
-     where draft.id = expired.id
-       and draft.deleted_at = expired.deleted_at
-       and draft.deleted_at <= now() - interval '30 days'
-    returning 1
-  )
-  select (select count(*) from removed),
-         (select count(*) from queued)
-    into purged_count, queued_object_count;
+          size_bytes = excluded.size_bytes,
+          superseded = true;
+
+    get diagnostics affected_objects = row_count;
+    queued_object_count := queued_object_count + affected_objects;
+  end loop;
 
   return jsonb_build_object(
     'purgedDrafts', purged_count,
