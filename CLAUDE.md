@@ -825,6 +825,14 @@ disc or restoring a fixed black outline. Older designs normalise to the former
 its standalone SVG, and a pseudo-element has no node to carry across. Drawing
 the centre that way left only the dark backing disc in published previews.
 
+`CharacterCardDesign.sidekickCountInk` colours the multiplication sign and count
+in every swarm layout (plain discs, paired health discs and the shifted badge).
+Its picker is beside Sidekick discs in the Sidekick Band design block, with the
+usual template reset. Schema v76 normalizes older sheets to the former white;
+cloning copies this fill independently. Gradient fills clip to the count's real
+text, and printer-friendly mode clears that background and prints the count in
+black. Preview and exports share this renderer.
+
 `CharacterCardDesign.abilityScale` is the Special Ability content section's single
 text-size control: it multiplies the calibrated name and body sizes together,
 preserving their ratio. `HeroCharacterCardFace` re-runs `fitScale` when it changes and divides

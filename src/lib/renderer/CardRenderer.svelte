@@ -672,6 +672,10 @@
     color: #000 !important;
   }
 
+  .printer-friendly :global(.hero-character .token-count) {
+    background: none !important;
+  }
+
   /*
    * The attack lockup is one supplied picture, word and icon together, in the
    * colour that identifies the attack type — so like the value symbols above

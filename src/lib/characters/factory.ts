@@ -78,6 +78,7 @@ export function createCharacterCard(): CharacterCardDesign {
     healthBadgeAccent: solid('#f9f6ee'),
     healthInk: solid('#ffffff'),
     sidekickDisc: solid('#858585'),
+    sidekickCountInk: solid('#ffffff'),
     quoteInk: solid('#f6eada'),
     quoteScale: 1,
     abilityInk: solid('#000000'),
@@ -118,6 +119,7 @@ export function cloneCharacterCard(design: CharacterCardDesign): CharacterCardDe
   return {
     ...design,
     ...bands,
+    sidekickCountInk: { ...design.sidekickCountInk },
     replacement: cloneArtwork(design.replacement)
   };
 }

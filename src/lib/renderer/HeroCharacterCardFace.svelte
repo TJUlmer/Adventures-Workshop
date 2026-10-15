@@ -932,6 +932,8 @@
 
     <span
       class="token-count"
+      style:color={design.sidekickCountInk.kind === 'gradient' ? 'transparent' : design.sidekickCountInk.color}
+      style:background-image={design.sidekickCountInk.kind === 'gradient' ? fillCss(design.sidekickCountInk) : undefined}
       style:left={px(
         CHARACTER_TOKENS.centerX + ((discs - 1) / 2) * CHARACTER_TOKENS.pitch
       )}
@@ -971,6 +973,8 @@
 
     <span
       class="token-count"
+      style:color={design.sidekickCountInk.kind === 'gradient' ? 'transparent' : design.sidekickCountInk.color}
+      style:background-image={design.sidekickCountInk.kind === 'gradient' ? fillCss(design.sidekickCountInk) : undefined}
       style:left={px(CHARACTER_TOKENS_PAIRED.countX)}
       style:top={py(digitMiddleToBoxTop(CHARACTER_TOKENS.centerY, CHARACTER_TOKENS.size))}
       style:font-size={pu(CHARACTER_TOKENS.size)}
@@ -994,6 +998,8 @@
 
     <span
       class="token-count"
+      style:color={design.sidekickCountInk.kind === 'gradient' ? 'transparent' : design.sidekickCountInk.color}
+      style:background-image={design.sidekickCountInk.kind === 'gradient' ? fillCss(design.sidekickCountInk) : undefined}
       style:left={px(CHARACTER_HEALTH_SHIFTED.countX)}
       style:top={py(digitMiddleToBoxTop(CHARACTER_HEALTH.sidekickCenterY, CHARACTER_TOKENS.size))}
       style:font-size={pu(CHARACTER_TOKENS.size)}
@@ -1346,9 +1352,10 @@
     white-space: nowrap;
   }
 
-  /* `.health`'s own colour comes from `design.healthInk`, inline — `token-count` is a different value (a swarm's own count) and stays fixed. */
+  /* A gradient is clipped to real text so the same DOM survives PNG export. */
   .token-count {
-    color: #ffffff;
+    background-clip: text;
+    -webkit-background-clip: text;
   }
 
   /*

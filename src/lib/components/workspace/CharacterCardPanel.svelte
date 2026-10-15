@@ -99,6 +99,7 @@
     | 'healthBadgeAccent'
     | 'healthInk'
     | 'sidekickDisc'
+    | 'sidekickCountInk'
     | 'abilityInk'
     | 'moveInk';
 
@@ -187,7 +188,7 @@
 
   {#each CHARACTER_BAND_NAMES as band (band)}
     <Section title={BANDS[band].title} description={BANDS[band].hint}>
-      <div class="colours band-colours" class:disc-colours={band === 'sidekick'}>
+      <div class="colours band-colours">
         <FillEditor
           label="Background"
           value={design[band].fill}
@@ -221,6 +222,16 @@
               })}
             onreset={reset('sidekickDisc')}
           />
+          <FillEditor
+            label="Sidekick quantity text"
+            value={design.sidekickCountInk}
+            origin="the template"
+            overridden={!isDefault('sidekickCountInk')}
+            resetTitle={RESET_TITLE}
+            onchange={(sidekickCountInk: Fill) =>
+              edit((card) => (card.sidekickCountInk = sidekickCountInk))}
+            onreset={reset('sidekickCountInk')}
+          />
         {/if}
       </div>
 
@@ -240,18 +251,14 @@
   }
 
   /*
-   * A band has two, not three, and they are a pair to judge against one
-   * another — a fill and the words standing on it — so they share a row.
+   * Pair each band's fill with the words standing on it. The sidekick's
+   * additional disc and quantity colours share a second row.
    * Its own class rather than a descendant selector: both blocks sit inside a
    * `Section`, so there is nothing in the markup above them to tell the two
    * apart by.
    */
   .band-colours {
     grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .band-colours.disc-colours {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
   @container workspace (max-width: 560px) {

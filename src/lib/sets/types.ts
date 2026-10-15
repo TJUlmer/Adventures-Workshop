@@ -495,10 +495,13 @@ export type SetId = Id<'Set'>;
  *      patterns. Older documents inherit no ribbon pattern; body patterns keep
  *      their existing keys and placement.
  *
+ * v76 — character-card designs gained `sidekickCountInk` for the sidekick
+ *      quantity text. Older designs retain the template's white count.
+ *
  * Older documents are *repaired*, not rejected — see `sets/normalize.ts`. Only
  * a version newer than this build understands is refused.
  */
-export const SET_SCHEMA_VERSION = 75;
+export const SET_SCHEMA_VERSION = 76;
 
 /**
  * What a set is for.

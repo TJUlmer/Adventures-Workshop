@@ -319,6 +319,7 @@ function characterCard(value: unknown): CharacterCardDesign {
     healthBadgeAccent: fill(raw['healthBadgeAccent'], defaults.healthBadgeAccent),
     healthInk: fill(raw['healthInk'], defaults.healthInk),
     sidekickDisc: fill(raw['sidekickDisc'], defaults.sidekickDisc),
+    sidekickCountInk: fill(raw['sidekickCountInk'], defaults.sidekickCountInk),
     quoteInk: fill(raw['quoteInk'], defaults.quoteInk),
     quoteScale: num(raw['quoteScale'], defaults.quoteScale),
     abilityInk: fill(raw['abilityInk'], defaults.abilityInk),

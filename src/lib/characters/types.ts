@@ -226,6 +226,8 @@ export interface CharacterCardDesign {
   healthInk: Fill;
   /** The filled centres of a 1–2 HP swarm sidekick's token discs. */
   sidekickDisc: Fill;
+  /** The multiplication sign and count beside a swarm sidekick’s discs or badge. */
+  sidekickCountInk: Fill;
   /** The quote text, its attribution and its quotation marks — one colour for all three. */
   quoteInk: Fill;
   /**
