@@ -64,6 +64,8 @@ export const MONO_LAYER: CardStyleOverride = {
   tuckEffectInk: MONO_INK,
   /* Both exist to lay tone over a panel. There is no tone to lay. */
   pattern: NO_PATTERN,
+  ribbonPattern: NO_PATTERN,
+  ribbonCustomPattern: NO_CUSTOM_PATTERN,
   texture: { kind: 'none', opacity: 0 },
   /*
    * And the third of that group, which was missed for a release.

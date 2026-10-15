@@ -62,7 +62,7 @@ export function sameFill(a: Fill, b: Fill): boolean {
   return sameColor(a.color, b.color) && sameColor(a.color2, b.color2) && a.angle === b.angle;
 }
 
-// -- Body pattern -------------------------------------------------------
+// -- Surface patterns -------------------------------------------------------
 
 /**
  * Pattern files are single-colour shapes on transparency, so the renderer
@@ -87,7 +87,7 @@ export const NO_PATTERN: PatternStyle = {
 };
 
 /**
- * A single, non-repeating image laid over the body panel — the artwork
+ * A single, non-repeating image laid over a card surface — the artwork
  * counterpart to `PatternStyle`'s tiled shape, for an author with one
  * specific picture rather than a repeatable motif. Unlike `PatternStyle`,
  * this keeps the picture's own printed colours (a transparent PNG shows its
@@ -285,8 +285,12 @@ export interface CardTheme {
   abilityFontSize: number;
   /** Pattern laid over the body panel. */
   pattern: PatternStyle;
-  /** A single, non-repeating image laid over the body panel, alongside `pattern`. */
+  /** A single, non-repeating image laid over a card surface, alongside `pattern`. */
   customPattern: CustomPatternStyle;
+  /** Pattern laid over the name ribbon, beneath the ink and outline. */
+  ribbonPattern: PatternStyle;
+  /** A single image clipped to the name ribbon, alongside `ribbonPattern`. */
+  ribbonCustomPattern: CustomPatternStyle;
   /** Texture laid over the whole card face. */
   texture: TextureStyle;
 }
@@ -340,6 +344,8 @@ export const DEFAULT_CARD_THEME: CardTheme = {
   abilityFontSize: 90,
   pattern: NO_PATTERN,
   customPattern: NO_CUSTOM_PATTERN,
+  ribbonPattern: NO_PATTERN,
+  ribbonCustomPattern: NO_CUSTOM_PATTERN,
   texture: { kind: 'none', opacity: 0.3 }
 };
 
@@ -420,6 +426,8 @@ export const THEME_KEYS = [
   'abilityFontSize',
   'pattern',
   'customPattern',
+  'ribbonPattern',
+  'ribbonCustomPattern',
   'texture'
 ] as const;
 

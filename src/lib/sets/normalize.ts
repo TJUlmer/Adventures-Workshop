@@ -67,8 +67,8 @@ import type {
   InitiativeCard,
   RulesCard
 } from '$lib/cards/types';
-import { NO_CUSTOM_PATTERN, solid } from '$lib/cards/style';
-import type { CustomPatternStyle, Fill } from '$lib/cards/style';
+import { NO_CUSTOM_PATTERN, NO_PATTERN, solid } from '$lib/cards/style';
+import type { CustomPatternStyle, Fill, PatternStyle } from '$lib/cards/style';
 import {
   createCardback,
   createCharacterCard,
@@ -177,20 +177,31 @@ function customPatternStyle(value: unknown): CustomPatternStyle {
  * A style override is read generically elsewhere — `CardStyleOverride` is
  * sparse by design, and `mergeCardStyle` treats an absent key as "inherit"
  * — so there is deliberately no per-key normalize branch for most of
- * `CardTheme`. `customPattern` is the one exception: unlike adding a new
- * key (which an older document simply lacks, and resolves from the default
- * theme for free), its own *shape* changed after shipping (it gained
- * `rotation` and a colour grade, and `scale` itself went through a brief
- * `scaleX`/`scaleY` detour on the way). A layer that already saved an older
- * shape is not absent — the whole cascade key is present and wins outright
- * — so every field the old shape lacked reads as `undefined` and crashes
- * the first control that formats it as a number.
- * Repairing it here, once, is what makes that self-heal on next load rather
- * than needing every reader of `theme.customPattern` to guard itself.
+ * `CardTheme`. `customPattern` was the original exception: unlike adding a
+ * new key (which an older document simply lacks and resolves from the default
+ * theme), its own shape changed after shipping. It gained rotation and a
+ * colour grade, and scale went through a brief scaleX/scaleY detour. An older
+ * saved object wins the whole cascade key, so missing fields read as undefined
+ * and crash the first control that formats them as a number.
+ * Repairing it once here makes that self-heal on load, rather than needing
+ * every reader to guard itself. Present ribbon objects receive the same repair;
+ * absent ribbon keys stay absent so sparse overrides keep inheriting.
  */
 function repairStyleOverride(raw: Loose): Loose {
-  if (raw['customPattern'] === undefined) return raw;
-  return { ...raw, customPattern: customPatternStyle(raw['customPattern']) };
+  const repaired = { ...raw };
+  for (const key of ['customPattern', 'ribbonCustomPattern']) {
+    if (raw[key] !== undefined) repaired[key] = customPatternStyle(raw[key]);
+  }
+  if (raw['ribbonPattern'] !== undefined) {
+    const pattern = asRecord(raw['ribbonPattern']);
+    repaired['ribbonPattern'] = {
+      name: typeof pattern['name'] === 'string' ? pattern['name'] : null,
+      color: str(pattern['color'], NO_PATTERN.color),
+      opacity: num(pattern['opacity'], NO_PATTERN.opacity),
+      scale: num(pattern['scale'], NO_PATTERN.scale)
+    } satisfies PatternStyle;
+  }
+  return repaired;
 }
 
 /** Fills in transform, adjustments and effects added after the first release. */

@@ -357,12 +357,18 @@
           />
         </Section>
 
-        <Section title="Pattern & texture" description="Overlays laid across the printed card.">
+        <Section
+          title="Pattern & texture"
+          description={card.type === 'action'
+            ? 'Separate patterns for the body and name ribbon, plus a finish for the card.'
+            : 'Body patterns and a finish for the printed card.'}
+        >
           <StylePanel
             target={{ entity: 'card', id: card.id }}
             resolved={resolvedTheme}
             {originFor}
             show={['pattern', 'texture']}
+            surfaces={SURFACES[card.type]}
           />
         </Section>
       {/if}

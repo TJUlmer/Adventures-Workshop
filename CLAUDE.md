@@ -2806,6 +2806,24 @@ already keeps the Supabase session the same way, for the same reason.
   and `StylePanel` filters to them. A control for something a card cannot show
   reads as broken, not as inapplicable.
 
+Action-card patterns have independent body and name-ribbon cascade keys:
+`pattern`/`customPattern` retain their body meaning, while
+`ribbonPattern`/`ribbonCustomPattern` start empty in schema v75.
+`SurfacePatternPanel` supplies the same tiled-mask and custom-image controls for
+each surface, including separate asynchronous upload guards. `StylePanel` shows
+ribbon controls only for templates that expose `banner`; set and character
+defaults share those controls. Normalization repairs present ribbon objects
+without filling absent sparse overrides, and printer-friendly mode clears both
+surfaces' overlays.
+
+`SurfacePattern` draws the action body's existing overlays and the ribbon's new
+ones. In the ribbon it sits inside the fill's existing combined run/point mask,
+below the hero combat head, outline and name. That clips the decoration to the
+printed ribbon and keeps it off the border and combat block. Custom-image scale
+is relative to its own surface (70% of body width, 100% of ribbon width at 1×),
+with the same anchored position, rotation and colour grade. The DOM remains the
+single preview and export path.
+
 ### Replacement images
 
 Every card, a character's deck back, an event card's reverse, the initiative

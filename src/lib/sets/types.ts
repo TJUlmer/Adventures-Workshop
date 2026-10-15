@@ -491,10 +491,14 @@ export type SetId = Id<'Set'>;
  *      names retain their natural width; older builds would silently discard
  *      an author's adjustment.
  *
+ * v75 — card styles gained independent tiled and custom-image name-ribbon
+ *      patterns. Older documents inherit no ribbon pattern; body patterns keep
+ *      their existing keys and placement.
+ *
  * Older documents are *repaired*, not rejected — see `sets/normalize.ts`. Only
  * a version newer than this build understands is refused.
  */
-export const SET_SCHEMA_VERSION = 74;
+export const SET_SCHEMA_VERSION = 75;
 
 /**
  * What a set is for.
