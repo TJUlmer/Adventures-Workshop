@@ -664,6 +664,7 @@
    */
   .printer-friendly :global(.hero-character .heading),
   .printer-friendly :global(.hero-character .token-count),
+  .printer-friendly :global(.hero-character .token-count-ink),
   .printer-friendly :global(.hero-character .health),
   .printer-friendly :global(.hero-character .move-figure),
   .printer-friendly :global(.hero-character .ability),
@@ -672,8 +673,9 @@
     color: #000 !important;
   }
 
-  .printer-friendly :global(.hero-character .token-count) {
-    background: none !important;
+  .printer-friendly :global(.hero-character .token-count-ink) {
+    background-image: none !important;
+    -webkit-text-fill-color: currentColor !important;
   }
 
   /*

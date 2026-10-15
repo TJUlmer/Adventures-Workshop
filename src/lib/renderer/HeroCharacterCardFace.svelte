@@ -932,15 +932,13 @@
 
     <span
       class="token-count"
-      style:color={design.sidekickCountInk.kind === 'gradient' ? 'transparent' : design.sidekickCountInk.color}
-      style:background-image={design.sidekickCountInk.kind === 'gradient' ? fillCss(design.sidekickCountInk) : undefined}
       style:left={px(
         CHARACTER_TOKENS.centerX + ((discs - 1) / 2) * CHARACTER_TOKENS.pitch
       )}
       style:top={py(digitMiddleToBoxTop(CHARACTER_TOKENS.centerY, CHARACTER_TOKENS.size))}
       style:font-size={pu(CHARACTER_TOKENS.size)}
     >
-      ×{sidekick.count}
+      {@render sidekickCountText()}
     </span>
   {:else if sidekickHealthState === 'paired'}
     <!--
@@ -973,13 +971,11 @@
 
     <span
       class="token-count"
-      style:color={design.sidekickCountInk.kind === 'gradient' ? 'transparent' : design.sidekickCountInk.color}
-      style:background-image={design.sidekickCountInk.kind === 'gradient' ? fillCss(design.sidekickCountInk) : undefined}
       style:left={px(CHARACTER_TOKENS_PAIRED.countX)}
       style:top={py(digitMiddleToBoxTop(CHARACTER_TOKENS.centerY, CHARACTER_TOKENS.size))}
       style:font-size={pu(CHARACTER_TOKENS.size)}
     >
-      ×{sidekick.count}
+      {@render sidekickCountText()}
     </span>
   {:else if sidekickHealthState === 'shifted'}
     <!--
@@ -998,13 +994,11 @@
 
     <span
       class="token-count"
-      style:color={design.sidekickCountInk.kind === 'gradient' ? 'transparent' : design.sidekickCountInk.color}
-      style:background-image={design.sidekickCountInk.kind === 'gradient' ? fillCss(design.sidekickCountInk) : undefined}
       style:left={px(CHARACTER_HEALTH_SHIFTED.countX)}
       style:top={py(digitMiddleToBoxTop(CHARACTER_HEALTH.sidekickCenterY, CHARACTER_TOKENS.size))}
       style:font-size={pu(CHARACTER_TOKENS.size)}
     >
-      ×{sidekick.count}
+      {@render sidekickCountText()}
     </span>
   {:else}
     <!--
@@ -1137,6 +1131,17 @@
   >
     {value}
   </span>
+{/snippet}
+
+{#snippet sidekickCountText()}
+  <span
+    class="token-count-ink"
+    style:color={design.sidekickCountInk.color}
+    style:background-image={design.sidekickCountInk.kind === 'gradient' ? fillCss(design.sidekickCountInk) : undefined}
+    style:background-clip="text"
+    style:-webkit-background-clip="text"
+    style:-webkit-text-fill-color={design.sidekickCountInk.kind === 'gradient' ? 'transparent' : design.sidekickCountInk.color}
+  >×{sidekick.count}</span>
 {/snippet}
 
 <style>
@@ -1352,10 +1357,11 @@
     white-space: nowrap;
   }
 
-  /* A gradient is clipped to real text so the same DOM survives PNG export. */
-  .token-count {
-    background-clip: text;
-    -webkit-background-clip: text;
+  /* Paint on an inline text box, separate from the positioned count wrapper.
+     Keep clipping beside the dynamic background in markup so it also survives
+     style updates and export's frozen inline styles. */
+  .token-count-ink {
+    display: inline-block;
   }
 
   /*

@@ -829,9 +829,11 @@ the centre that way left only the dark backing disc in published previews.
 in every swarm layout (plain discs, paired health discs and the shifted badge).
 Its picker is beside Sidekick discs in the Sidekick Band design block, with the
 usual template reset. Schema v76 normalizes older sheets to the former white;
-cloning copies this fill independently. Gradient fills clip to the count's real
-text, and printer-friendly mode clears that background and prints the count in
-black. Preview and exports share this renderer.
+cloning copies this fill independently. The positioned count wrapper contains a
+separate inline `token-count-ink` span. Gradient image, text clipping and WebKit
+text-fill are set together on that span: painting on the positioned wrapper
+produced a rectangular gradient instead of glyphs. Printer-friendly mode clears
+the inner background, restores text fill to currentColor, and prints it in black. Preview and exports share this renderer.
 
 `CharacterCardDesign.abilityScale` is the Special Ability content section's single
 text-size control: it multiplies the calibrated name and body sizes together,
