@@ -87,11 +87,11 @@ do $$
 begin
   perform cron.unschedule(jobid)
     from cron.job
-   where jobname = 'set-draft-expiry-hourly';
+   where jobname in ('set-draft-expiry-hourly', 'set-draft-expiry-daily');
 
   perform cron.schedule(
-    'set-draft-expiry-hourly',
-    '10 * * * *',
+    'set-draft-expiry-daily',
+    '10 6 * * *',
     $command$
       select public.purge_expired_set_drafts(100);
     $command$

@@ -76,7 +76,7 @@ behaviour, renamed, and reachable only from "Delete forever" inside Recently
 Deleted during its 30-day recovery window. `purgeExpiredSets` applies the same
 permanent removal to device-owned rows when Home next loads; cloud-authoritative
 rows are omitted at the same boundary, and migration
-`0047_recently_deleted_expiry.sql` removes them server-side every hour before
+`0047_recently_deleted_expiry.sql` removes them server-side once per day before
 queuing their private objects for the guarded Storage cleanup. The one trap:
 `saveSet` rebuilds its index row from `toEntry(set, …)` on every write, including
 autosave, and `toEntry` has no notion of `deletedAt` at all — without
