@@ -4,6 +4,10 @@ import type { CachedDraftState } from '../src/lib/persistence/types';
 import type { LibraryEntry } from '../src/lib/storage/library';
 import type { SetId } from '../src/lib/sets/types';
 import { asId, asIsoDateTime } from '../src/lib/core/id';
+import {
+  recentlyDeletedDaysRemaining,
+  recentlyDeletedExpired
+} from '../src/lib/persistence/deleted-retention';
 
 const status = document.querySelector<HTMLParagraphElement>('#status');
 const checks = document.querySelector<HTMLUListElement>('#checks');
@@ -72,6 +76,7 @@ function synced(id: string, revision: number): CachedDraftState {
 }
 
 try {
+  const compositionReferenceTime = Date.parse('2026-09-03T12:00:00.000Z');
   const localOnly = local('set-local', 'Local only');
   const cached = local('set-cached', 'Old cached name');
   const collision = local('set-collision', 'Local collision');
@@ -102,7 +107,8 @@ try {
     ],
     authority: 'cloud',
     ownerId: 'owner',
-    error: null
+    error: null,
+    referenceTime: compositionReferenceTime
   });
 
   assert(composed.active.length === 5, 'Active cloud/local composition lost a row.');
@@ -140,7 +146,8 @@ try {
     remote: null,
     authority: 'cloud-fallback',
     ownerId: 'owner',
-    error: 'offline'
+    error: 'offline',
+    referenceTime: compositionReferenceTime
   });
   assert(fallback.error === 'offline', 'The fallback did not preserve its visible error.');
   assert(
@@ -152,6 +159,48 @@ try {
     'An unmigrated local set was confused with an online cache.'
   );
   addCheck('An unreachable cloud falls back only to labelled device copies.');
+
+  const retentionReferenceTime = Date.parse('2026-10-15T12:00:00.000Z');
+  const expiredLocal = local(
+    'set-expired-local',
+    'Expired locally',
+    '2026-09-01T11:59:59.000Z'
+  );
+  const retainedDeleted = remote(
+    'set-recently-deleted',
+    'Still restorable',
+    2,
+    '2026-10-01T12:00:00.000Z'
+  );
+  const expiredRemote = remote(
+    'set-expired-remote',
+    'Expired online',
+    2,
+    '2026-09-01T12:00:00.000Z'
+  );
+  const retained = composeDraftLibrary({
+    local: [expiredLocal],
+    states: new Map(),
+    remote: [retainedDeleted, expiredRemote],
+    authority: 'cloud',
+    ownerId: 'owner',
+    error: null,
+    referenceTime: retentionReferenceTime
+  });
+  assert(retained.deleted.length === 1, 'Expired Recently Deleted rows remained visible.');
+  assert(
+    retained.deleted[0]?.id === asId<SetId>('set-recently-deleted'),
+    'A restorable Recently Deleted row was removed early.'
+  );
+  assert(
+    recentlyDeletedExpired('2026-09-15T12:00:00.000Z', retentionReferenceTime),
+    'The exact 30-day boundary was not expired.'
+  );
+  assert(
+    recentlyDeletedDaysRemaining('2026-10-01T12:00:00.000Z', retentionReferenceTime) === 16,
+    'The visible retention countdown was incorrect.'
+  );
+  addCheck('Recently Deleted keeps 30 days exactly, then omits expired local and cloud rows.');
   status.textContent = 'PASS — Phase 4 summary composition is stable.';
 } catch (cause) {
   status.textContent = `FAIL — ${cause instanceof Error ? cause.message : 'Unknown error'}`;

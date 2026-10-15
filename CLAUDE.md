@@ -73,14 +73,16 @@ the ordinary shelf and Home's own "Recently deleted" section
 `refreshLibrary()` so the two can never disagree about which bucket a row is
 in). `restoreSet` clears the flag; `purgeSet` is the old unconditional
 behaviour, renamed, and reachable only from "Delete forever" inside Recently
-Deleted — nothing else in the app calls it, so losing a set for good is always
-a second, separate decision from the first click. The one trap: `saveSet`
-rebuilds its index row from `toEntry(set, …)` on every write, including
+Deleted during its 30-day recovery window. `purgeExpiredSets` applies the same
+permanent removal to device-owned rows when Home next loads; cloud-authoritative
+rows are omitted at the same boundary, and migration
+`0047_recently_deleted_expiry.sql` removes them server-side every hour before
+queuing their private objects for the guarded Storage cleanup. The one trap:
+`saveSet` rebuilds its index row from `toEntry(set, …)` on every write, including
 autosave, and `toEntry` has no notion of `deletedAt` at all — without
 carrying the flag forward explicitly, the next autosave on a set sitting in
-Recently Deleted would silently restore it. No sweep ever purges an old
-deletion automatically; Recently Deleted holds everything until an author
-acts on it.
+Recently Deleted would silently restore it. Invalid legacy deletion timestamps
+are retained rather than treated as permission to erase a document.
 
 **Undo and Redo belong to the open editing session.** `state/edit-history.ts`
 keeps fifty document checkpoints, sharing unchanged branches so embedded artwork

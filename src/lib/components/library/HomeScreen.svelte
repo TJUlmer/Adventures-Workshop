@@ -33,6 +33,10 @@
   import { renderGeneratedBoxArt } from '$lib/export/box-art';
   import { GUIDES } from '$lib/guides/content';
   import { draftRollout } from '$lib/persistence/rollout.svelte';
+  import {
+    RECENTLY_DELETED_RETENTION_DAYS,
+    recentlyDeletedDaysRemaining
+  } from '$lib/persistence/deleted-retention';
   import type { DraftLibraryEntry, LibraryAvailability } from '$lib/persistence/types';
   import { CARD_FORMATS, trimBox } from '$lib/renderer/geometry';
   import { usesAutomaticBoxArt } from '$lib/sets/box-art';
@@ -68,6 +72,7 @@
   /** Collapsed by default — an empty-feeling section nobody asked to see. */
   let showDeleted = $state(false);
   let confirmingPurge = $state<string | null>(null);
+  const retentionReferenceTime = Date.now();
 
   /**
    * Whether the "what are you making?" chooser is up.
@@ -1289,10 +1294,18 @@
 {/snippet}
 
 {#snippet deletedRow(entry: DraftLibraryEntry)}
+  {@const daysRemaining = recentlyDeletedDaysRemaining(entry.deletedAt, retentionReferenceTime)}
   <li class="deleted-row">
     <div class="deleted-info">
       <span class="deleted-name">{entry.name || 'Untitled Adventure'}</span>
       <span class="deleted-meta">Deleted {formatDate(entry.deletedAt ?? entry.updatedAt)}</span>
+      <span class="deleted-meta">
+        {daysRemaining === null
+          ? `Permanently deleted after ${RECENTLY_DELETED_RETENTION_DAYS} days`
+          : daysRemaining === 1
+            ? 'Permanently deleted in 1 day'
+            : `Permanently deleted in ${daysRemaining} days`}
+      </span>
     </div>
     <div class="deleted-actions">
       <button
@@ -2375,6 +2388,9 @@
           Recently deleted <span class="numeric">· {deletedEntries.length}</span>
         </button>
         {#if showDeleted}
+          <p class="deleted-retention-note">
+            Sets are permanently deleted {RECENTLY_DELETED_RETENTION_DAYS} days after deletion.
+          </p>
           <ul class="deleted-list">
             {#each deletedEntries as entry (entry.id)}
               {@render deletedRow(entry)}
@@ -4649,6 +4665,12 @@
     flex-direction: column;
     gap: var(--space-2);
     margin-top: var(--space-3);
+  }
+
+  .deleted-retention-note {
+    margin: 0.35rem 0 0.55rem;
+    color: var(--text-muted);
+    font-size: 0.78rem;
   }
 
   .deleted-row {

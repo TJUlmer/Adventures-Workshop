@@ -28,6 +28,7 @@ import { assessSet } from '$lib/sets/health';
 import type { AdventureSet, SetId } from '$lib/sets/types';
 import type { IsoDateTime } from '$lib/core/id';
 import { now } from '$lib/core/id';
+import { recentlyDeletedExpired } from '$lib/persistence/deleted-retention';
 import type { CachedDraftState } from '$lib/persistence/types';
 import { idbDelete, idbGet, idbPut, idbPutMany, META_STORE, SETS_STORE } from './indexeddb';
 
@@ -309,6 +310,29 @@ export async function purgeSet(id: SetId): Promise<void> {
   await idbDelete(SETS_STORE, id);
   await idbDelete(META_STORE, `${DRAFT_SYNC_PREFIX}${id}`);
   await writeIndex((await readIndex()).filter((entry) => entry.id !== id));
+}
+
+/**
+ * Enforce Recently Deleted's retention for documents owned by this device.
+ *
+ * This runs while Home loads rather than on a timer that only exists while a
+ * tab stays open. One index rewrite also avoids repeatedly reading and
+ * rewriting the whole shelf when several old rows expire together.
+ */
+export async function purgeExpiredSets(referenceTime = Date.now()): Promise<SetId[]> {
+  const entries = await readIndex();
+  const expired = entries.filter((entry) =>
+    recentlyDeletedExpired(entry.deletedAt, referenceTime)
+  );
+  if (expired.length === 0) return [];
+
+  for (const entry of expired) {
+    await idbDelete(SETS_STORE, entry.id);
+    await idbDelete(META_STORE, `${DRAFT_SYNC_PREFIX}${entry.id}`);
+  }
+  const expiredIds = new Set(expired.map((entry) => entry.id));
+  await writeIndex(entries.filter((entry) => !expiredIds.has(entry.id)));
+  return [...expiredIds];
 }
 
 /** The ordinary shelf: everything not in Recently Deleted. */

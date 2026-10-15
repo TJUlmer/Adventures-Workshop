@@ -13,8 +13,9 @@ import { asId } from '$lib/core/id';
 import type { IsoDateTime } from '$lib/core/id';
 import type { CharacterId } from '$lib/characters/types';
 import type { SetId } from '$lib/sets/types';
-import { readDraftState, readIndex } from '$lib/storage/library';
+import { purgeExpiredSets, readDraftState, readIndex } from '$lib/storage/library';
 import type { LibraryEntry } from '$lib/storage/library';
+import { recentlyDeletedExpired } from './deleted-retention';
 import type {
   CachedDraftState,
   DraftLibraryEntry,
@@ -126,10 +127,11 @@ function fromRemote(
   };
 }
 
-async function localRows(): Promise<{
+async function localRows(referenceTime: number): Promise<{
   entries: LibraryEntry[];
   states: Map<SetId, CachedDraftState | null>;
 }> {
+  await purgeExpiredSets(referenceTime);
   const entries = await readIndex();
   const states = new Map<SetId, CachedDraftState | null>();
   await Promise.all(
@@ -152,30 +154,45 @@ export interface ComposeDraftLibraryOptions {
   authority: DraftLibrarySnapshot['authority'];
   ownerId: string | null;
   error?: string | null;
+  referenceTime?: number;
 }
 
 /** Pure summary composition, exported so the no-document Home contract can be probed directly. */
 export function composeDraftLibrary(options: ComposeDraftLibraryOptions): DraftLibrarySnapshot {
-  const { local, states, remote, authority, ownerId, error = null } = options;
+  const {
+    local,
+    states,
+    remote,
+    authority,
+    ownerId,
+    error = null,
+    referenceTime = Date.now()
+  } = options;
+  const retainedLocal = local.filter(
+    (entry) => !recentlyDeletedExpired(entry.deletedAt, referenceTime)
+  );
   if (remote === null) {
     const context = authority === 'local' ? 'signed-out' : 'fallback';
     return {
-      ...split(local.map((entry) => fromLocal(entry, states.get(entry.id) ?? null, context))),
+      ...split(retainedLocal.map((entry) => fromLocal(entry, states.get(entry.id) ?? null, context))),
       authority,
       ownerId,
       error
     };
   }
 
-  const localById = new Map(local.map((entry) => [entry.id, entry]));
+  const retainedRemote = remote.filter(
+    (summary) => !recentlyDeletedExpired(summary.deletedAt, referenceTime)
+  );
+  const localById = new Map(retainedLocal.map((entry) => [entry.id, entry]));
   const remoteIds = new Set<SetId>();
-  const combined: DraftLibraryEntry[] = remote.map((summary) => {
+  const combined: DraftLibraryEntry[] = retainedRemote.map((summary) => {
     const id = asId<SetId>(summary.localId);
     remoteIds.add(id);
     return fromRemote(summary, localById.get(id), states.get(id) ?? null);
   });
 
-  for (const entry of local) {
+  for (const entry of retainedLocal) {
     if (remoteIds.has(entry.id)) continue;
     const state = states.get(entry.id) ?? null;
     // A clean, previously acknowledged cache whose row is absent from a
@@ -191,7 +208,8 @@ export function composeDraftLibrary(options: ComposeDraftLibraryOptions): DraftL
 
 /** Load summary-only Home data, retaining an honest cache fallback on failure. */
 export async function loadDraftLibrary(): Promise<DraftLibrarySnapshot> {
-  const { entries: local, states } = await localRows();
+  const referenceTime = Date.now();
+  const { entries: local, states } = await localRows(referenceTime);
   const permanent = auth.signedIn && !auth.isAnonymous && draftRollout.enabled;
   if (!permanent) {
     return composeDraftLibrary({
@@ -200,7 +218,8 @@ export async function loadDraftLibrary(): Promise<DraftLibrarySnapshot> {
       remote: null,
       authority: 'local',
       ownerId: null,
-      error: null
+      error: null,
+      referenceTime
     });
   }
 
@@ -213,7 +232,8 @@ export async function loadDraftLibrary(): Promise<DraftLibrarySnapshot> {
       remote,
       authority: 'cloud',
       ownerId,
-      error: null
+      error: null,
+      referenceTime
     });
   } catch (cause) {
     return composeDraftLibrary({
@@ -222,6 +242,7 @@ export async function loadDraftLibrary(): Promise<DraftLibrarySnapshot> {
       remote: null,
       authority: 'cloud-fallback',
       ownerId,
+      referenceTime,
       error:
         cause instanceof Error
           ? cause.message
