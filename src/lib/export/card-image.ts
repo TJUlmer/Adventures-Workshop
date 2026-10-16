@@ -25,6 +25,7 @@ export function formatForCard(card: Card): CardFormat {
 
 const dataUrlCache = new Map<string, string>();
 const flattenedWebpCache = new Map<string, string>();
+const preparedStyleAssetCache = new Map<string, Promise<void>>();
 
 /** Fetch a same-origin asset and inline it, so the SVG has no external refs. */
 async function toDataUrl(url: string): Promise<string> {
@@ -32,6 +33,9 @@ async function toDataUrl(url: string): Promise<string> {
   if (cached) return cached;
 
   const response = await fetch(url);
+  if (!response.ok) {
+    throw new Error(`Could not load ${url} (${response.status}).`);
+  }
   const blob = await response.blob();
   const encoded = await new Promise<string>((resolve, reject) => {
     const reader = new FileReader();
@@ -219,6 +223,59 @@ async function prepareLiveImages(root: Element): Promise<void> {
 }
 
 /**
+ * Decode CSS image assets before the card enters the nested SVG document.
+ *
+ * The SVG wrapper's `load` event does not wait for images referenced by CSS
+ * masks inside its `foreignObject`. That used to be harmless while the masks
+ * were already warm from the editor, but a real publish from a cold page
+ * captured a character card with only its tiny quotation-mark mask: the six
+ * full-card frame masks were still decoding and therefore painted as blank.
+ *
+ * Preloading the exact data URI that `inlineStyleAssets` will write gives the
+ * nested document ready pixels rather than another asynchronous decode. The
+ * promise cache keeps this a once-per-asset cost across a multi-card export.
+ */
+async function prepareStyleAsset(url: string): Promise<void> {
+  const cached = preparedStyleAssetCache.get(url);
+  if (cached) return cached;
+
+  const task = (async () => {
+    const source = await toDataUrl(url);
+    const image = new Image();
+    image.src = source;
+    await loaded(image);
+  })();
+  preparedStyleAssetCache.set(url, task);
+
+  try {
+    await task;
+  } catch (cause) {
+    if (preparedStyleAssetCache.get(url) === task) preparedStyleAssetCache.delete(url);
+    dataUrlCache.delete(url);
+    throw cause;
+  }
+}
+
+async function prepareLiveStyleAssets(root: Element): Promise<void> {
+  const urls = new Set<string>();
+  const properties = [
+    'background-image',
+    'border-image-source',
+    'mask-image',
+    '-webkit-mask-image'
+  ];
+
+  for (const element of [root, ...Array.from(root.querySelectorAll('*'))]) {
+    const style = getComputedStyle(element);
+    for (const property of properties) {
+      for (const url of collectUrls(style.getPropertyValue(property))) urls.add(url);
+    }
+  }
+
+  await Promise.all([...urls].map(prepareStyleAsset));
+}
+
+/**
  * Swap every asset a *style* still points at for a data URI.
  *
  * Done on the DOM rather than on the serialised markup: serialising escapes the
@@ -325,7 +382,7 @@ async function rasterise(
   height: number
 ): Promise<HTMLImageElement> {
   // Before the clone exists, so the pictures are loaded by the time it is text.
-  await prepareLiveImages(element);
+  await Promise.all([prepareLiveImages(element), prepareLiveStyleAssets(element)]);
 
   const clone = element.cloneNode(true) as HTMLElement;
   clone.style.position = 'static';
