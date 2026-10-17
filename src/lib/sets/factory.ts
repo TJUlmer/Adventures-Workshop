@@ -37,7 +37,8 @@ export function createEmptySet(draft: SetDraft = {}): AdventureSet {
       author: draft.author ?? '',
       description: draft.description ?? '',
       createdAt: timestamp,
-      updatedAt: timestamp
+      updatedAt: timestamp,
+      publication: { current: {}, published: {} }
     },
     style: {},
     characters: [],

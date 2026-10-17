@@ -106,7 +106,12 @@ function forkDocument(
     id: localId,
     // A new document written by this build, whatever the original was saved as.
     schemaVersion: SET_SCHEMA_VERSION,
-    meta: { ...document.meta, updatedAt: now() },
+    meta: {
+      ...document.meta,
+      updatedAt: now(),
+      // The new owner's draft has no publication snapshots of its own yet.
+      publication: { current: {}, published: {} }
+    },
     /*
      * Lineage is replaced, not chained.
      *

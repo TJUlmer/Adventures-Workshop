@@ -498,10 +498,13 @@ export type SetId = Id<'Set'>;
  * v76 — character-card designs gained `sidekickCountInk` for the sidekick
  *      quantity text. Older designs retain the template's white count.
  *
+ * v77 — drafts gained compact publication fingerprints so Home can distinguish
+ *      published work that still matches its latest snapshot from newer edits.
+ *
  * Older documents are *repaired*, not rejected — see `sets/normalize.ts`. Only
  * a version newer than this build understands is refused.
  */
-export const SET_SCHEMA_VERSION = 76;
+export const SET_SCHEMA_VERSION = 77;
 
 /**
  * What a set is for.
@@ -586,6 +589,20 @@ export interface SetMeta {
   description: string;
   readonly createdAt: IsoDateTime;
   updatedAt: IsoDateTime;
+  /**
+   * Private draft bookkeeping for Home's publication shelves.
+   *
+   * `current` is derived before every save. `published` records the matching
+   * value only after that scope successfully publishes. Keeping both in the
+   * draft makes the answer portable across devices without fetching public
+   * documents or treating the publication as the editable source.
+   */
+  publication: PublicationSync;
+}
+
+export interface PublicationSync {
+  current: Record<string, string>;
+  published: Record<string, string>;
 }
 
 /**

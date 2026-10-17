@@ -22,6 +22,7 @@ import type { AdventureMap, AdventureMapId } from '$lib/map/types';
 import { applyEntries } from '$lib/sets/contribution';
 import type { ChangeEntry } from '$lib/sets/contribution';
 import { normalizeSet } from '$lib/sets/normalize';
+import { syncPublicationFingerprints } from '$lib/sets/publication-fingerprint';
 import {
   createCard,
   createCardArtworkLayer,
@@ -871,6 +872,7 @@ export class WorkshopStore {
    */
   async saveNow(): Promise<boolean> {
     this.syncSingleHeroName();
+    syncPublicationFingerprints(this.adventure);
     const set = structuredClone($state.snapshot(this.adventure));
     const json = serializeSet(this.adventure);
     if (await persistenceCoordinator.flush(set, json)) {

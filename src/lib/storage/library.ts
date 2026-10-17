@@ -25,7 +25,7 @@ import { characterLabel } from '$lib/characters/factory';
 import type { CharacterId, CharacterRole } from '$lib/characters/types';
 import { parseSetFile, serializeSet } from '$lib/export/json';
 import { assessSet } from '$lib/sets/health';
-import type { AdventureSet, SetId } from '$lib/sets/types';
+import type { AdventureSet, PublicationSync, SetId } from '$lib/sets/types';
 import type { IsoDateTime } from '$lib/core/id';
 import { now } from '$lib/core/id';
 import { recentlyDeletedExpired } from '$lib/persistence/deleted-retention';
@@ -118,6 +118,8 @@ export interface LibraryEntry {
   blockers?: number;
   gaps?: number;
   issueCount?: number;
+  /** Compact draft/publication comparison data for Home's three shelves. */
+  publication?: PublicationSync;
   /**
    * When this set was moved to Recently Deleted, or absent while it is
    * active. A *soft* delete — see `deleteSet` — so this is the one field
@@ -173,6 +175,10 @@ function toEntry(set: AdventureSet, bytes: number): LibraryEntry {
     blockers: health.blockers,
     gaps: health.gaps,
     issueCount: health.issues.length,
+    publication: {
+      current: { ...set.meta.publication.current },
+      published: { ...set.meta.publication.published }
+    },
     ...(set.origin
       ? {
           originAuthor: set.origin.authorName,

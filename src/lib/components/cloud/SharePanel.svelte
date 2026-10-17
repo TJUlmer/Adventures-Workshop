@@ -4,8 +4,9 @@
    *
    * Sits inside Export because that is what it is: one more thing to do with a
    * finished set. It is not a sync toggle and must not read like one — the
-   * working draft is private, publishing copies it into a separate snapshot,
-   * and nothing here ever writes back into the set the author is editing.
+   * working draft is private and publishing copies it into a separate
+   * snapshot. The only write back is a compact fingerprint after success, so
+   * Home can later say whether that snapshot still matches the draft.
    */
   import { onDestroy } from 'svelte';
   import { characterLabel } from '$lib/characters/factory';
@@ -22,6 +23,7 @@
   import type { PublishedSet, Visibility } from '$lib/cloud/sets';
   import { renderSocialImage } from '$lib/cloud/social-image';
   import { charactersByRole } from '$lib/sets/queries';
+  import { publicationFingerprint } from '$lib/sets/publication-fingerprint';
   import { computeScopedSet, parseScopeKey, scopeKeyOf } from '$lib/sets/scope';
   import type { PublishScope } from '$lib/sets/scope';
   import type { AdventureSet } from '$lib/sets/types';
@@ -276,7 +278,13 @@
     try {
       await guard(async () => {
         status = 'Preparing…';
-        const row = await publishSet(set, {
+        /* Captured before the asynchronous render/upload begins. If the author
+           keeps editing while it runs, Home correctly sees the newer draft as
+           work in progress instead of blessing content that was never sent. */
+        const source = structuredClone($state.snapshot(set));
+        const publishedScopeKey = scopeKeyOf(selectedScope);
+        const publishedFingerprint = publicationFingerprint(source, selectedScope);
+        const row = await publishSet(source, {
           // Re-publishing keeps whatever the set already is; only a first publish
           // takes the default, because changing visibility is its own control.
           visibility: published?.visibility ?? wanted,
@@ -296,6 +304,13 @@
         // Replace this scope's row if it already had one, otherwise add it —
         // the other rows in `mine` (other heroes, the villain side) are untouched.
         mine = [...mine.filter((entry) => entry.id !== row.id), row];
+        set.meta.publication = {
+          current: { ...set.meta.publication.current },
+          published: {
+            ...set.meta.publication.published,
+            [publishedScopeKey]: publishedFingerprint
+          }
+        };
         // Cleared on success: a note describes one update, not the set.
         changeNote = '';
         status = 'Published.';
@@ -316,8 +331,16 @@
   const withdraw = () =>
     guard(async () => {
       if (!published) return;
+      const withdrawnScopeKey =
+        published.scope === 'hero' ? `hero:${published.character_id}` : published.scope;
       await unpublishSet(published.id);
       mine = mine.filter((entry) => entry.id !== published.id);
+      const remainingPublished = { ...set.meta.publication.published };
+      delete remainingPublished[withdrawnScopeKey];
+      set.meta.publication = {
+        current: { ...set.meta.publication.current },
+        published: remainingPublished
+      };
       status = 'Withdrawn.';
       setTimeout(() => (status = null), 2500);
     });

@@ -10,6 +10,7 @@ import { persistenceCoordinator } from '$lib/persistence/coordinator.svelte';
 import { draftDiagnostics } from '$lib/persistence/diagnostics.svelte';
 import { draftRollout } from '$lib/persistence/rollout.svelte';
 import type { AdventureSet } from '$lib/sets/types';
+import { syncPublicationFingerprints } from '$lib/sets/publication-fingerprint';
 import { navigation } from './navigation.svelte';
 import {
   migrateLegacyDocument,
@@ -119,6 +120,7 @@ export function useAutosave(store: WorkshopStore, delayMs = 500): void {
      */
     const set = store.adventure;
     store.syncSingleHeroName();
+    syncPublicationFingerprints(set);
     const json = serializeSet(set);
     const editableSnapshot = $state.snapshot(set);
     untrack(() => store.recordHistory(editableSnapshot, focusedEditGroup()));

@@ -11,7 +11,7 @@ import type { CharacterRole } from '$lib/characters/types';
 import { parseSetFile, serializeSet } from '$lib/export/json';
 import { assessSet } from '$lib/sets/health';
 import { normalizeSet } from '$lib/sets/normalize';
-import type { AdventureSet, SetKind } from '$lib/sets/types';
+import type { AdventureSet, PublicationSync, SetKind } from '$lib/sets/types';
 import { SET_SCHEMA_VERSION } from '$lib/sets/types';
 import { auth } from './auth.svelte';
 import { draftRollout } from '$lib/persistence/rollout.svelte';
@@ -46,6 +46,7 @@ export interface DraftSummary {
   blockers: number;
   gaps: number;
   issueCount: number;
+  publication: PublicationSync;
   origin: DraftOriginSummary | null;
   documentUpdatedAt: string;
   schemaVersion: number;
@@ -110,6 +111,7 @@ interface DraftRow {
   blockers: number;
   gaps: number;
   issue_count: number;
+  publication: unknown;
   origin_author: string | null;
   origin_revision: number | null;
   origin_slug: string | null;
@@ -136,7 +138,8 @@ interface DraftMutationRow {
 
 const SUMMARY_COLUMNS =
   'id,local_id,name,subtitle,kind,card_count,character_count,characters,blockers,gaps,' +
-  'issue_count,origin_author,origin_revision,origin_slug,document_updated_at,schema_version,' +
+  'issue_count,publication:document->set->meta->publication,' +
+  'origin_author,origin_revision,origin_slug,document_updated_at,schema_version,' +
   'revision,deleted_at,created_at,updated_at';
 
 function requirePermanentUser(): void {
@@ -166,6 +169,25 @@ function characterSummaries(value: unknown): DraftCharacterSummary[] {
   return summaries;
 }
 
+function publicationSummary(value: unknown): PublicationSync {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return { current: {}, published: {} };
+  }
+  const source = value as Record<string, unknown>;
+  const strings = (candidate: unknown): Record<string, string> => {
+    if (!candidate || typeof candidate !== 'object' || Array.isArray(candidate)) return {};
+    return Object.fromEntries(
+      Object.entries(candidate as Record<string, unknown>).filter(
+        (entry): entry is [string, string] => typeof entry[1] === 'string'
+      )
+    );
+  };
+  return {
+    current: strings(source['current']),
+    published: strings(source['published'])
+  };
+}
+
 function toSummary(row: DraftRow): DraftSummary {
   const hasOrigin =
     row.origin_author !== null && row.origin_revision !== null && row.origin_slug !== null;
@@ -181,6 +203,7 @@ function toSummary(row: DraftRow): DraftSummary {
     blockers: row.blockers,
     gaps: row.gaps,
     issueCount: row.issue_count,
+    publication: publicationSummary(row.publication),
     origin: hasOrigin
       ? {
           author: row.origin_author as string,

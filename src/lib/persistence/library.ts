@@ -62,6 +62,7 @@ function fromLocal(
     ...(entry.blockers === undefined ? {} : { blockers: entry.blockers }),
     ...(entry.gaps === undefined ? {} : { gaps: entry.gaps }),
     ...(entry.issueCount === undefined ? {} : { issueCount: entry.issueCount }),
+    publication: entry.publication ?? { current: {}, published: {} },
     ...(entry.originAuthor === undefined ? {} : { originAuthor: entry.originAuthor }),
     ...(entry.originRevision === undefined ? {} : { originRevision: entry.originRevision }),
     ...(entry.originSlug === undefined ? {} : { originSlug: entry.originSlug }),
@@ -111,6 +112,7 @@ function fromRemote(
     blockers: summary.blockers,
     gaps: summary.gaps,
     issueCount: summary.issueCount,
+    publication: summary.publication,
     ...(summary.origin
       ? {
           originAuthor: summary.origin.author,

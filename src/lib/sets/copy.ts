@@ -22,7 +22,12 @@ export function makeIndependentSetCopy(set: AdventureSet): AdventureSet {
     ...set,
     id: createId<SetId>('set'),
     schemaVersion: SET_SCHEMA_VERSION,
-    meta: { ...set.meta, updatedAt: now() },
+    meta: {
+      ...set.meta,
+      updatedAt: now(),
+      // Publication checkpoints belong to the source set's rows, never a copy.
+      publication: { current: {}, published: {} }
+    },
     origin: null
   };
 }

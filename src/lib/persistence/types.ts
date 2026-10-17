@@ -1,6 +1,6 @@
 import type { IsoDateTime } from '$lib/core/id';
 import type { CharacterId, CharacterRole } from '$lib/characters/types';
-import type { SetId, SetKind } from '$lib/sets/types';
+import type { PublicationSync, SetId, SetKind } from '$lib/sets/types';
 
 /** Sync-only state beside the cached document, never inside an exported set. */
 export interface CachedDraftState {
@@ -39,6 +39,7 @@ export interface DraftLibraryEntry {
   blockers?: number;
   gaps?: number;
   issueCount?: number;
+  publication: PublicationSync;
   originAuthor?: string;
   originRevision?: number;
   originSlug?: string;

@@ -1085,6 +1085,15 @@ function origin(value: unknown): SetOrigin | null {
  */
 export function normalizeSet(value: AdventureSet): AdventureSet {
   const raw = value as unknown as Loose;
+  const rawMeta = asRecord(raw['meta']);
+
+  const stringRecord = (candidate: unknown): Record<string, string> =>
+    Object.fromEntries(
+      Object.entries(asRecord(candidate)).filter(
+        (entry): entry is [string, string] => typeof entry[1] === 'string'
+      )
+    );
+  const rawPublication = asRecord(rawMeta['publication']);
 
   const characters = (Array.isArray(raw['characters']) ? raw['characters'] : []).map((entry) => {
     const character = asRecord(entry);
@@ -1230,6 +1239,19 @@ export function normalizeSet(value: AdventureSet): AdventureSet {
        before `kind` existed opens as an adventure, which is what it was. */
     kind,
     singleHero: kind === 'heroes' && bool(raw['singleHero'], false),
+    /* v77. Both maps are derived/validated strings rather than trusted JSON:
+       malformed bookkeeping must never make an otherwise valid set unloadable. */
+    meta: {
+      ...rawMeta,
+      author: str(rawMeta['author']),
+      description: str(rawMeta['description']),
+      createdAt: str(rawMeta['createdAt'], new Date().toISOString()),
+      updatedAt: str(rawMeta['updatedAt'], new Date().toISOString()),
+      publication: {
+        current: stringRecord(rawPublication['current']),
+        published: stringRecord(rawPublication['published'])
+      }
+    },
     style: repairStyleOverride(asRecord(raw['style'])),
     characters,
     decks: repairedDecks,

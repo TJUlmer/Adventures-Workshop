@@ -27,7 +27,7 @@
     listPublicCharacters,
     listPublicSets
   } from '$lib/cloud/sets';
-  import type { GalleryCharacter, GallerySet } from '$lib/cloud/sets';
+  import type { GalleryCharacter, GallerySet, PublishedSet } from '$lib/cloud/sets';
   import { coverArtwork, thumbnailOrCoverBleeds } from '$lib/cloud/thumbnail';
   import { asId } from '$lib/core/id';
   import { renderGeneratedBoxArt } from '$lib/export/box-art';
@@ -402,20 +402,19 @@
   let attention = $state<Map<SetId, SetAttention>>(new Map());
 
   /**
-   * Which local sets this author has published at least once, under any
-   * scope — the split the shelf below groups by, keyed to the slug that
-   * publish produced. `null` rather than an empty `Map` until the fetch
+   * Every publication this author owns, grouped by its editable source set.
+   * A set can have a whole-set row plus hero/villain slices, and each one has
+   * its own successful-publish checkpoint in the private draft. `null` rather
+   * than an empty `Map` until the fetch
    * actually answers: signed out, offline, or cloud disabled all mean
    * "unknown," not "nothing is published," and the two must not look the
    * same — an empty answer would put every set in this library under
    * "Unpublished" even for an author who simply is not signed in yet.
    *
-   * Carries the slug, not just membership, because the promoted "Continue
-   * where you left off" card wants to link straight to the gallery listing —
-   * `listMyPublishedSets()` already returns it on every row, so keeping it
-   * here is free.
+   * Keeping the rows also gives the promoted "Continue where you left off"
+   * card its gallery link without a second request.
    */
-  let publishedSlugByLocalId = $state<Map<SetId, string> | null>(null);
+  let publishedByLocalId = $state<Map<SetId, PublishedSet[]> | null>(null);
 
   $effect(() => {
     const current = entries;
@@ -428,7 +427,7 @@
      * re-trigger the fetch that turns "unknown" into a real split.
      */
     if (!signedIn) {
-      publishedSlugByLocalId = null;
+      publishedByLocalId = null;
       return;
     }
 
@@ -439,9 +438,12 @@
           listMyPublishedSets(),
           openContributionCounts()
         ]);
-        publishedSlugByLocalId = new Map(
-          published.map((row) => [asId<SetId>(row.local_id), row.slug])
-        );
+        const byLocalId = new Map<SetId, PublishedSet[]>();
+        for (const row of published) {
+          const localId = asId<SetId>(row.local_id);
+          byLocalId.set(localId, [...(byLocalId.get(localId) ?? []), row]);
+        }
+        publishedByLocalId = byLocalId;
         for (const row of published) {
           const open = counts.get(row.id) ?? 0;
           if (open > 0) {
@@ -556,21 +558,37 @@
   });
 
   /**
-   * `filteredSets`, split by whether this author has published it — `null`
-   * while that is not yet known (see `publishedSlugByLocalId`), so the shelf
-   * below falls back to one flat list rather than a two-way split it cannot
-   * actually answer.
+   * A publication is up to date only when every scope still matches the
+   * successful snapshot recorded for it. Missing checkpoints belong to sets
+   * published before this feature and conservatively read as work in progress
+   * until their next publish.
    */
   const groupedSets = $derived.by(() => {
-    if (publishedSlugByLocalId === null) return null;
-    const slugs = publishedSlugByLocalId;
-    const published: typeof filteredSets = [];
+    if (publishedByLocalId === null) return null;
+    const workInProgress: typeof filteredSets = [];
+    const upToDate: typeof filteredSets = [];
     const unpublished: typeof filteredSets = [];
     for (const entry of filteredSets) {
-      (slugs.has(entry.id) ? published : unpublished).push(entry);
+      const rows = publishedByLocalId.get(entry.id);
+      if (!rows || rows.length === 0) {
+        unpublished.push(entry);
+        continue;
+      }
+      const current = entry.publication.current;
+      const checkpoints = entry.publication.published;
+      const matchesEveryScope = rows.every((row) => {
+        const key = row.scope === 'hero' ? `hero:${row.character_id}` : row.scope;
+        return current[key] !== undefined && checkpoints[key] === current[key];
+      });
+      (matchesEveryScope ? upToDate : workInProgress).push(entry);
     }
-    return { published, unpublished };
+    return { workInProgress, upToDate, unpublished };
   });
+
+  function publishedSlugFor(id: SetId): string | null {
+    const rows = publishedByLocalId?.get(id) ?? [];
+    return rows.find((row) => row.scope === 'full')?.slug ?? rows[0]?.slug ?? null;
+  }
 
   /**
    * The same three states the per-tile `.health-status` pill already reads
@@ -1707,7 +1725,7 @@
 
         {#if lastOpened}
           {@const set = lastOpened}
-          {@const slug = publishedSlugByLocalId?.get(set.id) ?? null}
+          {@const slug = publishedSlugFor(set.id)}
           <div class="continue-card">
             <span class="continue-header">
               <span class="continue-thumb" style:background={tint(set.id)} aria-hidden="true"></span>
@@ -2330,10 +2348,18 @@
       </p>
     {:else if mode === 'sets'}
       {#if groupedSets}
-        {#if groupedSets.published.length > 0}
-          <h2 class="section-title">Published <span class="numeric">· {groupedSets.published.length}</span></h2>
+        {#if groupedSets.workInProgress.length > 0}
+          <h2 class="section-title">Published — Work in Progress <span class="numeric">· {groupedSets.workInProgress.length}</span></h2>
           <ul class="grid">
-            {#each groupedSets.published as entry (entry.id)}
+            {#each groupedSets.workInProgress as entry (entry.id)}
+              {@render setCard(entry)}
+            {/each}
+          </ul>
+        {/if}
+        {#if groupedSets.upToDate.length > 0}
+          <h2 class="section-title">Published — Up to Date <span class="numeric">· {groupedSets.upToDate.length}</span></h2>
+          <ul class="grid">
+            {#each groupedSets.upToDate as entry (entry.id)}
               {@render setCard(entry)}
             {/each}
           </ul>
