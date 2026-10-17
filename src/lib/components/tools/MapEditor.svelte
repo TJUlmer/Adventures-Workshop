@@ -1873,124 +1873,132 @@
     {#if map.enabled}
       <section class="panel">
         <div class="modes">
-          {#each MODES as entry (entry.value)}
-            <button
-              type="button"
-              class="mode"
-              disabled={artworkView}
-              class:active={mode === entry.value}
-              aria-pressed={mode === entry.value}
-              title={entry.hint}
-              onclick={() => changeMode(entry.value)}
-            >
-              {entry.label}
-            </button>
-          {/each}
+          <div class="editing-tools">
+            <div class="mode-choice">
+              <span class="mode-group-label">Editing mode</span>
+              <div class="mode-picker" role="group" aria-label="Editing mode">
+                {#each MODES as entry (entry.value)}
+                  <button
+                    type="button"
+                    class="mode mode-option"
+                    disabled={artworkView}
+                    class:active={mode === entry.value}
+                    aria-pressed={mode === entry.value}
+                    title={entry.hint}
+                    onclick={() => changeMode(entry.value)}
+                  >
+                    {entry.label}
+                  </button>
+                {/each}
+              </div>
+            </div>
 
-          {#if mode === 'spaces'}
-            <button
-              type="button"
-              class="mode"
-              class:active={selectMultiple}
-              aria-pressed={selectMultiple}
-              onclick={() => {
-                selectMultiple = !selectMultiple;
-                if (selectMultiple) moveTarget = null;
-              }}
-            >
-              Select multiple
-            </button>
-            <button
-              type="button"
-              class="mode"
-              disabled={colorSelection.size === 0}
-              onclick={clearSelection}
-            >Clear</button>
-          {:else if mode === 'link'}
-            {#if linkFrom}
-              <button type="button" class="mode" onclick={() => (linkFrom = null)}>Cancel link</button>
+            {#if mode === 'spaces' || (mode === 'link' && linkFrom)}
+              <div class="mode-actions" aria-label="Current mode actions">
+                {#if mode === 'spaces'}
+                  <button
+                    type="button"
+                    class="mode"
+                    class:active={selectMultiple}
+                    aria-pressed={selectMultiple}
+                    onclick={() => {
+                      selectMultiple = !selectMultiple;
+                      if (selectMultiple) moveTarget = null;
+                    }}
+                  >
+                    Select multiple
+                  </button>
+                  <button
+                    type="button"
+                    class="mode"
+                    disabled={colorSelection.size === 0}
+                    onclick={clearSelection}
+                  >Clear</button>
+                {:else}
+                  <button type="button" class="mode" onclick={() => (linkFrom = null)}>Cancel link</button>
+                {/if}
+              </div>
             {/if}
-          {/if}
+          </div>
 
-          <button
-            type="button"
-            class="mode"
-            class:active={artworkView}
-            aria-pressed={artworkView}
-            title="Show only the board artwork here. This never changes the printed map."
-            onclick={toggleArtworkView}
-          >
-            <Icon name="eye" size={13} />
-            Artwork view
-          </button>
+          <div class="mode-utilities">
+            <div class="view-options" role="group" aria-label="Map view options">
+              <button
+                type="button"
+                class="mode"
+                class:active={artworkView}
+                aria-pressed={artworkView}
+                title="Show only the board artwork here. This never changes the printed map."
+                onclick={toggleArtworkView}
+              >
+                <Icon name="eye" size={13} />
+                Artwork view
+              </button>
 
-          <!--
-            A construction aid, not an editing mode: it changes nothing a click
-            does, only what the board shows while working — so a toggle
-            rather than another entry in `MODES`, which is only ever about
-            what a click means. Never touches the document and never
-            exported; see the overlay itself, drawn beside `MapBoard` rather
-            than inside it, for why.
-          -->
-          <button
-            type="button"
-            class="mode"
-            disabled={artworkView}
-            class:active={showNumbers}
-            title="Show each space's construction number — a label for finding it in this editor, not for the printed board"
-            onclick={() => (showNumbers = !showNumbers)}
-          >
-            <Icon name="eye" size={13} />
-            Numbers
-          </button>
+              <!--
+                A construction aid, not an editing mode: it changes nothing a click
+                does, only what the board shows while working — so a toggle
+                rather than another entry in `MODES`, which is only ever about
+                what a click means. Never touches the document and never
+                exported; see the overlay itself, drawn beside `MapBoard` rather
+                than inside it, for why.
+              -->
+              <button
+                type="button"
+                class="mode"
+                disabled={artworkView}
+                class:active={showNumbers}
+                title="Show each space's construction number — a label for finding it in this editor, not for the printed board"
+                onclick={() => (showNumbers = !showNumbers)}
+              >
+                <Icon name="eye" size={13} />
+                Numbers
+              </button>
 
-          <button
-            type="button"
-            class="mode"
-            disabled={artworkView}
-            class:active={map.showSpacesAndPaths}
-            aria-pressed={map.showSpacesAndPaths}
-            title={map.showSpacesAndPaths
-              ? 'Hide all spaces and paths in this map, including previews and exports'
-              : 'Show all spaces and paths in this map, including previews and exports'}
-            onclick={() => {
-              const visible = !map.showSpacesAndPaths;
-              workshop.editMap((m) => (m.showSpacesAndPaths = visible));
-              if (!visible) {
-                interactionRevision += 1;
-                selected = null;
-                colorSelection = new Set();
-                linkFrom = null;
-                moveTarget = null;
-                cancelPointerSession('mode-change');
-              }
-            }}
-          >
-            <Icon name="eye" size={13} />
-            Spaces &amp; paths
-          </button>
+              <button
+                type="button"
+                class="mode"
+                disabled={artworkView}
+                class:active={map.showSpacesAndPaths}
+                aria-pressed={map.showSpacesAndPaths}
+                title={map.showSpacesAndPaths
+                  ? 'Hide all spaces and paths in this map, including previews and exports'
+                  : 'Show all spaces and paths in this map, including previews and exports'}
+                onclick={() => {
+                  const visible = !map.showSpacesAndPaths;
+                  workshop.editMap((m) => (m.showSpacesAndPaths = visible));
+                  if (!visible) {
+                    interactionRevision += 1;
+                    selected = null;
+                    colorSelection = new Set();
+                    linkFrom = null;
+                    moveTarget = null;
+                    cancelPointerSession('mode-change');
+                  }
+                }}
+              >
+                <Icon name="eye" size={13} />
+                Spaces &amp; paths
+              </button>
 
-          <button
-            type="button"
-            class="mode"
-            disabled={artworkView}
-            class:active={map.autoLargeFighter}
-            aria-pressed={map.autoLargeFighter}
-            title="Automatically mark paths longer than {LARGE_FIGHTER_CENTRE_THRESHOLD_MM} mm centre to centre"
-            onclick={() =>
-              workshop.editMap((m) => (m.autoLargeFighter = !m.autoLargeFighter))}
-          >
-            <Icon name="move" size={13} />
-            Auto large-fighter pins
-          </button>
+              <button
+                type="button"
+                class="mode"
+                disabled={artworkView}
+                class:active={map.autoLargeFighter}
+                aria-pressed={map.autoLargeFighter}
+                title="Automatically mark paths longer than {LARGE_FIGHTER_CENTRE_THRESHOLD_MM} mm centre to centre"
+                onclick={() =>
+                  workshop.editMap((m) => (m.autoLargeFighter = !m.autoLargeFighter))}
+              >
+                <Icon name="move" size={13} />
+                Auto large-fighter pins
+              </button>
+            </div>
 
-          <!--
-            The one control worth reaching for as often as a mode — the
-            board is nothing without its picture — sitting in what would
-            otherwise be empty width on this row rather than pushing the
-            far taller "Board" block above the map to make room for it.
-          -->
-          <div class="board-art">
+            <!-- Kept with the view utilities so mode-specific actions can
+                 appear and disappear without moving either right-hand group. -->
+            <div class="board-art">
             <input
               class="hidden-file"
               type="file"
@@ -2027,6 +2035,7 @@
                 <Icon name="minus" size={12} />
               </button>
             {/if}
+            </div>
           </div>
         </div>
 
@@ -3563,13 +3572,69 @@
     color: var(--text-muted);
   }
 
-  .modes,
   .zones,
   .swatches {
     display: flex;
     align-items: center;
     gap: var(--space-2);
     flex-wrap: wrap;
+  }
+
+  .modes {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: end;
+    gap: var(--space-3) var(--space-5);
+  }
+
+  .editing-tools,
+  .mode-actions,
+  .mode-utilities,
+  .view-options {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+  }
+
+  .editing-tools,
+  .view-options,
+  .mode-utilities {
+    flex-wrap: wrap;
+  }
+
+  .editing-tools {
+    align-items: flex-end;
+    min-width: 0;
+  }
+
+  .mode-choice {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+  }
+
+  .mode-group-label {
+    font-size: var(--text-2xs);
+    font-weight: var(--weight-semibold);
+    letter-spacing: var(--tracking-wide);
+    text-transform: uppercase;
+    color: var(--text-secondary);
+  }
+
+  .mode-picker {
+    display: inline-flex;
+    align-items: stretch;
+    gap: var(--space-px);
+    padding: var(--space-1);
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-md);
+    background: var(--surface-inset);
+    box-shadow: var(--shadow-xs);
+  }
+
+  .mode-utilities,
+  .view-options {
+    justify-content: flex-end;
   }
 
   .mode {
@@ -3585,6 +3650,25 @@
   .mode.active {
     border-color: var(--accent);
     color: var(--text-primary);
+  }
+
+  .mode-picker .mode-option {
+    border-color: transparent;
+    background: transparent;
+    color: var(--text-secondary);
+  }
+
+  .mode-picker .mode-option:hover:not(:disabled):not(.active) {
+    background: var(--surface-hover);
+    color: var(--text-primary);
+  }
+
+  .mode-picker .mode-option.active {
+    border-color: var(--accent);
+    background: var(--accent);
+    color: var(--text-on-accent);
+    font-weight: var(--weight-semibold);
+    box-shadow: var(--shadow-xs);
   }
 
   .mode:disabled,
@@ -3607,17 +3691,10 @@
     color: var(--text-muted);
   }
 
-  /*
-   * Pushed to the row's own far right rather than given a place in flow —
-   * `.modes` already wraps its buttons left-to-right, and this is
-   * the one thing on the row that belongs at the *other* end of whatever
-   * width they left behind.
-   */
   .board-art {
     display: flex;
     align-items: center;
     gap: var(--space-2);
-    margin-left: auto;
   }
 
   .art-chip {
@@ -4051,6 +4128,14 @@
 
   /* Preserve a useful map width before falling back from three columns. */
   @media (max-width: 1250px) {
+    .modes {
+      grid-template-columns: minmax(0, 1fr);
+    }
+
+    .mode-utilities {
+      justify-content: flex-end;
+    }
+
     .layout {
       grid-template-columns: minmax(0, 1fr) 420px;
     }
