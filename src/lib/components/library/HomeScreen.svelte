@@ -2356,18 +2356,18 @@
             {/each}
           </ul>
         {/if}
-        {#if groupedSets.upToDate.length > 0}
-          <h2 class="section-title">Published — Up to Date <span class="numeric">· {groupedSets.upToDate.length}</span></h2>
-          <ul class="grid">
-            {#each groupedSets.upToDate as entry (entry.id)}
-              {@render setCard(entry)}
-            {/each}
-          </ul>
-        {/if}
         {#if groupedSets.unpublished.length > 0}
           <h2 class="section-title">Unpublished <span class="numeric">· {groupedSets.unpublished.length}</span></h2>
           <ul class="grid">
             {#each groupedSets.unpublished as entry (entry.id)}
+              {@render setCard(entry)}
+            {/each}
+          </ul>
+        {/if}
+        {#if groupedSets.upToDate.length > 0}
+          <h2 class="section-title">Published — Up to Date <span class="numeric">· {groupedSets.upToDate.length}</span></h2>
+          <ul class="grid">
+            {#each groupedSets.upToDate as entry (entry.id)}
               {@render setCard(entry)}
             {/each}
           </ul>
