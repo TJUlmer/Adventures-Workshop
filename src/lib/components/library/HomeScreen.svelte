@@ -1818,7 +1818,6 @@
             {#each GUIDES as guide (guide.id)}
               <li>
                 <button type="button" class="guides-row" onclick={() => guides.open(guide.id)}>
-                  <Icon name={guide.icon} size={14} />
                   <span class="guides-text">
                     <span class="guides-title">{guide.title}</span>
                     <span class="guides-summary">{guide.summary}</span>

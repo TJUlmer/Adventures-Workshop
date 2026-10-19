@@ -87,7 +87,9 @@
       aria-current={current === page ? 'page' : undefined}
       onclick={() => navigation.go(page)}
     >
-      <Icon name={meta.icon as IconName} size={13} />
+      {#if page === 'threat'}
+        <Icon name={meta.icon as IconName} size={13} />
+      {/if}
       <span class="tab-label">{meta.label}</span>
     </button>
   {/each}

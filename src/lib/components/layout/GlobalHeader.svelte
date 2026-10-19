@@ -174,7 +174,6 @@
       aria-label="Home"
       onclick={goHome}
     >
-      <Icon name="grid" size={14} />
       <span class="nav-label">Home</span>
     </button>
     <button
@@ -185,7 +184,6 @@
       aria-label="Browse Gallery"
       onclick={openGallery}
     >
-      <Icon name="layers" size={14} />
       <span class="nav-label">Browse Gallery</span>
       <span class="mobile-nav-label">Gallery</span>
     </button>

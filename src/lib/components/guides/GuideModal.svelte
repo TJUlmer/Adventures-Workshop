@@ -110,7 +110,6 @@
   {#if guide && step}
     <div class="inner ui-dialog-frame">
       <header class="head ui-dialog-header">
-        <span class="mark"><Icon name={guide.icon} size={15} /></span>
         <h2 class="title" id="guide-title">{guide.title}</h2>
         <button type="button" class="close" aria-label="Close guide" onclick={() => guides.close()}>
           <Icon name="plus" size={16} />
@@ -200,17 +199,6 @@
     gap: var(--space-3);
     padding: var(--space-5) var(--space-6);
     border-bottom: 1px solid var(--border-subtle);
-  }
-
-  .mark {
-    display: grid;
-    place-items: center;
-    width: 28px;
-    height: 28px;
-    flex: none;
-    border-radius: var(--radius-sm);
-    background: var(--accent-soft);
-    color: var(--accent);
   }
 
   .title {
