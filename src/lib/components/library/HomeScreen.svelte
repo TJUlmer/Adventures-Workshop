@@ -1979,7 +1979,7 @@
               <span class="welcome-kicker">Build it. Play it. Share it.</span>
               <h2 class="welcome-title">Design your own Unmatched adventure</h2>
               <p class="welcome-lede">
-                Create heroes, villains, decks, maps, and every component your set needs — with a
+                Create heroes, villains, decks, maps, and every component your set needs, with a
                 live preview from the first idea through print or Tabletop Simulator.
               </p>
               <div class="welcome-ctas">
@@ -1994,7 +1994,6 @@
               </div>
               <ul class="welcome-promises" aria-label="How Unmatched Labs works">
                 <li>Works offline</li>
-                <li>Private cloud drafts with sign-in</li>
                 <li>Print and TTS exports</li>
               </ul>
             </div>
@@ -2030,8 +2029,8 @@
                 <div class="capability-copy">
                   <h3>Card editor</h3>
                   <p>
-                    Design action, initiative, rules, and event cards with layered styling, special
-                    card effects, and custom symbols.
+                    Design action, initiative, rules, and event cards with deep customization,
+                    special card effects, and custom symbols.
                   </p>
                 </div>
               </article>
@@ -2100,8 +2099,8 @@
                   <span class="collaboration-label">Collaboration</span>
                   <h3>Build on each other’s work</h3>
                   <p>
-                    Publish a set, make a copy, propose individual changes, and keep its origin and
-                    creator credits attached.
+                    Publish a set, make a copy, propose individual changes, and receive credit for
+                    your contributions.
                   </p>
                 </div>
                 <div class="capability-visual collaboration-visual">
@@ -2122,8 +2121,8 @@
                 <h2 class="principles-title">What sets this tool apart</h2>
               </div>
               <p>
-                Unmatched Labs is organized around the practical needs of finishing and sharing a
-                complete fan-made set, not around a collection of disconnected generators.
+                Unmatched Labs is built around the needs of finishing and sharing a complete
+                fan-made set, with everything you need in one location.
               </p>
             </header>
 
@@ -2133,8 +2132,8 @@
                 <div>
                   <h3>All components in one place</h3>
                   <p>
-                    Cards, decks, maps, threat tracks, dials, tokens, figures, and export settings
-                    remain part of the same project.
+                    Cards, decks, maps, threat tracks, dials, tokens, and figures are all part of
+                    the same project.
                   </p>
                 </div>
               </article>
@@ -2163,8 +2162,8 @@
                 <div>
                   <h3>Private by default</h3>
                   <p>
-                    Author locally without an account, or sign in to keep private drafts available
-                    across browsers. Publishing remains a separate choice.
+                    Store locally without an account, or sign in to keep private drafts available
+                    across browsers. Publish privately or publicly.
                   </p>
                 </div>
               </article>
@@ -2326,11 +2325,6 @@
             </li>
           </ol>
           <div class="journey-foot">
-            <span>
-              {auth.signedIn && !auth.isAnonymous
-                ? 'Private drafts save online and remain cached on this device.'
-                : 'Without a permanent sign-in, drafts stay on this device.'}
-            </span>
             <Button variant="primary" onclick={() => (choosingKind = true)}>
               {entries.length > 0 ? 'Create another set' : 'Create your first set'}
             </Button>
