@@ -44,22 +44,30 @@ export async function fetchOwnProfile(): Promise<OwnProfile | null> {
     : null;
 }
 
-/**
- * Replace the name shown under anything this account publishes.
- *
- * Blank is a legitimate choice, not an error — it is the more private of the
- * two options, and `GalleryScreen`/`ContributionsScreen` already read a blank
- * `display_name` as "Anonymous" rather than as broken data. `avatar_url` is
- * left alone: only the name is what a Google account fills in without asking.
- */
-export async function updateOwnDisplayName(name: string): Promise<void> {
+/** Replace the public name and externally hosted avatar for this account. */
+export async function updateOwnProfile(name: string, avatarUrl: string): Promise<void> {
+  const avatar = avatarUrl.trim();
   const id = auth.user?.id;
   if (!id) return;
+
+  if (avatar.length > 2048) throw new Error('That image URL is too long.');
+  if (avatar) {
+    let parsed: URL;
+    try {
+      parsed = new URL(avatar);
+    } catch {
+      throw new Error('Enter a complete image URL beginning with https://.');
+    }
+    if (parsed.protocol !== 'https:') {
+      throw new Error('Profile images must use a secure https:// URL.');
+    }
+  }
 
   await auth.ensureFresh();
   await request(`/rest/v1/profiles?id=eq.${encodeURIComponent(id)}`, {
     method: 'PATCH',
-    body: { display_name: name.trim() },
+    /* The image stays on its original host; only this small public URL is stored. */
+    body: { display_name: name.trim(), avatar_url: avatar },
     headers: { Prefer: 'return=minimal' }
   });
 }

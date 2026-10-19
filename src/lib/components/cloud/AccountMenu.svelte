@@ -18,7 +18,7 @@
   import { saveExport } from '$lib/export';
   import { draftDiagnostics } from '$lib/persistence/diagnostics.svelte';
   import { draftRollout } from '$lib/persistence/rollout.svelte';
-  import { fetchOwnProfile, updateOwnDisplayName } from '$lib/cloud/profile';
+  import { fetchOwnProfile, updateOwnProfile } from '$lib/cloud/profile';
   import {
     backfillPublishedTtsSave,
     listOutdatedCardPreviews,
@@ -48,8 +48,10 @@
 
   let loading = $state(false);
   let displayName = $state('');
+  let avatarUrl = $state('');
   /** What the server currently has, so Save can tell whether there is anything to send. */
   let saved = $state('');
+  let savedAvatarUrl = $state('');
   let saving = $state(false);
   let error = $state<string | null>(null);
   let justSaved = $state(false);
@@ -86,7 +88,9 @@
   /** One rendering job at a time: each mounts its own off-screen card stage. */
   const maintenanceBusy = $derived(previewRefreshing || cardPreviewRefreshing || ttsBackfilling);
 
-  const dirty = $derived(displayName.trim() !== saved);
+  const dirty = $derived(
+    displayName.trim() !== saved || avatarUrl.trim() !== savedAvatarUrl
+  );
 
   $effect(() => {
     if (!openOnStart || appliedOpenOnStart) return;
@@ -104,6 +108,8 @@
     if (!cloudEnabled() || !auth.signedIn) {
       displayName = '';
       saved = '';
+      avatarUrl = '';
+      savedAvatarUrl = '';
       isAdmin = false;
       previewQueue = [];
       cardPreviewQueue = [];
@@ -119,6 +125,8 @@
         if (cancelled || !profile) return;
         displayName = profile.displayName;
         saved = profile.displayName;
+        avatarUrl = profile.avatarUrl;
+        savedAvatarUrl = profile.avatarUrl;
         isAdmin = profile.isAdmin;
         if (profile.isAdmin) {
           void loadPreviewQueue();
@@ -274,12 +282,15 @@
 
   async function save(): Promise<void> {
     const next = displayName.trim();
+    const nextAvatarUrl = avatarUrl.trim();
     saving = true;
     error = null;
     try {
-      await updateOwnDisplayName(next);
+      await updateOwnProfile(next, nextAvatarUrl);
       saved = next;
       displayName = next;
+      savedAvatarUrl = nextAvatarUrl;
+      avatarUrl = nextAvatarUrl;
       justSaved = true;
       showNameReview = false;
       setTimeout(() => (justSaved = false), 2000);
@@ -381,6 +392,21 @@
             Shown under any set you publish and on any contribution you offer. New
             accounts start with the part of their email before @. Change or clear
             it any time; blank shows as “Anonymous”.
+          </p>
+
+          <label class="field">
+            <span class="field-label">Profile image URL</span>
+            <TextInput
+              type="url"
+              bind:value={avatarUrl}
+              placeholder={loading ? 'Loading…' : 'https://example.com/avatar.jpg'}
+              maxlength={2048}
+              disabled={loading}
+            />
+          </label>
+          <p class="fineprint">
+            Paste a direct HTTPS link to a public image. Labs stores only the URL; the image
+            remains hosted by that website. Clear the field to use your initials.
           </p>
 
           {#if !auth.isAnonymous}
