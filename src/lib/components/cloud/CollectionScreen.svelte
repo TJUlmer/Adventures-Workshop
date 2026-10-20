@@ -810,10 +810,6 @@
     return 'can-offer';
   });
 
-  const canAddDeck = $derived(
-    !organizer && submissionAccessCurrent && submissionAccess && joining !== 'settled'
-  );
-
   async function loadMembership(): Promise<CollectionMembership[] | null> {
     const request = ++membershipRequest;
     const collectionId = collection?.id ?? '';
@@ -1602,7 +1598,6 @@
             {charactersFailed}
             canManage={organizer}
             canUseMemberTools={hasMemberTools}
-            {canAddDeck}
             announcement={claimNotice}
             workspaceAttention={organizer ? submissions.length : myInvitations.length}
             onmanage={() => showWorkspace()}
