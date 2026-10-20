@@ -12,6 +12,7 @@ import { cardLabel } from '$lib/cards/factory';
 import { CARD_FORMATS, THREAT_TRACK, trimBox } from '$lib/renderer/geometry';
 import type { CardFormat } from '$lib/renderer/geometry';
 import { fitScaleWidth } from '$lib/renderer/fit-text';
+import { tick } from 'svelte';
 import { slugify } from './json';
 import type { ExportResult } from './types';
 
@@ -383,6 +384,18 @@ async function rasterise(
 ): Promise<HTMLImageElement> {
   // Before the clone exists, so the pictures are loaded by the time it is text.
   await Promise.all([prepareLiveImages(element), prepareLiveStyleAssets(element)]);
+
+  /*
+   * An image's `load` handler can update CardArt's source-aspect state in the
+   * same turn that `prepareLiveImages` resolves. Cloning immediately can then
+   * capture the old transform even though the live card paints correctly a
+   * moment later. It showed up as the first published card's base artwork
+   * being enlarged while its separately mounted border-break layer stayed put.
+   * Let Svelte flush those image-driven styles, then force one layout read so
+   * the clone starts from the same settled pixels the author saw.
+   */
+  await tick();
+  element.getBoundingClientRect();
 
   const clone = element.cloneNode(true) as HTMLElement;
   clone.style.position = 'static';

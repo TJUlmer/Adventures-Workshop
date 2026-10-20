@@ -493,6 +493,15 @@ export async function publishSet(
    */
   const envelope: unknown = JSON.parse(serializeSet(scoped));
 
+  /*
+   * Photograph the exact serialized snapshot that becomes the published row.
+   * Keeping a second in-memory representation here leaves room for its pixels
+   * and document to disagree even though both began with the same editable
+   * set. Parsing once also proves the snapshot is readable before any upload
+   * work starts.
+   */
+  const publishSnapshot = parsePublishedDocument(envelope);
+
   const assets = await collectEmbeddedAssets(envelope);
   options.onProgress?.({ stage: 'assets', done: 0, total: assets.length });
 
@@ -519,7 +528,7 @@ export async function publishSet(
    * preview can never replace the previous complete published revision.
    */
   const cardPreviewSnapshot = await createCardPreviewManifest(
-    scoped,
+    publishSnapshot,
     user.id,
     set.id,
     previousCardPreviews,
