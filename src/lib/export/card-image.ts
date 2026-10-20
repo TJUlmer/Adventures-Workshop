@@ -218,9 +218,54 @@ async function prepareLiveImages(root: Element): Promise<void> {
       image.naturalWidth > 0 &&
       image.naturalHeight > 0
     ) {
-      image.style.setProperty('--source-aspect', String(image.naturalWidth / image.naturalHeight));
+      const aspect = image.naturalWidth / image.naturalHeight;
+      image.style.setProperty('--source-aspect', String(aspect));
+      image.dataset['exportSourceAspect'] = String(aspect);
     }
   }
+}
+
+/**
+ * Give cloned full-source artwork an explicit print-size box.
+ *
+ * A clone is a new `<img>` even when its source is already decoded on the live
+ * card. Some browsers briefly lay that new replaced element out from stale
+ * container-query or intrinsic dimensions. Freezing styles during that window
+ * permanently bakes the wrong cover scale into the exported bitmap; revision
+ * 2 of a real published set reproduced it even after the live image and a
+ * Svelte tick had both settled.
+ *
+ * `prepareLiveImages` records the decoded source ratio on the live element so
+ * it survives `cloneNode`. Once the clone is mounted at print size, resolve the
+ * same cover/contain equation CardArt's CSS expresses with cqw/cqh and set both
+ * dimensions. The export no longer depends on a newly cloned image's decode or
+ * a browser's container-query scheduling.
+ */
+function settleFullSourceImageGeometry(root: Element): void {
+  const images = Array.from(root.querySelectorAll<HTMLImageElement>('img.full-source'));
+  const sizes = images.map((image) => {
+    const aspect = Number(image.dataset['exportSourceAspect']);
+    const clip = image.parentElement;
+    if (!clip || !Number.isFinite(aspect) || aspect <= 0) return null;
+
+    const clipStyle = getComputedStyle(clip);
+    const clipWidth = Number.parseFloat(clipStyle.width);
+    const clipHeight = Number.parseFloat(clipStyle.height);
+    if (!(clipWidth > 0) || !(clipHeight > 0)) return null;
+
+    const widthAtFullHeight = clipHeight * aspect;
+    const width = image.classList.contains('contain')
+      ? Math.min(clipWidth, widthAtFullHeight)
+      : Math.max(clipWidth, widthAtFullHeight);
+    return { width, height: width / aspect };
+  });
+
+  images.forEach((image, index) => {
+    const size = sizes[index];
+    if (!size) return;
+    image.style.width = `${size.width}px`;
+    image.style.height = `${size.height}px`;
+  });
 }
 
 /**
@@ -391,11 +436,11 @@ async function rasterise(
    * capture the old transform even though the live card paints correctly a
    * moment later. It showed up as the first published card's base artwork
    * being enlarged while its separately mounted border-break layer stayed put.
-   * Let Svelte flush those image-driven styles, then force one layout read so
-   * the clone starts from the same settled pixels the author saw.
+   * Let Svelte flush those image-driven styles before the print-size clone is
+   * made. The clone's own artwork geometry is fixed explicitly below because
+   * its image element has a separate browser lifecycle.
    */
   await tick();
-  element.getBoundingClientRect();
 
   const clone = element.cloneNode(true) as HTMLElement;
   clone.style.position = 'static';
@@ -408,6 +453,7 @@ async function rasterise(
   holder.style.cssText = `position:fixed;left:-99999px;top:0;width:${width}px`;
   holder.append(clone);
   document.body.append(holder);
+  settleFullSourceImageGeometry(clone);
 
   let markup: string;
   try {
