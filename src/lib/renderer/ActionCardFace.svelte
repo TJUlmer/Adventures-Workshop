@@ -1786,8 +1786,9 @@
 
   .tuck-effect-text {
     display: block;
+    flex: none;
     min-width: 0;
-    overflow: hidden;
+    overflow: visible;
     font-family: var(--card-font-text);
     font-weight: var(--card-font-text-weight);
     text-align: center;
@@ -1807,7 +1808,6 @@
   }
 
   .tuck-effect-right .tuck-effect-text {
-    max-height: 100%;
     overflow: visible;
     writing-mode: vertical-rl;
     text-orientation: mixed;

@@ -207,7 +207,24 @@ type CondenseAxis = 'width' | 'height';
 function condenseToFit(element: HTMLElement, axis: CondenseAxis): void {
   element.style.setProperty('--fit-condense', '1');
 
-  const available = axis === 'width' ? element.clientWidth : element.clientHeight;
+  /*
+   * The text keeps its natural one-line box so the browser has nothing to
+   * truncate before the transform is applied. Measure the containing tuck
+   * bar's content box instead: that is the run the transformed text must fit.
+   */
+  const container = element.parentElement;
+  const containerStyle = container ? getComputedStyle(container) : null;
+  const available = container
+    ? axis === 'width'
+      ? container.clientWidth -
+        (Number.parseFloat(containerStyle?.paddingLeft ?? '0') || 0) -
+        (Number.parseFloat(containerStyle?.paddingRight ?? '0') || 0)
+      : container.clientHeight -
+        (Number.parseFloat(containerStyle?.paddingTop ?? '0') || 0) -
+        (Number.parseFloat(containerStyle?.paddingBottom ?? '0') || 0)
+    : axis === 'width'
+      ? element.clientWidth
+      : element.clientHeight;
   const required = axis === 'width' ? element.scrollWidth : element.scrollHeight;
 
   if (available <= 0 || required <= available + 0.5) return;
