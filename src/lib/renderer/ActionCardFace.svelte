@@ -40,7 +40,7 @@
   } from './assets';
   import type { CardSymbolName } from './assets';
   import CardArt from './CardArt.svelte';
-  import { fitHeight } from './fit-text';
+  import { fitCondenseHeight, fitCondenseWidth, fitHeight } from './fit-text';
   import {
     ABILITY,
     ABILITY_RULE,
@@ -1014,9 +1014,10 @@
       >
         <span
           class="tuck-effect-text"
+          use:fitCondenseWidth={card.tuckEffect}
           style:font-size={pu(TUCK_EFFECT.text.size)}
           style:line-height={TUCK_EFFECT.text.lineHeight}
-          style:transform="translateY({pu(TUCK_EFFECT.text.offsetY)})"
+          style:translate="0 {pu(TUCK_EFFECT.text.offsetY)}"
         >{@html renderActionText(card.tuckEffect, ribbonName, customSymbols, 'tuck-effect-symbol')}</span>
       </div>
     {/if}
@@ -1037,6 +1038,7 @@
     >
       <span
         class="tuck-effect-text"
+        use:fitCondenseHeight={card.tuckEffect}
         style:font-size={pu(TUCK_EFFECT.text.right.size)}
         style:line-height={TUCK_EFFECT.text.right.lineHeight}
         style:translate="{pu(TUCK_EFFECT.text.right.offsetX)} {pu(TUCK_EFFECT.text.right.offsetY)}"
@@ -1784,13 +1786,18 @@
 
   .tuck-effect-text {
     display: block;
+    flex: none;
     min-width: 0;
-    overflow: hidden;
+    overflow: visible;
     font-family: var(--card-font-text);
     font-weight: var(--card-font-text-weight);
     text-align: center;
-    text-overflow: ellipsis;
     white-space: nowrap;
+    transform-origin: center;
+  }
+
+  .tuck-effect-bottom .tuck-effect-text {
+    transform: scaleX(var(--fit-condense, 1));
   }
 
   .tuck-effect-text :global(.tuck-effect-symbol) {
@@ -1801,11 +1808,10 @@
   }
 
   .tuck-effect-right .tuck-effect-text {
-    max-height: 100%;
     overflow: visible;
     writing-mode: vertical-rl;
     text-orientation: mixed;
-    transform: rotate(180deg);
+    transform: rotate(180deg) scaleY(var(--fit-condense, 1));
   }
 
   .panel-lead,

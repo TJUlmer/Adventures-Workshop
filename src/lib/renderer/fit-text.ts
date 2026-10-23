@@ -196,3 +196,87 @@ export function fitWidth(node: HTMLElement, _word: string): { update(word: strin
     }
   };
 }
+
+type CondenseAxis = 'width' | 'height';
+
+/**
+ * Condenses a one-line run along its reading direction without changing its
+ * font size. CSS transforms do not affect layout measurements, so the required
+ * scale can be calculated directly from the natural and available lengths.
+ */
+function condenseToFit(element: HTMLElement, axis: CondenseAxis): void {
+  element.style.setProperty('--fit-condense', '1');
+
+  /*
+   * The text keeps its natural one-line box so the browser has nothing to
+   * truncate before the transform is applied. Measure the containing tuck
+   * bar's content box instead: that is the run the transformed text must fit.
+   */
+  const container = element.parentElement;
+  const containerStyle = container ? getComputedStyle(container) : null;
+  const available = container
+    ? axis === 'width'
+      ? container.clientWidth -
+        (Number.parseFloat(containerStyle?.paddingLeft ?? '0') || 0) -
+        (Number.parseFloat(containerStyle?.paddingRight ?? '0') || 0)
+      : container.clientHeight -
+        (Number.parseFloat(containerStyle?.paddingTop ?? '0') || 0) -
+        (Number.parseFloat(containerStyle?.paddingBottom ?? '0') || 0)
+    : axis === 'width'
+      ? element.clientWidth
+      : element.clientHeight;
+  const required = axis === 'width' ? element.scrollWidth : element.scrollHeight;
+
+  if (available <= 0 || required <= available + 0.5) return;
+
+  element.style.setProperty('--fit-condense', String(available / required));
+}
+
+function condenseAction(
+  node: HTMLElement,
+  axis: CondenseAxis
+): { update(text: string): void } {
+  const fit = (): void => {
+    condenseToFit(node, axis);
+  };
+
+  const refitAfterTextUpdate = (): void => {
+    queueMicrotask(() => {
+      if (node.isConnected) fit();
+    });
+  };
+
+  fit();
+  refitAfterTextUpdate();
+
+  const font = getComputedStyle(node).font;
+  if (font) {
+    void document.fonts.load(font).then(
+      () => {
+        if (node.isConnected) fit();
+      },
+      () => undefined
+    );
+  }
+
+  return {
+    update(_text: string) {
+      fit();
+      refitAfterTextUpdate();
+    }
+  };
+}
+
+export function fitCondenseWidth(
+  node: HTMLElement,
+  _text: string
+): { update(text: string): void } {
+  return condenseAction(node, 'width');
+}
+
+export function fitCondenseHeight(
+  node: HTMLElement,
+  _text: string
+): { update(text: string): void } {
+  return condenseAction(node, 'height');
+}
