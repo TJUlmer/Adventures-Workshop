@@ -54,6 +54,24 @@ export function currentPublicationFingerprints(set: AdventureSet): Record<string
   );
 }
 
+/** Apply derived fingerprints without mutating the live editor document. */
+export function withCurrentPublicationFingerprints(
+  set: AdventureSet,
+  current: Readonly<Record<string, string>>
+): AdventureSet {
+  const publication: PublicationSync = set.meta.publication ?? { current: {}, published: {} };
+  return {
+    ...set,
+    meta: {
+      ...set.meta,
+      publication: {
+        current: { ...current },
+        published: { ...publication.published }
+      }
+    }
+  };
+}
+
 function sameFingerprints(
   left: Readonly<Record<string, string>>,
   right: Readonly<Record<string, string>>
@@ -78,9 +96,6 @@ export function syncPublicationFingerprints(set: AdventureSet): void {
   const current = currentPublicationFingerprints(set);
   const publication: PublicationSync = set.meta.publication ?? { current: {}, published: {} };
   if (sameFingerprints(current, publication.current)) return;
-  set.meta.publication = {
-    current,
-    published: { ...publication.published }
-  };
+  set.meta.publication = withCurrentPublicationFingerprints(set, current).meta.publication;
 }
 

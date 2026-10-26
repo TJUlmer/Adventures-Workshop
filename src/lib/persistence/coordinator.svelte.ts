@@ -6,10 +6,8 @@
  * newest observed generation, and only that exact generation may be marked
  * clean by its response.
  */
-import { hashHex } from '$lib/core/hash';
 import { now } from '$lib/core/id';
 import { serializeSet } from '$lib/export/json';
-import { canonicalJson } from '$lib/sets/fingerprint';
 import type { AdventureSet, SetId } from '$lib/sets/types';
 import { auth } from '$lib/cloud/auth.svelte';
 import {
@@ -34,6 +32,7 @@ import type {
   OpenCachedDraft,
   SyncStatus
 } from './types';
+import { draftContentHash } from './content-hash';
 import { draftDiagnostics } from './diagnostics.svelte';
 import type { DraftDiagnosticInput } from './diagnostics.svelte';
 import { draftRollout } from './rollout.svelte';
@@ -48,6 +47,7 @@ interface Generation {
   set: AdventureSet;
   json: string;
   hash: string;
+  byteCount: number;
 }
 
 interface SetQueue {
@@ -104,9 +104,7 @@ const browserServices: PersistenceServices = {
 };
 
 /** Stable over repeated serialisation, including objects whose key insertion order differs. */
-export async function draftContentHash(set: AdventureSet): Promise<string> {
-  return hashHex(encoder.encode(canonicalJson(set)));
-}
+export { draftContentHash } from './content-hash';
 
 export class PersistenceCoordinator {
   activeSetId = $state<SetId | null>(null);
@@ -285,7 +283,9 @@ export class PersistenceCoordinator {
     set: AdventureSet,
     json = serializeSet(set),
     cloudDelay = CLOUD_DEBOUNCE_MS,
-    makeActive = true
+    makeActive = true,
+    preparedHash?: string,
+    preparedByteCount?: number
   ): Promise<boolean> {
     const queue = this.#queue(set.id);
     if (makeActive) this.activate(set.id);
@@ -293,8 +293,8 @@ export class PersistenceCoordinator {
 
     return this.#serial(queue, async () => {
       const started = this.#services.monotonicNow();
-      const byteCount = encoder.encode(json).byteLength;
-      const hash = await draftContentHash(set);
+      const byteCount = preparedByteCount ?? encoder.encode(json).byteLength;
+      const hash = preparedHash ?? await draftContentHash(set);
       const current = (await readDraftState(set.id)) ?? blankState(set.id);
       const tracked =
         current.cloudDraft ||
@@ -323,7 +323,7 @@ export class PersistenceCoordinator {
       if (!wrote) return false;
 
       if (!queue.latest || generation >= queue.latest.number) {
-        queue.latest = { number: generation, set, json, hash };
+        queue.latest = { number: generation, set, json, hash, byteCount };
       }
 
       if (queue.conflict) {
@@ -358,9 +358,18 @@ export class PersistenceCoordinator {
   async flush(
     set: AdventureSet,
     json = serializeSet(set),
-    makeActive = true
+    makeActive = true,
+    preparedHash?: string,
+    preparedByteCount?: number
   ): Promise<boolean> {
-    const wrote = await this.save(set, json, 0, makeActive);
+    const wrote = await this.save(
+      set,
+      json,
+      0,
+      makeActive,
+      preparedHash,
+      preparedByteCount
+    );
     if (!wrote) return false;
     const queue = this.#queue(set.id);
     if (queue.cloudTimer) {
@@ -403,7 +412,6 @@ export class PersistenceCoordinator {
         });
         return;
       }
-
       this.#setStatus(queue.id, { kind: 'saving', attempt: queue.retryAttempt, message: null });
       const attemptStarted = this.#services.monotonicNow();
       let documentStarted: number | null = null;
@@ -453,7 +461,7 @@ export class PersistenceCoordinator {
           outcome: result.outcome === 'conflict' ? 'conflict' : 'succeeded',
           statusCode: null,
           durationMs: resultAt - (documentStarted ?? attemptStarted),
-          byteCount: encoder.encode(job.json).byteLength,
+          byteCount: job.byteCount,
           revision: result.revision,
           retryCount: queue.retryAttempt
         });
@@ -531,7 +539,7 @@ export class PersistenceCoordinator {
           statusCode: status,
           durationMs:
             this.#services.monotonicNow() - (documentStarted ?? attemptStarted),
-          byteCount: documentStarted === null ? 0 : encoder.encode(job.json).byteLength,
+          byteCount: documentStarted === null ? 0 : job.byteCount,
           revision: state.cloudRevision,
           retryCount: queue.retryAttempt
         });
@@ -672,7 +680,13 @@ export class PersistenceCoordinator {
       throw new Error('Could not cache the hydrated cloud draft on this device.');
     }
     const generation = ++queue.generation;
-    queue.latest = { number: generation, set, json, hash };
+    queue.latest = {
+      number: generation,
+      set,
+      json,
+      hash,
+      byteCount: encoder.encode(json).byteLength
+    };
     queue.conflict = null;
     queue.stopped = false;
     this.#clearTimers(queue);

@@ -9,8 +9,12 @@ import { auth } from '$lib/cloud/auth.svelte';
 import { persistenceCoordinator } from '$lib/persistence/coordinator.svelte';
 import { draftDiagnostics } from '$lib/persistence/diagnostics.svelte';
 import { draftRollout } from '$lib/persistence/rollout.svelte';
+import {
+  DraftSavePreparer,
+  SupersededDraftPreparation
+} from '$lib/persistence/save-preparer';
 import type { AdventureSet } from '$lib/sets/types';
-import { syncPublicationFingerprints } from '$lib/sets/publication-fingerprint';
+import { withCurrentPublicationFingerprints } from '$lib/sets/publication-fingerprint';
 import { navigation } from './navigation.svelte';
 import {
   migrateLegacyDocument,
@@ -78,9 +82,19 @@ export async function restoreSession(store: WorkshopStore): Promise<void> {
 }
 
 export function useAutosave(store: WorkshopStore, delayMs = 500): void {
-  let latest: { set: AdventureSet; json: string } | null = null;
+  let generation = 0;
+  let latestObserved: { generation: number; set: AdventureSet } | null = null;
+  let latestPrepared: {
+    generation: number;
+    set: AdventureSet;
+    json: string;
+    hash: string;
+    byteCount: number;
+  } | null = null;
   let leavingFlush: Promise<boolean> | null = null;
   let sessionKey = `${auth.user?.id ?? ''}:${auth.isAnonymous}:${draftRollout.enabled}`;
+  let wasInSet = navigation.inSet;
+  const preparer = new DraftSavePreparer();
 
   persistenceCoordinator.start();
 
@@ -113,45 +127,88 @@ export function useAutosave(store: WorkshopStore, delayMs = 500): void {
     const inSet = navigation.inSet;
 
     /*
-     * Serialising here is not just preparation — it is how this effect
-     * subscribes to the document. Reading `store.adventure` alone would track
-     * the reference and nothing inside it, so field edits would never trigger
-     * a save. Walking every field is what makes the dependency deep.
+     * `$state.snapshot` walks the document and therefore keeps this a deep
+     * observer without serialising, canonicalising and hashing every embedded
+     * artwork string before the input event can paint. The container copy is
+     * also what Undo needs; large primitive strings remain shared.
      */
     const set = store.adventure;
     store.syncSingleHeroName();
-    syncPublicationFingerprints(set);
-    const json = serializeSet(set);
-    const editableSnapshot = $state.snapshot(set);
-    untrack(() => store.recordHistory(editableSnapshot, focusedEditGroup()));
-    const snapshot = structuredClone(editableSnapshot);
-    latest = { set: snapshot, json };
+    const snapshot = $state.snapshot(set);
+    untrack(() => store.recordHistory(snapshot, focusedEditGroup()));
+    const observedGeneration = ++generation;
+    latestObserved = { generation: observedGeneration, set: snapshot };
+    preparer.supersede();
 
-    // Nothing to save while Home is on screen.
-    if (!inSet) return;
+    /* Leaving the editor cancels its debounce. Persist that final generation
+       immediately; an ordinary Home render with no open-set transition still
+       has nothing to save. */
+    const shouldSave = inSet || wasInSet;
+    wasInSet = inSet;
+    if (!shouldSave) return;
 
     const handle = setTimeout(() => {
-      // `$effect` cannot itself be `async`; the write is fired from inside a
-      // plain callback instead, same as everywhere else in the app that
-      // starts an async task from a synchronous handler.
       void (async () => {
-        if (await persistenceCoordinator.save(snapshot, json)) {
-          store.markSaved();
-        } else {
-          store.markSaveFailed('Autosave failed — export the set to keep your work.');
+        try {
+          const prepared = await preparer.prepare(snapshot);
+          if (observedGeneration !== generation) return;
+          const preparedSet = withCurrentPublicationFingerprints(
+            snapshot,
+            prepared.currentPublicationFingerprints
+          );
+          latestPrepared = {
+            generation: observedGeneration,
+            set: preparedSet,
+            json: prepared.json,
+            hash: prepared.hash,
+            byteCount: prepared.jsonByteCount
+          };
+          if (
+            await persistenceCoordinator.save(
+              preparedSet,
+              prepared.json,
+              undefined,
+              true,
+              prepared.hash,
+              prepared.jsonByteCount
+            )
+          ) {
+            store.markSaved();
+            if (!navigation.inSet) await store.refreshLibrary();
+          } else {
+            store.markSaveFailed('Autosave failed — export the set to keep your work.');
+          }
+        } catch (cause) {
+          if (cause instanceof SupersededDraftPreparation) return;
+          console.error('[workshop] Background draft preparation failed.', cause);
+          /* Workers are universal in supported browsers, but preserving cloud
+             delivery matters more than responsiveness if one is blocked by a
+             browser policy or extension. */
+          if (await persistenceCoordinator.save(snapshot)) {
+            store.markSaved();
+            if (!navigation.inSet) await store.refreshLibrary();
+          } else {
+            store.markSaveFailed('Autosave failed — export the set to keep your work.');
+          }
         }
       })();
-    }, delayMs);
+    }, inSet ? delayMs : 0);
 
     return () => clearTimeout(handle);
   });
 
   $effect(() => {
     const flushLatest = (): void => {
-      if (!navigation.inSet || !latest || leavingFlush) return;
-      leavingFlush = persistenceCoordinator.flush(latest.set, latest.json).finally(() => {
-        leavingFlush = null;
-      });
+      const observed = latestObserved;
+      if (!navigation.inSet || !observed || leavingFlush) return;
+      const prepared = latestPrepared?.generation === observed.generation ? latestPrepared : null;
+      const json = prepared?.json ?? serializeSet(observed.set);
+      const set = prepared?.set ?? observed.set;
+      leavingFlush = persistenceCoordinator
+        .flush(set, json, true, prepared?.hash, prepared?.byteCount)
+        .finally(() => {
+          leavingFlush = null;
+        });
     };
     const onVisibilityChange = (): void => {
       if (document.visibilityState === 'hidden') flushLatest();
@@ -161,6 +218,7 @@ export function useAutosave(store: WorkshopStore, delayMs = 500): void {
     return () => {
       window.removeEventListener('pagehide', flushLatest);
       document.removeEventListener('visibilitychange', onVisibilityChange);
+      preparer.destroy();
       persistenceCoordinator.stop();
     };
   });
