@@ -186,7 +186,9 @@
 
   $effect(() => {
     const refreshWhenVisible = (): void => {
-      if (document.visibilityState === 'visible') void refreshCollectionHome();
+      if (document.visibilityState !== 'visible') return;
+      void refreshCollectionHome();
+      void refreshSetAttention();
     };
     const interval = window.setInterval(refreshWhenVisible, 45_000);
     window.addEventListener('focus', refreshWhenVisible);
@@ -394,12 +396,12 @@
    * `behindBy` is genuinely per-set (one `fetchSetSummaryBySlug` per forked
    * entry), so those go out in parallel rather than one after another.
    */
-  interface SetAttention {
-    waiting: number;
-    behindBy: number;
-  }
-
-  let attention = $state<Map<SetId, SetAttention>>(new Map());
+  let waitingAttention = $state<Map<SetId, number>>(new Map());
+  let behindAttention = $state<Map<SetId, number>>(new Map());
+  let setAttentionError = $state<string | null>(null);
+  let setAttentionRefreshing = $state(false);
+  let setAttentionRequest = 0;
+  let setAttentionOwnerId: string | null = null;
 
   /**
    * Every publication this author owns, grouped by its editable source set.
@@ -416,48 +418,81 @@
    */
   let publishedByLocalId = $state<Map<SetId, PublishedSet[]> | null>(null);
 
+  /**
+   * Refresh owner-only publication and contribution attention as one snapshot.
+   *
+   * Offers arrive from another browser, so neither the local library nor auth
+   * changes when Home becomes stale. Focus, visibility and the visible-page
+   * timer above call this again. Failed requests keep the last good counts;
+   * interpreting an unreachable inbox as an empty one hid real offers.
+   */
+  async function refreshSetAttention(): Promise<void> {
+    const request = ++setAttentionRequest;
+    const userId = auth.signedIn ? (auth.user?.id ?? null) : null;
+    if (setAttentionOwnerId !== userId) {
+      setAttentionOwnerId = userId;
+      waitingAttention = new Map();
+      publishedByLocalId = null;
+      setAttentionError = null;
+    }
+    if (!cloudEnabled() || !userId) {
+      waitingAttention = new Map();
+      publishedByLocalId = null;
+      setAttentionError = null;
+      setAttentionRefreshing = false;
+      return;
+    }
+
+    setAttentionRefreshing = true;
+    const [publishedResult, countsResult] = await Promise.allSettled([
+      listMyPublishedSets(),
+      openContributionCounts()
+    ]);
+    if (request !== setAttentionRequest || auth.user?.id !== userId) return;
+
+    if (publishedResult.status === 'fulfilled') {
+      const byLocalId = new Map<SetId, PublishedSet[]>();
+      for (const row of publishedResult.value) {
+        const localId = asId<SetId>(row.local_id);
+        byLocalId.set(localId, [...(byLocalId.get(localId) ?? []), row]);
+      }
+      publishedByLocalId = byLocalId;
+    }
+
+    if (publishedResult.status === 'fulfilled' && countsResult.status === 'fulfilled') {
+      const next = new Map<SetId, number>();
+      for (const row of publishedResult.value) {
+        const open = countsResult.value.get(row.id) ?? 0;
+        if (open <= 0) continue;
+        const localId = asId<SetId>(row.local_id);
+        next.set(localId, (next.get(localId) ?? 0) + open);
+      }
+      waitingAttention = next;
+    }
+
+    setAttentionError =
+      publishedResult.status === 'rejected' || countsResult.status === 'rejected'
+        ? 'Contribution updates could not be loaded. Your last known notifications are still shown.'
+        : null;
+    setAttentionRefreshing = false;
+  }
+
+  $effect(() => {
+    void entries;
+    void auth.signedIn;
+    void auth.user?.id;
+    void refreshSetAttention();
+  });
+
   $effect(() => {
     const current = entries;
     const signedIn = auth.signedIn;
-    if (!cloudEnabled()) return;
-    /*
-     * Read before the guard below returns, not inside it — `auth.signedIn`
-     * has to be tracked whether or not this author happens to be signed in
-     * right now, or signing in while this screen is open would never
-     * re-trigger the fetch that turns "unknown" into a real split.
-     */
-    if (!signedIn) {
-      publishedByLocalId = null;
+    if (!cloudEnabled() || !signedIn) {
+      behindAttention = new Map();
       return;
     }
 
     void (async () => {
-      const waitingByLocalId = new Map<string, number>();
-      try {
-        const [published, counts] = await Promise.all([
-          listMyPublishedSets(),
-          openContributionCounts()
-        ]);
-        const byLocalId = new Map<SetId, PublishedSet[]>();
-        for (const row of published) {
-          const localId = asId<SetId>(row.local_id);
-          byLocalId.set(localId, [...(byLocalId.get(localId) ?? []), row]);
-        }
-        publishedByLocalId = byLocalId;
-        for (const row of published) {
-          const open = counts.get(row.id) ?? 0;
-          if (open > 0) {
-            waitingByLocalId.set(row.local_id, (waitingByLocalId.get(row.local_id) ?? 0) + open);
-          }
-        }
-      } catch {
-        // A badge is never worth an error message — see `SetHome`'s own
-        // silent fallback for the identical fetch. `publishedLocalIds` is
-        // simply left at whatever it already was — `null` on a first
-        // failure, so the shelf still falls back to one flat list rather
-        // than guessing.
-      }
-
       const forked = current.filter(
         (entry): entry is DraftLibraryEntry & { originSlug: string; originRevision: number } =>
           entry.originSlug !== undefined && entry.originRevision !== undefined
@@ -476,13 +511,7 @@
         })
       );
 
-      const next = new Map<SetId, SetAttention>();
-      for (const entry of current) {
-        const waiting = waitingByLocalId.get(entry.id) ?? 0;
-        const behindBy = behindByLocalId.get(entry.id) ?? 0;
-        if (waiting > 0 || behindBy > 0) next.set(entry.id, { waiting, behindBy });
-      }
-      attention = next;
+      behindAttention = behindByLocalId;
     })();
   });
 
@@ -494,7 +523,7 @@
   const waitingSets = $derived.by(() => {
     const rows: (AttentionRow & { count: number })[] = [];
     for (const entry of entries) {
-      const waiting = attention.get(entry.id)?.waiting ?? 0;
+      const waiting = waitingAttention.get(entry.id) ?? 0;
       if (waiting > 0) rows.push({ id: entry.id, name: entry.name || 'Untitled Adventure', count: waiting });
     }
     return rows;
@@ -503,7 +532,7 @@
   const behindSets = $derived.by(() => {
     const rows: (AttentionRow & { behindBy: number })[] = [];
     for (const entry of entries) {
-      const behindBy = attention.get(entry.id)?.behindBy ?? 0;
+      const behindBy = behindAttention.get(entry.id) ?? 0;
       if (behindBy > 0) rows.push({ id: entry.id, name: entry.name || 'Untitled Adventure', behindBy });
     }
     return rows;
@@ -1185,8 +1214,8 @@
           <span class="pill availability" data-availability={entry.availability}>
             {availabilityLabel(entry.availability)}
           </span>
-          {#if (attention.get(entry.id)?.waiting ?? 0) > 0}
-            <span class="pill waiting">{attention.get(entry.id)?.waiting} pending</span>
+          {#if (waitingAttention.get(entry.id) ?? 0) > 0}
+            <span class="pill waiting">{waitingAttention.get(entry.id)} pending</span>
           {/if}
         </span>
         {#if entry.subtitle}<span class="card-subtitle">{entry.subtitle}</span>{/if}
@@ -1233,11 +1262,11 @@
             {#if entry.originRevision !== undefined}
               <span class="numeric">· revision {entry.originRevision}</span>
             {/if}
-            {#if (attention.get(entry.id)?.behindBy ?? 0) > 0}
+            {#if (behindAttention.get(entry.id) ?? 0) > 0}
               <span class="behind">
                 — the original is now
-                {attention.get(entry.id)?.behindBy}
-                {(attention.get(entry.id)?.behindBy ?? 0) === 1 ? 'revision' : 'revisions'} ahead
+                {behindAttention.get(entry.id)}
+                {(behindAttention.get(entry.id) ?? 0) === 1 ? 'revision' : 'revisions'} ahead
               </span>
             {/if}
           </span>
@@ -1481,6 +1510,22 @@
         {collectionHomeError}
         <button type="button" disabled={collectionHomeRefreshing} onclick={() => void refreshCollectionHome()}>
           {collectionHomeRefreshing ? 'Refreshing…' : 'Try again'}
+        </button>
+      </span>
+    </div>
+  {/if}
+
+  {#if setAttentionError}
+    <div class="library-notice" data-tone="warning" role="alert">
+      <Icon name="rotate" size={15} />
+      <span>
+        {setAttentionError}
+        <button
+          type="button"
+          disabled={setAttentionRefreshing}
+          onclick={() => void refreshSetAttention()}
+        >
+          {setAttentionRefreshing ? 'Refreshing…' : 'Try again'}
         </button>
       </span>
     </div>

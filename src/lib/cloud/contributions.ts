@@ -282,19 +282,16 @@ export function tallyContributors(accepted: readonly ContributionSummary[]): Con
  * How many offers are waiting, per set the caller owns.
  *
  * One call for the whole library rather than one per set: Set Home shows a
- * badge, and a badge is not worth a request each time a set is opened.
+ * badge, and a badge is not worth a request each time a set is opened. A
+ * failed request must reject rather than resemble a real zero: Home retains
+ * its last good result and tells the author that its inbox could not refresh.
  */
 export async function openContributionCounts(): Promise<Map<string, number>> {
   if (!auth.signedIn) return new Map();
   await auth.ensureFresh();
-  try {
-    const rows = await request<{ set_id: string; open_count: number }[]>(
-      '/rest/v1/rpc/open_contribution_counts',
-      { method: 'POST', body: {} }
-    );
-    return new Map(rows.map((row) => [row.set_id, Number(row.open_count)]));
-  } catch {
-    // A badge is never worth an error message.
-    return new Map();
-  }
+  const rows = await request<{ set_id: string; open_count: number }[]>(
+    '/rest/v1/rpc/open_contribution_counts',
+    { method: 'POST', body: {} }
+  );
+  return new Map(rows.map((row) => [row.set_id, Number(row.open_count)]));
 }

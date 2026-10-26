@@ -101,14 +101,23 @@
         mine = rows;
         if (rows.length === 0) return;
 
-        const [counts, ...accepted] = await Promise.all([
+        const [countsResult, ...acceptedResults] = await Promise.allSettled([
           openContributionCounts(),
           ...rows.map((row) => listContributions(row.id, 'accepted'))
         ]);
-        waiting = rows.reduce((total, row) => total + (counts.get(row.id) ?? 0), 0);
-        contributors = tallyContributors(accepted.flat());
+        if (countsResult?.status === 'fulfilled') {
+          waiting = rows.reduce(
+            (total, row) => total + (countsResult.value.get(row.id) ?? 0),
+            0
+          );
+        }
+        contributors = tallyContributors(
+          acceptedResults.flatMap((result) =>
+            result.status === 'fulfilled' ? result.value : []
+          )
+        );
       } catch {
-        // A badge is never worth an error message.
+        // An unavailable owner listing leaves no safe rows to summarize.
         mine = [];
         waiting = 0;
         contributors = [];
