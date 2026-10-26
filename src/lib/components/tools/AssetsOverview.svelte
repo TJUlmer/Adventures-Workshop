@@ -152,6 +152,21 @@
   }
 
   /**
+   * A published model deliberately withheld until inspection, as distinct
+   * from a component that genuinely has no visual to show. Gallery browsing
+   * must not download every original mesh and texture, but an unexplained
+   * empty tile made that egress guard look like a failed preview.
+   */
+  function hasDeferredFigurePreview(figure: Figure): boolean {
+    if (componentPreviewsReady || prepareComponentPreviews === undefined) return false;
+    try {
+      return figurePreviewKey(figure) !== null;
+    } catch {
+      return false;
+    }
+  }
+
+  /**
    * A still 3D render, for a figure whose piece is a model — generated or
    * attached — in place of its flat reference image.
    *
@@ -990,6 +1005,11 @@
                 <img src={modelSnapshots[figure.id]} alt="" />
               {:else if hasArtwork(figure.reference) && figure.reference.source}
                 <img src={figure.reference.source} alt="" />
+              {:else if hasDeferredFigurePreview(figure)}
+                <span class="deferred-figure-preview">
+                  <Icon name="rotate" size={18} />
+                  <span>Open to load preview</span>
+                </span>
               {:else}
                 <Icon name="image" size={16} />
               {/if}
@@ -1652,6 +1672,19 @@
     width: 100%;
     height: 100%;
     object-fit: cover;
+  }
+
+  .deferred-figure-preview {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--space-2);
+    max-width: 16ch;
+    padding: var(--space-3);
+    font-size: var(--text-2xs);
+    line-height: var(--leading-snug);
+    text-align: center;
+    color: var(--text-muted);
   }
 
   .figure-name {
