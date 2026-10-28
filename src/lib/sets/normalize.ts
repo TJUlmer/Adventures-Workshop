@@ -850,10 +850,9 @@ function customSymbol(value: unknown): CustomSymbol {
 function dialRange(value: unknown): DialRange {
   const raw = asRecord(value);
   const base = createDialRange();
-  const min = Math.round(num(raw['min'], base.min));
-  /* Max stays at least min + 1, so the dial always has somewhere to count. */
-  const max = Math.max(min + 1, Math.round(num(raw['max'], base.max)));
-  return { min, max };
+  // Older files allowed a custom minimum; health dials now always count down to zero.
+  const max = Math.max(1, Math.round(num(raw['max'], base.max)));
+  return { min: 0, max };
 }
 
 /** An attached file: only a stored source makes it real. */

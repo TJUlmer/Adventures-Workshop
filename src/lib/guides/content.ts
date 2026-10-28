@@ -189,7 +189,7 @@ export const GUIDES: readonly Guide[] = [
       },
       {
         text:
-          'The health dial is one component the app already knows how to build — every hero, villain, and minion needs one (plus many sidekicks), so it is its own kind rather than something you configure from scratch. Give it a face image and the range it should count, and everything else — the disc, the click-to-adjust triggers, the script that runs them in Tabletop Simulator — comes built in.',
+          'The health dial is one component the app already knows how to build — every hero, villain, and minion needs one (plus many sidekicks), so it is its own kind rather than something you configure from scratch. Give it a face image and its starting health, and everything else — the disc, the click-to-adjust triggers, the script that runs them in Tabletop Simulator — comes built in. It always counts down to zero.',
         shot: 'how-components-work/05-dial.webp',
         alt: 'A health dial\'s value range and face art settings, with a live 3D preview of the finished dial below.',
         hotspots: [
@@ -198,7 +198,7 @@ export const GUIDES: readonly Guide[] = [
             y: 0.18,
             w: 0.265,
             h: 0.36,
-            label: 'The one range you set'
+            label: 'Set the starting health'
           }
         ]
       }

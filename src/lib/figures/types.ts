@@ -184,7 +184,7 @@ export interface Figure {
   /** A generated piece, built from the reference image. */
   token: TokenBuild;
   /**
-   * The health dial's range. The dial counts between these, starting full;
+   * The health dial counts from zero to its starting health;
    * written into the shipped saved object's script on export. Only a `dial`
    * uses it.
    */
@@ -195,7 +195,8 @@ export interface Figure {
 }
 
 export interface DialRange {
-  min: number;
+  /** Retained in saved files for compatibility; health always bottoms out at zero. */
+  min: 0;
   max: number;
 }
 

@@ -429,7 +429,7 @@ async function dialObjects(
       const entry = config.find((candidate) => candidate.key === key);
       if (entry) entry.value = value;
     };
-    set('MIN_VALUE', figure.dialRange.min);
+    set('MIN_VALUE', 0);
     set('MAX_VALUE', figure.dialRange.max);
     set('VALUE', figure.dialRange.max);
     dial['LuaScript'] = writeLuaConfig(HEALTH_DIAL_LUA, config);
