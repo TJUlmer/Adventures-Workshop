@@ -87,6 +87,72 @@
   const figures = $derived(set.figures);
   const rulebooks = $derived(set.rulebooks);
 
+  let characterFilter = $state('all');
+  let sortBy = $state<'original' | 'character' | 'name'>('original');
+  let browsingSetId: string | null = null;
+  const charactersById = $derived(
+    new Map(set.characters.map((character) => [character.id as string, character]))
+  );
+  const nameOrder = new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' });
+  const sortOptions = [
+    { value: 'original', label: 'Original order' },
+    { value: 'character', label: 'Character (A–Z)' },
+    { value: 'name', label: 'Component name (A–Z)' }
+  ] as const;
+  const filterOptions = $derived.by(() => {
+    const counts = new Map<string, number>();
+    for (const figure of figures) {
+      const key = assignedCharacterId(figure) ?? 'unassigned';
+      counts.set(key, (counts.get(key) ?? 0) + 1);
+    }
+    return [
+      { value: 'all', label: 'All characters' },
+      { value: 'unassigned', label: `Unassigned (${counts.get('unassigned') ?? 0})` },
+      ...set.characters
+        .map((character) => ({
+          value: character.id as string,
+          label: `${characterLabel(character)} (${counts.get(character.id) ?? 0})`,
+          name: characterLabel(character)
+        }))
+        .sort((a, b) => nameOrder.compare(a.name, b.name))
+    ];
+  });
+  const visibleFigures = $derived.by(() => {
+    // Filtering and sorting are a view; the authored array also controls exports.
+    const visible = figures.filter((figure) => {
+      const ownerId = assignedCharacterId(figure);
+      return characterFilter === 'all' ||
+        (characterFilter === 'unassigned' ? ownerId === null : ownerId === characterFilter);
+    });
+    if (sortBy === 'original') return visible;
+    return visible.sort((a, b) => {
+      if (sortBy === 'character') {
+        const aOwner = ownerName(a);
+        const bOwner = ownerName(b);
+        const byOwner = Number(aOwner === null) - Number(bOwner === null) ||
+          nameOrder.compare(aOwner ?? '', bOwner ?? '');
+        if (byOwner !== 0) return byOwner;
+      }
+      return nameOrder.compare(figureLabel(a, ownerName(a)), figureLabel(b, ownerName(b)));
+    });
+  });
+
+  function assignedCharacterId(figure: Figure): Figure['characterId'] {
+    // Removing a character can leave its old ID on a component.
+    return figure.characterId && charactersById.has(figure.characterId) ? figure.characterId : null;
+  }
+
+  $effect(() => {
+    if (browsingSetId !== set.id) {
+      browsingSetId = set.id;
+      characterFilter = 'all';
+      sortBy = 'original';
+    } else if (characterFilter !== 'all' && characterFilter !== 'unassigned' &&
+      !charactersById.has(characterFilter)) {
+      characterFilter = 'all';
+    }
+  });
+
   let refInputs: Record<string, HTMLInputElement | null> = $state({});
   let modelInputs: Record<string, HTMLInputElement | null> = $state({});
   let error = $state<string | null>(null);
@@ -338,8 +404,13 @@
     return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
   }
 
-  function add(kind: FigureKind): void {
-    workshop.addFigure(kind);
+  function add(kind: FigureKind): Figure {
+    const figure = workshop.addFigure(kind);
+    const character = charactersById.get(characterFilter);
+    if (character) {
+      workshop.editFigure(figure.id, (entry) => (entry.characterId = character.id));
+    }
+    return figure;
   }
 
   /**
@@ -350,7 +421,7 @@
    * introduce a new kind of figure.
    */
   function addSidekickToken(): void {
-    const figure = workshop.addFigure('token');
+    const figure = add('token');
     workshop.editFigure(figure.id, (f) => {
       f.name = 'Sidekick token';
       // `lengthMm` set alongside `diameterMm` on every preset here — leaving
@@ -363,7 +434,7 @@
   }
 
   function addMinionToken(): void {
-    const figure = workshop.addFigure('token');
+    const figure = add('token');
     workshop.editFigure(figure.id, (f) => {
       f.name = 'Minion token';
       f.token.shape = 'polygon';
@@ -375,7 +446,7 @@
   }
 
   function addThreatTrackToken(): void {
-    const figure = workshop.addFigure('token');
+    const figure = add('token');
     workshop.editFigure(figure.id, (f) => {
       f.name = 'Threat track token';
       f.token.shape = 'polygon';
@@ -659,7 +730,7 @@
 
   /** The assigned character's name, for the dial's default name. */
   function ownerName(figure: Figure): string | null {
-    const character = set.characters.find((entry) => entry.id === figure.characterId);
+    const character = figure.characterId ? charactersById.get(figure.characterId) : undefined;
     return character ? characterLabel(character) : null;
   }
 
@@ -1073,6 +1144,23 @@
     </section>
   {/if}
 
+  {#if figures.length > 0}
+    <div class="component-tools">
+      <label class="component-filter field">
+        <span class="field-label">Character</span>
+        <Select value={characterFilter} options={filterOptions} onchange={(value) => (characterFilter = value)} />
+      </label>
+      <label class="component-sort field">
+        <span class="field-label">Sort by</span>
+        <Select value={sortBy} options={sortOptions} onchange={(value) => (sortBy = value)} />
+      </label>
+      <p class="component-count" role="status">Showing {visibleFigures.length} of {figures.length} components</p>
+      {#if characterFilter !== 'all'}
+        <Button size="sm" variant="ghost" onclick={() => (characterFilter = 'all')}>Show all</Button>
+      {/if}
+    </div>
+  {/if}
+
   {#if figures.length === 0}
     <EmptyState
       icon="users"
@@ -1086,9 +1174,20 @@
         </Button>
       {/snippet}
     </EmptyState>
+  {:else if visibleFigures.length === 0}
+    <EmptyState
+      compact
+      icon="users"
+      title="No matching components"
+      description="Choose another character or show all components."
+    >
+      {#snippet actions()}
+        <Button size="sm" onclick={() => (characterFilter = 'all')}>Show all components</Button>
+      {/snippet}
+    </EmptyState>
   {:else}
     <ul class="list">
-      {#each figures as figure (figure.id)}
+      {#each visibleFigures as figure (figure.id)}
         <li class="figure">
           <input
             bind:this={refInputs[figure.id]}
@@ -1970,6 +2069,40 @@
   .error {
     font-size: var(--text-xs);
     color: var(--danger);
+  }
+
+  .component-tools {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    display: flex;
+    flex: none;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: var(--space-3);
+    max-width: 880px;
+    padding: var(--space-4);
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-lg);
+    background: var(--surface-raised);
+    box-shadow: var(--shadow-sm);
+  }
+
+  .component-filter {
+    flex: 2 1 200px;
+    min-width: 0;
+  }
+
+  .component-sort {
+    flex: 1 1 180px;
+    min-width: 0;
+  }
+
+  .component-count {
+    margin: 0;
+    align-self: center;
+    font-size: var(--text-xs);
+    color: var(--text-muted);
   }
 
   .list {
