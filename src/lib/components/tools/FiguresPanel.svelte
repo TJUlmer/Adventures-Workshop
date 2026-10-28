@@ -1060,10 +1060,11 @@
     </div>
   </header>
 
+  <div class="component-layout" class:with-tools={figures.length > 0}>
   {#if figures.length > 0}
     <section class="component-tools" aria-labelledby="component-tools-title">
       <div class="component-tools-heading">
-        <h2 id="component-tools-title"><Icon name="search" size={18} /> Filter & sort components</h2>
+        <h2 id="component-tools-title"><Icon name="search" size={18} /> Filter & sort</h2>
         <p class="component-count" role="status">Showing {visibleFigures.length} of {figures.length} components</p>
       </div>
       <div class="component-tool-fields">
@@ -1082,6 +1083,7 @@
     </section>
   {/if}
 
+  <div class="component-content">
   {#if error}<p class="error">{error}</p>{/if}
 
   {#if set.box.enabled}
@@ -1963,6 +1965,8 @@
       {/each}
     </ul>
   {/if}
+  </div>
+  </div>
 </div>
 
 <style>
@@ -2076,10 +2080,22 @@
     color: var(--danger);
   }
 
+  .component-layout {
+    display: grid;
+    flex: none;
+    grid-template-columns: minmax(0, 1fr);
+    align-items: start;
+    gap: var(--space-5);
+  }
+
+  .component-content {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-5);
+    min-width: 0;
+  }
+
   .component-tools {
-    position: sticky;
-    top: 0;
-    z-index: 1;
     display: flex;
     flex: none;
     flex-direction: column;
@@ -2437,6 +2453,36 @@
   .ghost:hover {
     background: var(--surface-hover);
     color: var(--text-primary);
+  }
+
+  /* A top-sticking toolbar would keep obscuring the long component editors. */
+  @container home (min-width: 1160px) {
+    .component-layout.with-tools {
+      grid-template-columns: minmax(0, 1fr) 280px;
+    }
+
+    .with-tools .component-tools {
+      grid-column: 2;
+      grid-row: 1;
+      position: sticky;
+      top: 0;
+      min-width: 0;
+    }
+
+    .with-tools .component-content {
+      grid-column: 1;
+      grid-row: 1;
+    }
+
+    .component-tool-fields {
+      flex-direction: column;
+      align-items: stretch;
+    }
+
+    .component-filter,
+    .component-sort {
+      flex: none;
+    }
   }
 
   @media (max-width: 760px) {
