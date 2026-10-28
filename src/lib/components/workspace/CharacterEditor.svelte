@@ -360,8 +360,8 @@
     already called "Deck back", which is all the subject heading a wrapper
     was supplying. See `CardEditor`, which sets the pattern.
   -->
-  <p class="lede">Printed on the back of every card in this figure’s decks.</p>
-  <CardbackPanel character={character!} />
+  <p class="lede">The default back for this figure’s decks. Each deck can override it.</p>
+  <CardbackPanel target={{ entity: 'character', id: character!.id }} />
 {/snippet}
 
 {#snippet defaultsSection()}
@@ -372,7 +372,7 @@
   -->
   <Section
     title="Action card defaults"
-    description="How every card in this figure’s decks looks before a card overrides it. The preview beside this panel shows it."
+    description="How every card in this figure’s decks looks before a deck or card overrides it. The preview beside this panel shows it."
   >
     <StylePanel
       target={{ entity: 'character', id: character!.id }}

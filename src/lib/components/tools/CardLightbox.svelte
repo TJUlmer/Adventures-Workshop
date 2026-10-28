@@ -9,7 +9,7 @@
    */
   import { CARD_TYPE_META } from '$lib/cards/types';
   import { CardRenderer } from '$lib/renderer';
-  import { initiativeSubjectForCard, resolveStyleForCard } from '$lib/sets/queries';
+  import { initiativeSubjectForCard, resolveStyleForCard, cardbackForDeck, findDeck } from '$lib/sets/queries';
   import type { AdventureSet } from '$lib/sets/types';
   import { Icon } from '$lib/ui';
   import type { GalleryCardItem, GalleryCardSide } from './gallery-inspection';
@@ -50,6 +50,11 @@
   const first = $derived(index <= 0);
   const last = $derived(index >= items.length - 1);
   const event = $derived(item?.kind === 'card' && item.card.type === 'event');
+  const deckReverse = $derived.by(() => {
+    if (item?.kind !== 'card' || side !== 'back') return null;
+    const deck = findDeck(set, item.card.deckId);
+    return deck ? cardbackForDeck(set, deck, item.card) : null;
+  });
   const landscape = $derived(
     item?.kind === 'card' &&
       (item.card.type === 'event' || (item.card.type === 'rules' && item.card.landscape))
@@ -199,7 +204,8 @@
               <svelte:boundary onerror={report}>
                 {#if item.kind === 'card'}
                   <CardRenderer
-                    card={item.card}
+                    card={deckReverse ? null : item.card}
+                    cardback={deckReverse}
                     character={item.character}
                     theme={resolveStyleForCard(set, item.card)}
                     customSymbols={set.customSymbols}

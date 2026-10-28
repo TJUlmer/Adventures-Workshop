@@ -76,7 +76,7 @@ import {
   createHeroSidekick
 } from '$lib/characters/factory';
 import { ATTACK_TYPES, CHARACTER_BAND_NAMES, CHARACTER_ROLES } from '$lib/characters/types';
-import type { CharacterBandName } from '$lib/characters/types';
+import type { CardbackDesign, CharacterBandName } from '$lib/characters/types';
 import type {
   AttackType,
   CharacterAbility,
@@ -1153,7 +1153,17 @@ export function normalizeSet(value: AdventureSet): AdventureSet {
 
   const decks: Loose[] = (Array.isArray(raw['decks']) ? raw['decks'] : []).map((entry) => {
     const deck = asRecord(entry);
-    return { ...deck, kind: renameLegacyKind(deck['kind']) };
+    const { style, cardback: back, ...rest } = deck;
+    const parsedBack = cardback(back, 'minion');
+    const backKeys = Object.keys(parsedBack) as (keyof CardbackDesign)[];
+    const overrides = Object.fromEntries(backKeys.filter((key) => asRecord(back)[key] !== undefined)
+      .map((key) => [key, parsedBack[key]]));
+    return {
+      ...rest,
+      kind: renameLegacyKind(deck['kind']),
+      ...(style === undefined ? {} : { style: repairStyleOverride(asRecord(style)) }),
+      ...(back === undefined ? {} : { cardback: overrides })
+    };
   });
 
   const cards = (Array.isArray(raw['cards']) ? raw['cards'] : [])

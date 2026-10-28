@@ -71,6 +71,7 @@
 <div
   class="row"
   class:drop-target={dropTarget}
+  class:selected={workshop.selection.target === 'deck' && workshop.selection.id === deck.id}
   style:--depth={depth}
   ondragover={onDragOver}
   ondragleave={() => cardDrag.leaveDeck(deck.id)}
@@ -79,7 +80,7 @@
 >
   <div class="label">
     <span class="bar" style:background="var({meta.colorVar})"></span>
-    <span class="name">{deckLabel(deck)}</span>
+    <button type="button" class="name" title="Edit deck back and card defaults" onclick={() => workshop.selectDeck(deck.id)}>{deckLabel(deck)}</button>
     {#if reownable}
       <select
         class="owner-select"
@@ -139,6 +140,15 @@
     background: var(--surface-hover);
   }
 
+  .row.selected {
+    background: var(--accent-soft);
+    box-shadow: inset 2px 0 var(--accent);
+  }
+
+  .name:hover, .name:focus-visible {
+    color: var(--text-primary);
+  }
+
   .row.drop-target {
     background: var(--accent-soft);
     box-shadow: inset 0 0 0 1px var(--border-accent);
@@ -161,6 +171,8 @@
   }
 
   .name {
+    min-width: 0;
+    text-align: left;
     font-size: var(--text-2xs);
     font-weight: var(--weight-semibold);
     letter-spacing: var(--tracking-caps);

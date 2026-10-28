@@ -97,7 +97,7 @@ used to turn descriptive statistical outliers into Set Health issues.
 ## Style cascade
 
 ```
-stock template → set.style → character.style → card.style
+stock template → set.style → character.style → deck.style → card.style
 ```
 
 Flattened by `resolveStyleForCard()`; `styleOriginForCard()` reports which layer a

@@ -12,12 +12,15 @@
   import { workshop } from '$lib/state/workshop.svelte';
   import CardEditor from './CardEditor.svelte';
   import CharacterEditor from './CharacterEditor.svelte';
+  import DeckEditor from './DeckEditor.svelte';
   import SetEditor from './SetEditor.svelte';
 </script>
 
 <div class="workspace-inner">
   {#if workshop.selectedCard}
     <CardEditor />
+  {:else if workshop.selectedDeck}
+    <DeckEditor />
   {:else if workshop.selectedCharacter}
     <CharacterEditor />
   {:else}

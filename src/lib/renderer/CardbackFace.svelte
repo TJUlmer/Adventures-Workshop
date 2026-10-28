@@ -1,4 +1,5 @@
 <script lang="ts">
+  import type { CardbackSubject } from '$lib/decks/types';
   /**
    * The back of a villain's or minion's deck.
    *
@@ -11,26 +12,29 @@
    * rather supply a back than build one.
    */
   import { fillCss } from '$lib/cards/style';
-  import type { Character } from '$lib/characters/types';
-  import { characterLabel } from '$lib/characters/factory';
+  import { cardbackLabel } from '$lib/decks/factory';
   import { hasArtwork } from '$lib/core/artwork';
   import CardArt from './CardArt.svelte';
   import {
     CARD_FORMATS,
     CARDBACK,
+    trimBox,
     CARDBACK_TEMPLATE as FRAME,
     capTopToBoxTop,
     NAME_METRICS,
     px, pu, py
   } from './geometry';
 
-  const CANVAS = CARD_FORMATS.cardback.bleed;
+  import type { CardFormat } from './geometry';
 
   interface Props {
-    character: Character;
+    character: CardbackSubject;
+    format?: CardFormat;
   }
 
-  let { character }: Props = $props();
+  let { character, format = CARD_FORMATS.cardback }: Props = $props();
+  const canvas = $derived(format.bleed);
+  const trim = $derived(trimBox(format));
 
   const back = $derived(character.cardback);
   const replaced = $derived(back.useReplacement && hasArtwork(back.replacement));
@@ -48,10 +52,10 @@
   <!-- The supplied line art and its type are trim-sized; artwork fills the bleed behind them. -->
   <div
     class="template"
-    style:left={px(CARDBACK.trim.x, CANVAS)}
-    style:top={py(CARDBACK.trim.y, CANVAS)}
-    style:width={px(CARDBACK.trim.width, CANVAS)}
-    style:height={py(CARDBACK.trim.height, CANVAS)}
+    style:left={px(trim.x, canvas)}
+    style:top={py(trim.y, canvas)}
+    style:width={px(trim.width, canvas)}
+    style:height={py(trim.height, canvas)}
   >
     <div class="mask frame" style:background={fillCss(back.frame)}></div>
 
@@ -72,7 +76,7 @@
       style:font-size={pu(CARDBACK.name.size, FRAME)}
       style:color={back.ink}
     >
-      {characterLabel(character)}
+      {cardbackLabel(character)}
     </div>
   </div>
 {/if}

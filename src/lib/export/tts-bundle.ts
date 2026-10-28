@@ -1,3 +1,4 @@
+import { cardbackLabel } from '$lib/decks/factory';
 /**
  * The Tabletop Simulator export, end to end.
  *
@@ -1028,7 +1029,7 @@ export async function exportTabletopSimulator(
 /** Named for the export UI, which lists what a run produced. */
 export function tabletopDeckSummary(set: AdventureSet): string[] {
   return planTabletopDecks(set).map(
-    (plan) => `${plan.nickname} (${plan.cards.length}${plan.back.kind === 'character' ? `, ${characterLabel(plan.back.character)} back` : ''})`
+    (plan) => `${plan.nickname} (${plan.cards.length}${plan.back.kind === 'character' ? `, ${cardbackLabel(plan.back.character)} back` : ''})`
   );
 }
 

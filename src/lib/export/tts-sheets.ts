@@ -14,7 +14,8 @@
  */
 import type { AdventureSet } from '$lib/sets/types';
 import { initiativeSubjectForCard, resolveStyleForCard } from '$lib/sets/queries';
-import { CARD_FORMATS, trimBox } from '$lib/renderer/geometry';
+import { cardbackFormat } from '$lib/decks/factory';
+import { trimBox } from '$lib/renderer/geometry';
 import type { Photograph } from './card-stage';
 import {
   MAX_SHEET_CARDS,
@@ -282,7 +283,7 @@ export async function renderSharedBack(
      * the source's trim dimensions as the print size would crop it twice.
      */
     const backFormat =
-      plan.back.character.role === 'hero' ? CARD_FORMATS.action : CARD_FORMATS.cardback;
+      cardbackFormat(plan.back.character);
 
     const back = await context.photograph(
       { card: null, cardback: plan.back.character },

@@ -1,8 +1,8 @@
 /**
  * Resolving a card's look.
  *
- * Four layers, each one sparse except the first:
- *   stock theme → set → character → card
+ * Five layers, each one sparse except the first:
+ *   stock theme → set → character → deck → card
  *
  * Everything below the first layer is a `CardStyleOverride`, so "inherit" is
  * the absence of a key rather than a sentinel value.
@@ -37,9 +37,10 @@ export function resolveCardTheme(
   characterStyle: CardStyleOverride | null,
   cardStyle: CardStyleOverride | null,
   type?: string,
-  role?: string
+  role?: string,
+  deckStyle: CardStyleOverride | null = null
 ): CardTheme {
-  return mergeCardStyle(stockTheme(type, role), setStyle, characterStyle, cardStyle);
+  return mergeCardStyle(stockTheme(type, role), setStyle, characterStyle, deckStyle, cardStyle);
 }
 
 /**
@@ -94,12 +95,13 @@ export const EVENT_SURFACES = [
  * Which layer a resolved value came from. Drives the "inherited" state in the
  * style editor so the author can see what they are actually overriding.
  */
-export type StyleOrigin = 'stock' | 'set' | 'character' | 'card';
+export type StyleOrigin = 'stock' | 'set' | 'character' | 'deck' | 'card';
 
 export const STYLE_ORIGIN_LABELS: Readonly<Record<StyleOrigin, string>> = {
   stock: 'template',
   set: 'set',
   character: 'character',
+  deck: 'deck',
   card: 'card'
 } as const;
 
@@ -107,9 +109,11 @@ export function styleOrigin(
   key: keyof CardTheme,
   setStyle: CardStyleOverride | null,
   characterStyle: CardStyleOverride | null,
-  cardStyle: CardStyleOverride | null
+  cardStyle: CardStyleOverride | null,
+  deckStyle: CardStyleOverride | null = null
 ): StyleOrigin {
   if (cardStyle && cardStyle[key] !== undefined) return 'card';
+  if (deckStyle && deckStyle[key] !== undefined) return 'deck';
   if (characterStyle && characterStyle[key] !== undefined) return 'character';
   if (setStyle && setStyle[key] !== undefined) return 'set';
   return 'stock';

@@ -43,7 +43,7 @@
   let customPatternErrorTargetKey: string | null = null;
 
   function styleOperationKey(value: StyleTarget): string {
-    const layerKey = value.entity === 'set' ? 'style:set' : `style:${artworkAdjustmentKey(value)}`;
+    const layerKey = value.entity === 'set' ? 'style:set' : value.entity === 'deck' ? `style:deck:${value.id}` : `style:${artworkAdjustmentKey(value)}`;
     return `${layerKey}:${customPatternKey}`;
   }
 

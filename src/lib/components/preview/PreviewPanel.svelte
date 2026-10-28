@@ -25,6 +25,7 @@
   import { Button, EmptyState, Icon } from '$lib/ui';
   import ArtworkTransformOverlay from './ArtworkTransformOverlay.svelte';
   import PreviewFieldOverlay from './PreviewFieldOverlay.svelte';
+  import DeckPreviewPanel from './DeckPreviewPanel.svelte';
 
   let showBleed = $state(false);
   let showGuides = $state(false);
@@ -299,6 +300,9 @@
   {#if exportError}<p class="export-error">{exportError}</p>{/if}
 {/snippet}
 
+{#if workshop.selectedDeck}
+  <DeckPreviewPanel />
+{:else}
 <div class="panel">
   <div class="head">
     <span class="eyebrow">Preview</span>
@@ -594,6 +598,8 @@
     >{Math.round(zoom * 100)}%</button>
   </div>
 </div>
+
+{/if}
 
 <style>
   .panel {

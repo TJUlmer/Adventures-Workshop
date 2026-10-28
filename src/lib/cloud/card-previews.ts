@@ -12,7 +12,7 @@ import { hashEntity } from '$lib/sets/fingerprint';
 import type { AdventureSet } from '$lib/sets/types';
 
 /** Bump whenever the renderer or stored image format changes. */
-export const CARD_PREVIEW_RENDERER_VERSION = 12;
+export const CARD_PREVIEW_RENDERER_VERSION = 13;
 
 /**
  * Width of a stored gallery card face, in pixels.

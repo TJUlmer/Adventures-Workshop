@@ -1,17 +1,5 @@
 <script lang="ts">
-  /**
-   * A high-level map of the three style layers — set, character, card — with
-   * something to click for two of them. Every page in the cascade already
-   * explains itself well *locally* ("Defaults for every card in the set…",
-   * "How every card in this figure's decks looks before a card overrides
-   * it…"), but nothing showed the three levels together before this: a set
-   * with a few characters and dozens of cards makes each explanation read as
-   * its own separate feature rather than one system with three stops.
-   *
-   * Always shown, not gated on an empty set the way `SetEditor`'s "Start
-   * here" is — this is reference material for the life of the set, the same
-   * footing the Home page's own "Set health" panel already stands on.
-   */
+  /** Keep the complete inheritance path visible beside the set's roster. */
   import { characterLabel } from '$lib/characters/factory';
   import { characterEditorView } from '$lib/state/character-editor-view.svelte';
   import { workshop } from '$lib/state/workshop.svelte';
@@ -48,7 +36,7 @@
 
 <section class="panel cascade">
   <h2 class="panel-title">How card styles cascade</h2>
-  <p class="panel-hint">Three levels, each overriding the one above it only where it says something different.</p>
+  <p class="panel-hint">Four levels, each overriding the one above it only where it says something different.</p>
 
   <ol class="steps">
     <li class="step">
@@ -84,6 +72,17 @@
 
     <li class="step">
       <span class="step-index numeric">3</span>
+      <div class="step-body">
+        <span class="step-title">Deck defaults</span>
+        <p class="step-text">
+          Select a deck's name in the sidebar to customize its back and card defaults.
+          Clear an override to follow its character or the set again.
+        </p>
+      </div>
+    </li>
+
+    <li class="step">
+      <span class="step-index numeric">4</span>
       <div class="step-body">
         <span class="step-title">Card overrides</span>
         <p class="step-text">

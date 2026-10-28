@@ -41,7 +41,7 @@ import type {
   InitiativeBandStyle,
   InitiativeVariant
 } from '$lib/cards/types';
-import { characterLabel, createCharacter } from '$lib/characters/factory';
+import { characterLabel, createCardback, createCharacter } from '$lib/characters/factory';
 import type {
   CardbackDesign,
   Character,
@@ -111,7 +111,7 @@ import {
 } from '$lib/threat/types';
 import { navigation } from './navigation.svelte';
 import type { SetPage } from './navigation.svelte';
-import type { Deck, DeckId, DeckKind } from '$lib/decks/types';
+import type { CardbackSubject, Deck, DeckId, DeckKind } from '$lib/decks/types';
 import { createEmptySet } from '$lib/sets/factory';
 import {
   cardsForCharacter,
@@ -124,6 +124,8 @@ import {
   initiativeDecks as getInitiativeDecks,
   outline as buildOutline,
   resolveStyleForCard,
+  resolveDeckCardback,
+  inheritedDeckBack,
   rulesDecks as getRulesDecks,
   setStats
 } from '$lib/sets/queries';
@@ -193,7 +195,8 @@ export type EntityRef =
   | { readonly entity: 'figure'; readonly id: FigureId };
 
 /** Addresses one layer of the style cascade. */
-export type StyleTarget = EntityRef | { readonly entity: 'set' };
+export type StyleTarget = EntityRef | { readonly entity: 'set' } | { readonly entity: 'deck'; readonly id: DeckId };
+export type CardbackTarget = { readonly entity: 'character'; readonly id: CharacterId } | { readonly entity: 'deck'; readonly id: DeckId };
 
 export class WorkshopStore {
   /** The open document. The single source of truth for everything on screen. */
@@ -235,6 +238,10 @@ export class WorkshopStore {
     this.selection.target === 'card' ? findCard(this.adventure, this.selection.id) : null
   );
 
+  selectedDeck = $derived(
+    this.selection.target === 'deck' ? findDeck(this.adventure, this.selection.id) : null
+  );
+
   selectedCharacter = $derived(
     this.selection.target === 'character' ? findCharacter(this.adventure, this.selection.id) : null
   );
@@ -245,6 +252,7 @@ export class WorkshopStore {
    */
   previewCard = $derived.by((): Card | null => {
     if (this.selectedCard) return this.selectedCard;
+    if (this.selectedDeck) return cardsInDeck(this.adventure, this.selectedDeck.id)[0] ?? null;
     const character = this.selectedCharacter;
     if (!character) return null;
     return cardsForCharacter(this.adventure, character.id)[0] ?? null;
@@ -843,7 +851,8 @@ export class WorkshopStore {
     this.adventure = copyEditSnapshot(set);
     this.selection = context.selection;
     if (this.selection.target === 'card' && !findCard(this.adventure, this.selection.id) ||
-        this.selection.target === 'character' && !findCharacter(this.adventure, this.selection.id)) {
+        this.selection.target === 'character' && !findCharacter(this.adventure, this.selection.id) ||
+        this.selection.target === 'deck' && !findDeck(this.adventure, this.selection.id)) {
       this.selection = SET_SELECTION;
     }
     this.mapEditingId = this.adventure.maps.some((map) => map.id === context.mapId)
@@ -948,6 +957,11 @@ export class WorkshopStore {
   /** Selecting always means "take me to the editor" — that is what it is for. */
   selectCharacter(id: CharacterId): void {
     this.selection = { target: 'character', id };
+    navigation.go('editor');
+  }
+
+  selectDeck(id: DeckId): void {
+    this.selection = { target: 'deck', id };
     navigation.go('editor');
   }
 
@@ -1328,7 +1342,8 @@ export class WorkshopStore {
     const removed = new Set(this.cardsIn(id).map((card) => card.id));
     this.adventure.decks = this.adventure.decks.filter((deck) => deck.id !== id);
     this.adventure.cards = this.adventure.cards.filter((card) => card.deckId !== id);
-    if (this.selection.target === 'card' && removed.has(this.selection.id)) {
+    if ((this.selection.target === 'card' && removed.has(this.selection.id)) ||
+        (this.selection.target === 'deck' && this.selection.id === id)) {
       this.selectSet();
     }
     this.touch();
@@ -1522,6 +1537,40 @@ export class WorkshopStore {
       }
     }
     cards.splice(insertAt, 0, moving);
+    this.touch();
+  }
+
+  cardbackSubjectFor(target: CardbackTarget): CardbackSubject | null {
+    if (target.entity === 'character') return findCharacter(this.adventure, target.id);
+    const deck = findDeck(this.adventure, target.id);
+    return deck ? resolveDeckCardback(this.adventure, deck) : null;
+  }
+
+  cardbackParentFor(target: CardbackTarget): CardbackDesign {
+    if (target.entity === 'character') return createCardback(findCharacter(this.adventure, target.id)?.role ?? 'minion');
+    const deck = findDeck(this.adventure, target.id);
+    return deck ? inheritedDeckBack(this.adventure, deck) : createCardback('minion');
+  }
+
+  setDeckCardbackField<TKey extends keyof CardbackDesign>(id: DeckId, key: TKey, value: CardbackDesign[TKey] | undefined): void {
+    const deck = findDeck(this.adventure, id);
+    if (!deck) return;
+    if (value === undefined) {
+      if (deck.cardback) delete deck.cardback[key];
+    } else {
+      deck.cardback ??= {};
+      deck.cardback[key] = value;
+    }
+    if (Object.keys(deck.cardback ?? {}).length === 0) delete deck.cardback;
+    deck.updatedAt = now();
+    this.touch();
+  }
+
+  clearDeckCardback(id: DeckId): void {
+    const deck = findDeck(this.adventure, id);
+    if (!deck) return;
+    delete deck.cardback;
+    deck.updatedAt = now();
     this.touch();
   }
 
@@ -1724,6 +1773,7 @@ export class WorkshopStore {
       return null;
     }
     if (target.entity === 'card') return findCard(this.adventure, target.id)?.style ?? null;
+    if (target.entity === 'deck') return findDeck(this.adventure, target.id)?.style ?? null;
     return findCharacter(this.adventure, target.id)?.style ?? null;
   }
 
@@ -1736,6 +1786,20 @@ export class WorkshopStore {
     key: TKey,
     value: CardTheme[TKey] | undefined
   ): void {
+    if (target.entity === 'deck') {
+      const deck = findDeck(this.adventure, target.id);
+      if (!deck) return;
+      if (value === undefined) {
+        if (deck.style) delete deck.style[key];
+      } else {
+        deck.style ??= {};
+        deck.style[key] = value;
+      }
+      if (Object.keys(deck.style ?? {}).length === 0) delete deck.style;
+      deck.updatedAt = now();
+      this.touch();
+      return;
+    }
     const layer = this.styleFor(target);
     if (!layer) return;
     if (value === undefined) delete layer[key];
@@ -1745,6 +1809,14 @@ export class WorkshopStore {
 
   /** Drop every override on a layer, returning it to what it inherits. */
   clearStyle(target: StyleTarget): void {
+    if (target.entity === 'deck') {
+      const deck = findDeck(this.adventure, target.id);
+      if (!deck) return;
+      delete deck.style;
+      deck.updatedAt = now();
+      this.touch();
+      return;
+    }
     const layer = this.styleFor(target);
     if (!layer) return;
     for (const key of Object.keys(layer)) {

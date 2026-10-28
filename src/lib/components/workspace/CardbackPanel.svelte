@@ -1,164 +1,145 @@
 <script lang="ts">
-  /**
-   * The back of a character's deck.
-   *
-   * Two ways to work: compose one from a background, an inset image and the
-   * printed template, or drop in a finished image that replaces the whole
-   * thing. The replacement toggle keeps both available, so switching back and
-   * forth costs nothing.
-   */
   import { onDestroy } from 'svelte';
   import type { Fill } from '$lib/cards/style';
   import { sameFill } from '$lib/cards/style';
-  import { createCardback } from '$lib/characters/factory';
-  import type { Character } from '$lib/characters/types';
-  import { createArtwork, hasArtwork } from '$lib/core/artwork';
+  import type { CardbackDesign } from '$lib/characters/types';
+  import { createCardback, characterLabel } from '$lib/characters/factory';
+  import { hasArtwork } from '$lib/core/artwork';
   import { readArtworkFile } from '$lib/core/image-import';
   import ImageLinkButton from './ImageLinkButton.svelte';
   import { createOperationGuard } from '$lib/interaction/operation-guard';
+  import { deckOwner, findDeck } from '$lib/sets/queries';
+  import type { CardbackTarget } from '$lib/state/workshop.svelte';
   import { workshop } from '$lib/state/workshop.svelte';
   import { Button, ColorInput, FillEditor, Icon, Slider, Switch, TextInput } from '$lib/ui';
   import EditorSection from './EditorSection.svelte';
   import ReplacementPanel from './ReplacementPanel.svelte';
 
-  interface Props {
-    character: Character;
+  let { target }: { target: CardbackTarget } = $props();
+  const character = $derived(workshop.cardbackSubjectFor(target));
+  const back = $derived(character?.cardback ?? createCardback('minion'));
+  const defaults = $derived(workshop.cardbackParentFor(target));
+  const deck = $derived(target.entity === 'deck' ? findDeck(workshop.adventure, target.id) : null);
+  const owner = $derived(deck ? deckOwner(workshop.adventure, deck) : null);
+  const origin = $derived(target.entity === 'character' ? 'the template' : owner ? characterLabel(owner) : 'the set default');
+  const layer = $derived(target.entity === 'deck' ? deck?.cardback ?? {} : back);
+  const RESET_TITLE = 'Follow the inherited colour again';
+  const isDefault = (key: 'background' | 'frame') => target.entity === 'deck'
+    ? layer[key] === undefined : sameFill(back[key], defaults[key]);
+  const reset = (key: 'background' | 'frame') => () => clearField(key);
+
+  function editBack<TKey extends keyof CardbackDesign>(key: TKey, mutate: (design: CardbackDesign) => void, subject: CardbackTarget = target): void {
+    if (subject.entity === 'character') {
+      workshop.editCardback(subject.id, mutate);
+      return;
+    }
+    const current = workshop.cardbackSubjectFor(subject)?.cardback;
+    if (!current) return;
+    // Only the edited field is copied; inherited image bytes need not be cloned on every colour change.
+    const draft = { ...current, [key]: structuredClone($state.snapshot(current[key])) };
+    mutate(draft);
+    workshop.setDeckCardbackField(subject.id, key, draft[key]);
   }
 
-  let { character }: Props = $props();
-
-  /*
-   * A deck back's colours are stored outright, not inherited, so a reset goes
-   * back to the printed template's own — and `createCardback` is *role-aware*
-   * (`frame` is `#f6eada` for a hero, `#ebe8d5` for a villain or minion), so
-   * the default has to be taken for this character's own role rather than
-   * from a shared constant. Picking one for both would put the wrong colour
-   * back for whichever role it was not sampled from.
-   */
-  const RESET_TITLE = 'Back to the template’s own colour';
-  const defaults = $derived(createCardback(character.role));
-
-  const isDefault = (key: 'background' | 'frame') => sameFill(back[key], defaults[key]);
-  const reset = (key: 'background' | 'frame') => () =>
-    workshop.editCardback(
-      character.id,
-      (design) => (design[key] = { ...createCardback(character.role)[key] })
-    );
+  function clearField<TKey extends keyof CardbackDesign>(key: TKey): void {
+    if (target.entity === 'deck') workshop.setDeckCardbackField(target.id, key, undefined);
+    else editBack(key, (design) => { Object.assign(design, { [key]: structuredClone($state.snapshot(defaults[key])) }); });
+  }
 
   let insetInput = $state<HTMLInputElement | null>(null);
   let error = $state<string | null>(null);
   const artworkPickGuard = createOperationGuard();
   let errorScope: object | null = null;
-  let errorCharacterId: Character['id'] | null = null;
-
-  const back = $derived(character.cardback);
+  let errorSubject = '';
   const hasInset = $derived(hasArtwork(back.artwork));
   const hasReplacement = $derived(hasArtwork(back.replacement));
 
   $effect(() => {
-    const nextScope = workshop.adventure;
-    const nextCharacterId = character.id;
-    if (errorScope && (errorScope !== nextScope || errorCharacterId !== nextCharacterId)) error = null;
-    errorScope = nextScope;
-    errorCharacterId = nextCharacterId;
+    const scope = workshop.adventure;
+    const key = `${target.entity}:${target.id}`;
+    if (errorScope && (scope !== errorScope || key !== errorSubject)) error = null;
+    errorScope = scope;
+    errorSubject = key;
   });
 
-  async function pick(
-    slot: 'artwork',
-    event: Event & { currentTarget: HTMLInputElement }
-  ): Promise<void> {
+  async function pick(slot: 'artwork', event: Event & { currentTarget: HTMLInputElement }): Promise<void> {
     const file = event.currentTarget.files?.[0];
     event.currentTarget.value = '';
-    if (!file) return;
-    await importFile(slot, file);
+    if (file) await importFile(slot, file);
   }
 
-  /** Shared by Choose and From link, so a linked picture takes the same path. */
   async function importFile(slot: 'artwork', file: File): Promise<void> {
-    const characterId = character.id;
+    const subject = target;
     const scope = workshop.adventure;
-    const operation = artworkPickGuard.begin({
-      setId: scope.id,
-      targetKey: `character:${characterId}:cardback:${slot}`,
-      scope,
-      characterId,
-      slot
-    });
+    const operation = artworkPickGuard.begin({setId: scope.id, scope, targetKey: `${subject.entity}:${subject.id}:cardback:${slot}`, subject});
     error = null;
     try {
       const source = await readArtworkFile(file);
       if (!artworkPickGuard.isCurrent(operation, workshop.adventure.id, workshop.adventure)) return;
-      workshop.editCardback(operation.context.characterId, (design) => {
-        design[operation.context.slot].source = source;
-        design[operation.context.slot].label = file.name;
-      });
+      editBack(slot, (design) => { design[slot].source = source; design[slot].label = file.name; }, subject);
     } catch (cause) {
       if (!artworkPickGuard.isCurrent(operation, workshop.adventure.id, workshop.adventure)) return;
-      if (character.id !== operation.context.characterId) return;
+      if (target.entity !== subject.entity || target.id !== subject.id) return;
       error = cause instanceof Error ? cause.message : 'Could not read that file.';
     }
   }
 
   function removeArtwork(): void {
-    const characterId = character.id;
     const scope = workshop.adventure;
-    artworkPickGuard.supersede({
-      setId: scope.id,
-      targetKey: `character:${characterId}:cardback:artwork`,
-      scope
-    });
-    workshop.editCardback(characterId, (design) => {
-      design.artwork.source = null;
-      design.artwork.label = '';
-    });
+    artworkPickGuard.supersede({setId: scope.id, scope, targetKey: `${target.entity}:${target.id}:cardback:artwork`});
+    if (target.entity === 'deck') clearField('artwork');
+    else editBack('artwork', (design) => { design.artwork.source = null; design.artwork.label = ''; });
   }
 
-  function replacementPicker(
-    characterId: Character['id']
-  ): (source: string, label: string) => void {
+  function replacementPicker(subject: CardbackTarget): (source: string, label: string) => void {
     return (source, label) => {
-      workshop.editCardback(characterId, (design) => {
-        design.replacement.source = source;
-        design.replacement.label = label;
-        design.useReplacement = true;
-      });
+      editBack('replacement', (design) => { design.replacement.source = source; design.replacement.label = label; }, subject);
+      editBack('useReplacement', (design) => (design.useReplacement = true), subject);
     };
   }
 
-  onDestroy(() => artworkPickGuard.invalidate());
+  function removeReplacement(): void {
+    if (target.entity === 'deck') {
+      clearField('replacement');
+      clearField('useReplacement');
+    } else {
+      editBack('replacement', (design) => { design.replacement.source = null; design.replacement.label = ''; });
+      editBack('useReplacement', (design) => (design.useReplacement = false));
+    }
+  }
 
+  onDestroy(() => artworkPickGuard.invalidate());
   const pct = (value: number) => `${Math.round(value * 100)}%`;
   const signed = (value: number) => `${value > 0 ? '+' : ''}${Math.round(value * 100)}%`;
-
   function resetPlacement(): void {
-    workshop.editCardback(character.id, (design) => {
-      design.artwork.transform = { ...createArtwork().transform };
-    });
+    editBack('artwork', (design) => (design.artwork.transform = { ...defaults.artwork.transform }));
   }
-
   function resetAdjustments(): void {
-    workshop.editCardback(character.id, (design) => {
-      design.artwork.adjustments = { ...createArtwork().adjustments };
-    });
+    editBack('artwork', (design) => (design.artwork.adjustments = { ...defaults.artwork.adjustments }));
   }
 </script>
+
+{#if target.entity === 'deck'}
+  <EditorSection title="Deck back inheritance" hint={`Unchanged fields follow ${origin}. Clear this deck's overrides to follow it completely again.`}>
+    {#snippet actions()}
+      <Button size="sm" disabled={Object.keys(layer).length === 0} onclick={() => target.entity === 'deck' && workshop.clearDeckCardback(target.id)}>Reset deck back</Button>
+    {/snippet}
+    <p>{Object.keys(layer).length === 0 ? 'Following the inherited back.' : `${Object.keys(layer).length} deck ${Object.keys(layer).length === 1 ? 'override' : 'overrides'}.`}</p>
+  </EditorSection>
+{/if}
+
 
 <!-- The block around this panel carries the subject, so this names its own job. -->
 <ReplacementPanel
   artwork={back.replacement}
   enabled={back.useReplacement}
-  operationKey={`character:${character.id}:cardback:replacement`}
+  operationKey={`${target.entity}:${target.id}:cardback:replacement`}
   hint="A finished back, used instead of composing one."
   replaces="Replaces the entire card back, template included."
-  onpick={replacementPicker(character.id)}
+  onpick={replacementPicker(target)}
   ontoggle={(useReplacement) =>
-    workshop.editCardback(character.id, (design) => (design.useReplacement = useReplacement))}
-  onclear={() =>
-    workshop.editCardback(character.id, (design) => {
-      design.replacement.source = null;
-      design.replacement.label = '';
-      design.useReplacement = false;
-    })}
+    editBack('useReplacement', (design) => (design.useReplacement = useReplacement))}
+  onclear={removeReplacement}
 />
 
 <input
@@ -174,37 +155,37 @@
     <FillEditor
       label="Background"
       value={back.background}
-      origin="the template"
+      origin={origin}
       overridden={!isDefault('background')}
       resetTitle={RESET_TITLE}
       onchange={(background: Fill) =>
-        workshop.editCardback(character.id, (design) => (design.background = background))}
+        editBack('background', (design) => (design.background = background))}
       onreset={reset('background')}
     />
 
     <FillEditor
       label="Frame"
       value={back.frame}
-      origin="the template"
+      origin={origin}
       overridden={!isDefault('frame')}
       resetTitle={RESET_TITLE}
       onchange={(frame: Fill) =>
-        workshop.editCardback(character.id, (design) => (design.frame = frame))}
+        editBack('frame', (design) => (design.frame = frame))}
       onreset={reset('frame')}
     />
 
     <label class="stack">
-      <span class="field-label">{character.role === 'hero' ? 'Text & logo' : 'Text'}</span>
+      <span class="field-label">{character?.role === 'hero' ? 'Text & logo' : 'Text'}</span>
       <ColorInput
-        value={back.ink === defaults.ink ? undefined : back.ink}
+        value={target.entity === 'deck' ? layer.ink : back.ink === defaults.ink ? undefined : back.ink}
         inherited={defaults.ink}
-        origin="the template"
+        origin={origin}
         onchange={(ink) =>
-          workshop.editCardback(character.id, (design) => (design.ink = ink ?? defaults.ink))}
+          ink === undefined ? clearField('ink') : editBack('ink', (design) => (design.ink = ink))}
       />
     </label>
 
-    {#if character.role !== 'hero'}
+    {#if character?.role !== 'hero'}
       <!-- A hero's back prints only the name — see `HeroCardbackFace`. -->
       <label class="stack">
         <span class="field-label">Role line</span>
@@ -212,9 +193,7 @@
           value={back.label}
           placeholder="MINION"
           oninput={(event) =>
-            workshop.editCardback(
-              character.id,
-              (design) => (design.label = event.currentTarget.value)
+            editBack('label', (design) => (design.label = event.currentTarget.value)
             )}
         />
       </label>
@@ -228,13 +207,11 @@
     {#snippet actions()}
       {#if hasInset}
         <Button size="sm" variant="ghost" onclick={resetPlacement}>Reset placement</Button>
-        <Button
-          size="sm"
-          variant="ghost"
-          onclick={removeArtwork}
-        >
-          Remove
-        </Button>
+        {#if target.entity === 'character' || layer.artwork !== undefined}
+          <Button size="sm" variant="ghost" onclick={removeArtwork}>
+            {target.entity === 'deck' ? 'Use inherited artwork' : 'Remove'}
+          </Button>
+        {/if}
       {/if}
     {/snippet}
 
@@ -278,9 +255,7 @@
           neutral={1}
           format={pct}
           onchange={(scale) =>
-            workshop.editCardback(
-              character.id,
-              (design) => (design.artwork.transform.scale = scale)
+            editBack('artwork', (design) => (design.artwork.transform.scale = scale)
             )}
         />
         <Slider
@@ -292,9 +267,7 @@
           neutral={0}
           format={(value) => `${value}°`}
           onchange={(rotation) =>
-            workshop.editCardback(
-              character.id,
-              (design) => (design.artwork.transform.rotation = rotation)
+            editBack('artwork', (design) => (design.artwork.transform.rotation = rotation)
             )}
         />
         <Slider
@@ -306,9 +279,7 @@
           neutral={0}
           format={signed}
           onchange={(offsetX) =>
-            workshop.editCardback(
-              character.id,
-              (design) => (design.artwork.transform.offsetX = offsetX)
+            editBack('artwork', (design) => (design.artwork.transform.offsetX = offsetX)
             )}
         />
         <Slider
@@ -320,9 +291,7 @@
           neutral={0}
           format={signed}
           onchange={(offsetY) =>
-            workshop.editCardback(
-              character.id,
-              (design) => (design.artwork.transform.offsetY = offsetY)
+            editBack('artwork', (design) => (design.artwork.transform.offsetY = offsetY)
             )}
         />
         <Slider
@@ -334,7 +303,7 @@
           neutral={1}
           format={pct}
           onchange={(width) =>
-            workshop.editCardback(character.id, (design) => (design.artwork.crop.width = width))}
+            editBack('artwork', (design) => (design.artwork.crop.width = width))}
         />
         <Slider
           label="Crop height"
@@ -345,7 +314,7 @@
           neutral={1}
           format={pct}
           onchange={(height) =>
-            workshop.editCardback(character.id, (design) => (design.artwork.crop.height = height))}
+            editBack('artwork', (design) => (design.artwork.crop.height = height))}
         />
       </div>
 
@@ -353,7 +322,7 @@
         label="Mirror horizontally"
         checked={back.artwork.transform.flipX}
         onchange={(flipX) =>
-          workshop.editCardback(character.id, (design) => (design.artwork.transform.flipX = flipX))}
+          editBack('artwork', (design) => (design.artwork.transform.flipX = flipX))}
       />
     {/if}
   </EditorSection>
@@ -374,9 +343,7 @@
           neutral={1}
           format={pct}
           onchange={(brightness) =>
-            workshop.editCardback(
-              character.id,
-              (design) => (design.artwork.adjustments.brightness = brightness)
+            editBack('artwork', (design) => (design.artwork.adjustments.brightness = brightness)
             )}
         />
         <Slider
@@ -388,9 +355,7 @@
           neutral={1}
           format={pct}
           onchange={(contrast) =>
-            workshop.editCardback(
-              character.id,
-              (design) => (design.artwork.adjustments.contrast = contrast)
+            editBack('artwork', (design) => (design.artwork.adjustments.contrast = contrast)
             )}
         />
         <Slider
@@ -402,9 +367,7 @@
           neutral={1}
           format={pct}
           onchange={(saturation) =>
-            workshop.editCardback(
-              character.id,
-              (design) => (design.artwork.adjustments.saturation = saturation)
+            editBack('artwork', (design) => (design.artwork.adjustments.saturation = saturation)
             )}
         />
         <Slider
@@ -416,7 +379,7 @@
           neutral={0}
           format={(value) => `${value}°`}
           onchange={(hue) =>
-            workshop.editCardback(character.id, (design) => (design.artwork.adjustments.hue = hue))}
+            editBack('artwork', (design) => (design.artwork.adjustments.hue = hue))}
         />
         <Slider
           label="Greyscale"
@@ -427,9 +390,7 @@
           neutral={0}
           format={pct}
           onchange={(grayscale) =>
-            workshop.editCardback(
-              character.id,
-              (design) => (design.artwork.adjustments.grayscale = grayscale)
+            editBack('artwork', (design) => (design.artwork.adjustments.grayscale = grayscale)
             )}
         />
         <Slider
@@ -441,9 +402,7 @@
           neutral={0}
           format={pct}
           onchange={(sepia) =>
-            workshop.editCardback(
-              character.id,
-              (design) => (design.artwork.adjustments.sepia = sepia))}
+            editBack('artwork', (design) => (design.artwork.adjustments.sepia = sepia))}
         />
         <Slider
           label="Opacity"
@@ -454,9 +413,7 @@
           neutral={1}
           format={pct}
           onchange={(opacity) =>
-            workshop.editCardback(
-              character.id,
-              (design) => (design.artwork.adjustments.opacity = opacity)
+            editBack('artwork', (design) => (design.artwork.adjustments.opacity = opacity)
             )}
         />
       </div>

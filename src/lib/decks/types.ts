@@ -1,4 +1,6 @@
-import type { CharacterId } from '$lib/characters/types';
+import type { CardStyleOverride } from '$lib/cards/style';
+import type { Character, CharacterId, CharacterRole, CardbackDesign } from '$lib/characters/types';
+import type { CardFormat } from '$lib/renderer/geometry';
 import type { Id, IsoDateTime } from '$lib/core/id';
 
 export type DeckId = Id<'Deck'>;
@@ -26,6 +28,9 @@ export interface Deck {
    * destroying the cards.
    */
   ownerId: CharacterId | null;
+  /** Sparse overrides: absent fields continue following the character or set. */
+  style?: CardStyleOverride;
+  cardback?: Partial<CardbackDesign>;
   /** Author-only. Never printed. */
   notes: string;
   readonly createdAt: IsoDateTime;
@@ -81,3 +86,13 @@ export function isInitiativeDeck(deck: Deck): boolean {
 export function isSetLevelDeck(deck: Deck): boolean {
   return deck.ownerId === null;
 }
+
+/** A resolved back is a view, never a character inserted into the saved roster. */
+export type CardbackSubject = Character | {
+  readonly id: DeckId;
+  readonly deckName: string;
+  readonly name: string;
+  readonly role: CharacterRole;
+  readonly cardback: CardbackDesign;
+  readonly format: CardFormat;
+};
