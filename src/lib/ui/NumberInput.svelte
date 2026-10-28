@@ -7,6 +7,8 @@
     max?: number;
     step?: number;
     disabled?: boolean;
+    /** Large centred value with controls at the edges of the available row. */
+    prominent?: boolean;
     /** Suffix shown inside the field, e.g. "HP". */
     unit?: string;
     /** Accessible name for the numeric field when its visible label is outside this component. */
@@ -23,6 +25,7 @@
     max = 99,
     step = 1,
     disabled = false,
+    prominent = false,
     unit,
     ariaLabel,
     editorTarget,
@@ -58,6 +61,7 @@
 <div
   class="stepper"
   class:disabled
+  class:prominent
   role={ariaLabel ? 'group' : undefined}
   aria-label={ariaLabel}
 >
@@ -176,6 +180,28 @@
   .unit {
     font-size: var(--text-2xs);
     color: var(--text-muted);
+  }
+
+  .stepper.prominent {
+    height: 56px;
+  }
+
+  .prominent .nudge {
+    flex: none;
+    width: var(--touch-target);
+  }
+
+  .prominent .value-wrap {
+    flex: 1;
+    min-width: 0;
+    justify-content: center;
+  }
+
+  .prominent .value {
+    width: 100%;
+    min-width: 0;
+    font-size: var(--text-2xl);
+    font-weight: var(--weight-semibold);
   }
 
   @media (any-pointer: coarse) {

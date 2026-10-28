@@ -1397,6 +1397,7 @@
                     <span class="block-title">Starting health</span>
                     <NumberInput
                       ariaLabel="Starting health"
+                      prominent
                       value={figure.dialRange.max}
                       min={1}
                       max={99}
