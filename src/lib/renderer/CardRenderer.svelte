@@ -114,8 +114,7 @@
 
   /** Each template has its own bleed size. */
   const format = $derived.by(() => {
-    // A hero's back was supplied at the action card's own bleed canvas, not
-    // the villain/minion back's trim-only size — see `HeroCardbackFace`.
+    // Both deck backs include bleed; CardbackFace insets its trim-sized source.
     if (cardback) return cardback.role === 'hero' ? CARD_FORMATS.action : CARD_FORMATS.cardback;
     // The same 63×88mm sheet as an action card — see `CHARACTER_CARD`.
     if (statCard) return CARD_FORMATS.action;

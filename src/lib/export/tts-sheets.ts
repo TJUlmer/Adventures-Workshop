@@ -277,12 +277,9 @@ export async function renderSharedBack(
 
   if (plan.back.kind === 'character') {
     /*
-     * The canvas has to be the one `CardRenderer` lays this back out on, or
-     * the photograph is of the wrong rectangle — and the two roles differ. A
-     * hero's back is supplied on the action card's own 1632×2222 canvas;
-     * everyone else's uses the `cardback` template, drawn at trim size and
-     * 373×520. Their aspects are not even the same (0.735 against 0.717), so
-     * getting this wrong letterboxes the back rather than merely softening it.
+     * Photograph the renderer's full bleed canvas, then crop to the cut line
+     * for TTS. Villain/minion line art is inset inside that canvas; treating
+     * the source's trim dimensions as the print size would crop it twice.
      */
     const backFormat =
       plan.back.character.role === 'hero' ? CARD_FORMATS.action : CARD_FORMATS.cardback;

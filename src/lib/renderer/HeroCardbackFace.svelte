@@ -2,15 +2,10 @@
   /**
    * The back of a hero's deck.
    *
-   * Not the plain villain/minion `CardbackFace`, for two reasons. First, the
-   * canvases disagree: that back is measured at trim size (`CARDBACK_BLEED`,
-   * 373×520, no bleed), and the hero back was supplied at the same bleed
-   * canvas every other hero face uses (the action card's `BLEED`). Second,
-   * the templates themselves disagree in kind — the villain/minion art sits
-   * *inside* a ring the template draws, where the UMLABS hero frame is only
-   * a line near the edge, so this back's own artwork runs the full bleed
-   * canvas behind it rather than being boxed into a smaller window. The
-   * supplied two-tone lockup is read directly from
+   * The supplied hero template already uses the action card's bleed canvas;
+   * the villain/minion source is trim-sized and must be inset inside that
+   * same canvas by `CardbackFace`. Both backs draw artwork edge to edge.
+   * The hero's distinct two-tone lockup is read directly from
    * `UMLabs_Cardback_Template.png`: its complete alpha supplies the frame
    * layer, while its white/luminance pixels supply the contrasting mark in
    * `back.ink` along with the hero name. That keeps both existing colour

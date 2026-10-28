@@ -187,10 +187,9 @@
   );
 
   /**
-   * The template on screen. A selected character previews its deck back —
-   * which for a hero is drawn on the action card's own bleed canvas rather
-   * than the villain/minion back's trim-only one, so it is the one deck back
-   * with a bleed to show. `CardRenderer` picks the same way.
+   * The template on screen. Every character's deck back includes bleed,
+   * even when its source line art was supplied at trim size. `CardRenderer`
+   * picks the same format so the toggle and the photographed crop agree.
    */
   const format = $derived.by((): CardFormat | null => {
     if (cardback) return cardback.role === 'hero' ? CARD_FORMATS.action : CARD_FORMATS.cardback;
@@ -198,9 +197,8 @@
   });
 
   /**
-   * Some templates — the deck back among them — are drawn at trim size. There
-   * is no bleed to show or hide, so the toggle is turned off rather than left
-   * to crop into art that was never oversized.
+   * Formats explicitly drawn without bleed must not offer a crop into their
+   * finished artwork. All character deck backs now have a bleed canvas.
    */
   const hasBleed = $derived(format === null || (format.bleedMm ?? BLEED_MM) > 0);
   const bleeding = $derived(showBleed && hasBleed);

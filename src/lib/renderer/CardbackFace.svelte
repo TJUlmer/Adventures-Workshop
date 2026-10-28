@@ -15,7 +15,16 @@
   import { characterLabel } from '$lib/characters/factory';
   import { hasArtwork } from '$lib/core/artwork';
   import CardArt from './CardArt.svelte';
-  import { CARDBACK, CARDBACK_BLEED as FRAME, capTopToBoxTop, NAME_METRICS, px, pu, py } from './geometry';
+  import {
+    CARD_FORMATS,
+    CARDBACK,
+    CARDBACK_TEMPLATE as FRAME,
+    capTopToBoxTop,
+    NAME_METRICS,
+    px, pu, py
+  } from './geometry';
+
+  const CANVAS = CARD_FORMATS.cardback.bleed;
 
   interface Props {
     character: Character;
@@ -36,27 +45,35 @@
     <CardArt artwork={back.artwork} background="transparent" />
   </div>
 
-  <!-- The template's own line, recoloured — see the file note above. -->
-  <div class="mask frame" style:background={fillCss(back.frame)}></div>
-
+  <!-- The supplied line art and its type are trim-sized; artwork fills the bleed behind them. -->
   <div
-    class="label"
-    style:right={px(FRAME.width - CARDBACK.label.right, FRAME)}
-    style:top={py(capTopToBoxTop(CARDBACK.label.capTop, CARDBACK.label.size, 1, NAME_METRICS), FRAME)}
-    style:font-size={pu(CARDBACK.label.size, FRAME)}
-    style:color={back.ink}
+    class="template"
+    style:left={px(CARDBACK.trim.x, CANVAS)}
+    style:top={py(CARDBACK.trim.y, CANVAS)}
+    style:width={px(CARDBACK.trim.width, CANVAS)}
+    style:height={py(CARDBACK.trim.height, CANVAS)}
   >
-    {back.label}
-  </div>
+    <div class="mask frame" style:background={fillCss(back.frame)}></div>
 
-  <div
-    class="name"
-    style:right={px(FRAME.width - CARDBACK.name.right, FRAME)}
-    style:top={py(capTopToBoxTop(CARDBACK.name.capTop, CARDBACK.name.size, 1, NAME_METRICS), FRAME)}
-    style:font-size={pu(CARDBACK.name.size, FRAME)}
-    style:color={back.ink}
-  >
-    {characterLabel(character)}
+    <div
+      class="label"
+      style:right={px(FRAME.width - CARDBACK.label.right, FRAME)}
+      style:top={py(capTopToBoxTop(CARDBACK.label.capTop, CARDBACK.label.size, 1, NAME_METRICS), FRAME)}
+      style:font-size={pu(CARDBACK.label.size, FRAME)}
+      style:color={back.ink}
+    >
+      {back.label}
+    </div>
+
+    <div
+      class="name"
+      style:right={px(FRAME.width - CARDBACK.name.right, FRAME)}
+      style:top={py(capTopToBoxTop(CARDBACK.name.capTop, CARDBACK.name.size, 1, NAME_METRICS), FRAME)}
+      style:font-size={pu(CARDBACK.name.size, FRAME)}
+      style:color={back.ink}
+    >
+      {characterLabel(character)}
+    </div>
   </div>
 {/if}
 
@@ -64,6 +81,11 @@
   .full {
     position: absolute;
     inset: 0;
+  }
+
+  .template {
+    position: absolute;
+    container-type: inline-size;
   }
 
   .mask {
