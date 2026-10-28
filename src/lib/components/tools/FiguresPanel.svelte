@@ -87,6 +87,72 @@
   const figures = $derived(set.figures);
   const rulebooks = $derived(set.rulebooks);
 
+  let characterFilter = $state('all');
+  let sortBy = $state<'original' | 'character' | 'name'>('original');
+  let browsingSetId: string | null = null;
+  const charactersById = $derived(
+    new Map(set.characters.map((character) => [character.id as string, character]))
+  );
+  const nameOrder = new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' });
+  const sortOptions = [
+    { value: 'original', label: 'Original order' },
+    { value: 'character', label: 'Character (A–Z)' },
+    { value: 'name', label: 'Component name (A–Z)' }
+  ] as const;
+  const filterOptions = $derived.by(() => {
+    const counts = new Map<string, number>();
+    for (const figure of figures) {
+      const key = assignedCharacterId(figure) ?? 'unassigned';
+      counts.set(key, (counts.get(key) ?? 0) + 1);
+    }
+    return [
+      { value: 'all', label: 'All characters' },
+      { value: 'unassigned', label: `Unassigned (${counts.get('unassigned') ?? 0})` },
+      ...set.characters
+        .map((character) => ({
+          value: character.id as string,
+          label: `${characterLabel(character)} (${counts.get(character.id) ?? 0})`,
+          name: characterLabel(character)
+        }))
+        .sort((a, b) => nameOrder.compare(a.name, b.name))
+    ];
+  });
+  const visibleFigures = $derived.by(() => {
+    // Filtering and sorting are a view; the authored array also controls exports.
+    const visible = figures.filter((figure) => {
+      const ownerId = assignedCharacterId(figure);
+      return characterFilter === 'all' ||
+        (characterFilter === 'unassigned' ? ownerId === null : ownerId === characterFilter);
+    });
+    if (sortBy === 'original') return visible;
+    return visible.sort((a, b) => {
+      if (sortBy === 'character') {
+        const aOwner = ownerName(a);
+        const bOwner = ownerName(b);
+        const byOwner = Number(aOwner === null) - Number(bOwner === null) ||
+          nameOrder.compare(aOwner ?? '', bOwner ?? '');
+        if (byOwner !== 0) return byOwner;
+      }
+      return nameOrder.compare(figureLabel(a, ownerName(a)), figureLabel(b, ownerName(b)));
+    });
+  });
+
+  function assignedCharacterId(figure: Figure): Figure['characterId'] {
+    // Removing a character can leave its old ID on a component.
+    return figure.characterId && charactersById.has(figure.characterId) ? figure.characterId : null;
+  }
+
+  $effect(() => {
+    if (browsingSetId !== set.id) {
+      browsingSetId = set.id;
+      characterFilter = 'all';
+      sortBy = 'original';
+    } else if (characterFilter !== 'all' && characterFilter !== 'unassigned' &&
+      !charactersById.has(characterFilter)) {
+      characterFilter = 'all';
+    }
+  });
+
   let refInputs: Record<string, HTMLInputElement | null> = $state({});
   let modelInputs: Record<string, HTMLInputElement | null> = $state({});
   let error = $state<string | null>(null);
@@ -338,8 +404,13 @@
     return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
   }
 
-  function add(kind: FigureKind): void {
-    workshop.addFigure(kind);
+  function add(kind: FigureKind): Figure {
+    const figure = workshop.addFigure(kind);
+    const character = charactersById.get(characterFilter);
+    if (character) {
+      workshop.editFigure(figure.id, (entry) => (entry.characterId = character.id));
+    }
+    return figure;
   }
 
   /**
@@ -350,7 +421,7 @@
    * introduce a new kind of figure.
    */
   function addSidekickToken(): void {
-    const figure = workshop.addFigure('token');
+    const figure = add('token');
     workshop.editFigure(figure.id, (f) => {
       f.name = 'Sidekick token';
       // `lengthMm` set alongside `diameterMm` on every preset here — leaving
@@ -363,7 +434,7 @@
   }
 
   function addMinionToken(): void {
-    const figure = workshop.addFigure('token');
+    const figure = add('token');
     workshop.editFigure(figure.id, (f) => {
       f.name = 'Minion token';
       f.token.shape = 'polygon';
@@ -375,7 +446,7 @@
   }
 
   function addThreatTrackToken(): void {
-    const figure = workshop.addFigure('token');
+    const figure = add('token');
     workshop.editFigure(figure.id, (f) => {
       f.name = 'Threat track token';
       f.token.shape = 'polygon';
@@ -659,7 +730,7 @@
 
   /** The assigned character's name, for the dial's default name. */
   function ownerName(figure: Figure): string | null {
-    const character = set.characters.find((entry) => entry.id === figure.characterId);
+    const character = figure.characterId ? charactersById.get(figure.characterId) : undefined;
     return character ? characterLabel(character) : null;
   }
 
@@ -989,6 +1060,30 @@
     </div>
   </header>
 
+  <div class="component-layout" class:with-tools={figures.length > 0}>
+  {#if figures.length > 0}
+    <section class="component-tools" aria-labelledby="component-tools-title">
+      <div class="component-tools-heading">
+        <h2 id="component-tools-title"><Icon name="search" size={18} /> Filter & sort</h2>
+        <p class="component-count" role="status">Showing {visibleFigures.length} of {figures.length} components</p>
+      </div>
+      <div class="component-tool-fields">
+        <label class="component-filter field">
+          <span class="field-label">Filter by character</span>
+          <Select value={characterFilter} options={filterOptions} onchange={(value) => (characterFilter = value)} />
+        </label>
+        <label class="component-sort field">
+          <span class="field-label">Sort by</span>
+          <Select value={sortBy} options={sortOptions} onchange={(value) => (sortBy = value)} />
+        </label>
+        {#if characterFilter !== 'all'}
+          <Button size="sm" onclick={() => (characterFilter = 'all')}>Show all</Button>
+        {/if}
+      </div>
+    </section>
+  {/if}
+
+  <div class="component-content">
   {#if error}<p class="error">{error}</p>{/if}
 
   {#if set.box.enabled}
@@ -1086,9 +1181,20 @@
         </Button>
       {/snippet}
     </EmptyState>
+  {:else if visibleFigures.length === 0}
+    <EmptyState
+      compact
+      icon="users"
+      title="No matching components"
+      description="Choose another character or show all components."
+    >
+      {#snippet actions()}
+        <Button size="sm" onclick={() => (characterFilter = 'all')}>Show all components</Button>
+      {/snippet}
+    </EmptyState>
   {:else}
     <ul class="list">
-      {#each figures as figure (figure.id)}
+      {#each visibleFigures as figure (figure.id)}
         <li class="figure">
           <input
             bind:this={refInputs[figure.id]}
@@ -1859,6 +1965,8 @@
       {/each}
     </ul>
   {/if}
+  </div>
+  </div>
 </div>
 
 <style>
@@ -1970,6 +2078,100 @@
   .error {
     font-size: var(--text-xs);
     color: var(--danger);
+  }
+
+  .component-layout {
+    display: grid;
+    flex: none;
+    grid-template-columns: minmax(0, 1fr);
+    align-items: start;
+    gap: var(--space-5);
+  }
+
+  .component-content {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-5);
+    min-width: 0;
+  }
+
+  .component-tools {
+    display: flex;
+    flex: none;
+    flex-direction: column;
+    gap: var(--space-4);
+    max-width: 880px;
+    padding: var(--space-5);
+    border: 1px solid var(--border-accent);
+    border-inline-start: 4px solid var(--accent);
+    border-radius: var(--radius-lg);
+    background: color-mix(in oklab, var(--accent) 8%, var(--surface-raised));
+    box-shadow: var(--shadow-md);
+  }
+
+  .component-tools-heading {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-2) var(--space-4);
+  }
+
+  .component-tools-heading h2 {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    margin: 0;
+    font-size: var(--text-md);
+    font-weight: var(--weight-semibold);
+    color: var(--text-primary);
+  }
+
+  .component-tools-heading :global(.icon) {
+    color: var(--text-accent);
+  }
+
+  .component-tool-fields {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: var(--space-3);
+  }
+
+  .component-tool-fields .field-label {
+    font-size: var(--text-sm);
+    font-weight: var(--weight-semibold);
+    color: var(--text-secondary);
+  }
+
+  .component-tool-fields :global(select) {
+    min-height: var(--touch-target);
+    font-size: var(--text-base);
+    background: var(--surface-raised);
+  }
+
+  .component-tool-fields :global(.btn) {
+    min-height: var(--touch-target);
+  }
+
+  .component-filter {
+    flex: 2 1 200px;
+    min-width: 0;
+  }
+
+  .component-sort {
+    flex: 1 1 180px;
+    min-width: 0;
+  }
+
+  .component-count {
+    margin: 0;
+    padding: var(--space-1) var(--space-3);
+    border: 1px solid var(--border-accent);
+    border-radius: var(--radius-full);
+    background: var(--surface-raised);
+    font-size: var(--text-sm);
+    color: var(--text-secondary);
   }
 
   .list {
@@ -2253,6 +2455,36 @@
     color: var(--text-primary);
   }
 
+  /* A top-sticking toolbar would keep obscuring the long component editors. */
+  @container home (min-width: 1160px) {
+    .component-layout.with-tools {
+      grid-template-columns: minmax(0, 1fr) 280px;
+    }
+
+    .with-tools .component-tools {
+      grid-column: 2;
+      grid-row: 1;
+      position: sticky;
+      top: 0;
+      min-width: 0;
+    }
+
+    .with-tools .component-content {
+      grid-column: 1;
+      grid-row: 1;
+    }
+
+    .component-tool-fields {
+      flex-direction: column;
+      align-items: stretch;
+    }
+
+    .component-filter,
+    .component-sort {
+      flex: none;
+    }
+  }
+
   @media (max-width: 760px) {
     .page {
       padding-inline: var(--space-5);
@@ -2273,6 +2505,10 @@
   }
 
   @media (max-width: 640px) {
+    .component-tools {
+      padding: var(--space-4);
+    }
+
     .presentation-box {
       flex-direction: column;
       padding: var(--space-4);
