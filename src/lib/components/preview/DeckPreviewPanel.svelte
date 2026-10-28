@@ -27,8 +27,8 @@
   <div class="panel">
     <header>
       <span>Preview</span>
-      <Button size="sm" onclick={() => (bleed = !bleed)}>{bleed ? 'Hide bleed' : 'Show bleed'}</Button>
-      <Button size="sm" disabled={!bleed} onclick={() => (guides = !guides)}>{guides ? 'Hide cut line' : 'Show cut line'}</Button>
+      <Button size="sm" aria-pressed={bleed} onclick={() => (bleed = !bleed)}>{bleed ? 'Hide bleed' : 'Show bleed'}</Button>
+      <Button size="sm" aria-pressed={guides} disabled={!bleed} onclick={() => (guides = !guides)}>{guides ? 'Hide cut line' : 'Show cut line'}</Button>
     </header>
     <div class="stage scroll-y">
       <div class="card-slot" style:width={`${zoom * 100}%`}>
