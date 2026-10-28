@@ -52,11 +52,10 @@ export const CARD_FORMATS = {
     bleed: { width: 2232, height: 1524 },
     label: '67 × 44 mm'
   },
-  /** Deck back. The template is drawn at trim size, so it carries no bleed. */
+  /** Deck back: the trim-sized source sits inside the action card's bleed canvas. */
   cardback: {
     mm: { width: 63, height: 88 },
-    bleed: { width: 373, height: 520 },
-    bleedMm: 0,
+    bleed: { width: 1632, height: 2222 },
     label: '63 × 88 mm'
   }
 } as const satisfies Record<string, CardFormat>;
@@ -1754,11 +1753,14 @@ export const EVENT = {
  * that kept an empty plate. It is drawn as a themed mask over full-bleed
  * artwork (`CardbackFace`) the same way `HERO_CARDBACK`'s own line is,
  * rather than boxing the art inside the border the way this used to. The
- * whole composition can still be swapped for a replacement image.
+ * whole composition can still be swapped for a replacement image. The source
+ * stays inside the finished card's trim box; only the background and artwork
+ * extend into the surrounding bleed, so the printed border is not cropped away.
  */
-export const CARDBACK_BLEED = { width: 373, height: 520 } as const;
+export const CARDBACK_TEMPLATE = { width: 373, height: 520 } as const;
 
 export const CARDBACK = {
+  trim: trimBox(CARD_FORMATS.cardback),
   /** Role line above the name, bottom right. */
   label: { right: 345, capTop: 456, size: inName(13) },
   name: { right: 345, capTop: 474, size: inName(28) }

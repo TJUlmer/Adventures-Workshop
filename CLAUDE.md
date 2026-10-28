@@ -891,8 +891,12 @@ line (a thin rounded-rect for the hero, a border plus the rule above the
 name for villain/minion) sitting near the bleed edge, drawn over whatever is
 behind it, and nothing else. Boxing the art inside it left a wide unprinted
 margin the reference art never has; both backs' art now runs the full bleed
-canvas (full trim canvas for villain/minion, whose template carries no
-bleed — `CARDBACK_BLEED`), with the line drawn *over* it.
+canvas, with the line drawn *over* it. The villain/minion source is measured
+at trim size (`CARDBACK_TEMPLATE`, 373×520), so its mask and type sit inside
+`trimBox(CARD_FORMATS.cardback)` on the same 1632×2222 bleed canvas as action
+cards. Background artwork and finished replacement images fill that canvas.
+Keeping the source inset preserves the frame at the cut line while previews,
+PNGs, print sheets and TTS share the same bleed/crop behaviour for every role.
 
 `HERO_CARDBACK.frame` (140,140 to 1487,2077) records the UMLABS hero back's
 outer rounded line. Its logo badge rises above that line to the bleed edge;
