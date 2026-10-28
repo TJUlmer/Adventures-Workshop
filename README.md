@@ -165,7 +165,7 @@ re-cropping does not throw away a careful position, and each can be reset alone.
 **Style.** Every card's look resolves through a four-layer cascade:
 
 ```
-stock template → set.style → character.style → card.style
+stock template → set.style → character.style → deck.style → card.style
 ```
 
 Each layer above the first is a sparse `CardStyleOverride`, so "inherit" is the

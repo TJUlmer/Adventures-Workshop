@@ -35,7 +35,9 @@ import { richTextToPlain } from '$lib/text/rich-text';
 import { CARD_FORMATS, THREAT_TRACK } from '$lib/renderer/geometry';
 import type { CardFormat } from '$lib/renderer/geometry';
 import { TEMPLATE_ASSETS } from '$lib/renderer/assets';
-import { getVillain, outline } from '$lib/sets/queries';
+import { getVillain, outline, cardbackForDeck, deckOwner } from '$lib/sets/queries';
+import { deckLabel, hasDeckBackOverride } from '$lib/decks/factory';
+import type { CardbackSubject, Deck } from '$lib/decks/types';
 import type { AdventureSet, DeckEntry } from '$lib/sets/types';
 import { threatTotal } from '$lib/threat/types';
 import { slugify } from './json';
@@ -58,7 +60,7 @@ const MM_PER_INCH = 25.4;
 /** How a pile's backs are drawn. */
 export type TtsBack =
   /** One image for the pile: this figure's deck back. */
-  | { readonly kind: 'character'; readonly character: Character }
+  | { readonly kind: 'character'; readonly character: CardbackSubject }
   /** One image for the pile, already drawn and shipped with the app. */
   | { readonly kind: 'asset'; readonly url: string }
   /** Every card draws its own back — event cards are designed on both sides. */
@@ -139,7 +141,9 @@ function pileLabel(key: PileKey): string {
  * Everything else takes the back of whichever figure holds it, falling back to
  * the villain's so a set's rules cards match the rest of the box.
  */
-function backFor(set: AdventureSet, type: CardType, character: Character | null): TtsBack {
+function backFor(set: AdventureSet, type: CardType, character: Character | null, deck: Deck, card: Card): TtsBack {
+  const custom = cardbackForDeck(set, deck, card);
+  if (custom) return { kind: 'character', character: custom };
   if (type === 'event') return { kind: 'perCard' };
   if (type === 'initiative') {
     /* The author's own back if they supplied one. It is stored as a data URL,
@@ -181,33 +185,28 @@ interface Bucket {
  * nothing else.
  */
 function plansFor(set: AdventureSet, bucket: Bucket, taken: Set<string>): TtsDeckPlan[] {
-  const byKey = new Map<PileKey, { type: CardType; cards: TtsCardPlan[] }>();
-
+  const groups = new Map<string, { key: PileKey; cards: TtsCardPlan[]; back: TtsBack; name: string | null }>();
   for (const entry of bucket.entries) {
-    for (const planned of expand(entry.cards, bucket.character)) {
-      /* Every plan built here comes from `expand`, which only ever makes plans
-         from real cards — a character card never reaches this function, it is
-         its own pile. The guard is for the type, not for a case that happens. */
+    const owner = deckOwner(set, entry.deck) ?? bucket.character;
+    for (const planned of expand(entry.cards, owner)) {
       if (!planned.card) continue;
       const key = pileKeyFor(planned.card);
-      const bucketed = byKey.get(key);
-      if (bucketed) bucketed.cards.push(planned);
-      else byKey.set(key, { type: planned.card.type, cards: [planned] });
+      // TTS can share a face sheet only when every card also shares its back.
+      const custom = hasDeckBackOverride(entry.deck);
+      const groupKey = `${key}:${custom ? entry.deck.id : entry.deck.ownerId ?? 'set'}`;
+      let group = groups.get(groupKey);
+      if (!group) {
+        group = { key, cards: [], back: backFor(set, planned.card.type, owner, entry.deck, planned.card),
+          name: custom ? deckLabel(entry.deck) : null };
+        groups.set(groupKey, group);
+      }
+      group.cards.push(planned);
     }
   }
-
-  const split = byKey.size > 1;
-
-  return [...byKey].map(([key, { type, cards }]) => {
-    const name = split ? `${bucket.label} — ${pileLabel(key)}` : bucket.label;
-    return {
-      id: uniqueId(taken, name, bucket.fallbackId),
-      nickname: name,
-      description: bucket.character?.subtitle ?? '',
-      format: formatFor(key),
-      cards,
-      back: backFor(set, type, bucket.character)
-    };
+  return [...groups.values()].map(({ key, cards, back, name: deckName }) => {
+    const name = deckName ? `${bucket.label} — ${deckName}` : groups.size > 1 ? `${bucket.label} — ${pileLabel(key)}` : bucket.label;
+    return { id: uniqueId(taken, name, bucket.fallbackId), nickname: name,
+      description: bucket.character?.subtitle ?? '', format: formatFor(key), cards, back };
   });
 }
 

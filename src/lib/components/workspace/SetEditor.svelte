@@ -91,7 +91,7 @@
     title="Set style"
     description={set.kind === 'heroes'
       ? 'Shared defaults shown on a hero action card. Characters and individual cards can override them.'
-      : 'Defaults for every card in the set. Characters and individual cards can override any of it.'}
+      : 'Defaults for every card in the set. Characters, decks and individual cards can override any of it.'}
   >
     <StylePanel
       target={{ entity: 'set' }}

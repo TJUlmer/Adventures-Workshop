@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { cardbackFormat } from '$lib/decks/factory';
+  import type { CardbackSubject } from '$lib/decks/types';
   /**
    * The card frame. Establishes the bleed-sized coordinate system and picks the
    * face for the card's template.
@@ -37,7 +39,7 @@
      * Render this character's deck back instead of a card. The frame, bleed and
      * export machinery are shared, so the back behaves like any other face.
      */
-    cardback?: Character | null;
+    cardback?: CardbackSubject | null;
     /**
      * Render this hero's character card instead of a card. Same reasoning as
      * `cardback` — a stat-reference sheet is read off the character, not off
@@ -115,7 +117,7 @@
   /** Each template has its own bleed size. */
   const format = $derived.by(() => {
     // Both deck backs include bleed; CardbackFace insets its trim-sized source.
-    if (cardback) return cardback.role === 'hero' ? CARD_FORMATS.action : CARD_FORMATS.cardback;
+    if (cardback) return cardbackFormat(cardback);
     // The same 63×88mm sheet as an action card — see `CHARACTER_CARD`.
     if (statCard) return CARD_FORMATS.action;
     if (card?.type === 'initiative') return CARD_FORMATS.initiative;
@@ -353,7 +355,7 @@
         {#if cardback.role === 'hero'}
           <HeroCardbackFace character={cardback} />
         {:else}
-          <CardbackFace character={cardback} />
+          <CardbackFace character={cardback} format={format} />
         {/if}
       </article>
     {:else if statCard}

@@ -442,7 +442,7 @@ function definedEntries(override: CardStyleOverride): CardStyleOverride {
 
 /**
  * Flatten a cascade. Later layers win, and only for the keys they define.
- * The app's order is: stock theme → set → character → card.
+ * The app's order is: stock theme → set → character → deck → card.
  */
 export function mergeCardStyle(
   base: CardTheme,

@@ -10,6 +10,7 @@
  * Off-screen rather than hidden — `display: none` does not lay out, and a card
  * that has not laid out has nothing to measure.
  */
+import type { CardbackSubject } from '$lib/decks/types';
 import { mount, tick, unmount } from 'svelte';
 import type { CardTheme } from '$lib/cards/style';
 import type { Card } from '$lib/cards/types';
@@ -39,7 +40,7 @@ export interface StageJob {
   /** Owning character, for the name ribbon. */
   character?: Character | null;
   /** Draw this character's deck back instead of a card. */
-  cardback?: Character | null;
+  cardback?: CardbackSubject | null;
   /**
    * Draw this hero's character card instead of a card.
    *

@@ -25,6 +25,7 @@
   import { Button, EmptyState, Icon } from '$lib/ui';
   import ArtworkTransformOverlay from './ArtworkTransformOverlay.svelte';
   import PreviewFieldOverlay from './PreviewFieldOverlay.svelte';
+  import DeckPreviewPanel from './DeckPreviewPanel.svelte';
 
   let showBleed = $state(false);
   let showGuides = $state(false);
@@ -299,37 +300,31 @@
   {#if exportError}<p class="export-error">{exportError}</p>{/if}
 {/snippet}
 
+{#if workshop.selectedDeck}
+  <DeckPreviewPanel />
+{:else}
 <div class="panel">
   <div class="head">
     <span class="eyebrow">Preview</span>
 
     <div class="tools">
-      <button
-        type="button"
-        class="tool label"
-        class:on={bleeding}
-        title={hasBleed
-          ? "Show the printer's bleed"
-          : 'This template is drawn at trim size — it has no bleed'}
+      <Button
+        size="sm"
+        title={hasBleed ? undefined : 'This template is drawn at trim size — it has no bleed'}
         aria-pressed={bleeding}
         disabled={!hasBleed}
         onclick={() => (showBleed = !showBleed)}
       >
-        Bleed
-      </button>
-      <button
-        type="button"
-        class="tool"
-        class:on={showGuides}
-        class:disabled={!bleeding}
-        title="Show the cut line"
-        aria-label={showGuides ? 'Hide cut line' : 'Show cut line'}
+        {bleeding ? 'Hide bleed' : 'Show bleed'}
+      </Button>
+      <Button
+        size="sm"
         aria-pressed={showGuides}
         disabled={!bleeding}
         onclick={() => (showGuides = !showGuides)}
       >
-        <Icon name="crop" size={13} />
-      </button>
+        {showGuides ? 'Hide cut line' : 'Show cut line'}
+      </Button>
     </div>
   </div>
 
@@ -595,6 +590,8 @@
   </div>
 </div>
 
+{/if}
+
 <style>
   .panel {
     display: flex;
@@ -607,57 +604,16 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
+    flex-wrap: wrap;
     gap: var(--space-2);
-    min-height: 34px;
-    padding-inline: var(--space-4) var(--space-3);
+    padding: var(--space-3) var(--space-4);
     border-bottom: 1px solid var(--border-subtle);
   }
 
   .tools {
     display: flex;
-    min-width: 0;
-    gap: 2px;
-    overflow-x: auto;
-    overscroll-behavior-inline: contain;
-    scrollbar-width: none;
-  }
-
-  .tool {
-    display: grid;
-    place-items: center;
-    width: 24px;
-    height: 22px;
-    border-radius: var(--radius-xs);
-    color: var(--text-muted);
-    transition:
-      background-color var(--duration-fast) var(--ease-out),
-      color var(--duration-fast) var(--ease-out);
-  }
-
-  .tool:hover {
-    background: var(--surface-hover);
-    color: var(--text-secondary);
-  }
-
-  .tool.on {
-    background: var(--accent-soft);
-    color: var(--text-accent);
-  }
-
-  .tool.label {
-    width: auto;
-    padding-inline: var(--space-2);
-    font-size: var(--text-2xs);
-  }
-
-  .tool:disabled {
-    opacity: 0.35;
-    cursor: default;
-  }
-
-  .tool:disabled:hover {
-    background: transparent;
-    color: var(--text-muted);
+    flex-wrap: wrap;
+    gap: var(--space-2);
   }
 
   .stage {
@@ -913,11 +869,6 @@
     .head {
       min-height: calc(var(--touch-target) + 2 * var(--space-1));
       padding-block: var(--space-1);
-    }
-
-    .tool {
-      min-width: var(--touch-target);
-      min-height: var(--touch-target);
     }
 
     .zoom {

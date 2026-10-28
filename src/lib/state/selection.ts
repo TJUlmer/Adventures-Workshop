@@ -1,5 +1,6 @@
 import type { CardId } from '$lib/cards/types';
 import type { CharacterId } from '$lib/characters/types';
+import type { DeckId } from '$lib/decks/types';
 
 /**
  * What the workspace is currently editing. A discriminated union rather than
@@ -9,6 +10,7 @@ import type { CharacterId } from '$lib/characters/types';
 export type Selection =
   | { readonly target: 'set' }
   | { readonly target: 'character'; readonly id: CharacterId }
+  | { readonly target: 'deck'; readonly id: DeckId }
   | { readonly target: 'card'; readonly id: CardId };
 
 export const SET_SELECTION: Selection = { target: 'set' };

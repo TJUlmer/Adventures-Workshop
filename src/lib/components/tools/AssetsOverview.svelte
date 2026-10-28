@@ -23,6 +23,7 @@
   import { CHARACTER_ROLE_META } from '$lib/characters/types';
   import type { Character, CharacterRole, HeroCharacterCard } from '$lib/characters/types';
   import { hasArtwork } from '$lib/core/artwork';
+  import { deckLabel, hasDeckBackOverride } from '$lib/decks/factory';
   import type { Deck, DeckKind } from '$lib/decks/types';
   import type { Figure } from '$lib/figures/types';
   import { figureLabel, FIGURE_KIND_LABELS } from '$lib/figures/types';
@@ -35,7 +36,7 @@
   import type { CardPreviewManifest } from '$lib/cloud/card-previews';
   import { renderMeshSnapshot } from '$lib/models/snapshot';
   import { CardRenderer, MapBoard, ThreatBoard } from '$lib/renderer';
-  import { initiativeSubjectForCard, resolveStyleForCard } from '$lib/sets/queries';
+  import { initiativeSubjectForCard, resolveStyleForCard, cardbackForDeck, findDeck, resolveDeckCardback } from '$lib/sets/queries';
   import type { AdventureSet } from '$lib/sets/types';
   import { threatTotal } from '$lib/threat/types';
   import { navigation } from '$lib/state/navigation.svelte';
@@ -488,10 +489,23 @@
     set.figures.find((figure) => figure.id === viewingFigureId) ?? null
   );
 
+  const customDeckBacks = $derived(set.decks.filter(hasDeckBackOverride));
+  function reverseForCard(card: Card) {
+    const deck = findDeck(set, card.deckId);
+    return deck ? cardbackForDeck(set, deck, card) : null;
+  }
+
+  function openDeckBack(deck: Deck): void {
+    const back = resolveDeckCardback(set, deck);
+    const key = deckBackPreviewKey(deck.id);
+    openCards([{ kind: 'deck-back', key, label: deckLabel(deck), meta: 'Deck back', character: back,
+      previews: { front: publishedPreview(key) || undefined } }], key, deckLabel(deck));
+  }
+
   function cardItem(group: Group, card: Card): GalleryCardItem {
     const front = publishedPreview(printedCardPreviewKey(card.id, 'front'));
     const back =
-      card.type === 'event' ? publishedPreview(printedCardPreviewKey(card.id, 'back')) : '';
+      card.type === 'event' ? publishedPreview(reverseForCard(card) ? deckBackPreviewKey(card.deckId) : printedCardPreviewKey(card.id, 'back')) : '';
     return {
       kind: 'card',
       key: card.id,
@@ -707,6 +721,27 @@
   </figure>
 {/snippet}
 
+{#snippet customDeckBack(deck: Deck)}
+  {@const previewSrc = publishedPreview(deckBackPreviewKey(deck.id))}
+  <figure class="tile identity-tile">
+    <svelte:element this={previewTile} class="tile-card" type={previewControl ? 'button' : undefined}
+      role={previewControl ? 'button' : undefined} aria-label={`${interactive ? 'Edit' : 'View'} ${deckLabel(deck)} deck back`}
+      onclick={interactive ? () => workshop.selectDeck(deck.id) : inspectable ? () => openDeckBack(deck) : undefined}>
+      {#if previewSrc}
+        <img class="published-card-preview" src={previewSrc} alt="" onerror={() => rejectPublishedPreview(previewSrc)} />
+      {:else if publishedPngsOnly}
+        {@render unavailablePublishedCard(`${deckLabel(deck)} deck back`)}
+      {:else}
+        <svelte:boundary onerror={(error) => report(`${deckLabel(deck)} deck back`, error)}>
+          <CardRenderer card={null} cardback={resolveDeckCardback(set, deck)} />
+          {#snippet failed(error)}{@render broken(`${deckLabel(deck)} deck back`, error)}{/snippet}
+        </svelte:boundary>
+      {/if}
+    </svelte:element>
+    <figcaption class="tile-caption"><span class="tile-name">{deckLabel(deck)}</span><span class="tile-meta">Deck back override</span></figcaption>
+  </figure>
+{/snippet}
+
 {#snippet characterCard(tileEntry: CharacterCardTile)}
   {@const previewSrc = publishedPreview(characterCardPreviewKey(tileEntry.key))}
   <figure class="tile identity-tile">
@@ -782,7 +817,8 @@
           {@const copies = copiesShown(card)}
           {#each Array.from({ length: copies }, (_, index) => index) as copy (copy)}
           {#each sides as side (side)}
-            {@const previewSrc = publishedPreview(printedCardPreviewKey(card.id, side))}
+            {@const reverse = side === 'back' ? reverseForCard(card) : null}
+            {@const previewSrc = publishedPreview(reverse ? deckBackPreviewKey(card.deckId) : printedCardPreviewKey(card.id, side))}
             <figure class="tile">
               <svelte:element
                 this={previewTile}
@@ -818,7 +854,8 @@
                 {:else}
                   <svelte:boundary onerror={(error) => report(`Card “${cardLabel(card)}”`, error)}>
                     <CardRenderer
-                      {card}
+                      card={reverse ? null : card}
+                      cardback={reverse}
                       character={group.owner}
                       theme={resolveStyleForCard(set, card)}
                       customSymbols={set.customSymbols}
@@ -1117,6 +1154,15 @@
             {/each}
           </article>
         {/each}
+      </div>
+    </section>
+  {/if}
+
+  {#if !figuresOnly && customDeckBacks.length > 0}
+    <section class="showcase">
+      <header class="section-heading"><div><span class="section-kicker">Deck overrides</span><h2>Deck backs</h2></div></header>
+      <div class="gallery" style:--tile="{size}px">
+        {#each customDeckBacks as deck (deck.id)}{@render customDeckBack(deck)}{/each}
       </div>
     </section>
   {/if}

@@ -11,12 +11,14 @@
  * file is a file. This plans paper: a card with `quantity: 3` is three cards,
  * and a page that would come out empty must not be printed at all.
  */
+import type { CardbackSubject } from '$lib/decks/types';
 import { cardLabel } from '$lib/cards/factory';
 import type { CardTheme } from '$lib/cards/style';
 import type { Card } from '$lib/cards/types';
 import { characterLabel } from '$lib/characters/factory';
 import type { Character, HeroCharacterCard } from '$lib/characters/types';
 import { CARD_FORMATS } from '$lib/renderer/geometry';
+import { cardbackForDeck, findDeck } from '$lib/sets/queries';
 import {
   characterForCard,
   initiativeSubjectForCard,
@@ -35,7 +37,7 @@ export interface PrintItem {
   label: string;
   card: Card | null;
   character: Character | null;
-  cardback: Character | null;
+  cardback: CardbackSubject | null;
   /**
    * Draw this hero's character card. Same shape `CardRenderer` and the export
    * stage take — the stat sheet is read off the character rather than out of
@@ -214,6 +216,13 @@ function planPairings(
       side: 'front',
       initiativeSubject: initiativeSubjectForCard(set, card)
     };
+
+    const deck = findDeck(set, card.deckId);
+    const deckBack = deck ? cardbackForDeck(set, deck, card) : null;
+    if (deckBack) {
+      return { front, back: { ...front, key: `${card.id}-deckback`, label: `${cardLabel(card)} deck back`,
+        card: null, character: null, cardback: deckBack, theme: undefined, side: 'front' } };
+    }
 
     /*
      * An event card is designed on both sides, so its reverse is a face the

@@ -77,6 +77,7 @@
   one, and these two headings are what an author is actually looking for.
 -->
 {#snippet initiativeBlock(entry: DeckEntry)}
+  <DeckRow deck={entry.deck} printCount={entry.printCount} cardCount={entry.cards.length} depth={0} />
   {#each INITIATIVE_VARIANTS as variant (variant)}
     {@const cards = entry.cards.filter(
       (card) => card.type === 'initiative' && card.variant === variant

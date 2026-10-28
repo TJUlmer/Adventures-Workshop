@@ -504,7 +504,8 @@ export type SetId = Id<'Set'>;
  * Older documents are *repaired*, not rejected — see `sets/normalize.ts`. Only
  * a version newer than this build understands is refused.
  */
-export const SET_SCHEMA_VERSION = 77;
+/** v78 — decks gained sparse card-back and card-style overrides. */
+export const SET_SCHEMA_VERSION = 78;
 
 /**
  * What a set is for.

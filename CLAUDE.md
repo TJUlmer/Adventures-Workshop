@@ -2812,7 +2812,7 @@ already keeps the Supabase session the same way, for the same reason.
 
 ### Style cascade
 
-`stock template → set.style → character.style → card.style`, flattened by
+`stock template → set.style → character.style → deck.style → card.style`, flattened by
 `resolveStyleForCard()`. Two things the README predates:
 
 - **The stock layer is per template.** `stockTheme(type)` returns
@@ -3099,3 +3099,15 @@ written that way throughout — table names, policies, functions and copy — so
 changing the spelling back would break the schema as well as the prose. The
 true British/American splits (`colour`, `centre`, `licence`) are
 unaffected and stay as they are.
+
+### Deck defaults and back inheritance
+
+Deck names in the hierarchy select `DeckEditor`. Card appearance resolves stock →
+set → character → deck → card. `Deck.style` and `Deck.cardback` are optional sparse
+maps; deleting an override resumes live inheritance instead of copying a parent.
+Artwork and fills are atomic back fields, cloned only when edited. Schema v78
+normalizes these optional fields without adding them to old decks, preserving
+existing fork fingerprints. Deck backs resolve through `sets/queries.ts` for the
+editor, Overview, PNG/publication jobs, print sheets and TTS. TTS groups split when
+backs differ. Shared Event and Initiative decks keep their existing reverse until
+explicitly overridden; character-owned decks follow their character by default.

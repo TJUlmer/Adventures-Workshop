@@ -1,4 +1,5 @@
 <script lang="ts">
+  import type { CardbackSubject } from '$lib/decks/types';
   /**
    * The back of a hero's deck.
    *
@@ -12,14 +13,13 @@
    * controls meaningful without letting derived masks drift behind the source.
    */
   import { fillCss } from '$lib/cards/style';
-  import type { Character } from '$lib/characters/types';
-  import { characterLabel } from '$lib/characters/factory';
+  import { cardbackLabel } from '$lib/decks/factory';
   import { hasArtwork } from '$lib/core/artwork';
   import CardArt from './CardArt.svelte';
   import { BLEED, capTopToBoxTop, HERO_CARDBACK, px, pu, py } from './geometry';
 
   interface Props {
-    character: Character;
+    character: CardbackSubject;
   }
 
   let { character }: Props = $props();
@@ -48,7 +48,7 @@
     style:font-size={pu(HERO_CARDBACK.name.size)}
     style:color={back.ink}
   >
-    {characterLabel(character)}
+    {cardbackLabel(character)}
   </div>
 {/if}
 

@@ -1,3 +1,4 @@
+import type { CardbackSubject } from '$lib/decks/types';
 import type { Card } from '$lib/cards/types';
 import type { Character, HeroCharacterCard } from '$lib/characters/types';
 
@@ -23,7 +24,7 @@ export interface GalleryPrintedCardItem extends GalleryCardItemBase {
 
 export interface GalleryDeckBackItem extends GalleryCardItemBase {
   kind: 'deck-back';
-  character: Character;
+  character: CardbackSubject;
 }
 
 export interface GalleryCharacterCardItem extends GalleryCardItemBase {

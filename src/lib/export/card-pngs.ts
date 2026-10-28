@@ -5,15 +5,19 @@
  * Simulator export shares. What is here is the *plan*: which faces a set owes,
  * and the folders they unpack into.
  */
+import type { CardbackSubject } from '$lib/decks/types';
 import { cardLabel } from '$lib/cards/factory';
 import type { Card } from '$lib/cards/types';
 import { characterLabel } from '$lib/characters/factory';
 import type { Character, HeroCharacterCard } from '$lib/characters/types';
 import { hasArtwork } from '$lib/core/artwork';
+import { cardbackFormat, deckLabel } from '$lib/decks/factory';
 import { CARD_FORMATS } from '$lib/renderer/geometry';
 import type { CardFormat } from '$lib/renderer/geometry';
 import {
   characterForCard,
+  cardbackForDeck,
+  resolveDeckCardback,
   initiativeSubjectForCard,
   outline,
   resolveStyleForCard
@@ -53,7 +57,7 @@ export interface CardPngJob {
   name: string;
   card: Card | null;
   character: Character | null;
-  cardback: Character | null;
+  cardback: CardbackSubject | null;
   /**
    * Draw this hero's character card — the stat sheet, which is not in
    * `set.cards` and so cannot be reached through `card` above. Same shape the
@@ -83,7 +87,7 @@ export interface CardPngOptions {
  * release precisely because they were left out of a hand-written list of the
  * other roles; one function nobody has to remember to update is the fix.
  */
-function characterJobs(folder: string, entry: CharacterEntry): CardPngJob[] {
+function characterJobs(set: AdventureSet, folder: string, entry: CharacterEntry): CardPngJob[] {
   const character = entry.character;
   const jobs: CardPngJob[] = [];
 
@@ -97,6 +101,11 @@ function characterJobs(folder: string, entry: CharacterEntry): CardPngJob[] {
         cardback: null
       });
     }
+  }
+
+  for (const entryDeck of entry.decks) {
+    jobs.push({ folder, name: `${characterLabel(character)} ${deckLabel(entryDeck.deck)} deck back`, card: null, character: null,
+      cardback: resolveDeckCardback(set, entryDeck.deck, entryDeck.cards[0]) });
   }
 
   jobs.push({
@@ -156,9 +165,9 @@ export function planCardPngJobs(set: AdventureSet): CardPngJob[] {
 
   /* Heroes first, matching the roster order the sidebar and every other
      listing already use — a hero is who the set is played *as*. */
-  for (const entry of view.heroes) jobs.push(...characterJobs(FOLDERS.heroes, entry));
+  for (const entry of view.heroes) jobs.push(...characterJobs(set, FOLDERS.heroes, entry));
   for (const entry of [...view.villains, ...view.minions, ...view.others]) {
-    jobs.push(...characterJobs(FOLDERS.villainSide, entry));
+    jobs.push(...characterJobs(set, FOLDERS.villainSide, entry));
   }
 
   const setLevel: [string, typeof view.initiative][] = [
@@ -176,7 +185,7 @@ export function planCardPngJobs(set: AdventureSet): CardPngJob[] {
         jobs.push({ folder, name: cardLabel(card), card, character, cardback: null });
 
         // An event card is designed on both sides, so both have to print.
-        if (card.type === 'event') {
+        if (card.type === 'event' && !cardbackForDeck(set, entry.deck, card)) {
           jobs.push({
             folder,
             name: `${cardLabel(card)} back`,
@@ -186,6 +195,10 @@ export function planCardPngJobs(set: AdventureSet): CardPngJob[] {
             side: 'back'
           });
         }
+      }
+      if (cardbackForDeck(set, entry.deck, entry.cards[0])) {
+        jobs.push({ folder, name: `${deckLabel(entry.deck)} deck back`, card: null, character: null,
+          cardback: resolveDeckCardback(set, entry.deck, entry.cards[0]) });
       }
     }
   }
@@ -208,9 +221,7 @@ export function cardPngRenderJob(
     ? formatForCard(job.card)
     : job.statCard
       ? CARD_FORMATS.action
-      : job.cardback?.role === 'hero'
-        ? CARD_FORMATS.action
-        : CARD_FORMATS.cardback;
+      : job.cardback ? cardbackFormat(job.cardback) : CARD_FORMATS.cardback;
 
   return {
     stage: {

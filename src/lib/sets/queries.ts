@@ -10,9 +10,13 @@ import type { CardStyleOverride, CardTheme } from '$lib/cards/style';
 import type { StyleOrigin } from '$lib/cards/theme';
 import { resolveCardTheme, styleOrigin } from '$lib/cards/theme';
 import type { Card, CardId } from '$lib/cards/types';
-import { characterLabel } from '$lib/characters/factory';
-import type { Character, CharacterId, CharacterRole } from '$lib/characters/types';
-import type { Deck, DeckId } from '$lib/decks/types';
+import { characterLabel, createCardback } from '$lib/characters/factory';
+import { createArtwork } from '$lib/core/artwork';
+import { deckLabel, hasDeckBackOverride } from '$lib/decks/factory';
+import { CARD_FORMATS } from '$lib/renderer/geometry';
+import { TEMPLATE_ASSETS } from '$lib/renderer/assets';
+import type { CardbackDesign, Character, CharacterId, CharacterRole } from '$lib/characters/types';
+import type { CardbackSubject, Deck, DeckId } from '$lib/decks/types';
 import type { Figure } from '$lib/figures/types';
 import type { AdventureSet, CharacterEntry, DeckEntry, SetOutline } from './types';
 
@@ -197,24 +201,26 @@ export function setStats(set: AdventureSet): SetStats {
 export interface StyleLayers {
   set: CardStyleOverride;
   character: CardStyleOverride | null;
+  deck: CardStyleOverride | null;
   card: CardStyleOverride;
 }
 
-/** The three override layers that sit above the stock template look. */
+/** The four sparse override layers above the stock template. */
 export function styleLayersForCard(set: AdventureSet, card: Card): StyleLayers {
   const character = characterForCard(set, card);
   return {
     set: set.style,
     character: character ? character.style : null,
+    deck: findDeck(set, card.deckId)?.style ?? null,
     card: card.style
   };
 }
 
-/** The card's final look: stock → set → character → card. */
+/** The card's final look: stock → set → character → deck → card. */
 export function resolveStyleForCard(set: AdventureSet, card: Card): CardTheme {
   const layers = styleLayersForCard(set, card);
   const role = characterForCard(set, card)?.role;
-  return resolveCardTheme(layers.set, layers.character, layers.card, card.type, role);
+  return resolveCardTheme(layers.set, layers.character, layers.card, card.type, role, layers.deck);
 }
 
 /** Which layer a given style key is currently coming from. */
@@ -225,5 +231,50 @@ export function styleOriginForCard(
 ): StyleOrigin {
   /* The stock layer differs per template, but "from template" reads the same. */
   const layers = styleLayersForCard(set, card);
-  return styleOrigin(key, layers.set, layers.character, layers.card);
+  return styleOrigin(key, layers.set, layers.character, layers.card, layers.deck);
+}
+
+/** The appearance a deck follows when it has no overrides of its own. */
+export function resolveStyleForDeck(set: AdventureSet, deck: Deck, includeDeck = true): CardTheme {
+  const owner = deckOwner(set, deck);
+  const type = deck.kind === 'special' ? 'action' : deck.kind;
+  return resolveCardTheme(set.style, owner?.style ?? null, null, type, owner?.role, includeDeck ? deck.style ?? null : null);
+}
+
+export function inheritedDeckBack(set: AdventureSet, deck: Deck): CardbackDesign {
+  const owner = deckOwner(set, deck);
+  if (owner) return owner.cardback;
+  if (deck.kind === 'initiative') {
+    const defaults = createCardback('minion');
+    return {
+      ...defaults,
+      replacement: set.useInitiativeBack && set.initiativeBack.source
+        ? set.initiativeBack
+        : { ...createArtwork(), source: TEMPLATE_ASSETS.initiativeCardback },
+      useReplacement: true
+    };
+  }
+  return getVillain(set)?.cardback ?? createCardback(set.kind === 'heroes' ? 'hero' : 'minion');
+}
+
+export function resolveDeckCardback(set: AdventureSet, deck: Deck, card?: Card): CardbackSubject {
+  const owner = deckOwner(set, deck);
+  const type = card?.type ?? (deck.kind === 'special' ? 'action' : deck.kind);
+  const format = type === 'initiative' ? CARD_FORMATS.initiative
+    : type === 'event' ? CARD_FORMATS.event
+    : type === 'rules' ? (card?.type === 'rules' && card.landscape ? CARD_FORMATS.rulesLandscape : CARD_FORMATS.rules)
+    : CARD_FORMATS.action;
+  return {
+    id: deck.id,
+    deckName: deckLabel(deck),
+    name: owner ? characterLabel(owner) : deckLabel(deck),
+    role: owner?.role ?? getVillain(set)?.role ?? (set.kind === 'heroes' ? 'hero' : 'minion'),
+    cardback: { ...inheritedDeckBack(set, deck), ...deck.cardback },
+    format
+  };
+}
+
+/** Shared Event and Initiative decks retain their designed backs until overridden. */
+export function cardbackForDeck(set: AdventureSet, deck: Deck, card?: Card): CardbackSubject | null {
+  return deckOwner(set, deck) || hasDeckBackOverride(deck) ? resolveDeckCardback(set, deck, card) : null;
 }
