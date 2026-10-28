@@ -1060,6 +1060,28 @@
     </div>
   </header>
 
+  {#if figures.length > 0}
+    <section class="component-tools" aria-labelledby="component-tools-title">
+      <div class="component-tools-heading">
+        <h2 id="component-tools-title"><Icon name="search" size={18} /> Filter & sort components</h2>
+        <p class="component-count" role="status">Showing {visibleFigures.length} of {figures.length} components</p>
+      </div>
+      <div class="component-tool-fields">
+        <label class="component-filter field">
+          <span class="field-label">Filter by character</span>
+          <Select value={characterFilter} options={filterOptions} onchange={(value) => (characterFilter = value)} />
+        </label>
+        <label class="component-sort field">
+          <span class="field-label">Sort by</span>
+          <Select value={sortBy} options={sortOptions} onchange={(value) => (sortBy = value)} />
+        </label>
+        {#if characterFilter !== 'all'}
+          <Button size="sm" onclick={() => (characterFilter = 'all')}>Show all</Button>
+        {/if}
+      </div>
+    </section>
+  {/if}
+
   {#if error}<p class="error">{error}</p>{/if}
 
   {#if set.box.enabled}
@@ -1142,23 +1164,6 @@
         <p class="hint">No rulebook PDF attached yet.</p>
       {/if}
     </section>
-  {/if}
-
-  {#if figures.length > 0}
-    <div class="component-tools">
-      <label class="component-filter field">
-        <span class="field-label">Character</span>
-        <Select value={characterFilter} options={filterOptions} onchange={(value) => (characterFilter = value)} />
-      </label>
-      <label class="component-sort field">
-        <span class="field-label">Sort by</span>
-        <Select value={sortBy} options={sortOptions} onchange={(value) => (sortBy = value)} />
-      </label>
-      <p class="component-count" role="status">Showing {visibleFigures.length} of {figures.length} components</p>
-      {#if characterFilter !== 'all'}
-        <Button size="sm" variant="ghost" onclick={() => (characterFilter = 'all')}>Show all</Button>
-      {/if}
-    </div>
   {/if}
 
   {#if figures.length === 0}
@@ -2077,15 +2082,60 @@
     z-index: 1;
     display: flex;
     flex: none;
+    flex-direction: column;
+    gap: var(--space-4);
+    max-width: 880px;
+    padding: var(--space-5);
+    border: 1px solid var(--border-accent);
+    border-inline-start: 4px solid var(--accent);
+    border-radius: var(--radius-lg);
+    background: color-mix(in oklab, var(--accent) 8%, var(--surface-raised));
+    box-shadow: var(--shadow-md);
+  }
+
+  .component-tools-heading {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-2) var(--space-4);
+  }
+
+  .component-tools-heading h2 {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    margin: 0;
+    font-size: var(--text-md);
+    font-weight: var(--weight-semibold);
+    color: var(--text-primary);
+  }
+
+  .component-tools-heading :global(.icon) {
+    color: var(--text-accent);
+  }
+
+  .component-tool-fields {
+    display: flex;
     flex-wrap: wrap;
     align-items: flex-end;
     gap: var(--space-3);
-    max-width: 880px;
-    padding: var(--space-4);
-    border: 1px solid var(--border-default);
-    border-radius: var(--radius-lg);
+  }
+
+  .component-tool-fields .field-label {
+    font-size: var(--text-sm);
+    font-weight: var(--weight-semibold);
+    color: var(--text-secondary);
+  }
+
+  .component-tool-fields :global(select) {
+    min-height: var(--touch-target);
+    font-size: var(--text-base);
     background: var(--surface-raised);
-    box-shadow: var(--shadow-sm);
+  }
+
+  .component-tool-fields :global(.btn) {
+    min-height: var(--touch-target);
   }
 
   .component-filter {
@@ -2100,9 +2150,12 @@
 
   .component-count {
     margin: 0;
-    align-self: center;
-    font-size: var(--text-xs);
-    color: var(--text-muted);
+    padding: var(--space-1) var(--space-3);
+    border: 1px solid var(--border-accent);
+    border-radius: var(--radius-full);
+    background: var(--surface-raised);
+    font-size: var(--text-sm);
+    color: var(--text-secondary);
   }
 
   .list {
@@ -2406,6 +2459,10 @@
   }
 
   @media (max-width: 640px) {
+    .component-tools {
+      padding: var(--space-4);
+    }
+
     .presentation-box {
       flex-direction: column;
       padding: var(--space-4);
