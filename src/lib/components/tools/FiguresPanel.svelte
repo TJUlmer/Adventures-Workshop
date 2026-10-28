@@ -1388,43 +1388,26 @@
             {#if isDial(figure)}
               <!--
                 The dial's settings beside the instructions that come with it:
-                the range it counts is the author's, the instructions are the
+                its starting health is the author's, the instructions are the
                 component's own and are the same on every dial.
               -->
               <div class="notes">
                 <div class="note-block">
-                  <span class="block-title">Value range</span>
-
-                  <div class="token-fields">
-                    <label class="field">
-                      <span class="field-label">Lowest</span>
-                      <NumberInput
-                        value={figure.dialRange.min}
-                        min={0}
-                        max={98}
-                        onchange={(min) =>
-                          workshop.editFigure(figure.id, (f) => {
-                            f.dialRange.min = min;
-                            if (f.dialRange.max <= min) f.dialRange.max = min + 1;
-                          })}
-                      />
-                    </label>
-
-                    <label class="field">
-                      <span class="field-label">Highest (starts here)</span>
-                      <NumberInput
-                        value={figure.dialRange.max}
-                        min={figure.dialRange.min + 1}
-                        max={99}
-                        onchange={(max) =>
-                          workshop.editFigure(figure.id, (f) => (f.dialRange.max = max))}
-                      />
-                    </label>
-                  </div>
+                  <label class="field">
+                    <span class="block-title">Starting health</span>
+                    <NumberInput
+                      ariaLabel="Starting health"
+                      value={figure.dialRange.max}
+                      min={1}
+                      max={99}
+                      onchange={(max) =>
+                        workshop.editFigure(figure.id, (f) => (f.dialRange.max = max))}
+                    />
+                  </label>
 
                   <p class="hint">
                     The dial and its controls are built in — it counts from
-                    {figure.dialRange.min} to {figure.dialRange.max} and starts full.
+                    0 to {figure.dialRange.max} and starts full.
                     Your image is applied to both faces on export.
                   </p>
                 </div>
