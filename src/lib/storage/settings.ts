@@ -16,8 +16,6 @@ const BONUS_ABILITY_INK_PRESETS_KEY = 'bonus-ability-ink-presets';
 const MAP_WORKSPACE_WIDTHS_KEY = 'map-workspace-widths';
 
 export interface MapWorkspaceWidths {
-  inspector: number;
-  layers: number;
   sidebar: number;
 }
 
@@ -26,10 +24,9 @@ export async function readMapWorkspaceWidths(): Promise<MapWorkspaceWidths | nul
   const value = await idbGet<unknown>(META_STORE, MAP_WORKSPACE_WIDTHS_KEY);
   if (!value || typeof value !== 'object') return null;
   const widths = value as Record<string, unknown>;
-  if (![widths['inspector'], widths['layers'], widths['sidebar']].every(
-    (width) => typeof width === 'number' && Number.isFinite(width) && width > 0
-  )) return null;
-  return widths as unknown as MapWorkspaceWidths;
+  const sidebar = widths['sidebar'];
+  if (typeof sidebar !== 'number' || !Number.isFinite(sidebar) || sidebar <= 0) return null;
+  return { sidebar };
 }
 
 export function writeMapWorkspaceWidths(widths: MapWorkspaceWidths): Promise<boolean> {
