@@ -14,6 +14,7 @@
   import { tick, untrack } from 'svelte';
   import { analyseMap } from '$lib/analysis/map';
   import MapBoard from '$lib/renderer/MapBoard.svelte';
+  import MapWorkspace from './MapWorkspace.svelte';
   import { solid } from '$lib/cards/style';
   import { createArtwork, hasArtwork } from '$lib/core/artwork';
   import { readArtworkFile } from '$lib/core/image-import';
@@ -119,7 +120,9 @@
         startY: number;
       };
 
+  let compactTools = $state(false);
   let mode = $state<Mode>('navigate');
+  let inspectorRevision = $state(0);
   let interactionRevision = 0;
   let selectMultiple = $state(false);
   let moveTarget = $state<MoveTarget | null>(null);
@@ -145,9 +148,14 @@
   let linkFrom = $state<MapSpaceId | null>(null);
   let viewport = $state<HTMLDivElement | null>(null);
   let board = $state<HTMLDivElement | null>(null);
+  let previewBoardWidth = $state(0);
+  let canvasHeight = $state(0);
   let viewScale = $state(1);
   let viewX = $state(0);
   let viewY = $state(0);
+  const boardOffsetX = $derived(Math.max(0, (previewBoardWidth - previewBoardWidth * viewScale) / 2));
+  const boardOffsetY = $derived(Math.max(0, (canvasHeight - previewBoardWidth * viewScale / map.aspect) / 2));
+  let viewRevision = 0;
   let viewGesture: ViewGesture | null = null;
   let pointerKeptForPinch: number | null = null;
   const viewPointers = new Map<number, { x: number; y: number }>();
@@ -161,6 +169,14 @@
   let confirmingMapDelete = $state(false);
   let observedSetId: SetId | null = null;
   let observedMapId: AdventureMapId | null = null;
+
+  $effect(() => {
+    const media = window.matchMedia('(max-width: 900px)');
+    const update = () => (compactTools = media.matches);
+    update();
+    media.addEventListener('change', update);
+    return () => media.removeEventListener('change', update);
+  });
 
   $effect(() => {
     if (!set.maps.some((entry) => entry.id === workshop.mapEditingId)) {
@@ -496,6 +512,7 @@
    * or empties it out once none remain.
    */
   function selectSpace(id: MapSpaceId, additive: boolean): void {
+    inspectorRevision += 1;
     interactionRevision += 1;
     selectedEnvironment = null;
     selectedNote = null;
@@ -526,6 +543,7 @@
   }
 
   function selectNote(id: MapNoteId | null): void {
+    inspectorRevision += 1;
     interactionRevision += 1;
     selectedNote = id;
     selectedEnvironment = null;
@@ -632,6 +650,7 @@
       selections exclusive prevents a stale space editor sitting behind the
       environment editor and makes the heading always describe what is active. */
   function selectEnvironment(id: MapEnvironmentPieceId | null): void {
+    inspectorRevision += 1;
     interactionRevision += 1;
     selectedEnvironment = id;
     selectedNote = null;
@@ -719,38 +738,72 @@
     return best;
   }
 
-  const MIN_VIEW_SCALE = 1;
+  let minimumViewScale = $state(1);
   const MAX_VIEW_SCALE = 4;
 
   function clampView(x: number, y: number, scale: number): { x: number; y: number } {
     if (!viewport || !board) return { x, y };
-    const minimumX = Math.min(0, viewport.clientWidth - board.offsetWidth * scale);
-    const minimumY = Math.min(0, viewport.clientHeight - board.offsetHeight * scale);
+    const spareX = viewport.clientWidth - board.offsetWidth * scale;
+    const spareY = viewport.clientHeight - board.offsetHeight * scale;
     return {
-      x: Math.min(0, Math.max(minimumX, x)),
-      y: Math.min(0, Math.max(minimumY, y))
+      x: spareX >= 0 ? spareX / 2 : Math.min(0, Math.max(spareX, x)),
+      y: spareY >= 0 ? spareY / 2 : Math.min(0, Math.max(spareY, y))
     };
   }
 
   function setView(x: number, y: number, scale = viewScale): void {
-    const nextScale = Math.min(MAX_VIEW_SCALE, Math.max(MIN_VIEW_SCALE, scale));
+    const nextScale = Math.min(MAX_VIEW_SCALE, Math.max(minimumViewScale, scale));
     const next = clampView(x, y, nextScale);
     viewScale = nextScale;
     viewX = next.x;
     viewY = next.y;
+    const revision = ++viewRevision;
+    // A scaled transform does not give the browser a scrollable layout size.
+    // Wait for its explicit surface to grow before applying the pan offset.
+    void tick().then(() => {
+      if (!viewport || revision !== viewRevision) return;
+      viewport.scrollLeft = Math.max(0, -next.x);
+      viewport.scrollTop = Math.max(0, -next.y);
+    });
+  }
+
+  function onViewportScroll(): void {
+    if (!viewport) return;
+    viewX = boardOffsetX - viewport.scrollLeft;
+    viewY = boardOffsetY - viewport.scrollTop;
   }
 
   function resetView(): void {
-    viewScale = 1;
-    viewX = 0;
-    viewY = 0;
+    setView(0, 0, minimumViewScale);
     viewGesture = null;
     viewPointers.clear();
   }
 
+  $effect(() => {
+    const element = viewport;
+    const aspect = map.aspect;
+    if (!element) return;
+    let active = true;
+    const observer = new ResizeObserver(() => {
+      if (element.clientWidth === 0 || element.clientHeight === 0) return;
+      cancelPointerSession('viewport-change');
+      stopViewGesture();
+      // Resizing the pane must enlarge the board too; Fit remains available
+      // when a width-filling board is taller than the visible canvas.
+      previewBoardWidth = element.clientWidth;
+      canvasHeight = element.clientHeight;
+      minimumViewScale = Math.min(1, element.clientHeight * aspect / Math.max(1, element.clientWidth));
+      void tick().then(() => {
+        if (active) setView(viewX, viewY, viewScale);
+      });
+    });
+    observer.observe(element);
+    return () => { active = false; observer.disconnect(); };
+  });
+
   function zoomView(nextScale: number): void {
     if (!viewport) return;
-    const scale = Math.min(MAX_VIEW_SCALE, Math.max(MIN_VIEW_SCALE, nextScale));
+    const scale = Math.min(MAX_VIEW_SCALE, Math.max(minimumViewScale, nextScale));
     const anchorX = viewport.clientWidth / 2;
     const anchorY = viewport.clientHeight / 2;
     const modelX = (anchorX - viewX) / viewScale;
@@ -1148,7 +1201,13 @@
   }
 
   function onViewportPointerDown(event: PointerEvent): void {
-    if (event.button !== 0) return;
+    if (event.button !== 0 || !viewport) return;
+    const bounds = viewport.getBoundingClientRect();
+    const left = bounds.left + viewport.clientLeft;
+    const top = bounds.top + viewport.clientTop;
+    // Native scrollbar drags must not be captured as map-pan gestures.
+    if (event.clientX < left || event.clientY < top ||
+        event.clientX >= left + viewport.clientWidth || event.clientY >= top + viewport.clientHeight) return;
     viewPointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
     if (viewPointers.size >= 2) {
       cancelPointerSession('second-pointer');
@@ -1192,7 +1251,7 @@
     const distance = Math.max(1, Math.hypot(second.x - first.x, second.y - first.y));
     const scale = Math.min(
       MAX_VIEW_SCALE,
-      Math.max(MIN_VIEW_SCALE, viewGesture.startScale * (distance / viewGesture.startDistance))
+      Math.max(minimumViewScale, viewGesture.startScale * (distance / viewGesture.startDistance))
     );
     const centreX = (first.x + second.x) / 2;
     const centreY = (first.y + second.y) / 2;
@@ -1776,7 +1835,8 @@
 />
 <svelte:document onvisibilitychange={onVisibilityChange} />
 
-<div class="page scroll-y">
+<div class="page map-page">
+  <div class="page-toolbar">
   <header class="head">
     <div class="titles">
       <span class="eyebrow">Set tool</span>
@@ -1830,6 +1890,8 @@
     </div>
   </div>
 
+  </div>
+
   {#if exportError}<p class="error" role="alert">{exportError}</p>{/if}
 
   <!--
@@ -1854,28 +1916,11 @@
     </EmptyState>
   {:else}
   <div class="panels">
-    <section class="panel">
-      <Switch
-        checked={map.enabled}
-        disabled={artworkView}
-        label="This adventure has a map"
-        hint="Off by default — not every set needs one"
-        onchange={(value) => {
-          workshop.editMap((m) => (m.enabled = value));
-          if (!value) {
-            resetMapSelections();
-            resetView();
-          }
-        }}
-      />
-    </section>
-
     {#if map.enabled}
-      <section class="panel">
+      <section class="panel workspace-panel">
         <div class="modes">
           <div class="editing-tools">
             <div class="mode-choice">
-              <span class="mode-group-label">Editing mode</span>
               <div class="mode-picker" role="group" aria-label="Editing mode">
                 {#each MODES as entry (entry.value)}
                   <button
@@ -1921,6 +1966,17 @@
             {/if}
           </div>
 
+          {#if compactTools}
+            <details class="utility-menu">
+              <summary>View &amp; artwork</summary>
+              <div class="utility-popover">{@render modeUtilities()}</div>
+            </details>
+          {:else}
+            {@render modeUtilities()}
+          {/if}
+        </div>
+
+        {#snippet modeUtilities()}
           <div class="mode-utilities">
             <div class="view-options" role="group" aria-label="Map view options">
               <button
@@ -2037,7 +2093,7 @@
             {/if}
             </div>
           </div>
-        </div>
+        {/snippet}
 
         <div class="mode-support">
           <p class="mode-hint" aria-live="polite">{MODES.find((entry) => entry.value === mode)?.hint}</p>
@@ -2175,6 +2231,21 @@
 
         {#snippet boardPanel()}
           <div class="block board-block">
+            <div class="board-wide">
+              <Switch
+                checked={map.enabled}
+                disabled={artworkView}
+                label="This adventure has a map"
+                hint="Off by default — not every set needs one"
+                onchange={(value) => {
+                  workshop.editMap((m) => (m.enabled = value));
+                  if (!value) {
+                    resetMapSelections();
+                    resetView();
+                  }
+                }}
+              />
+            </div>
             <h2 class="panel-title">Board</h2>
 
             <div class="zones">
@@ -2418,34 +2489,39 @@
           </div>
         {/snippet}
 
-        <!--
-          Board on the left, controls on the right, so a colour can be changed
-          while the space it belongs to is still in view. Below the map they
-          would be off screen exactly when they are being used — the board is
-          the tallest thing on the page by a long way.
-        -->
-        <div class="layout">
+        <!-- Independent control scrollers keep the board visible while editing long lists. -->
+        <MapWorkspace {boardSettings} analysis={topologyPanel} selectionKey={selectedEnvironment ?? selectedNote ?? selected} selectionRevision={inspectorRevision}>
+          {#snippet canvas()}
           <div class="map-stack">
           <div class="map-col">
+          <div class="map-frame" style:aspect-ratio={map.aspect}>
+          <!-- svelte-ignore a11y_no_noninteractive_tabindex (The scroll region must accept focus for keyboard scrolling.) -->
           <div
             class="map-viewport"
             bind:this={viewport}
+            style:touch-action={viewScale <= minimumViewScale + 0.001 ? 'pan-y' : 'none'}
             role="region"
+            tabindex="0"
             aria-label="Adventure map workspace. {mode === 'navigate'
-              ? 'Drag to pan and pinch to zoom.'
-              : 'Use the selected editing mode, or switch to Navigate to pan.'}"
+              ? 'Scroll or drag to pan and pinch to zoom.'
+              : 'Scroll to explore, or use the selected editing mode.'}"
+            onscroll={onViewportScroll}
             onpointerdown={onViewportPointerDown}
             onpointermove={onViewportPointerMove}
             onpointerup={onViewportPointerEnd}
             onpointercancel={onViewportPointerEnd}
             onlostpointercapture={onViewportPointerEnd}
           >
+            <div class="scroll-surface"
+              style:width="{Math.max(previewBoardWidth, previewBoardWidth * viewScale)}px"
+              style:height="{Math.max(canvasHeight, previewBoardWidth * viewScale / map.aspect)}px">
             <div
               class="board"
               class:artwork-view={artworkView}
               class:moving={movingTarget !== null}
               bind:this={board}
-              style:transform="translate({viewX}px, {viewY}px) scale({viewScale})"
+              style:width={previewBoardWidth > 0 ? `${previewBoardWidth}px` : '100%'}
+              style:transform="translate({boardOffsetX}px, {boardOffsetY}px) scale({viewScale})"
               style:--view-scale={viewScale}
             >
               <MapBoard
@@ -2535,6 +2611,8 @@
                 </div>
               {/if}
             </div>
+            </div>
+          </div>
 
             <div
               class="viewport-controls"
@@ -2545,7 +2623,7 @@
               <button
                 type="button"
                 aria-label="Zoom out"
-                disabled={viewScale <= MIN_VIEW_SCALE}
+                disabled={viewScale <= minimumViewScale + 0.001}
                 onclick={(event) => {
                   event.stopPropagation();
                   zoomView(viewScale / 1.35);
@@ -2564,7 +2642,7 @@
               <button
                 type="button"
                 class="fit-view"
-                disabled={viewScale === 1 && viewX === 0 && viewY === 0}
+                disabled={Math.abs(viewScale - minimumViewScale) < 0.001}
                 onclick={(event) => {
                   event.stopPropagation();
                   resetView();
@@ -2576,17 +2654,63 @@
             {artworkView
               ? 'Artwork-only view. Editing is paused and exports are unchanged.'
               : mode === 'navigate'
-                ? 'Drag to pan · pinch or use +/− to zoom'
-                : 'Drag empty board to pan · pinch with two fingers · tap to add or select · drag spaces and text to move'}
+                ? 'Scroll or drag to pan · pinch or use +/− to zoom'
+                : 'Scroll or drag empty board to pan · tap to add or select · drag spaces and text to move'}
           </p>
           </div>
           </div>
 
-          <!-- DOM and visual order both stay interaction-first on narrow
-               screens: map, selected item, visual layers, board settings. -->
-          <aside class="side" class:editing-paused={artworkView} inert={artworkView}>
+          {/snippet}
+          {#snippet inspector()}
+            {#snippet selectionColours()}
+                <!--
+                  Click, not drag-to-edit like the Board panel's own
+                  swatches — this one paints the selection, so a plain
+                  button rather than a colour input is both the simpler
+                  control and the one that cannot be misread as "recolour
+                  this everywhere" the way that panel's swatches actually
+                  do. Reads `paletteColors`, not `usedColors` alone, so the
+                  "+" swatch below can offer a colour that is not on the
+                  board yet at all.
+                -->
+                <div class="field">
+                  <span class="field-label">
+                    {colorSelection.size > 1
+                      ? `Colour all ${colorSelection.size} spaces`
+                      : selectedSpace && selectedSpace.zones.length > 1
+                        ? 'Colour every zone'
+                        : 'Colour this space'}
+                  </span>
+                  <div class="swatches">
+                    {#each paletteColors as color, index (index)}
+                      <button
+                        type="button"
+                        class="swatch-apply"
+                        style:background={color}
+                        title="Set to {color}"
+                        onclick={() => applyColorToSpaces(color, colorSelection)}
+                      ></button>
+                    {/each}
+                    <input
+                      class="hidden-file"
+                      type="color"
+                      bind:this={paletteInput}
+                      onchange={(event) => addToPalette(event.currentTarget.value)}
+                    />
+                    <button
+                      type="button"
+                      class="swatch-add"
+                      title="Add a colour to this swatch"
+                      aria-label="Add a colour to this swatch"
+                      onclick={() => paletteInput?.click()}
+                    >
+                      <Icon name="plus" size={13} />
+                    </button>
+                  </div>
+                </div>
+            {/snippet}
 
-            <div class="block selected-block">
+            <div class="block selected-block" class:editing-paused={artworkView} inert={artworkView}>
               <h2 class="panel-title">
                 {selectedEnvironmentPiece
                   ? 'Selected environment'
@@ -2712,54 +2836,103 @@
                   </p>
                 {/if}
 
-                <!--
-                  Click, not drag-to-edit like the Board panel's own
-                  swatches — this one paints the selection, so a plain
-                  button rather than a colour input is both the simpler
-                  control and the one that cannot be misread as "recolour
-                  this everywhere" the way that panel's swatches actually
-                  do. Reads `paletteColors`, not `usedColors` alone, so the
-                  "+" swatch below can offer a colour that is not on the
-                  board yet at all.
-                -->
-                <div class="field">
-                  <span class="field-label">
-                    {colorSelection.size > 1
-                      ? `Colour all ${colorSelection.size} spaces`
-                      : selectedSpace && selectedSpace.zones.length > 1
-                        ? 'Colour every zone'
-                        : 'Colour this space'}
-                  </span>
-                  <div class="swatches">
-                    {#each paletteColors as color, index (index)}
-                      <button
-                        type="button"
-                        class="swatch-apply"
-                        style:background={color}
-                        title="Set to {color}"
-                        onclick={() => applyColorToSpaces(color, colorSelection)}
-                      ></button>
-                    {/each}
-                    <input
-                      class="hidden-file"
-                      type="color"
-                      bind:this={paletteInput}
-                      onchange={(event) => addToPalette(event.currentTarget.value)}
-                    />
-                    <button
-                      type="button"
-                      class="swatch-add"
-                      title="Add a colour to this swatch"
-                      aria-label="Add a colour to this swatch"
-                      onclick={() => paletteInput?.click()}
-                    >
-                      <Icon name="plus" size={13} />
-                    </button>
-                  </div>
-                </div>
+                {#if colorSelection.size > 1}
+                  {@render selectionColours()}
+                {/if}
               {/if}
 
               {#if colorSelection.size === 1 && selectedSpace}
+                <section class="selected-section space-details" aria-label="Space details">
+                  <h3 class="selected-section-title">Space details</h3>
+                <div class="zones">
+                  <span class="field-label">Split into</span>
+                  {#each [1, 2, 3, 4] as count (count)}
+                    <button
+                      type="button"
+                      class="mode"
+                      class:active={selectedSpace.zones.length === count}
+                      onclick={() => setZoneCount(count)}
+                    >
+                      {count}
+                    </button>
+                  {/each}
+                </div>
+
+                  {@render selectionColours()}
+
+                {#if selectedSpace.zones.length > 1}
+                  <!--
+                    One row per wedge, each with its own quick-apply palette
+                    — "Colour every zone" above sets all of them at once,
+                    which is not the same request as matching *one* wedge to
+                    a colour another already has. Without a per-zone row,
+                    that meant opening this zone's own picker and using its
+                    eyedropper against another wedge on screen; a click here
+                    does the same thing in one step.
+                  -->
+                  <div class="zone-list">
+                    {#each selectedSpace.zones as zone, index (index)}
+                      <div class="field">
+                        <span class="field-label">Zone {index + 1}</span>
+                        <div class="swatches">
+                          {#each paletteColors as color, ci (ci)}
+                            <button
+                              type="button"
+                              class="swatch-apply"
+                              style:background={color}
+                              title="Set zone {index + 1} to {color}"
+                              onclick={() => applyColorToZone(color, index)}
+                            ></button>
+                          {/each}
+                          <input
+                            type="color"
+                            value={zone.color}
+                            aria-label="Zone {index + 1} colour"
+                            oninput={(event) => {
+                              const value = event.currentTarget.value;
+                              zonePatternOperation += 1;
+                              workshop.editMap(() => (selectedSpace.zones[index] = solid(value)));
+                            }}
+                          />
+                        </div>
+                      </div>
+                    {/each}
+                  </div>
+                {:else}
+                  <div class="swatches">
+                    {#each selectedSpace.zones as zone, index (index)}
+                      <input
+                        type="color"
+                        value={zone.color}
+                        aria-label="Zone {index + 1} colour"
+                        oninput={(event) => {
+                          const value = event.currentTarget.value;
+                          zonePatternOperation += 1;
+                          workshop.editMap(() => (selectedSpace.zones[index] = solid(value)));
+                        }}
+                      />
+                    {/each}
+                  </div>
+                {/if}
+
+                {#if selectedSpace.zones.length > 1}
+                  <!--
+                    A circle with one fill has no seam to turn — hidden
+                    until there is a split to rotate, same as "Marker side"
+                    only shows once there is a marker.
+                  -->
+                  <Slider
+                    label="Rotation"
+                    value={selectedSpace.rotation}
+                    min={-180}
+                    max={180}
+                    step={1}
+                    neutral={0}
+                    format={(v) => `${Math.round(v)}°`}
+                    onchange={(v) => setSpaceRotation(v)}
+                  />
+                {/if}
+
                 <label class="field">
                   <span class="field-label">Label</span>
                   <TextInput
@@ -2772,12 +2945,6 @@
                   />
                 </label>
 
-                <!--
-                  The connections, each removable on its own. The Link toggle
-                  is quicker once you know it is there; this is how you find
-                  out, and it is the only way to unlink without hunting for the
-                  space at the other end.
-                -->
                 <!--
                   Start positions are 1–5 and exclusive: two spaces both
                   claiming player 3 is a map with a bug in it, so choosing a
@@ -2852,7 +3019,9 @@
                   </div>
                 {/if}
 
-                <section class="selected-section portal-controls">
+                </section>
+
+                <section class="selected-section portal-controls" aria-label="Secret passage">
                   <h3 class="selected-section-title">Secret passage</h3>
                   <Switch
                     checked={selectedSpace.secretPassage !== null}
@@ -2983,8 +3152,9 @@
                   {/if}
                 </section>
 
-                <section class="selected-section connections-field">
+                <section class="selected-section connections-field" aria-label="Connections">
                   <h3 class="selected-section-title">Connections</h3>
+                  <!-- Listed here so a path can be removed without finding its other space. -->
                   {#each neighbours(map, selectedSpace.id) as other (other)}
                     {@const path = findPath(map, selectedSpace.id, other)}
                     {@const centreDistance = path ? pathCentreDistanceMm(map, path) : null}
@@ -3048,95 +3218,6 @@
                   {/each}
                 </section>
 
-                <section class="selected-section space-details">
-                  <h3 class="selected-section-title">Space details</h3>
-                <div class="zones">
-                  <span class="field-label">Split into</span>
-                  {#each [1, 2, 3, 4] as count (count)}
-                    <button
-                      type="button"
-                      class="mode"
-                      class:active={selectedSpace.zones.length === count}
-                      onclick={() => setZoneCount(count)}
-                    >
-                      {count}
-                    </button>
-                  {/each}
-                </div>
-
-                {#if selectedSpace.zones.length > 1}
-                  <!--
-                    A circle with one fill has no seam to turn — hidden
-                    until there is a split to rotate, same as "Marker side"
-                    only shows once there is a marker.
-                  -->
-                  <Slider
-                    label="Rotation"
-                    value={selectedSpace.rotation}
-                    min={-180}
-                    max={180}
-                    step={1}
-                    neutral={0}
-                    format={(v) => `${Math.round(v)}°`}
-                    onchange={(v) => setSpaceRotation(v)}
-                  />
-                {/if}
-
-                {#if selectedSpace.zones.length > 1}
-                  <!--
-                    One row per wedge, each with its own quick-apply palette
-                    — "Colour every zone" above sets all of them at once,
-                    which is not the same request as matching *one* wedge to
-                    a colour another already has. Without a per-zone row,
-                    that meant opening this zone's own picker and using its
-                    eyedropper against another wedge on screen; a click here
-                    does the same thing in one step.
-                  -->
-                  <div class="zone-list">
-                    {#each selectedSpace.zones as zone, index (index)}
-                      <div class="field">
-                        <span class="field-label">Zone {index + 1}</span>
-                        <div class="swatches">
-                          {#each paletteColors as color, ci (ci)}
-                            <button
-                              type="button"
-                              class="swatch-apply"
-                              style:background={color}
-                              title="Set zone {index + 1} to {color}"
-                              onclick={() => applyColorToZone(color, index)}
-                            ></button>
-                          {/each}
-                          <input
-                            type="color"
-                            value={zone.color}
-                            aria-label="Zone {index + 1} colour"
-                            oninput={(event) => {
-                              const value = event.currentTarget.value;
-                              zonePatternOperation += 1;
-                              workshop.editMap(() => (selectedSpace.zones[index] = solid(value)));
-                            }}
-                          />
-                        </div>
-                      </div>
-                    {/each}
-                  </div>
-                {:else}
-                  <div class="swatches">
-                    {#each selectedSpace.zones as zone, index (index)}
-                      <input
-                        type="color"
-                        value={zone.color}
-                        aria-label="Zone {index + 1} colour"
-                        oninput={(event) => {
-                          const value = event.currentTarget.value;
-                          zonePatternOperation += 1;
-                          workshop.editMap(() => (selectedSpace.zones[index] = solid(value)));
-                        }}
-                      />
-                    {/each}
-                  </div>
-                {/if}
-
                 {#key selectedSpace.id}
                   <ConfirmAction
                     size="sm"
@@ -3149,7 +3230,7 @@
                     Delete space
                   </ConfirmAction>
                 {/key}
-                </section>
+
               {/if}
 
               {#if colorSelection.size > 1}
@@ -3160,7 +3241,9 @@
               </div>
             </div>
 
-            <div class="side-col">
+          {/snippet}
+          {#snippet layers()}
+            <div class="side-col" class:editing-paused={artworkView} inert={artworkView}>
             {#if hasArtwork(map.artwork)}
               <section class="block artwork-block" aria-label="Board artwork controls">
                 <h2 class="panel-title">Board artwork</h2>
@@ -3246,11 +3329,10 @@
             </div>
             </div>
 
-          </aside>
+          {/snippet}
+        </MapWorkspace>
 
-          {@render belowMap()}
-
-          {#snippet belowMap()}
+          {#snippet boardSettings()}
             <div class="below-map" class:editing-paused={artworkView} inert={artworkView}>
               {@render boardPanel()}
 
@@ -3406,11 +3488,9 @@
 
               {/if}
 
-              {@render topologyPanel()}
               </div>
             </div>
           {/snippet}
-        </div>
 
         {#snippet topologyPanel()}
         <div class="topology-block">
@@ -3522,8 +3602,37 @@
 
 <style>
   .page {
-    padding: var(--space-6);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    padding: var(--space-4);
+    flex: 1;
+    min-height: 0;
+    min-width: 0;
+    overflow-y: auto;
+    scrollbar-gutter: stable;
   }
+
+  .page-toolbar {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: var(--space-4);
+    flex: none;
+    align-items: center;
+  }
+
+  .page-toolbar .head,
+  .page-toolbar .map-switcher { margin-bottom: 0; }
+
+  .page-toolbar .map-switcher { padding: var(--space-1); }
+
+  .workspace-panel { flex: none; min-height: 0; }
+  .workspace-panel > .modes,
+  .workspace-panel > .mode-support { flex: none; }
+
+  .utility-menu { position: relative; justify-self: end; }
+  .utility-menu summary { padding: var(--space-2); border: 1px solid var(--border-default); border-radius: var(--radius-sm); color: var(--text-secondary); font-size: var(--text-xs); cursor: pointer; }
+  .utility-popover { position: absolute; z-index: 5; top: calc(100% + var(--space-2)); right: 0; width: min(360px, calc(100vw - 64px)); padding: var(--space-3); border: 1px solid var(--border-default); border-radius: var(--radius-sm); background: var(--surface-raised); box-shadow: var(--shadow-md); }
 
   .head {
     display: flex;
@@ -3545,14 +3654,12 @@
     font-size: var(--text-lg);
   }
 
-  /* Wide enough for the map plus Board and Selected space at desktop sizes;
-     the responsive grid below folds Board under the map before the map itself
-     becomes too narrow to edit accurately. */
   .panels {
     display: flex;
     flex-direction: column;
     gap: var(--space-5);
-    max-width: 1712px;
+    flex: none;
+    min-height: 0;
   }
 
   .panel {
@@ -3613,14 +3720,6 @@
     gap: var(--space-1);
   }
 
-  .mode-group-label {
-    font-size: var(--text-2xs);
-    font-weight: var(--weight-semibold);
-    letter-spacing: var(--tracking-wide);
-    text-transform: uppercase;
-    color: var(--text-secondary);
-  }
-
   .mode-picker {
     display: inline-flex;
     align-items: stretch;
@@ -3638,6 +3737,10 @@
   }
 
   .mode {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-1);
     padding: var(--space-2) var(--space-3);
     border: 1px solid var(--border-default);
     border-radius: var(--radius-sm);
@@ -3721,16 +3824,6 @@
     white-space: nowrap;
   }
 
-  /* The map remains the visual anchor. Board and Zones share the row directly
-     beneath it, while visual scene layers stay beside the live preview. */
-  .layout {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) 440px 360px;
-    column-gap: var(--space-4);
-    row-gap: var(--space-4);
-    align-items: start;
-  }
-
   .map-switcher {
     display: flex;
     align-items: center;
@@ -3800,22 +3893,33 @@
   }
 
   .map-stack {
-    grid-column: 1;
     display: flex;
     flex-direction: column;
     min-width: 0;
+    min-height: 0;
+    flex: 1;
   }
 
   .map-col {
     display: flex;
     flex-direction: column;
     min-width: 0;
+    min-height: 0;
+    flex: 1;
+  }
+
+  .map-frame {
+    position: relative;
+    width: 100%;
+    min-height: 0;
+    flex: none;
   }
 
   .map-viewport {
-    position: relative;
-    width: 100%;
-    overflow: hidden;
+    position: absolute;
+    inset: 0;
+    overflow: auto;
+    scrollbar-gutter: stable;
     border: 1px solid var(--border-default);
     border-radius: var(--radius-sm);
     background: var(--surface-inset);
@@ -3828,8 +3932,12 @@
     cursor: grabbing;
   }
 
+  .scroll-surface { position: relative; }
+
   .board {
-    position: relative;
+    position: absolute;
+    top: 0;
+    left: 0;
     width: 100%;
     transform-origin: 0 0;
     will-change: transform;
@@ -3904,7 +4012,7 @@
     position: absolute;
     z-index: 8;
     top: var(--space-2);
-    right: var(--space-2);
+    right: var(--space-5);
     display: flex;
     align-items: center;
     gap: var(--space-1);
@@ -3951,23 +4059,17 @@
   }
 
   .selected-block {
-    grid-column: 2;
-    max-height: 600px;
-    overflow: hidden;
-  }
-
-  .below-map {
-    grid-column: 1;
-    grid-row: 2;
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
     width: 100%;
   }
 
-  .zone-col {
-    border-left: 0;
-    border-radius: 0 0 var(--radius-sm) 0;
+  .below-map {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    width: 100%;
   }
+
+  .zone-col { width: 100%; }
 
   .below-map .board-block {
     border-radius: 0 0 0 var(--radius-sm);
@@ -4119,94 +4221,27 @@
   }
 
   .side-col {
-    grid-column: 3;
     display: flex;
     flex-direction: column;
     gap: 0;
     align-self: start;
   }
 
-  /* Preserve a useful map width before falling back from three columns. */
   @media (max-width: 1250px) {
-    .modes {
-      grid-template-columns: minmax(0, 1fr);
-    }
-
-    .mode-utilities {
-      justify-content: flex-end;
-    }
-
-    .layout {
-      grid-template-columns: minmax(0, 1fr) 420px;
-    }
-
-    .map-stack { grid-column: 1; grid-row: 1; }
-    .selected-block { grid-column: 2; grid-row: 1 / span 3; }
-    .side-col { grid-column: 1; grid-row: 2; }
-    .below-map { grid-column: 1; grid-row: 3; }
+    .modes { grid-template-columns: minmax(0, 1fr); }
+    .mode-utilities { justify-content: flex-start; }
   }
 
-  /* Under about a tablet's width the columns stop being columns at all. */
   @media (max-width: 900px) {
-    .layout {
-      grid-template-columns: minmax(0, 1fr);
-    }
-
-    .map-col,
-    .selected-block,
-    .side-col,
-    .below-map {
-      grid-column: 1;
-    }
-
-    .map-stack { display: contents; }
-    .map-col { grid-row: 1; }
-    .selected-block {
-      grid-row: 2;
-      max-height: none;
-      overflow: visible;
-      margin-top: 0;
-    }
-    .side-col { grid-row: 3; }
-    .below-map { grid-row: 4; }
-
-    .selected-scroll {
-      overflow: visible;
-      padding-right: 0;
-      scrollbar-gutter: auto;
-    }
-
-    .below-map {
-      grid-template-columns: minmax(0, 1fr);
-    }
-
-    .below-map .board-block,
-    .zone-col {
-      border: 1px solid var(--border-default);
-      border-radius: var(--radius-sm);
-    }
-
-    .zone-col {
-      border-top: 0;
-      border-radius: 0 0 var(--radius-sm) var(--radius-sm);
-    }
-
-    .below-map .board-block {
-      border-radius: var(--radius-sm) var(--radius-sm) 0 0;
-    }
-
+    .page-toolbar { grid-template-columns: auto minmax(0, 1fr); gap: var(--space-2); }
+    .modes { display: flex; flex-wrap: wrap; align-items: center; }
+    .editing-tools { flex: 1; }
+    .utility-menu { margin-left: auto; }
   }
 
-  /* Keep the semantic wrapper transparent; `.side-col` is the actual grid
-     item so Environment and Placed text can form one flush vertical stack. */
-  .side {
-    display: contents;
-  }
-
-  .side.editing-paused > *,
-  .below-map.editing-paused {
-    opacity: 0.55;
-  }
+  .selected-block.editing-paused,
+  .side-col.editing-paused,
+  .below-map.editing-paused { opacity: 0.55; }
 
   .selected-block,
   .below-map {
@@ -4282,10 +4317,7 @@
     gap: var(--space-3);
     min-height: 0;
     width: 100%;
-    overflow-y: auto;
-    overscroll-behavior: contain;
-    scrollbar-gutter: stable;
-    padding-right: var(--space-1);
+    overflow: visible;
   }
 
   .selected-section {
@@ -4414,7 +4446,7 @@
     width: 100%;
     max-height: 240px;
     overflow-y: auto;
-    overscroll-behavior: contain;
+    overscroll-behavior: auto;
     margin: 0;
     padding: 0;
     list-style: none;
@@ -4638,7 +4670,7 @@
     list-style: none;
     max-height: 240px;
     overflow-y: auto;
-    overscroll-behavior: contain;
+    overscroll-behavior: auto;
     scrollbar-gutter: stable;
   }
 
@@ -4992,8 +5024,22 @@
 
   @media (max-width: 600px) {
     .page {
-      padding: var(--space-4);
+      padding: var(--space-2);
+      gap: var(--space-2);
     }
+
+    .page-toolbar .head { flex-direction: row; }
+    .page-toolbar .titles { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+    .page-toolbar .head-actions { width: auto; }
+    .page-toolbar .head-actions :global(button) { flex: none; }
+    .page-toolbar .map-switcher { flex-direction: row; min-width: 0; }
+    .page-toolbar .map-tabs { min-width: 0; }
+    .page-toolbar .map-tab { padding-inline: var(--space-2); min-width: 0; }
+    .page-toolbar .map-tab span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .page-toolbar .map-switcher-actions { width: auto; }
+    .mode-choice { min-width: 0; width: 100%; }
+    .mode-picker { max-width: 100%; overflow-x: auto; }
+    .modes .mode-picker .mode { flex: none; padding-inline: var(--space-2); }
 
     .head,
     .map-switcher {
@@ -5078,4 +5124,5 @@
       max-height: none;
     }
   }
+
 </style>
