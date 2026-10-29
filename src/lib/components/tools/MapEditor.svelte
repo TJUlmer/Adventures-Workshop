@@ -14,6 +14,7 @@
   import { tick, untrack } from 'svelte';
   import { analyseMap } from '$lib/analysis/map';
   import MapBoard from '$lib/renderer/MapBoard.svelte';
+  import MapWorkspace from './MapWorkspace.svelte';
   import { solid } from '$lib/cards/style';
   import { createArtwork, hasArtwork } from '$lib/core/artwork';
   import { readArtworkFile } from '$lib/core/image-import';
@@ -119,7 +120,9 @@
         startY: number;
       };
 
+  let compactTools = $state(false);
   let mode = $state<Mode>('navigate');
+  let inspectorRevision = $state(0);
   let interactionRevision = 0;
   let selectMultiple = $state(false);
   let moveTarget = $state<MoveTarget | null>(null);
@@ -145,6 +148,7 @@
   let linkFrom = $state<MapSpaceId | null>(null);
   let viewport = $state<HTMLDivElement | null>(null);
   let board = $state<HTMLDivElement | null>(null);
+  let fittedBoardWidth = $state(0);
   let viewScale = $state(1);
   let viewX = $state(0);
   let viewY = $state(0);
@@ -161,6 +165,14 @@
   let confirmingMapDelete = $state(false);
   let observedSetId: SetId | null = null;
   let observedMapId: AdventureMapId | null = null;
+
+  $effect(() => {
+    const media = window.matchMedia('(max-width: 900px)');
+    const update = () => (compactTools = media.matches);
+    update();
+    media.addEventListener('change', update);
+    return () => media.removeEventListener('change', update);
+  });
 
   $effect(() => {
     if (!set.maps.some((entry) => entry.id === workshop.mapEditingId)) {
@@ -496,6 +508,7 @@
    * or empties it out once none remain.
    */
   function selectSpace(id: MapSpaceId, additive: boolean): void {
+    inspectorRevision += 1;
     interactionRevision += 1;
     selectedEnvironment = null;
     selectedNote = null;
@@ -526,6 +539,7 @@
   }
 
   function selectNote(id: MapNoteId | null): void {
+    inspectorRevision += 1;
     interactionRevision += 1;
     selectedNote = id;
     selectedEnvironment = null;
@@ -632,6 +646,7 @@
       selections exclusive prevents a stale space editor sitting behind the
       environment editor and makes the heading always describe what is active. */
   function selectEnvironment(id: MapEnvironmentPieceId | null): void {
+    inspectorRevision += 1;
     interactionRevision += 1;
     selectedEnvironment = id;
     selectedNote = null;
@@ -724,11 +739,11 @@
 
   function clampView(x: number, y: number, scale: number): { x: number; y: number } {
     if (!viewport || !board) return { x, y };
-    const minimumX = Math.min(0, viewport.clientWidth - board.offsetWidth * scale);
-    const minimumY = Math.min(0, viewport.clientHeight - board.offsetHeight * scale);
+    const spareX = viewport.clientWidth - board.offsetWidth * scale;
+    const spareY = viewport.clientHeight - board.offsetHeight * scale;
     return {
-      x: Math.min(0, Math.max(minimumX, x)),
-      y: Math.min(0, Math.max(minimumY, y))
+      x: spareX >= 0 ? spareX / 2 : Math.min(0, Math.max(spareX, x)),
+      y: spareY >= 0 ? spareY / 2 : Math.min(0, Math.max(spareY, y))
     };
   }
 
@@ -741,12 +756,27 @@
   }
 
   function resetView(): void {
-    viewScale = 1;
-    viewX = 0;
-    viewY = 0;
+    setView(0, 0, 1);
     viewGesture = null;
     viewPointers.clear();
   }
+
+  $effect(() => {
+    const element = viewport;
+    const aspect = map.aspect;
+    if (!element) return;
+    let active = true;
+    const observer = new ResizeObserver(() => {
+      cancelPointerSession('viewport-change');
+      stopViewGesture();
+      fittedBoardWidth = Math.min(element.clientWidth, element.clientHeight * aspect);
+      void tick().then(() => {
+        if (active) setView(viewX, viewY, viewScale);
+      });
+    });
+    observer.observe(element);
+    return () => { active = false; observer.disconnect(); };
+  });
 
   function zoomView(nextScale: number): void {
     if (!viewport) return;
@@ -1776,7 +1806,8 @@
 />
 <svelte:document onvisibilitychange={onVisibilityChange} />
 
-<div class="page scroll-y">
+<div class="page">
+  <div class="page-toolbar">
   <header class="head">
     <div class="titles">
       <span class="eyebrow">Set tool</span>
@@ -1830,6 +1861,8 @@
     </div>
   </div>
 
+  </div>
+
   {#if exportError}<p class="error" role="alert">{exportError}</p>{/if}
 
   <!--
@@ -1854,28 +1887,11 @@
     </EmptyState>
   {:else}
   <div class="panels">
-    <section class="panel">
-      <Switch
-        checked={map.enabled}
-        disabled={artworkView}
-        label="This adventure has a map"
-        hint="Off by default — not every set needs one"
-        onchange={(value) => {
-          workshop.editMap((m) => (m.enabled = value));
-          if (!value) {
-            resetMapSelections();
-            resetView();
-          }
-        }}
-      />
-    </section>
-
     {#if map.enabled}
-      <section class="panel">
+      <section class="panel workspace-panel">
         <div class="modes">
           <div class="editing-tools">
             <div class="mode-choice">
-              <span class="mode-group-label">Editing mode</span>
               <div class="mode-picker" role="group" aria-label="Editing mode">
                 {#each MODES as entry (entry.value)}
                   <button
@@ -1921,6 +1937,17 @@
             {/if}
           </div>
 
+          {#if compactTools}
+            <details class="utility-menu">
+              <summary>View &amp; artwork</summary>
+              <div class="utility-popover">{@render modeUtilities()}</div>
+            </details>
+          {:else}
+            {@render modeUtilities()}
+          {/if}
+        </div>
+
+        {#snippet modeUtilities()}
           <div class="mode-utilities">
             <div class="view-options" role="group" aria-label="Map view options">
               <button
@@ -2037,7 +2064,7 @@
             {/if}
             </div>
           </div>
-        </div>
+        {/snippet}
 
         <div class="mode-support">
           <p class="mode-hint" aria-live="polite">{MODES.find((entry) => entry.value === mode)?.hint}</p>
@@ -2175,6 +2202,21 @@
 
         {#snippet boardPanel()}
           <div class="block board-block">
+            <div class="board-wide">
+              <Switch
+                checked={map.enabled}
+                disabled={artworkView}
+                label="This adventure has a map"
+                hint="Off by default — not every set needs one"
+                onchange={(value) => {
+                  workshop.editMap((m) => (m.enabled = value));
+                  if (!value) {
+                    resetMapSelections();
+                    resetView();
+                  }
+                }}
+              />
+            </div>
             <h2 class="panel-title">Board</h2>
 
             <div class="zones">
@@ -2418,13 +2460,9 @@
           </div>
         {/snippet}
 
-        <!--
-          Board on the left, controls on the right, so a colour can be changed
-          while the space it belongs to is still in view. Below the map they
-          would be off screen exactly when they are being used — the board is
-          the tallest thing on the page by a long way.
-        -->
-        <div class="layout">
+        <!-- Independent control scrollers keep the board visible while editing long lists. -->
+        <MapWorkspace {boardSettings} analysis={topologyPanel} selectionKey={selectedEnvironment ?? selectedNote ?? selected} selectionRevision={inspectorRevision}>
+          {#snippet canvas()}
           <div class="map-stack">
           <div class="map-col">
           <div
@@ -2445,6 +2483,7 @@
               class:artwork-view={artworkView}
               class:moving={movingTarget !== null}
               bind:this={board}
+              style:width={fittedBoardWidth > 0 ? `${fittedBoardWidth}px` : '100%'}
               style:transform="translate({viewX}px, {viewY}px) scale({viewScale})"
               style:--view-scale={viewScale}
             >
@@ -2564,7 +2603,7 @@
               <button
                 type="button"
                 class="fit-view"
-                disabled={viewScale === 1 && viewX === 0 && viewY === 0}
+                disabled={viewScale === 1}
                 onclick={(event) => {
                   event.stopPropagation();
                   resetView();
@@ -2582,11 +2621,9 @@
           </div>
           </div>
 
-          <!-- DOM and visual order both stay interaction-first on narrow
-               screens: map, selected item, visual layers, board settings. -->
-          <aside class="side" class:editing-paused={artworkView} inert={artworkView}>
-
-            <div class="block selected-block">
+          {/snippet}
+          {#snippet inspector()}
+            <div class="block selected-block" class:editing-paused={artworkView} inert={artworkView}>
               <h2 class="panel-title">
                 {selectedEnvironmentPiece
                   ? 'Selected environment'
@@ -3160,7 +3197,9 @@
               </div>
             </div>
 
-            <div class="side-col">
+          {/snippet}
+          {#snippet layers()}
+            <div class="side-col" class:editing-paused={artworkView} inert={artworkView}>
             {#if hasArtwork(map.artwork)}
               <section class="block artwork-block" aria-label="Board artwork controls">
                 <h2 class="panel-title">Board artwork</h2>
@@ -3246,11 +3285,10 @@
             </div>
             </div>
 
-          </aside>
+          {/snippet}
+        </MapWorkspace>
 
-          {@render belowMap()}
-
-          {#snippet belowMap()}
+          {#snippet boardSettings()}
             <div class="below-map" class:editing-paused={artworkView} inert={artworkView}>
               {@render boardPanel()}
 
@@ -3406,11 +3444,9 @@
 
               {/if}
 
-              {@render topologyPanel()}
               </div>
             </div>
           {/snippet}
-        </div>
 
         {#snippet topologyPanel()}
         <div class="topology-block">
@@ -3522,8 +3558,36 @@
 
 <style>
   .page {
-    padding: var(--space-6);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    padding: var(--space-4);
+    flex: 1;
+    min-height: 0;
+    min-width: 0;
+    overflow: hidden;
   }
+
+  .page-toolbar {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: var(--space-4);
+    flex: none;
+    align-items: center;
+  }
+
+  .page-toolbar .head,
+  .page-toolbar .map-switcher { margin-bottom: 0; }
+
+  .page-toolbar .map-switcher { padding: var(--space-1); }
+
+  .workspace-panel { flex: 1; min-height: 0; overflow: hidden; }
+  .workspace-panel > .modes,
+  .workspace-panel > .mode-support { flex: none; }
+
+  .utility-menu { position: relative; justify-self: end; }
+  .utility-menu summary { padding: var(--space-2); border: 1px solid var(--border-default); border-radius: var(--radius-sm); color: var(--text-secondary); font-size: var(--text-xs); cursor: pointer; }
+  .utility-popover { position: absolute; z-index: 5; top: calc(100% + var(--space-2)); right: 0; width: min(360px, calc(100vw - 64px)); padding: var(--space-3); border: 1px solid var(--border-default); border-radius: var(--radius-sm); background: var(--surface-raised); box-shadow: var(--shadow-md); }
 
   .head {
     display: flex;
@@ -3545,14 +3609,12 @@
     font-size: var(--text-lg);
   }
 
-  /* Wide enough for the map plus Board and Selected space at desktop sizes;
-     the responsive grid below folds Board under the map before the map itself
-     becomes too narrow to edit accurately. */
   .panels {
     display: flex;
     flex-direction: column;
     gap: var(--space-5);
-    max-width: 1712px;
+    flex: 1;
+    min-height: 0;
   }
 
   .panel {
@@ -3613,14 +3675,6 @@
     gap: var(--space-1);
   }
 
-  .mode-group-label {
-    font-size: var(--text-2xs);
-    font-weight: var(--weight-semibold);
-    letter-spacing: var(--tracking-wide);
-    text-transform: uppercase;
-    color: var(--text-secondary);
-  }
-
   .mode-picker {
     display: inline-flex;
     align-items: stretch;
@@ -3638,6 +3692,10 @@
   }
 
   .mode {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-1);
     padding: var(--space-2) var(--space-3);
     border: 1px solid var(--border-default);
     border-radius: var(--radius-sm);
@@ -3721,16 +3779,6 @@
     white-space: nowrap;
   }
 
-  /* The map remains the visual anchor. Board and Zones share the row directly
-     beneath it, while visual scene layers stay beside the live preview. */
-  .layout {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) 440px 360px;
-    column-gap: var(--space-4);
-    row-gap: var(--space-4);
-    align-items: start;
-  }
-
   .map-switcher {
     display: flex;
     align-items: center;
@@ -3800,21 +3848,26 @@
   }
 
   .map-stack {
-    grid-column: 1;
     display: flex;
     flex-direction: column;
     min-width: 0;
+    min-height: 0;
+    flex: 1;
   }
 
   .map-col {
     display: flex;
     flex-direction: column;
     min-width: 0;
+    min-height: 0;
+    flex: 1;
   }
 
   .map-viewport {
     position: relative;
     width: 100%;
+    min-height: 0;
+    flex: 1;
     overflow: hidden;
     border: 1px solid var(--border-default);
     border-radius: var(--radius-sm);
@@ -3829,7 +3882,9 @@
   }
 
   .board {
-    position: relative;
+    position: absolute;
+    top: 0;
+    left: 0;
     width: 100%;
     transform-origin: 0 0;
     will-change: transform;
@@ -3951,23 +4006,17 @@
   }
 
   .selected-block {
-    grid-column: 2;
-    max-height: 600px;
-    overflow: hidden;
-  }
-
-  .below-map {
-    grid-column: 1;
-    grid-row: 2;
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
     width: 100%;
   }
 
-  .zone-col {
-    border-left: 0;
-    border-radius: 0 0 var(--radius-sm) 0;
+  .below-map {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    width: 100%;
   }
+
+  .zone-col { width: 100%; }
 
   .below-map .board-block {
     border-radius: 0 0 0 var(--radius-sm);
@@ -4119,94 +4168,27 @@
   }
 
   .side-col {
-    grid-column: 3;
     display: flex;
     flex-direction: column;
     gap: 0;
     align-self: start;
   }
 
-  /* Preserve a useful map width before falling back from three columns. */
   @media (max-width: 1250px) {
-    .modes {
-      grid-template-columns: minmax(0, 1fr);
-    }
-
-    .mode-utilities {
-      justify-content: flex-end;
-    }
-
-    .layout {
-      grid-template-columns: minmax(0, 1fr) 420px;
-    }
-
-    .map-stack { grid-column: 1; grid-row: 1; }
-    .selected-block { grid-column: 2; grid-row: 1 / span 3; }
-    .side-col { grid-column: 1; grid-row: 2; }
-    .below-map { grid-column: 1; grid-row: 3; }
+    .modes { grid-template-columns: minmax(0, 1fr); }
+    .mode-utilities { justify-content: flex-start; }
   }
 
-  /* Under about a tablet's width the columns stop being columns at all. */
   @media (max-width: 900px) {
-    .layout {
-      grid-template-columns: minmax(0, 1fr);
-    }
-
-    .map-col,
-    .selected-block,
-    .side-col,
-    .below-map {
-      grid-column: 1;
-    }
-
-    .map-stack { display: contents; }
-    .map-col { grid-row: 1; }
-    .selected-block {
-      grid-row: 2;
-      max-height: none;
-      overflow: visible;
-      margin-top: 0;
-    }
-    .side-col { grid-row: 3; }
-    .below-map { grid-row: 4; }
-
-    .selected-scroll {
-      overflow: visible;
-      padding-right: 0;
-      scrollbar-gutter: auto;
-    }
-
-    .below-map {
-      grid-template-columns: minmax(0, 1fr);
-    }
-
-    .below-map .board-block,
-    .zone-col {
-      border: 1px solid var(--border-default);
-      border-radius: var(--radius-sm);
-    }
-
-    .zone-col {
-      border-top: 0;
-      border-radius: 0 0 var(--radius-sm) var(--radius-sm);
-    }
-
-    .below-map .board-block {
-      border-radius: var(--radius-sm) var(--radius-sm) 0 0;
-    }
-
+    .page-toolbar { grid-template-columns: auto minmax(0, 1fr); gap: var(--space-2); }
+    .modes { display: flex; flex-wrap: wrap; align-items: center; }
+    .editing-tools { flex: 1; }
+    .utility-menu { margin-left: auto; }
   }
 
-  /* Keep the semantic wrapper transparent; `.side-col` is the actual grid
-     item so Environment and Placed text can form one flush vertical stack. */
-  .side {
-    display: contents;
-  }
-
-  .side.editing-paused > *,
-  .below-map.editing-paused {
-    opacity: 0.55;
-  }
+  .selected-block.editing-paused,
+  .side-col.editing-paused,
+  .below-map.editing-paused { opacity: 0.55; }
 
   .selected-block,
   .below-map {
@@ -4282,10 +4264,7 @@
     gap: var(--space-3);
     min-height: 0;
     width: 100%;
-    overflow-y: auto;
-    overscroll-behavior: contain;
-    scrollbar-gutter: stable;
-    padding-right: var(--space-1);
+    overflow: visible;
   }
 
   .selected-section {
@@ -4992,8 +4971,22 @@
 
   @media (max-width: 600px) {
     .page {
-      padding: var(--space-4);
+      padding: var(--space-2);
+      gap: var(--space-2);
     }
+
+    .page-toolbar .head { flex-direction: row; }
+    .page-toolbar .titles { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+    .page-toolbar .head-actions { width: auto; }
+    .page-toolbar .head-actions :global(button) { flex: none; }
+    .page-toolbar .map-switcher { flex-direction: row; min-width: 0; }
+    .page-toolbar .map-tabs { min-width: 0; }
+    .page-toolbar .map-tab { padding-inline: var(--space-2); min-width: 0; }
+    .page-toolbar .map-tab span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .page-toolbar .map-switcher-actions { width: auto; }
+    .mode-choice { min-width: 0; width: 100%; }
+    .mode-picker { max-width: 100%; overflow-x: auto; }
+    .modes .mode-picker .mode { flex: none; padding-inline: var(--space-2); }
 
     .head,
     .map-switcher {
@@ -5077,5 +5070,10 @@
     .note-items {
       max-height: none;
     }
+  }
+
+  @media (max-width: 900px) and (max-height: 700px) {
+    .page { overflow-y: auto; }
+    .workspace-panel { flex: none; height: 600px; min-height: 600px; }
   }
 </style>

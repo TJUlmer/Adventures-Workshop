@@ -13,6 +13,28 @@ import { idbDelete, idbGet, idbPut, META_STORE } from './indexeddb';
 const TTS_SAVED_OBJECTS_PATH_KEY = 'tts-saved-objects-path';
 const CLOUD_DRAFT_OPT_IN_PREFIX = 'cloud-draft-opt-in:';
 const BONUS_ABILITY_INK_PRESETS_KEY = 'bonus-ability-ink-presets';
+const MAP_WORKSPACE_WIDTHS_KEY = 'map-workspace-widths';
+
+export interface MapWorkspaceWidths {
+  inspector: number;
+  layers: number;
+  sidebar: number;
+}
+
+/** Pane sizes are a device preference, never part of a shared map or its undo history. */
+export async function readMapWorkspaceWidths(): Promise<MapWorkspaceWidths | null> {
+  const value = await idbGet<unknown>(META_STORE, MAP_WORKSPACE_WIDTHS_KEY);
+  if (!value || typeof value !== 'object') return null;
+  const widths = value as Record<string, unknown>;
+  if (![widths['inspector'], widths['layers'], widths['sidebar']].every(
+    (width) => typeof width === 'number' && Number.isFinite(width) && width > 0
+  )) return null;
+  return widths as unknown as MapWorkspaceWidths;
+}
+
+export function writeMapWorkspaceWidths(widths: MapWorkspaceWidths): Promise<boolean> {
+  return idbPut(META_STORE, MAP_WORKSPACE_WIDTHS_KEY, widths);
+}
 
 export type BonusAbilityInkPresets = [string | null, string | null, string | null];
 

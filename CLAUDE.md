@@ -1101,6 +1101,14 @@ exactly as wide as the ribbon above it and the frame covers the overhang.
 threat track, and the same rule: the board renders read-only and the editor lays
 its affordances *over* it, so what gets exported cannot draw a handle.
 
+`MapWorkspace.svelte` fills the available page width and height. Wide windows
+have separate resizable Inspector and settings panes; smaller windows combine
+the controls into tabs, with their own scroller beside or below the canvas.
+Widths are device preferences in IndexedDB's `meta` store (`storage/settings.ts`),
+outside the set and its undo history. Keep preferred widths when a smaller
+window temporarily clamps them. Fit solves against both canvas dimensions;
+pan/zoom and selection use the fitted board's actual bounds.
+
 **Everything positional is a fraction of the map's width — including `y`.** Not
 of its own axis. Store `y` against the height instead and a 7.6%-wide space
 becomes an ellipse the moment the map is not square, every path meets it at the
