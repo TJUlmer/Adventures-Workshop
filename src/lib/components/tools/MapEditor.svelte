@@ -149,9 +149,13 @@
   let viewport = $state<HTMLDivElement | null>(null);
   let board = $state<HTMLDivElement | null>(null);
   let previewBoardWidth = $state(0);
+  let canvasHeight = $state(0);
   let viewScale = $state(1);
   let viewX = $state(0);
   let viewY = $state(0);
+  const boardOffsetX = $derived(Math.max(0, (previewBoardWidth - previewBoardWidth * viewScale) / 2));
+  const boardOffsetY = $derived(Math.max(0, (canvasHeight - previewBoardWidth * viewScale / map.aspect) / 2));
+  let viewRevision = 0;
   let viewGesture: ViewGesture | null = null;
   let pointerKeptForPinch: number | null = null;
   const viewPointers = new Map<number, { x: number; y: number }>();
@@ -753,6 +757,20 @@
     viewScale = nextScale;
     viewX = next.x;
     viewY = next.y;
+    const revision = ++viewRevision;
+    // A scaled transform does not give the browser a scrollable layout size.
+    // Wait for its explicit surface to grow before applying the pan offset.
+    void tick().then(() => {
+      if (!viewport || revision !== viewRevision) return;
+      viewport.scrollLeft = Math.max(0, -next.x);
+      viewport.scrollTop = Math.max(0, -next.y);
+    });
+  }
+
+  function onViewportScroll(): void {
+    if (!viewport) return;
+    viewX = boardOffsetX - viewport.scrollLeft;
+    viewY = boardOffsetY - viewport.scrollTop;
   }
 
   function resetView(): void {
@@ -773,6 +791,7 @@
       // Resizing the pane must enlarge the board too; Fit remains available
       // when a width-filling board is taller than the visible canvas.
       previewBoardWidth = element.clientWidth;
+      canvasHeight = element.clientHeight;
       minimumViewScale = Math.min(1, element.clientHeight * aspect / Math.max(1, element.clientWidth));
       void tick().then(() => {
         if (active) setView(viewX, viewY, viewScale);
@@ -1182,7 +1201,13 @@
   }
 
   function onViewportPointerDown(event: PointerEvent): void {
-    if (event.button !== 0) return;
+    if (event.button !== 0 || !viewport) return;
+    const bounds = viewport.getBoundingClientRect();
+    const left = bounds.left + viewport.clientLeft;
+    const top = bounds.top + viewport.clientTop;
+    // Native scrollbar drags must not be captured as map-pan gestures.
+    if (event.clientX < left || event.clientY < top ||
+        event.clientX >= left + viewport.clientWidth || event.clientY >= top + viewport.clientHeight) return;
     viewPointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
     if (viewPointers.size >= 2) {
       cancelPointerSession('second-pointer');
@@ -2469,26 +2494,33 @@
           {#snippet canvas()}
           <div class="map-stack">
           <div class="map-col">
+          <div class="map-frame">
+          <!-- svelte-ignore a11y_no_noninteractive_tabindex (The scroll region must accept focus for keyboard scrolling.) -->
           <div
             class="map-viewport"
             bind:this={viewport}
             role="region"
+            tabindex="0"
             aria-label="Adventure map workspace. {mode === 'navigate'
-              ? 'Drag to pan and pinch to zoom.'
-              : 'Use the selected editing mode, or switch to Navigate to pan.'}"
+              ? 'Scroll or drag to pan and pinch to zoom.'
+              : 'Scroll to explore, or use the selected editing mode.'}"
+            onscroll={onViewportScroll}
             onpointerdown={onViewportPointerDown}
             onpointermove={onViewportPointerMove}
             onpointerup={onViewportPointerEnd}
             onpointercancel={onViewportPointerEnd}
             onlostpointercapture={onViewportPointerEnd}
           >
+            <div class="scroll-surface"
+              style:width="{Math.max(previewBoardWidth, previewBoardWidth * viewScale)}px"
+              style:height="{Math.max(canvasHeight, previewBoardWidth * viewScale / map.aspect)}px">
             <div
               class="board"
               class:artwork-view={artworkView}
               class:moving={movingTarget !== null}
               bind:this={board}
               style:width={previewBoardWidth > 0 ? `${previewBoardWidth}px` : '100%'}
-              style:transform="translate({viewX}px, {viewY}px) scale({viewScale})"
+              style:transform="translate({boardOffsetX}px, {boardOffsetY}px) scale({viewScale})"
               style:--view-scale={viewScale}
             >
               <MapBoard
@@ -2578,6 +2610,8 @@
                 </div>
               {/if}
             </div>
+            </div>
+          </div>
 
             <div
               class="viewport-controls"
@@ -2619,8 +2653,8 @@
             {artworkView
               ? 'Artwork-only view. Editing is paused and exports are unchanged.'
               : mode === 'navigate'
-                ? 'Drag to pan · pinch or use +/− to zoom'
-                : 'Drag empty board to pan · pinch with two fingers · tap to add or select · drag spaces and text to move'}
+                ? 'Scroll or drag to pan · pinch or use +/− to zoom'
+                : 'Scroll or drag empty board to pan · tap to add or select · drag spaces and text to move'}
           </p>
           </div>
           </div>
@@ -3872,12 +3906,19 @@
     flex: 1;
   }
 
-  .map-viewport {
+  .map-frame {
     position: relative;
     width: 100%;
     min-height: 0;
     flex: 1;
-    overflow: hidden;
+  }
+
+  .map-viewport {
+    position: absolute;
+    inset: 0;
+    overflow: auto;
+    overscroll-behavior: contain;
+    scrollbar-gutter: stable;
     border: 1px solid var(--border-default);
     border-radius: var(--radius-sm);
     background: var(--surface-inset);
@@ -3889,6 +3930,8 @@
   .map-viewport:active {
     cursor: grabbing;
   }
+
+  .scroll-surface { position: relative; }
 
   .board {
     position: absolute;
@@ -3968,7 +4011,7 @@
     position: absolute;
     z-index: 8;
     top: var(--space-2);
-    right: var(--space-2);
+    right: var(--space-5);
     display: flex;
     align-items: center;
     gap: var(--space-1);

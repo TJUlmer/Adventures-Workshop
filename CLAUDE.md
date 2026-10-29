@@ -1108,6 +1108,10 @@ Widths are device preferences in IndexedDB's `meta` store (`storage/settings.ts`
 outside the set and its undo history. Keep preferred widths when a smaller
 window temporarily clamps them. The preview fills its pane's width and grows
 when resized; Fit can zoom out to show the whole board.
+The canvas has native scrolling over an explicit scaled surface; drag-to-pan
+and pinch zoom share those scroll offsets, while zoom controls stay outside
+the scroller. Do not translate the board by negative pan offsets as well, or
+wheel scrolling and pointer selection will disagree about its position.
 Pan/zoom and selection use the displayed board's actual bounds.
 
 **Everything positional is a fraction of the map's width — including `y`.** Not
