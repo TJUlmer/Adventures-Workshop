@@ -1101,14 +1101,16 @@ exactly as wide as the ribbon above it and the frame covers the overhang.
 threat track, and the same rule: the board renders read-only and the editor lays
 its affordances *over* it, so what gets exported cannot draw a handle.
 
-`MapWorkspace.svelte` fills the available page width and height. Wide windows
+`MapWorkspace.svelte` fills the available page width. Wide windows
 have separate resizable Inspector and settings panes; smaller windows combine
 the controls into tabs, with their own scroller beside or below the canvas.
 Widths are device preferences in IndexedDB's `meta` store (`storage/settings.ts`),
 outside the set and its undo history. Keep preferred widths when a smaller
 window temporarily clamps them. The preview fills its pane's width and grows
 when resized; Fit can zoom out to show the whole board.
-The canvas has native scrolling over an explicit scaled surface; drag-to-pan
+The Map page scrolls as the board grows, with sticky, independently scrolling
+control panes. The canvas keeps the board's full aspect-ratio height at its
+base size, and has native scrolling over an explicit scaled surface when zoomed; drag-to-pan
 and pinch zoom share those scroll offsets, while zoom controls stay outside
 the scroller. Do not translate the board by negative pan offsets as well, or
 wheel scrolling and pointer selection will disagree about its position.

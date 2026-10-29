@@ -1835,7 +1835,7 @@
 />
 <svelte:document onvisibilitychange={onVisibilityChange} />
 
-<div class="page">
+<div class="page map-page">
   <div class="page-toolbar">
   <header class="head">
     <div class="titles">
@@ -2494,11 +2494,12 @@
           {#snippet canvas()}
           <div class="map-stack">
           <div class="map-col">
-          <div class="map-frame">
+          <div class="map-frame" style:aspect-ratio={map.aspect}>
           <!-- svelte-ignore a11y_no_noninteractive_tabindex (The scroll region must accept focus for keyboard scrolling.) -->
           <div
             class="map-viewport"
             bind:this={viewport}
+            style:touch-action={viewScale <= minimumViewScale + 0.001 ? 'pan-y' : 'none'}
             role="region"
             tabindex="0"
             aria-label="Adventure map workspace. {mode === 'navigate'
@@ -3608,7 +3609,8 @@
     flex: 1;
     min-height: 0;
     min-width: 0;
-    overflow: hidden;
+    overflow-y: auto;
+    scrollbar-gutter: stable;
   }
 
   .page-toolbar {
@@ -3624,7 +3626,7 @@
 
   .page-toolbar .map-switcher { padding: var(--space-1); }
 
-  .workspace-panel { flex: 1; min-height: 0; overflow: hidden; }
+  .workspace-panel { flex: none; min-height: 0; }
   .workspace-panel > .modes,
   .workspace-panel > .mode-support { flex: none; }
 
@@ -3656,7 +3658,7 @@
     display: flex;
     flex-direction: column;
     gap: var(--space-5);
-    flex: 1;
+    flex: none;
     min-height: 0;
   }
 
@@ -3910,14 +3912,13 @@
     position: relative;
     width: 100%;
     min-height: 0;
-    flex: 1;
+    flex: none;
   }
 
   .map-viewport {
     position: absolute;
     inset: 0;
     overflow: auto;
-    overscroll-behavior: contain;
     scrollbar-gutter: stable;
     border: 1px solid var(--border-default);
     border-radius: var(--radius-sm);
@@ -5124,8 +5125,4 @@
     }
   }
 
-  @media (max-width: 900px) and (max-height: 700px) {
-    .page { overflow-y: auto; }
-    .workspace-panel { flex: none; height: 600px; min-height: 600px; }
-  }
 </style>

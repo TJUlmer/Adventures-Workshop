@@ -30,6 +30,7 @@
   ];
   let root = $state<HTMLDivElement | null>(null);
   let available = $state(1200);
+  let controlsHeight = $state(480);
   let mode = $state<Mode>('compact');
   let preferred = $state<MapWorkspaceWidths>({ ...defaults });
   let activeTab = $state<Tab>('layers');
@@ -125,6 +126,11 @@
     const observer = new ResizeObserver(() => {
       if (!root) return;
       const width = root.clientWidth;
+      const page = root.closest<HTMLElement>('.map-page');
+      if (page) {
+        const top = root.getBoundingClientRect().top - page.getBoundingClientRect().top + page.scrollTop;
+        controlsHeight = Math.max(240, page.clientHeight - top - 16);
+      }
       const nextMode: Mode = width >= 1480 ? 'wide' : width >= 860 ? 'compact' : 'phone';
       if (width !== available) resizeSession?.cancel('viewport-change');
       available = width;
@@ -140,13 +146,18 @@
         });
       }
     });
-    if (root) observer.observe(root);
+    if (root) {
+      observer.observe(root);
+      const page = root.closest('.map-page');
+      if (page) observer.observe(page);
+    }
     return () => { alive = false; observer.disconnect(); resizeSession?.dispose(); };
   });
 </script>
 
 <div class="workspace" data-layout={mode} bind:this={root}
-  style:--inspector-width="{inspectorWidth}px" style:--layers-width="{layersWidth}px" style:--sidebar-width="{sidebarWidth}px">
+  style:--inspector-width="{inspectorWidth}px" style:--layers-width="{layersWidth}px" style:--sidebar-width="{sidebarWidth}px"
+  style:--controls-height="{controlsHeight}px">
   <div class="canvas">{@render canvas()}</div>
   {#if mode !== 'phone'}
     <div class="divider" class:dragging={resizeSession !== null} role="slider" tabindex="0"
@@ -184,20 +195,20 @@
 </div>
 
 <style>
-  .workspace { display:grid; grid-template-columns:minmax(0,1fr) 12px var(--sidebar-width); flex:1; min-height:0; min-width:0; }
+  .workspace { display:grid; grid-template-columns:minmax(0,1fr) 12px var(--sidebar-width); flex:none; min-height:0; min-width:0; align-items:start; }
   .workspace[data-layout='wide'] { grid-template-columns:minmax(0,1fr) 12px var(--inspector-width) 12px var(--layers-width); }
   .canvas, .inspector, .sidebar, .settings { min-width:0; min-height:0; }
   .canvas { display:flex; flex-direction:column; }
-  .inspector { overscroll-behavior:contain; scrollbar-gutter:stable; }
-  .sidebar { display:flex; flex-direction:column; border:1px solid var(--border-default); border-radius:var(--radius-sm); background:var(--surface-inset); }
+  .inspector { position:sticky; top:0; max-height:var(--controls-height); overscroll-behavior:contain; scrollbar-gutter:stable; }
+  .sidebar { position:sticky; top:0; height:var(--controls-height); display:flex; flex-direction:column; border:1px solid var(--border-default); border-radius:var(--radius-sm); background:var(--surface-inset); }
   .settings { flex:1; padding:var(--space-3); overscroll-behavior:contain; scrollbar-gutter:stable; }
   .tabs { display:flex; flex:none; flex-wrap:wrap; border-bottom:1px solid var(--border-default); padding:var(--space-1); gap:var(--space-1); }
   .tabs button { flex:1; padding:var(--space-2); color:var(--text-secondary); font-size:var(--text-xs); border-radius:var(--radius-xs); }
   .tabs button[aria-selected='true'] { background:var(--accent-soft); color:var(--text-accent); }
-  .divider { position:relative; cursor:col-resize; touch-action:none; user-select:none; }
+  .divider { position:relative; align-self:stretch; cursor:col-resize; touch-action:none; user-select:none; }
   .divider::after { content:''; position:absolute; inset:var(--space-3) 5px; background:var(--border-default); border-radius:var(--radius-full); }
   .divider:hover::after, .divider.dragging::after, .divider:focus-visible::after { background:var(--accent); }
   .divider:focus-visible { outline:2px solid var(--accent); outline-offset:-2px; }
-  .workspace[data-layout='phone'] { grid-template-columns:minmax(0,1fr); grid-template-rows:minmax(180px,1fr) minmax(140px,.8fr); gap:var(--space-3); }
+  .workspace[data-layout='phone'] { grid-template-columns:minmax(0,1fr); grid-template-rows:auto auto; gap:var(--space-3); }
   @media (any-pointer:coarse) { .tabs button { min-height:var(--touch-target); } .divider::before { content:''; position:absolute; inset:0 -12px; } }
 </style>
