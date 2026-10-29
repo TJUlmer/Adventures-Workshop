@@ -148,7 +148,7 @@
   let linkFrom = $state<MapSpaceId | null>(null);
   let viewport = $state<HTMLDivElement | null>(null);
   let board = $state<HTMLDivElement | null>(null);
-  let fittedBoardWidth = $state(0);
+  let previewBoardWidth = $state(0);
   let viewScale = $state(1);
   let viewX = $state(0);
   let viewY = $state(0);
@@ -734,7 +734,7 @@
     return best;
   }
 
-  const MIN_VIEW_SCALE = 1;
+  let minimumViewScale = $state(1);
   const MAX_VIEW_SCALE = 4;
 
   function clampView(x: number, y: number, scale: number): { x: number; y: number } {
@@ -748,7 +748,7 @@
   }
 
   function setView(x: number, y: number, scale = viewScale): void {
-    const nextScale = Math.min(MAX_VIEW_SCALE, Math.max(MIN_VIEW_SCALE, scale));
+    const nextScale = Math.min(MAX_VIEW_SCALE, Math.max(minimumViewScale, scale));
     const next = clampView(x, y, nextScale);
     viewScale = nextScale;
     viewX = next.x;
@@ -756,7 +756,7 @@
   }
 
   function resetView(): void {
-    setView(0, 0, 1);
+    setView(0, 0, minimumViewScale);
     viewGesture = null;
     viewPointers.clear();
   }
@@ -767,9 +767,13 @@
     if (!element) return;
     let active = true;
     const observer = new ResizeObserver(() => {
+      if (element.clientWidth === 0 || element.clientHeight === 0) return;
       cancelPointerSession('viewport-change');
       stopViewGesture();
-      fittedBoardWidth = Math.min(element.clientWidth, element.clientHeight * aspect);
+      // Resizing the pane must enlarge the board too; Fit remains available
+      // when a width-filling board is taller than the visible canvas.
+      previewBoardWidth = element.clientWidth;
+      minimumViewScale = Math.min(1, element.clientHeight * aspect / Math.max(1, element.clientWidth));
       void tick().then(() => {
         if (active) setView(viewX, viewY, viewScale);
       });
@@ -780,7 +784,7 @@
 
   function zoomView(nextScale: number): void {
     if (!viewport) return;
-    const scale = Math.min(MAX_VIEW_SCALE, Math.max(MIN_VIEW_SCALE, nextScale));
+    const scale = Math.min(MAX_VIEW_SCALE, Math.max(minimumViewScale, nextScale));
     const anchorX = viewport.clientWidth / 2;
     const anchorY = viewport.clientHeight / 2;
     const modelX = (anchorX - viewX) / viewScale;
@@ -1222,7 +1226,7 @@
     const distance = Math.max(1, Math.hypot(second.x - first.x, second.y - first.y));
     const scale = Math.min(
       MAX_VIEW_SCALE,
-      Math.max(MIN_VIEW_SCALE, viewGesture.startScale * (distance / viewGesture.startDistance))
+      Math.max(minimumViewScale, viewGesture.startScale * (distance / viewGesture.startDistance))
     );
     const centreX = (first.x + second.x) / 2;
     const centreY = (first.y + second.y) / 2;
@@ -2483,7 +2487,7 @@
               class:artwork-view={artworkView}
               class:moving={movingTarget !== null}
               bind:this={board}
-              style:width={fittedBoardWidth > 0 ? `${fittedBoardWidth}px` : '100%'}
+              style:width={previewBoardWidth > 0 ? `${previewBoardWidth}px` : '100%'}
               style:transform="translate({viewX}px, {viewY}px) scale({viewScale})"
               style:--view-scale={viewScale}
             >
@@ -2584,7 +2588,7 @@
               <button
                 type="button"
                 aria-label="Zoom out"
-                disabled={viewScale <= MIN_VIEW_SCALE}
+                disabled={viewScale <= minimumViewScale + 0.001}
                 onclick={(event) => {
                   event.stopPropagation();
                   zoomView(viewScale / 1.35);
@@ -2603,7 +2607,7 @@
               <button
                 type="button"
                 class="fit-view"
-                disabled={viewScale === 1}
+                disabled={Math.abs(viewScale - minimumViewScale) < 0.001}
                 onclick={(event) => {
                   event.stopPropagation();
                   resetView();
@@ -2623,6 +2627,54 @@
 
           {/snippet}
           {#snippet inspector()}
+            {#snippet selectionColours()}
+                <!--
+                  Click, not drag-to-edit like the Board panel's own
+                  swatches — this one paints the selection, so a plain
+                  button rather than a colour input is both the simpler
+                  control and the one that cannot be misread as "recolour
+                  this everywhere" the way that panel's swatches actually
+                  do. Reads `paletteColors`, not `usedColors` alone, so the
+                  "+" swatch below can offer a colour that is not on the
+                  board yet at all.
+                -->
+                <div class="field">
+                  <span class="field-label">
+                    {colorSelection.size > 1
+                      ? `Colour all ${colorSelection.size} spaces`
+                      : selectedSpace && selectedSpace.zones.length > 1
+                        ? 'Colour every zone'
+                        : 'Colour this space'}
+                  </span>
+                  <div class="swatches">
+                    {#each paletteColors as color, index (index)}
+                      <button
+                        type="button"
+                        class="swatch-apply"
+                        style:background={color}
+                        title="Set to {color}"
+                        onclick={() => applyColorToSpaces(color, colorSelection)}
+                      ></button>
+                    {/each}
+                    <input
+                      class="hidden-file"
+                      type="color"
+                      bind:this={paletteInput}
+                      onchange={(event) => addToPalette(event.currentTarget.value)}
+                    />
+                    <button
+                      type="button"
+                      class="swatch-add"
+                      title="Add a colour to this swatch"
+                      aria-label="Add a colour to this swatch"
+                      onclick={() => paletteInput?.click()}
+                    >
+                      <Icon name="plus" size={13} />
+                    </button>
+                  </div>
+                </div>
+            {/snippet}
+
             <div class="block selected-block" class:editing-paused={artworkView} inert={artworkView}>
               <h2 class="panel-title">
                 {selectedEnvironmentPiece
@@ -2749,54 +2801,103 @@
                   </p>
                 {/if}
 
-                <!--
-                  Click, not drag-to-edit like the Board panel's own
-                  swatches — this one paints the selection, so a plain
-                  button rather than a colour input is both the simpler
-                  control and the one that cannot be misread as "recolour
-                  this everywhere" the way that panel's swatches actually
-                  do. Reads `paletteColors`, not `usedColors` alone, so the
-                  "+" swatch below can offer a colour that is not on the
-                  board yet at all.
-                -->
-                <div class="field">
-                  <span class="field-label">
-                    {colorSelection.size > 1
-                      ? `Colour all ${colorSelection.size} spaces`
-                      : selectedSpace && selectedSpace.zones.length > 1
-                        ? 'Colour every zone'
-                        : 'Colour this space'}
-                  </span>
-                  <div class="swatches">
-                    {#each paletteColors as color, index (index)}
-                      <button
-                        type="button"
-                        class="swatch-apply"
-                        style:background={color}
-                        title="Set to {color}"
-                        onclick={() => applyColorToSpaces(color, colorSelection)}
-                      ></button>
-                    {/each}
-                    <input
-                      class="hidden-file"
-                      type="color"
-                      bind:this={paletteInput}
-                      onchange={(event) => addToPalette(event.currentTarget.value)}
-                    />
-                    <button
-                      type="button"
-                      class="swatch-add"
-                      title="Add a colour to this swatch"
-                      aria-label="Add a colour to this swatch"
-                      onclick={() => paletteInput?.click()}
-                    >
-                      <Icon name="plus" size={13} />
-                    </button>
-                  </div>
-                </div>
+                {#if colorSelection.size > 1}
+                  {@render selectionColours()}
+                {/if}
               {/if}
 
               {#if colorSelection.size === 1 && selectedSpace}
+                <section class="selected-section space-details" aria-label="Space details">
+                  <h3 class="selected-section-title">Space details</h3>
+                <div class="zones">
+                  <span class="field-label">Split into</span>
+                  {#each [1, 2, 3, 4] as count (count)}
+                    <button
+                      type="button"
+                      class="mode"
+                      class:active={selectedSpace.zones.length === count}
+                      onclick={() => setZoneCount(count)}
+                    >
+                      {count}
+                    </button>
+                  {/each}
+                </div>
+
+                  {@render selectionColours()}
+
+                {#if selectedSpace.zones.length > 1}
+                  <!--
+                    One row per wedge, each with its own quick-apply palette
+                    — "Colour every zone" above sets all of them at once,
+                    which is not the same request as matching *one* wedge to
+                    a colour another already has. Without a per-zone row,
+                    that meant opening this zone's own picker and using its
+                    eyedropper against another wedge on screen; a click here
+                    does the same thing in one step.
+                  -->
+                  <div class="zone-list">
+                    {#each selectedSpace.zones as zone, index (index)}
+                      <div class="field">
+                        <span class="field-label">Zone {index + 1}</span>
+                        <div class="swatches">
+                          {#each paletteColors as color, ci (ci)}
+                            <button
+                              type="button"
+                              class="swatch-apply"
+                              style:background={color}
+                              title="Set zone {index + 1} to {color}"
+                              onclick={() => applyColorToZone(color, index)}
+                            ></button>
+                          {/each}
+                          <input
+                            type="color"
+                            value={zone.color}
+                            aria-label="Zone {index + 1} colour"
+                            oninput={(event) => {
+                              const value = event.currentTarget.value;
+                              zonePatternOperation += 1;
+                              workshop.editMap(() => (selectedSpace.zones[index] = solid(value)));
+                            }}
+                          />
+                        </div>
+                      </div>
+                    {/each}
+                  </div>
+                {:else}
+                  <div class="swatches">
+                    {#each selectedSpace.zones as zone, index (index)}
+                      <input
+                        type="color"
+                        value={zone.color}
+                        aria-label="Zone {index + 1} colour"
+                        oninput={(event) => {
+                          const value = event.currentTarget.value;
+                          zonePatternOperation += 1;
+                          workshop.editMap(() => (selectedSpace.zones[index] = solid(value)));
+                        }}
+                      />
+                    {/each}
+                  </div>
+                {/if}
+
+                {#if selectedSpace.zones.length > 1}
+                  <!--
+                    A circle with one fill has no seam to turn — hidden
+                    until there is a split to rotate, same as "Marker side"
+                    only shows once there is a marker.
+                  -->
+                  <Slider
+                    label="Rotation"
+                    value={selectedSpace.rotation}
+                    min={-180}
+                    max={180}
+                    step={1}
+                    neutral={0}
+                    format={(v) => `${Math.round(v)}°`}
+                    onchange={(v) => setSpaceRotation(v)}
+                  />
+                {/if}
+
                 <label class="field">
                   <span class="field-label">Label</span>
                   <TextInput
@@ -2809,12 +2910,6 @@
                   />
                 </label>
 
-                <!--
-                  The connections, each removable on its own. The Link toggle
-                  is quicker once you know it is there; this is how you find
-                  out, and it is the only way to unlink without hunting for the
-                  space at the other end.
-                -->
                 <!--
                   Start positions are 1–5 and exclusive: two spaces both
                   claiming player 3 is a map with a bug in it, so choosing a
@@ -2889,7 +2984,9 @@
                   </div>
                 {/if}
 
-                <section class="selected-section portal-controls">
+                </section>
+
+                <section class="selected-section portal-controls" aria-label="Secret passage">
                   <h3 class="selected-section-title">Secret passage</h3>
                   <Switch
                     checked={selectedSpace.secretPassage !== null}
@@ -3020,8 +3117,9 @@
                   {/if}
                 </section>
 
-                <section class="selected-section connections-field">
+                <section class="selected-section connections-field" aria-label="Connections">
                   <h3 class="selected-section-title">Connections</h3>
+                  <!-- Listed here so a path can be removed without finding its other space. -->
                   {#each neighbours(map, selectedSpace.id) as other (other)}
                     {@const path = findPath(map, selectedSpace.id, other)}
                     {@const centreDistance = path ? pathCentreDistanceMm(map, path) : null}
@@ -3085,95 +3183,6 @@
                   {/each}
                 </section>
 
-                <section class="selected-section space-details">
-                  <h3 class="selected-section-title">Space details</h3>
-                <div class="zones">
-                  <span class="field-label">Split into</span>
-                  {#each [1, 2, 3, 4] as count (count)}
-                    <button
-                      type="button"
-                      class="mode"
-                      class:active={selectedSpace.zones.length === count}
-                      onclick={() => setZoneCount(count)}
-                    >
-                      {count}
-                    </button>
-                  {/each}
-                </div>
-
-                {#if selectedSpace.zones.length > 1}
-                  <!--
-                    A circle with one fill has no seam to turn — hidden
-                    until there is a split to rotate, same as "Marker side"
-                    only shows once there is a marker.
-                  -->
-                  <Slider
-                    label="Rotation"
-                    value={selectedSpace.rotation}
-                    min={-180}
-                    max={180}
-                    step={1}
-                    neutral={0}
-                    format={(v) => `${Math.round(v)}°`}
-                    onchange={(v) => setSpaceRotation(v)}
-                  />
-                {/if}
-
-                {#if selectedSpace.zones.length > 1}
-                  <!--
-                    One row per wedge, each with its own quick-apply palette
-                    — "Colour every zone" above sets all of them at once,
-                    which is not the same request as matching *one* wedge to
-                    a colour another already has. Without a per-zone row,
-                    that meant opening this zone's own picker and using its
-                    eyedropper against another wedge on screen; a click here
-                    does the same thing in one step.
-                  -->
-                  <div class="zone-list">
-                    {#each selectedSpace.zones as zone, index (index)}
-                      <div class="field">
-                        <span class="field-label">Zone {index + 1}</span>
-                        <div class="swatches">
-                          {#each paletteColors as color, ci (ci)}
-                            <button
-                              type="button"
-                              class="swatch-apply"
-                              style:background={color}
-                              title="Set zone {index + 1} to {color}"
-                              onclick={() => applyColorToZone(color, index)}
-                            ></button>
-                          {/each}
-                          <input
-                            type="color"
-                            value={zone.color}
-                            aria-label="Zone {index + 1} colour"
-                            oninput={(event) => {
-                              const value = event.currentTarget.value;
-                              zonePatternOperation += 1;
-                              workshop.editMap(() => (selectedSpace.zones[index] = solid(value)));
-                            }}
-                          />
-                        </div>
-                      </div>
-                    {/each}
-                  </div>
-                {:else}
-                  <div class="swatches">
-                    {#each selectedSpace.zones as zone, index (index)}
-                      <input
-                        type="color"
-                        value={zone.color}
-                        aria-label="Zone {index + 1} colour"
-                        oninput={(event) => {
-                          const value = event.currentTarget.value;
-                          zonePatternOperation += 1;
-                          workshop.editMap(() => (selectedSpace.zones[index] = solid(value)));
-                        }}
-                      />
-                    {/each}
-                  </div>
-                {/if}
-
                 {#key selectedSpace.id}
                   <ConfirmAction
                     size="sm"
@@ -3186,7 +3195,7 @@
                     Delete space
                   </ConfirmAction>
                 {/key}
-                </section>
+
               {/if}
 
               {#if colorSelection.size > 1}

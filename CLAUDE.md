@@ -1106,8 +1106,9 @@ have separate resizable Inspector and settings panes; smaller windows combine
 the controls into tabs, with their own scroller beside or below the canvas.
 Widths are device preferences in IndexedDB's `meta` store (`storage/settings.ts`),
 outside the set and its undo history. Keep preferred widths when a smaller
-window temporarily clamps them. Fit solves against both canvas dimensions;
-pan/zoom and selection use the fitted board's actual bounds.
+window temporarily clamps them. The preview fills its pane's width and grows
+when resized; Fit can zoom out to show the whole board.
+Pan/zoom and selection use the displayed board's actual bounds.
 
 **Everything positional is a fraction of the map's width — including `y`.** Not
 of its own axis. Store `y` against the height instead and a 7.6%-wide space
