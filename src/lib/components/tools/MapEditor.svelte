@@ -4446,7 +4446,7 @@
     width: 100%;
     max-height: 240px;
     overflow-y: auto;
-    overscroll-behavior: contain;
+    overscroll-behavior: auto;
     margin: 0;
     padding: 0;
     list-style: none;
@@ -4670,7 +4670,7 @@
     list-style: none;
     max-height: 240px;
     overflow-y: auto;
-    overscroll-behavior: contain;
+    overscroll-behavior: auto;
     scrollbar-gutter: stable;
   }
 

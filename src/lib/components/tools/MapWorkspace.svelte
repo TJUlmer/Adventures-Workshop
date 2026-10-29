@@ -173,7 +173,7 @@
   .canvas, .sidebar, .settings { min-width:0; min-height:0; }
   .canvas { display:flex; flex-direction:column; }
   .sidebar { position:sticky; top:0; height:var(--controls-height); display:flex; flex-direction:column; border:1px solid var(--border-default); border-radius:var(--radius-sm); background:var(--surface-inset); }
-  .settings { flex:1; padding:var(--space-3); overscroll-behavior:contain; scrollbar-gutter:stable; }
+  .settings { flex:1; padding:var(--space-3); overscroll-behavior:auto; scrollbar-gutter:stable; }
   .tabs { display:flex; flex:none; flex-wrap:wrap; border-bottom:1px solid var(--border-default); padding:var(--space-1); gap:var(--space-1); }
   .tabs button { flex:1; padding:var(--space-2); color:var(--text-secondary); font-size:var(--text-xs); border-radius:var(--radius-xs); }
   .tabs button[aria-selected='true'] { background:var(--accent-soft); color:var(--text-accent); }
