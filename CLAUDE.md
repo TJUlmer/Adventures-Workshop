@@ -1102,8 +1102,9 @@ threat track, and the same rule: the board renders read-only and the editor lays
 its affordances *over* it, so what gets exported cannot draw a handle.
 
 `MapWorkspace.svelte` fills the available page width. One resizable settings
-pane contains Inspector, Layers, Board and Analysis tabs at every window width,
-with its own scroller beside or below the canvas.
+pane contains Board, Inspector, Layers and Analysis tabs at every window width,
+opening on Board. Its height follows the map canvas, with a minimum height for
+small maps, and it has its own scroller beside or below the canvas.
 Widths are device preferences in IndexedDB's `meta` store (`storage/settings.ts`),
 outside the set and its undo history. Keep preferred widths when a smaller
 window temporarily clamps them. The preview fills its pane's width and grows

@@ -20,9 +20,9 @@
   const MIN_MAP = 480;
   const HANDLE = 12;
   const tabs: { value: Tab; label: string }[] = [
+    { value: 'board', label: 'Board' },
     { value: 'inspector', label: 'Inspector' },
     { value: 'layers', label: 'Layers' },
-    { value: 'board', label: 'Board' },
     { value: 'analysis', label: 'Analysis' }
   ];
   let root = $state<HTMLDivElement | null>(null);
@@ -30,7 +30,7 @@
   let controlsHeight = $state(480);
   let mode = $state<Mode>('desktop');
   let preferred = $state<MapWorkspaceWidths>({ ...defaults });
-  let activeTab = $state<Tab>('layers');
+  let activeTab = $state<Tab>('board');
   let resizeSession = $state.raw<PointerSession | null>(null);
   let changed = false;
   let persistence = Promise.resolve();
@@ -110,11 +110,9 @@
     const observer = new ResizeObserver(() => {
       if (!root) return;
       const width = root.clientWidth;
-      const page = root.closest<HTMLElement>('.map-page');
-      if (page) {
-        const top = root.getBoundingClientRect().top - page.getBoundingClientRect().top + page.scrollTop;
-        controlsHeight = Math.max(240, page.clientHeight - top - 16);
-      }
+      const mapFrame = root.querySelector<HTMLElement>('.map-frame');
+      // Match the map itself so a wider board also makes room for more controls.
+      if (mapFrame) controlsHeight = Math.max(240, mapFrame.getBoundingClientRect().height);
       const nextMode: Mode = width >= 860 ? 'desktop' : 'phone';
       if (width !== available) resizeSession?.cancel('viewport-change');
       available = width;
@@ -131,8 +129,8 @@
     });
     if (root) {
       observer.observe(root);
-      const page = root.closest('.map-page');
-      if (page) observer.observe(page);
+      const mapFrame = root.querySelector('.map-frame');
+      if (mapFrame) observer.observe(mapFrame);
     }
     return () => { alive = false; observer.disconnect(); resizeSession?.dispose(); };
   });
