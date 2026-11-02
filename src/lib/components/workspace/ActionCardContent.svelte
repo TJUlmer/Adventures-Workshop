@@ -246,6 +246,24 @@
       edit((target) => (target.ribbonNameCondense = ribbonNameCondense))}
   />
 
+  <div class="ribbon-symbol-size">
+    <Slider
+      label="Ribbon symbol size"
+      value={card.ribbonNameSymbolScale}
+      editable
+      inputMultiplier={100}
+      inputUnit="%"
+      min={0.5}
+      max={3}
+      step={0.01}
+      neutral={1}
+      format={(value) => `${Math.round(value * 100)}%`}
+      onchange={(ribbonNameSymbolScale) =>
+        edit((target) => (target.ribbonNameSymbolScale = ribbonNameSymbolScale))}
+    />
+    <p class="hint">Symbols grow from their centre. Add spaces before or after the name to leave more room.</p>
+  </div>
+
   <Field label="Copies in deck">
     <NumberInput
       value={card.quantity}
@@ -816,6 +834,16 @@
 </Section>
 
 <style>
+  .ribbon-symbol-size {
+    display: grid;
+    gap: var(--space-2);
+  }
+
+  .hint {
+    font-size: var(--text-xs);
+    color: var(--text-muted);
+  }
+
   /*
    * The same chip row `AbilityStack` uses for a Bonus ability icon, repeated rather
    * than shared: component styles are scoped, and the two rows are four

@@ -347,6 +347,8 @@ export interface ActionCard extends CardCommon {
   bonusAttackAbilityTextSize: number | null;
   /** Horizontal width of the name-ribbon glyphs, from 0.6 to the natural 1. */
   ribbonNameCondense: number;
+  /** Inline ribbon symbols scale about their centre without moving the name. */
+  ribbonNameSymbolScale: number;
   /** A reminder kept visible when this card is tucked behind another card. */
   showTuckEffect: boolean;
   tuckEffect: string;

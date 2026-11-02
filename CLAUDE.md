@@ -674,6 +674,16 @@ not: a hero's own attack type is fixed per character and prints on the
 character card; `owner` says who may play *this card*, and follows the same
 empty-name fallback the existing ribbon name does.
 
+Inline custom symbols in action-card ribbon names use `ribbonNameSymbolScale`
+(50–300%, default 100%), edited beside `ribbonNameCondense` in Content. Scale the
+image about its centre, keeping its inline slot unchanged so the name and symbol
+centre do not move. The name permits visible symbol overflow, and `fitHeight`
+temporarily measures at the default symbol scale so enlargement cannot trigger
+condensation. Ribbon names preserve authored leading and trailing spaces with
+`white-space: pre`, including names inherited from a character or sidekick.
+Only the ribbon keeps that padding; rules-text name substitutions stay trimmed.
+Factory and normalization both default the scale to 1 for existing cards.
+
 **The character card is a genuinely new card, not a reskin.**
 `HeroCharacterCardFace` is its own component, dispatched from `CardRenderer`
 through a `statCard` prop keyed by character, the same shape as `cardback`: a

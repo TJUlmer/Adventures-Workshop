@@ -148,8 +148,11 @@
    * (`primaryCardName`), not the whole hero's — a duo's ribbon must still say
    * "Cloak," never "Cloak & Dagger," on a card only she plays.
    */
+  function firstRibbonName(...names: (string | undefined)[]): string {
+    return names.find((name) => name?.trim()) ?? '';
+  }
   const shortName = $derived(
-    character?.subtitle.trim() || (character ? primaryCardName(character) : '').trim() || ''
+    firstRibbonName(character?.subtitle, character ? primaryCardName(character) : '')
   );
 
   /**
@@ -158,19 +161,20 @@
    * single value behind both the printed ribbon and `{{name}}` prevents the
    * two from disagreeing when the selected player is a sidekick.
    */
-  const ribbonName = $derived.by(() => {
-    const override = card.name.trim();
-    if (override) return override;
+  const printedRibbonName = $derived.by(() => {
+    if (card.name.trim()) return card.name;
     if (!isHero) return shortName || 'Villain Name';
     if (card.owner === 'sidekick') {
       return (
-        character?.sidekick.subtitle.trim() || character?.sidekick.name.trim() || 'Sidekick'
+        firstRibbonName(character?.sidekick.subtitle, character?.sidekick.name) || 'Sidekick'
       );
     }
     if (card.owner === 'any') return 'ANY';
     const extra = character?.additionalCards.find((entry) => entry.id === card.owner);
-    return extra?.subtitle.trim() || extra?.name.trim() || shortName || 'Hero Name';
+    return firstRibbonName(extra?.subtitle, extra?.name, shortName) || 'Hero Name';
   });
+  // Ribbon padding is authored with spaces; substituted rules copy stays unpadded.
+  const ribbonName = $derived(printedRibbonName.trim());
   const title = $derived(actionTextIsEmpty(card.title) ? 'Card Title' : card.title);
   const bonusAttackTitle = $derived(
     actionTextIsEmpty(card.bonusAttackTitle) ? 'Bonus Attack' : card.bonusAttackTitle
@@ -218,7 +222,7 @@
    */
   const ownerLabel = $derived.by(() => {
     if (card.owner === 'any' && !card.name.trim()) return 'ANY';
-    return ribbonName;
+    return printedRibbonName;
   });
 
   /**
@@ -1170,6 +1174,7 @@
     -->
     <div
       class="hero-owner-text"
+      style:--ribbon-name-symbol-scale={card.ribbonNameSymbolScale}
       style:--ribbon-name-symbol-cap={NAME_METRICS.cap}
       style:--ribbon-name-symbol-align={(NAME_METRICS.cap - NAME_METRICS.ascent + NAME_METRICS.descent) / 2}
       use:fitHeight={{ text: ownerLabel, condense: card.ribbonNameCondense }}
@@ -1284,16 +1289,17 @@
     -->
     <div
       class="name"
+      style:--ribbon-name-symbol-scale={card.ribbonNameSymbolScale}
       style:--ribbon-name-symbol-cap={NAME_METRICS.cap}
       style:--ribbon-name-symbol-align={(NAME_METRICS.cap - NAME_METRICS.ascent + NAME_METRICS.descent) / 2}
-      use:fitHeight={{ text: ribbonName, condense: card.ribbonNameCondense }}
+      use:fitHeight={{ text: printedRibbonName, condense: card.ribbonNameCondense }}
       data-card-edit-target={CARD_EDIT_MARKERS.ownerName}
       style:font-size="calc({pu(NAME.size)} * var(--name-condense, 1) * var(--fit-scale, 1))"
       style:scale="var(--name-cross-scale, 1) 1"
       style:max-height={pu(NAME.maxLength)}
       style:color={theme.bannerInk}
     >
-      {@html renderCustomSymbolText(ribbonName, customSymbols, 'ribbon-name-symbol', 'ribbon-name-symbol-slot')}
+      {@html renderCustomSymbolText(printedRibbonName, customSymbols, 'ribbon-name-symbol', 'ribbon-name-symbol-slot')}
     </div>
 
     <div class="banner-tail" style:height={pu(NAME.headGap)}></div>
@@ -2037,8 +2043,8 @@
     font-family: var(--card-font-name);
     font-weight: var(--card-font-name-weight);
     line-height: 0.88;
-    white-space: nowrap;
-    overflow: hidden;
+    white-space: pre;
+    overflow: visible;
   }
 
   .name :global(.ribbon-name-symbol-slot),
@@ -2078,6 +2084,8 @@
     /* The slot reserves the rotated bounds, rather than a square with empty
        space either side of a narrow glyph. */
     rotate: 90deg;
+    scale: var(--ribbon-name-symbol-scale, 1);
+    transform-origin: center;
   }
 
   /* -- hero ribbon content ----------------------------------------------- */
@@ -2104,8 +2112,8 @@
     font-family: var(--card-font-name);
     font-weight: var(--card-font-name-weight);
     text-transform: uppercase;
-    white-space: nowrap;
-    overflow: hidden;
+    white-space: pre;
+    overflow: visible;
   }
 
   /*
