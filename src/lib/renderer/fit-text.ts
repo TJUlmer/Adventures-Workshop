@@ -98,6 +98,9 @@ export function fitHeight(
    * automatic and manual condensation have shortened the name's run.
    */
   const fitAtNaturalWidth = (): void => {
+    // Enlarging an inline symbol must not refit the name and move its centre.
+    const symbolScale = node.style.getPropertyValue('--ribbon-name-symbol-scale');
+    node.style.setProperty('--ribbon-name-symbol-scale', '1');
     for (const image of node.querySelectorAll<HTMLImageElement>('.ribbon-name-symbol')) {
       const slot = image.parentElement;
       if (slot && image.naturalWidth > 0 && image.naturalHeight > 0) {
@@ -108,6 +111,8 @@ export function fitHeight(
     node.style.setProperty('--name-run-scale', '1');
     node.style.setProperty('--name-cross-scale', '1');
     fitScale(node, { min: 0.4 });
+    if (symbolScale) node.style.setProperty('--ribbon-name-symbol-scale', symbolScale);
+    else node.style.removeProperty('--ribbon-name-symbol-scale');
     applyCondensation();
   };
 

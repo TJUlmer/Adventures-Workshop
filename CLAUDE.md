@@ -674,6 +674,21 @@ not: a hero's own attack type is fixed per character and prints on the
 character card; `owner` says who may play *this card*, and follows the same
 empty-name fallback the existing ribbon name does.
 
+Inline custom symbols in action-card ribbon names use `ribbonNameSymbolScale`
+(50–300%, default 100%), edited beside `ribbonNameCondense` in Content. Scale the
+image about its centre, keeping its inline slot unchanged so the name and symbol
+centre do not move. A symbol-bearing ribbon paints its background and symbols
+on a separate plane beneath foreground artwork, card content and the frame;
+the text retains its authored layer. Reusing the template masks clips enlarged
+symbols to the ribbon silhouette, beneath its outline. The content's tall foot
+strip stays below that plane while the body and divider remain above it.
+Cards without inline ribbon symbols keep the original single-plane path.
+`fitHeight` temporarily measures at the default symbol scale so enlargement
+cannot trigger condensation. Ribbon names preserve authored leading and trailing spaces with
+`white-space: pre`, including names inherited from a character or sidekick.
+Only the ribbon keeps that padding; rules-text name substitutions stay trimmed.
+Factory and normalization both default the scale to 1 for existing cards.
+
 **The character card is a genuinely new card, not a reskin.**
 `HeroCharacterCardFace` is its own component, dispatched from `CardRenderer`
 through a `statCard` prop keyed by character, the same shape as `cardback`: a
@@ -2752,6 +2767,15 @@ The general trick throughout: template art is used as a **CSS alpha mask over a
 fill**, so shapes keep their drawn form while taking any colour or gradient.
 Chrome that must sample a gradient across the whole card is painted as a
 full-card layer and cut to shape with `clip-path` (see `clipRect`/`seamBed`).
+
+`Fill.start` and `Fill.end` locate the two gradient stops in percent along its
+direction, defaulting to 0 and 100. The shared `FillEditor` shows `GradientRange`
+only in gradient mode: its horizontal bar previews distance along the gradient,
+while the existing swatch and angle dial show its orientation. Handles support
+pointer capture, arrows, Home/End and percentage entry; coincident stops form a
+hard edge and remain independently draggable. Normalization clamps the ordered
+range and repairs only present fill overrides, preserving sparse inheritance.
+`fillCss`, `sameFill` and canvas social-image fills all honour the positions.
 
 ### The app's own theme: Light Slate / Twilight Blue
 

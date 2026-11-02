@@ -67,7 +67,7 @@ import type {
   InitiativeCard,
   RulesCard
 } from '$lib/cards/types';
-import { NO_CUSTOM_PATTERN, NO_PATTERN, solid } from '$lib/cards/style';
+import { DEFAULT_CARD_THEME, NO_CUSTOM_PATTERN, NO_PATTERN, solid } from '$lib/cards/style';
 import type { CustomPatternStyle, Fill, PatternStyle } from '$lib/cards/style';
 import {
   createCardback,
@@ -139,11 +139,14 @@ function nullableNum(value: unknown, fallback: number | null): number | null {
 function fill(value: unknown, fallback: Fill): Fill {
   const raw = asRecord(value);
   if (typeof raw['color'] !== 'string') return fallback;
+  const start = Math.min(100, Math.max(0, num(raw['start'], 0)));
   return {
     kind: raw['kind'] === 'gradient' ? 'gradient' : 'solid',
     color: raw['color'],
     color2: str(raw['color2'], raw['color']),
-    angle: num(raw['angle'], 180)
+    angle: num(raw['angle'], 180),
+    start,
+    end: Math.min(100, Math.max(start, num(raw['end'], 100)))
   };
 }
 
@@ -189,6 +192,10 @@ function customPatternStyle(value: unknown): CustomPatternStyle {
  */
 function repairStyleOverride(raw: Loose): Loose {
   const repaired = { ...raw };
+  // Repair only authored fills so absent style keys keep inheriting.
+  for (const key of ['frame', 'banner', 'body', 'header', 'back', 'artBackground', 'cornerBadge', 'ribbonFoot', 'boost', 'tuckEffect'] as const) {
+    if (raw[key] !== undefined) repaired[key] = fill(raw[key], DEFAULT_CARD_THEME[key]);
+  }
   for (const key of ['customPattern', 'ribbonCustomPattern']) {
     if (raw[key] !== undefined) repaired[key] = customPatternStyle(raw[key]);
   }
@@ -1027,6 +1034,7 @@ function normalizeCard(value: unknown): Card | null {
               Math.max(MIN_ABILITY_TEXT_SIZE, bonusAttackAbilityTextSize)
             ),
         ribbonNameCondense: Math.min(1, Math.max(0.6, num(raw['ribbonNameCondense'], 1))),
+        ribbonNameSymbolScale: Math.min(3, Math.max(0.5, num(raw['ribbonNameSymbolScale'], 1))),
         /* Off on documents written before an exposed tuck reminder existed. */
         showTuckEffect: bool(raw['showTuckEffect'], false),
         tuckEffect: str(raw['tuckEffect']),

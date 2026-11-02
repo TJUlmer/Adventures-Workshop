@@ -8,6 +8,7 @@
   import AngleDial from './AngleDial.svelte';
   import HexInput from './HexInput.svelte';
   import Icon from './Icon.svelte';
+  import GradientRange from './GradientRange.svelte';
 
   interface Props {
     label: string;
@@ -129,6 +130,9 @@
       />
     {/if}
   </div>
+  {#if isGradient}
+    <GradientRange {label} {value} onchange={patch} />
+  {/if}
 </div>
 
 <style>

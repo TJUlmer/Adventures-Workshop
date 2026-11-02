@@ -145,6 +145,7 @@ export function createCard<TType extends CardType>(
         bonusAttackAbility: '',
         bonusAttackAbilityTextSize: null,
         ribbonNameCondense: 1,
+        ribbonNameSymbolScale: 1,
         showTuckEffect: false,
         tuckEffect: '',
         tuckEffectOrientation: 'bottom',

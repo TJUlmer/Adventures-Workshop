@@ -75,8 +75,8 @@ function canvasFill(
     centreX + directionX * reach,
     centreY + directionY * reach
   );
-  gradient.addColorStop(0, fill.color);
-  gradient.addColorStop(1, fill.color2);
+  gradient.addColorStop((fill.start ?? 0) / 100, fill.color);
+  gradient.addColorStop((fill.end ?? 100) / 100, fill.color2);
   return gradient;
 }
 

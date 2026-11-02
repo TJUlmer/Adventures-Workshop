@@ -18,7 +18,7 @@
    * teaching it to be interactive, for the same reason `ThreatBoard` takes an
    * `editable` prop: what gets exported must not be able to draw a handle.
    */
-  import { fillCss } from '$lib/cards/style';
+  import { fillCss, solid } from '$lib/cards/style';
   import CardArt from './CardArt.svelte';
   import type {
     AdventureMap,
@@ -1437,7 +1437,7 @@
         -->
         <g opacity={map.spaceOpacity}>
           {#if space.zones.length <= 1}
-            {@const fill = space.zones[0] ?? { kind: 'solid', color: '#cfd3d6', color2: '#cfd3d6', angle: 180 }}
+            {@const fill = space.zones[0] ?? solid('#cfd3d6')}
             {@const pattern = zonePatternDefs.get(fill.color.toLowerCase())}
             <circle cx={space.x} cy={space.y} r={radius} fill={fillCss(fill)} />
             {#if pattern}

@@ -21,20 +21,23 @@ export interface Fill {
   color2: string;
   /** Gradient direction in degrees, 0 = upward. */
   angle: number;
+  /** Percentages along the gradient's direction; equal stops make a hard edge. */
+  start: number;
+  end: number;
 }
 
 export function solid(color: string): Fill {
-  return { kind: 'solid', color, color2: color, angle: 180 };
+  return { kind: 'solid', color, color2: color, angle: 180, start: 0, end: 100 };
 }
 
 export function gradient(color: string, color2: string, angle = 180): Fill {
-  return { kind: 'gradient', color, color2, angle };
+  return { kind: 'gradient', color, color2, angle, start: 0, end: 100 };
 }
 
 /** CSS `background` value for a fill. */
 export function fillCss(fill: Fill): string {
   if (fill.kind === 'solid') return fill.color;
-  return `linear-gradient(${fill.angle}deg, ${fill.color}, ${fill.color2})`;
+  return `linear-gradient(${fill.angle}deg, ${fill.color} ${fill.start ?? 0}%, ${fill.color2} ${fill.end ?? 100}%)`;
 }
 
 /**
@@ -59,7 +62,8 @@ export function sameFill(a: Fill, b: Fill): boolean {
   const sameColor = (x: string, y: string) => x.toLowerCase() === y.toLowerCase();
   if (a.kind !== b.kind) return false;
   if (a.kind === 'solid') return sameColor(a.color, b.color);
-  return sameColor(a.color, b.color) && sameColor(a.color2, b.color2) && a.angle === b.angle;
+  return sameColor(a.color, b.color) && sameColor(a.color2, b.color2) && a.angle === b.angle &&
+    (a.start ?? 0) === (b.start ?? 0) && (a.end ?? 100) === (b.end ?? 100);
 }
 
 // -- Surface patterns -------------------------------------------------------
