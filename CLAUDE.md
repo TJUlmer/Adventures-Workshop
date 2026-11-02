@@ -2768,6 +2768,15 @@ fill**, so shapes keep their drawn form while taking any colour or gradient.
 Chrome that must sample a gradient across the whole card is painted as a
 full-card layer and cut to shape with `clip-path` (see `clipRect`/`seamBed`).
 
+`Fill.start` and `Fill.end` locate the two gradient stops in percent along its
+direction, defaulting to 0 and 100. The shared `FillEditor` shows `GradientRange`
+only in gradient mode: its horizontal bar previews distance along the gradient,
+while the existing swatch and angle dial show its orientation. Handles support
+pointer capture, arrows, Home/End and percentage entry; coincident stops form a
+hard edge and remain independently draggable. Normalization clamps the ordered
+range and repairs only present fill overrides, preserving sparse inheritance.
+`fillCss`, `sameFill` and canvas social-image fills all honour the positions.
+
 ### The app's own theme: Light Slate / Twilight Blue
 
 Not to be confused with the *card* style cascade two sections down — that is
