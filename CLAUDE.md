@@ -677,9 +677,14 @@ empty-name fallback the existing ribbon name does.
 Inline custom symbols in action-card ribbon names use `ribbonNameSymbolScale`
 (50–300%, default 100%), edited beside `ribbonNameCondense` in Content. Scale the
 image about its centre, keeping its inline slot unchanged so the name and symbol
-centre do not move. The name permits visible symbol overflow, and `fitHeight`
-temporarily measures at the default symbol scale so enlargement cannot trigger
-condensation. Ribbon names preserve authored leading and trailing spaces with
+centre do not move. A symbol-bearing ribbon paints its background and symbols
+on a separate plane beneath foreground artwork, card content and the frame;
+the text retains its authored layer. Reusing the template masks clips enlarged
+symbols to the ribbon silhouette, beneath its outline. The content's tall foot
+strip stays below that plane while the body and divider remain above it.
+Cards without inline ribbon symbols keep the original single-plane path.
+`fitHeight` temporarily measures at the default symbol scale so enlargement
+cannot trigger condensation. Ribbon names preserve authored leading and trailing spaces with
 `white-space: pre`, including names inherited from a character or sidekick.
 Only the ribbon keeps that padding; rules-text name substitutions stay trimmed.
 Factory and normalization both default the scale to 1 for existing cards.

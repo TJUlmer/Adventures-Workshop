@@ -175,6 +175,11 @@
   });
   // Ribbon padding is authored with spaces; substituted rules copy stays unpadded.
   const ribbonName = $derived(printedRibbonName.trim());
+  const hasRibbonNameSymbol = $derived(
+    customSymbols.some((symbol) =>
+      symbol.source && printedRibbonName.includes(`{{custom:${symbol.id}}}`)
+    )
+  );
   const title = $derived(actionTextIsEmpty(card.title) ? 'Card Title' : card.title);
   const bonusAttackTitle = $derived(
     actionTextIsEmpty(card.bonusAttackTitle) ? 'Bonus Attack' : card.bonusAttackTitle
@@ -403,8 +408,21 @@
 
   function layerZ(layerId: CardCompositeLayerId): number {
     const index = card.layerOrder.indexOf(layerId);
-    return index < 0 ? 0 : index + 1;
+    // Reserve gaps between authored layers for the ribbon's symbol plane.
+    return index < 0 ? 0 : (index + 1) * 4;
   }
+
+  // Foreground artwork, the divider and the frame must cover enlarged glyphs.
+  const ribbonSymbolZ = $derived(
+    Math.min(
+      layerZ('name-ribbon'),
+      layerZ('card-content'),
+      layerZ('outer-frame'),
+      ...card.artworkLayers
+        .filter((layer) => layerZ(layer.id) > layerZ('main-artwork'))
+        .map((layer) => layerZ(layer.id))
+    ) - 1
+  );
 </script>
 
 {#snippet artworkLayer(layer: CardArtworkLayer)}
@@ -470,12 +488,15 @@
 <!-- Bottom-anchored content rises over the illustration without resizing it. -->
 <div
   class="interior content-interior"
+  class:split-symbol-plane={hasRibbonNameSymbol}
   style:left={px(INTERIOR.x)}
   style:top={py(INTERIOR.y)}
   style:width={px(INTERIOR.width)}
   style:height={py(INTERIOR.height)}
   style:border-radius={pu(INTERIOR_RADIUS)}
   style:z-index={layerZ('card-content')}
+  style:--content-z={layerZ('card-content')}
+  style:--ribbon-foot-z={ribbonSymbolZ - 1}
 >
   {#if card.showCornerBadge}
     <!-- The frame is painted later and trims the outer corner, making this read
@@ -1091,7 +1112,14 @@
   x{card.quantity}
 </div>
 
-<div class="ribbon-layer" style:z-index={layerZ('name-ribbon')}>
+{#snippet nameRibbon(symbolPlane: boolean)}
+<div
+  class="ribbon-layer"
+  class:symbol-plane={symbolPlane}
+  class:text-plane={!symbolPlane && hasRibbonNameSymbol}
+  aria-hidden={symbolPlane ? true : undefined}
+  style:z-index={symbolPlane ? ribbonSymbolZ : layerZ('name-ribbon')}
+>
 {#if isHero}
   <!--
     A hero's combat ribbon.
@@ -1115,6 +1143,10 @@
   -->
   <div
     class="banner"
+    class:hero-banner={isHero}
+    style:--symbol-run-size="100% calc(100% - {pu(HERO_RIBBON.pointHeight)})"
+    style:--symbol-head-size="{pu(BLEED.width)} {pu(BLEED.height)}"
+    style:--symbol-head-position="left {pu(-HERO_RIBBON.x)} bottom {pu(-HERO_POINT_BELOW)}"
     style:left={px(HERO_RIBBON.x)}
     style:width={px(HERO_RIBBON.width)}
     style:top={py(HERO_RIBBON.top)}
@@ -1178,7 +1210,7 @@
       style:--ribbon-name-symbol-cap={NAME_METRICS.cap}
       style:--ribbon-name-symbol-align={(NAME_METRICS.cap - NAME_METRICS.ascent + NAME_METRICS.descent) / 2}
       use:fitHeight={{ text: ownerLabel, condense: card.ribbonNameCondense }}
-      data-card-edit-target={CARD_EDIT_MARKERS.ownerName}
+      data-card-edit-target={symbolPlane ? undefined : CARD_EDIT_MARKERS.ownerName}
       style:align-self="flex-start"
       style:margin-left="calc({pu(HERO_RIBBON_OWNER_LEFT - HERO_RIBBON.x)} + {pu(
         (HERO_RIBBON_OWNER.size * HERO_RIBBON_OWNER.lineHeight) / 2
@@ -1227,7 +1259,7 @@
   {#if showSymbolValue}
     <span
       class="hero-symbol-value"
-      data-card-edit-target={CARD_EDIT_MARKERS.symbolValue}
+      data-card-edit-target={symbolPlane ? undefined : CARD_EDIT_MARKERS.symbolValue}
       style:left={pu(HERO_RIBBON.centerX)}
       style:top={pu(digitTopToBoxTop(HERO_RIBBON_VALUE.top, HERO_RIBBON_VALUE.size))}
       style:font-size={pu(HERO_RIBBON_VALUE.size)}
@@ -1249,7 +1281,14 @@
     straight run — which can therefore be any length without distorting — and
     the art itself for the pennant head, sampled at its natural size.
   -->
-  <div class="banner" style:left={px(BANNER.x)} style:width={px(BANNER.width)}>
+  <div
+    class="banner villain-banner"
+    style:left={px(BANNER.x)}
+    style:width={px(BANNER.width)}
+    style:--symbol-run-size="100% calc(100% - {pu(BANNER_HEAD.height)})"
+    style:--symbol-head-size="{pu(BLEED.width)} {pu(BLEED.height)}"
+    style:--symbol-head-position="left {pu(-BANNER.x)} bottom {pu(-BANNER_HEAD_BELOW)}"
+  >
     <div
       class="banner-ink banner-face"
       style:left={pu(BANNER_HEAD.x - BANNER.x)}
@@ -1293,7 +1332,7 @@
       style:--ribbon-name-symbol-cap={NAME_METRICS.cap}
       style:--ribbon-name-symbol-align={(NAME_METRICS.cap - NAME_METRICS.ascent + NAME_METRICS.descent) / 2}
       use:fitHeight={{ text: printedRibbonName, condense: card.ribbonNameCondense }}
-      data-card-edit-target={CARD_EDIT_MARKERS.ownerName}
+      data-card-edit-target={symbolPlane ? undefined : CARD_EDIT_MARKERS.ownerName}
       style:font-size="calc({pu(NAME.size)} * var(--name-condense, 1) * var(--fit-scale, 1))"
       style:scale="var(--name-cross-scale, 1) 1"
       style:max-height={pu(NAME.maxLength)}
@@ -1309,6 +1348,12 @@
   </div>
 {/if}
 </div>
+{/snippet}
+
+{#if hasRibbonNameSymbol}
+  {@render nameRibbon(true)}
+{/if}
+{@render nameRibbon(false)}
 
 <!--
   Split card: two stacked halves with a floating separator. The lower half is
@@ -1497,6 +1542,35 @@
     position: absolute;
     overflow: hidden;
     isolation: isolate;
+  }
+
+  /* The tall foot strip runs behind the ribbon. Keep it there when the
+     symbol is lowered beneath the divider, without lowering the body copy. */
+  .content-interior.split-symbol-plane {
+    z-index: auto !important;
+    isolation: auto;
+  }
+
+  .split-symbol-plane .ribbon-foot {
+    z-index: var(--ribbon-foot-z);
+  }
+
+  .split-symbol-plane .body,
+  .split-symbol-plane .bonus-attack-panel {
+    z-index: var(--content-z);
+  }
+
+  .split-symbol-plane .divider,
+  .split-symbol-plane .bonus-attack-divider {
+    z-index: calc(var(--content-z) + 1);
+  }
+
+  .split-symbol-plane .corner-badge {
+    z-index: calc(var(--content-z) + 2);
+  }
+
+  .split-symbol-plane .tuck-effect {
+    z-index: calc(var(--content-z) + 3);
   }
 
   /*
@@ -1712,6 +1786,42 @@
     position: absolute;
     inset: 0;
     pointer-events: none;
+  }
+
+  .text-plane .banner-ink,
+  .text-plane .hero-head,
+  .text-plane .hero-outline,
+  .text-plane :global(.ribbon-name-symbol),
+  .symbol-plane .hero-symbol,
+  .symbol-plane .hero-symbol-value {
+    visibility: hidden;
+  }
+
+  .symbol-plane .name,
+  .symbol-plane .hero-owner-text {
+    color: transparent !important;
+  }
+
+  /* Reuse the printed silhouettes: a scaled glyph may fill the ribbon, but
+     cannot paint over the illustration beside its run or pointed foot. */
+  .symbol-plane .banner {
+    mask-repeat: no-repeat;
+    mask-clip: no-clip;
+    mask-size: var(--symbol-run-size), var(--symbol-head-size), var(--symbol-head-size);
+    mask-position: left top, var(--symbol-head-position), var(--symbol-head-position);
+  }
+
+  .symbol-plane .hero-banner {
+    mask-image: linear-gradient(#000, #000), url('/assets/templates/hero_ribbon_point.png'), url('/assets/templates/hero_ribbon_point_edge.png');
+  }
+
+  .symbol-plane .villain-banner {
+    mask-image: linear-gradient(#000, #000), url('/assets/templates/banner_fill.png'), url('/assets/templates/banner_border.png');
+  }
+
+  .symbol-plane .hero-outline,
+  .symbol-plane .banner-outline {
+    z-index: 1;
   }
 
   .tuck-effect {
