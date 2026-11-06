@@ -139,22 +139,6 @@ interface EditContext {
   mapId: AdventureMapId | null;
 }
 
-/**
- * An adventure has at most one villain.
- *
- * Two were allowed for a while, but nothing else in the document can tell two
- * villains apart: minions carry no field saying which villain they belong to,
- * `ThreatTrack.villainId` only ever names one, and the map has no ownership
- * concept at all. At one villain, "the villain side" (villain + every minion
- * + the threat track + the map + every set-level deck) is unambiguous by
- * construction — see `sets/scope.ts`, which is the reason this was lowered.
- *
- * Gates new additions only. A set that already has two — loaded from before
- * this changed — keeps working exactly as it does today; nothing here or in
- * `sets/normalize.ts` counts or repairs villains on load.
- */
-export const MAX_VILLAINS = 1;
-
 /** Card template a new card in this deck should use. */
 function defaultCardType(deck: Deck): CardType {
   if (deck.kind === 'initiative') return 'initiative';
@@ -1267,13 +1251,11 @@ export class WorkshopStore {
   // -- Characters -------------------------------------------------------
 
   /**
-   * An adventure supports at most one villain — and a heroes set none at all,
-   * which is what keeps the roster from growing something the sidebar has
-   * stopped drawing.
+   * Villains have no count limit in an adventure. Heroes sets exclude them
+   * because their sidebar has nowhere to display or edit antagonists.
    */
   canAddVillain(): boolean {
-    if (this.isHeroesSet) return false;
-    return this.adventure.characters.filter((c) => c.role === 'villain').length < MAX_VILLAINS;
+    return !this.isHeroesSet;
   }
 
   /** Adds the figure and the action deck it will need. */

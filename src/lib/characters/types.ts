@@ -326,7 +326,7 @@ export const CHARACTER_ROLE_META: Readonly<Record<CharacterRole, CharacterRoleMe
   villain: {
     label: 'Villain',
     plural: 'Villains',
-    description: 'The antagonist the heroes face. One per adventure.',
+    description: 'An antagonist the heroes face, with its own decks.',
     colorVar: '--role-villain'
   },
   minion: {

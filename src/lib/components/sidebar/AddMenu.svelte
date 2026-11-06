@@ -19,10 +19,6 @@
     run: () => void;
   }
 
-  const villainCount = $derived(
-    workshop.adventure.characters.filter((character) => character.role === 'villain').length
-  );
-
   /*
    * A heroes set offers five fewer things to add. Four of them — Villain,
    * Minion, Initiative card, Event card — are dropped because the sidebar has
@@ -50,9 +46,8 @@
       : ([
           {
             label: 'Villain',
-            hint: villainCount >= 2 ? 'Two villains is the limit' : 'A figure with its own deck',
+            hint: 'A figure with its own deck',
             icon: 'skull',
-            disabled: villainCount >= 2,
             run: () => workshop.addCharacter('villain')
           },
           {

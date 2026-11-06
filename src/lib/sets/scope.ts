@@ -140,9 +140,9 @@ function heroSlice(set: AdventureSet, characterId: CharacterId): AdventureSet {
  * Deliberately a complement rather than a union of `outline()`'s categories —
  * built that way so a future deck kind or roster role that isn't a hero's
  * cannot be silently left out of it just because nobody remembered to add it
- * to an enumerated list in two places. At `MAX_VILLAINS = 1` there is nothing
- * left to disambiguate: the villain, every minion, the one threat track and
- * the one map all travel together, unambiguously, by construction.
+ * to an enumerated list in two places. All villains, minions, shared maps,
+ * the threat track and set-level decks travel together as one villain side;
+ * adding another villain does not change that scope.
  */
 function villainSlice(set: AdventureSet): AdventureSet {
   const heroIds = new Set(charactersByRole(set, 'hero').map((character) => character.id));
@@ -155,10 +155,8 @@ function villainSlice(set: AdventureSet): AdventureSet {
     (figure) => figure.characterId === null || !heroIds.has(figure.characterId)
   );
 
-  /* Named for the villain, the same way a hero slice is named for its hero —
-     see `heroSlice`. Picks the first if a legacy document still has two
-     (`MAX_VILLAINS` was lowered to 1 going forward, not repaired on load);
-     nothing here needs to disambiguate further, this is a display name only. */
+  /* Keep the first villain as the slice's display name. Every villain's
+     content is included above, regardless of which one supplies the name. */
   const villain = charactersByRole(set, 'villain')[0] ?? null;
 
   return {

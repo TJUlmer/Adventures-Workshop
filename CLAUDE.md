@@ -164,6 +164,13 @@ will not compile.
 
 ## Architecture
 
+Adventure sets allow any number of villains. `workshop.canAddVillain()` checks
+only the set kind; heroes sets still exclude villains. Each addition creates
+the character and its own action deck through the existing store command.
+The sidebar and Add menu must not impose a count limit. Villain-side exports
+and publications remain one combined scope containing every villain, minion
+and shared set structure; the threat track still selects one villain by ID.
+
 `README.md` covers the document model, the style cascade and the shell layout in
 depth. What follows is what it does not, or where it has drifted.
 
