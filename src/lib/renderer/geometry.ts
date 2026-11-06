@@ -1530,10 +1530,11 @@ export const INITIATIVE = {
    * `villain` is the height in `UMA Initiative Card Template.png`, and is what
    * villain and effect cards both use. `minion` is read off
    * `skunk ape_initiative.webp` — an official minion card — where the band ends
-   * far higher. Right Now keeps its height either way; End of Round takes up
+   * far higher. Right Now keeps its minimum height either way; End of Round takes up
    * whatever is left, so it simply starts higher.
    */
   subjectHeight: { villain: 439, minion: 267 },
+  /** Printed minimum; the renderer lets the copy grow this band. */
   rightNowHeight: 380,
   /**
    * Vertical separator between a band's label and its copy, at x 293–296.
@@ -1567,7 +1568,7 @@ export const INITIATIVE = {
    * copy to read leading off, so there is no artwork ratio here to convert and
    * `inFaceLeading` would have nothing to work on.
    *
-   * It is chosen against the bands, which are fixed heights. That makes it the
+   * It was chosen against the template's fixed band heights. That makes it the
    * one leading on any card that has to be *re-derived* when the face changes
    * rather than following from it — a ratio is a multiple of the nominal size,
    * and this face's is a fifth larger for the same cap height. 0.851 is the
@@ -1577,9 +1578,9 @@ export const INITIATIVE = {
    * The band is 262px and holds 2.6 lines of that. "Move up to 3 spaces toward
    * the nearest hero." wants three and loses the last one — in this face and in
    * every face before it, because at 78px to the cap the sentence is 1641px of
-   * advance against the 713 Right Now leaves beside the MOVE badge. Nothing
-   * here fixes that; it wants a measurement of what the printed card actually
-   * sets its copy at, which the supplied art does not carry.
+   * advance against the 713 Right Now leaves beside the MOVE badge. The
+   * renderer now expands that band in normal flow instead of clipping the
+   * extra lines or reducing this text size.
    */
   bodyLineHeight: 0.851,
   /**
@@ -1616,12 +1617,12 @@ export const INITIATIVE = {
 } as const;
 
 /**
- * Where the three bands sit, which depends on whose card it is.
+ * The printed band boxes, which supply the renderer's minimum heights.
  *
  * A minion's subject band is shorter than a villain's or an effect's. Right Now
- * keeps its height regardless — it holds the same one line of copy — so the
- * difference is taken entirely out of the top, and End of Round simply starts
- * higher and runs longer.
+ * keeps its minimum height regardless, so the default difference is taken out
+ * of the top. The renderer grows Right Now with its copy and moves End of
+ * Round down using CSS flow; these boxes describe the short-copy baseline.
  */
 export interface InitiativeBandBox {
   key: keyof typeof INITIATIVE.ruleBottomInset;

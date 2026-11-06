@@ -949,6 +949,16 @@ sampled line colour, so an older document opens looking exactly as it always
 did, and the bump exists only because an older build opening a v35 document
 would otherwise silently drop a chosen frame colour back to that default.
 
+### Initiative card text grows its band
+
+`InitiativeCardFace` stacks the three bands in CSS flow. The subject keeps its
+measured villain/minion height, Right Now uses `INITIATIVE.rightNowHeight` as a
+minimum and grows with its copy, and End of Round fills the remaining space.
+No text shrinks to fit. The MOVE badge keeps its printed top inset as Right Now grows; labels,
+artwork and dividers follow their band's actual bounds. Each background masks
+out its vertical rule so the full-card frame gradient shows through at the
+correct position. This same DOM supplies PNG, print and TTS output.
+
 ### Bonus abilities are card entries
 
 An action card's `AbilityBlocks.bonusAbilities` is an ordered list of at most

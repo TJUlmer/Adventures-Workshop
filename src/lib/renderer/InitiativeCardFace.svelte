@@ -25,7 +25,6 @@
   import type { InitiativeBandBox } from './geometry';
   import {
     capTopToBoxTop,
-    clipRect,
     digitTopToBoxTop,
     INITIATIVE,
     INITIATIVE_BAND_DEFAULTS,
@@ -62,6 +61,8 @@
   let { card, theme, subjectFallback = null, customSymbols = [] }: Props = $props();
 
   const badge = INITIATIVE.moveBadge;
+  // Preserve the printed inset as text grows the band beneath the badge.
+  const badgeTop = (INITIATIVE.rightNowHeight - badge.height) / 2;
 
   /**
    * A minion's card gets the shorter subject band; a villain's and an effect's
@@ -70,9 +71,6 @@
   const bandBoxes = $derived(
     initiativeBands(card.subject === 'minion' && card.variant === 'card' ? 'minion' : 'villain')
   );
-  const subjectBand = $derived(bandBoxes[0]);
-  const rightNowBand = $derived(bandBoxes[1]);
-  const endOfRoundBand = $derived(bandBoxes[2]);
 
   /**
    * Documents are repaired on load, so `bands` should always be present. This
@@ -123,194 +121,206 @@
    * some zooms.
    */
   const bed = seamBed(INITIATIVE.interior, FRAME, INITIATIVE.radius);
-
-  /** A band's label separator, from its top edge down. */
-  function ruleClip(box: InitiativeBandBox): string {
-    return clipRect(
-      {
-        x: INITIATIVE.ruleX,
-        y: box.rule.y,
-        width: INITIATIVE.ruleWidth,
-        height: box.rule.height
-      },
-      FRAME
-    );
-  }
 </script>
 
 {#snippet band(key: 'subject' | 'rightNow' | 'endOfRound', box: InitiativeBandBox)}
   {@const style = bands[key]}
-  <div
-    class="band-bg"
-    style:left={px(INITIATIVE.interior.x, FRAME)}
-    style:top={py(box.y, FRAME)}
-    style:width={px(INITIATIVE.interior.width, FRAME)}
-    style:height={py(box.height, FRAME)}
-    style:background={fillCss(style.fill)}
+  <section
+    class="initiative-band"
+    class:subject-band={key === 'subject'}
+    class:right-now-band={key === 'rightNow'}
+    class:end-of-round-band={key === 'endOfRound'}
+    aria-label={initiativeBandLabel(card, key)}
+    style:--band-min-height={pu(key === 'endOfRound' ? 0 : box.height, FRAME)}
+    style:--rule-bottom={pu(INITIATIVE.ruleBottomInset[key], FRAME)}
   >
-    {#if style.showArtwork}
-      <CardArt artwork={style.artwork} background="transparent" />
+    <div
+      class="band-bg"
+      style:background={fillCss(style.fill)}
+    >
+      {#if style.showArtwork}
+        <CardArt artwork={style.artwork} background="transparent" />
+      {/if}
+    </div>
+
+    <!--
+      Set vertically rather than rotated, so the label's run is its box's height
+      and it can be aligned within the band. `text-align: end` puts it at the top
+      of the section, level with the copy beside it, which is how the template
+      sets all three.
+    -->
+    <div
+      class="label"
+      style:left={pu(INITIATIVE.labelCenterX - INITIATIVE.labelSize / 2 - INITIATIVE.interior.x, FRAME)}
+      style:top={pu(INITIATIVE.textTop, FRAME)}
+      style:bottom={pu(INITIATIVE.textTop, FRAME)}
+      style:width={pu(INITIATIVE.labelSize, FRAME)}
+      style:font-size={pu(INITIATIVE.labelSize, FRAME)}
+      style:color={style.ink}
+    >
+      {initiativeBandLabel(card, key)}
+    </div>
+
+    <!-- Band 1 body: the card type line. -->
+    {#if key === 'subject'}
+      <div
+        class="subject"
+        style:left={pu(INITIATIVE.textX - INITIATIVE.interior.x, FRAME)}
+        style:top="50%"
+        style:width={pu(INITIATIVE.textWidth, FRAME)}
+        style:font-size={pu(INITIATIVE.subjectSize, FRAME)}
+        style:color={style.ink}
+      >
+        {actor}
+      </div>
+    <!-- Band 2 body: Right Now, with the MOVE badge aligned right. -->
+    {:else if key === 'rightNow'}
+      <div
+        class="body"
+        style:margin-left={pu(INITIATIVE.textX - INITIATIVE.interior.x, FRAME)}
+        style:padding-block={pu(INITIATIVE.textTop, FRAME)}
+        style:width={pu(rightNowWidth, FRAME)}
+        style:font-size={pu(INITIATIVE.bodySize, FRAME)}
+        style:line-height={INITIATIVE.bodyLineHeight}
+        style:color={style.ink}
+      >
+        <!--
+          Guarded rather than handed a placeholder. `AbilityText`'s placeholder is
+          drawn copy, not editor chrome — this component *is* what the exporter
+          photographs — so a blank Right Now printed a grey "What happens right
+          now." onto the finished card. A band the author deliberately left empty
+          has to come out empty; the editor's own field carries the hint instead.
+        -->
+        {#if rightNowText}
+          <AbilityText
+            ability={{
+              textSize: null,
+              plain: rightNowText,
+              immediately: '',
+              duringCombat: '',
+              afterCombat: '',
+              bonusAbilities: []
+            }}
+            subject={abilitySubject}
+            {customSymbols}
+          />
+        {/if}
+      </div>
+
+      {#if card.showMove}
+        <div
+          class="move"
+          style:left={pu(badge.right - badge.width - INITIATIVE.interior.x, FRAME)}
+          style:top={pu(badgeTop, FRAME)}
+          style:width={pu(badge.width, FRAME)}
+          style:height={pu(badge.height, FRAME)}
+          style:background={style.ink}
+          role="img"
+          aria-label="Move {card.moveValue}"
+        ></div>
+        <!--
+          Condensed horizontally to the printed proportions, from its left edge so
+          the squeeze does not walk the digit off its measured position.
+        -->
+        <div
+          class="move-value"
+          style:left={pu(badge.right - badge.width + badge.numberOffsetX - INITIATIVE.interior.x, FRAME)}
+          style:top={pu(digitTopToBoxTop(badgeTop + badge.numberOffsetY, badge.numberSize), FRAME)}
+          style:font-size={pu(badge.numberSize, FRAME)}
+          style:scale="{badge.numberCondense} 1"
+          style:color={style.ink}
+        >
+          {card.moveValue}
+        </div>
+      {/if}
+    <!-- Band 3 body: End of Round. -->
+    {:else}
+      <div
+        class="body"
+        style:margin-left={pu(INITIATIVE.textX - INITIATIVE.interior.x, FRAME)}
+        style:padding-top={pu(
+          capTopToBoxTop(
+            INITIATIVE.textTop,
+            INITIATIVE.bodySize,
+            INITIATIVE.bodyLineHeight
+          ),
+          FRAME
+        )}
+        style:padding-bottom={pu(INITIATIVE.textTop, FRAME)}
+        style:width={pu(INITIATIVE.textWidth, FRAME)}
+        style:font-size={pu(INITIATIVE.bodySize, FRAME)}
+        style:line-height={INITIATIVE.bodyLineHeight}
+        style:color={style.ink}
+      >
+        <!-- Same reasoning as the Right Now band above: blank prints blank. -->
+        {#if card.endOfRound.trim()}
+          <AbilityText
+            ability={{
+              textSize: null,
+              plain: card.endOfRound,
+              immediately: '',
+              duringCombat: '',
+              afterCombat: '',
+              bonusAbilities: []
+            }}
+            subject={abilitySubject}
+            {customSymbols}
+          />
+        {/if}
+      </div>
     {/if}
-  </div>
-
-  <!-- Label separator: from the band's top edge, stopping short of its foot. -->
-  <div
-    class="chrome"
-    style:clip-path={ruleClip(box)}
-    style:background={fillCss(theme.frame)}
-  ></div>
-
-  <!--
-    Set vertically rather than rotated, so the label's run is its box's height
-    and it can be aligned within the band. `text-align: end` puts it at the top
-    of the section, level with the copy beside it, which is how the template
-    sets all three.
-  -->
-  <div
-    class="label"
-    style:left={px(INITIATIVE.labelCenterX - INITIATIVE.labelSize / 2, FRAME)}
-    style:top={py(box.y + INITIATIVE.textTop, FRAME)}
-    style:width={pu(INITIATIVE.labelSize, FRAME)}
-    style:height={py(box.height - INITIATIVE.textTop * 2, FRAME)}
-    style:font-size={pu(INITIATIVE.labelSize, FRAME)}
-    style:color={style.ink}
-  >
-    {initiativeBandLabel(card, key)}
-  </div>
+  </section>
 {/snippet}
 
-<!-- Under the bands, so it shows in the gaps between them as the band bars. -->
+<!-- Gaps and the cut-outs in each band reveal the same full-card gradient. -->
 <div class="chrome" style:clip-path={bed} style:background={fillCss(theme.frame)}></div>
+<div
+  class="bands"
+  style:left={px(INITIATIVE.interior.x, FRAME)}
+  style:top={py(INITIATIVE.interior.y, FRAME)}
+  style:width={px(INITIATIVE.interior.width, FRAME)}
+  style:height={py(INITIATIVE.interior.height, FRAME)}
+  style:gap={pu(INITIATIVE.bandGap, FRAME)}
+  style:--rule-x={pu(INITIATIVE.ruleX - INITIATIVE.interior.x, FRAME)}
+  style:--rule-width={pu(INITIATIVE.ruleWidth, FRAME)}
+>
+  {#each bandBoxes as box (box.key)}
+    {@render band(box.key, box)}
+  {/each}
+</div>
 
-{#if subjectBand}{@render band('subject', subjectBand)}{/if}
-{#if rightNowBand}{@render band('rightNow', rightNowBand)}{/if}
-{#if endOfRoundBand}{@render band('endOfRound', endOfRoundBand)}{/if}
-
-<!-- Band 1 body: the card type line. -->
-{#if subjectBand}
-  <div
-    class="subject"
-    style:left={px(INITIATIVE.textX, FRAME)}
-    style:top={py(subjectBand.y + subjectBand.height / 2, FRAME)}
-    style:width={px(INITIATIVE.textWidth, FRAME)}
-    style:font-size={pu(INITIATIVE.subjectSize, FRAME)}
-    style:color={card.bands.subject.ink}
-  >
-    {actor}
-  </div>
-{/if}
-
-<!-- Band 2 body: Right Now, with the MOVE badge aligned right. -->
-{#if rightNowBand}
-  <div
-    class="body"
-    style:left={px(INITIATIVE.textX, FRAME)}
-    style:top={py(rightNowBand.y + INITIATIVE.textTop, FRAME)}
-    style:width={px(rightNowWidth, FRAME)}
-    style:height={py(rightNowBand.height - INITIATIVE.textTop * 2, FRAME)}
-    style:font-size={pu(INITIATIVE.bodySize, FRAME)}
-    style:line-height={INITIATIVE.bodyLineHeight}
-    style:color={card.bands.rightNow.ink}
-  >
-    <!--
-      Guarded rather than handed a placeholder. `AbilityText`'s placeholder is
-      drawn copy, not editor chrome — this component *is* what the exporter
-      photographs — so a blank Right Now printed a grey "What happens right
-      now." onto the finished card. A band the author deliberately left empty
-      has to come out empty; the editor's own field carries the hint instead.
-    -->
-    {#if rightNowText}
-      <AbilityText
-        ability={{
-          textSize: null,
-          plain: rightNowText,
-          immediately: '',
-          duringCombat: '',
-          afterCombat: '',
-          bonusAbilities: []
-        }}
-        subject={abilitySubject}
-        {customSymbols}
-      />
-    {/if}
-  </div>
-
-  {#if card.showMove}
-    {@const badgeTop = rightNowBand.y + (rightNowBand.height - badge.height) / 2}
-    <div
-      class="move"
-      style:left={px(badge.right - badge.width, FRAME)}
-      style:top={py(badgeTop, FRAME)}
-      style:width={pu(badge.width, FRAME)}
-      style:height={pu(badge.height, FRAME)}
-      style:background={card.bands.rightNow.ink}
-      role="img"
-      aria-label="Move {card.moveValue}"
-    ></div>
-    <!--
-      Condensed horizontally to the printed proportions, from its left edge so
-      the squeeze does not walk the digit off its measured position.
-    -->
-    <div
-      class="move-value"
-      style:left={px(badge.right - badge.width + badge.numberOffsetX, FRAME)}
-      style:top={py(
-        digitTopToBoxTop(badgeTop + badge.numberOffsetY, badge.numberSize),
-        FRAME
-      )}
-      style:font-size={pu(badge.numberSize, FRAME)}
-      style:scale="{badge.numberCondense} 1"
-      style:color={card.bands.rightNow.ink}
-    >
-      {card.moveValue}
-    </div>
-  {/if}
-{/if}
-
-<!-- Band 3 body: End of Round. -->
-{#if endOfRoundBand}
-  <div
-    class="body"
-    style:left={px(INITIATIVE.textX, FRAME)}
-    style:top={py(
-      capTopToBoxTop(
-        endOfRoundBand.y + INITIATIVE.textTop,
-        INITIATIVE.bodySize,
-        INITIATIVE.bodyLineHeight
-      ),
-      FRAME
-    )}
-    style:width={px(INITIATIVE.textWidth, FRAME)}
-    style:height={py(endOfRoundBand.height - INITIATIVE.textTop * 2, FRAME)}
-    style:font-size={pu(INITIATIVE.bodySize, FRAME)}
-    style:line-height={INITIATIVE.bodyLineHeight}
-    style:color={card.bands.endOfRound.ink}
-  >
-    <!-- Same reasoning as the Right Now band above: blank prints blank. -->
-    {#if card.endOfRound.trim()}
-      <AbilityText
-        ability={{
-          textSize: null,
-          plain: card.endOfRound,
-          immediately: '',
-          duringCombat: '',
-          afterCombat: '',
-          bonusAbilities: []
-        }}
-        subject={abilitySubject}
-        {customSymbols}
-      />
-    {/if}
-  </div>
-{/if}
-
-<!-- Frame, band rules and separators last. -->
+<!-- The outer frame covers the band edges at the trim corners. -->
 <div class="mask frame" style:background={fillCss(theme.frame)}></div>
 
 <style>
+  .bands {
+    position: absolute;
+    display: flex;
+    flex-direction: column;
+    isolation: isolate;
+    overflow: hidden;
+  }
+
+  .initiative-band {
+    position: relative;
+    flex: none;
+    min-height: var(--band-min-height);
+    isolation: isolate;
+  }
+
+  .subject-band { height: var(--band-min-height); }
+  .end-of-round-band { flex: 1 0 auto; }
+
   .band-bg {
     position: absolute;
+    inset: 0;
     overflow: hidden;
+    /* The rule is a hole through the fill and artwork, so its gradient keeps
+       sampling the full card even when the text moves the band boundary. */
+    mask-image: linear-gradient(to right, #000 var(--rule-x), transparent var(--rule-x) calc(var(--rule-x) + var(--rule-width)), #000 calc(var(--rule-x) + var(--rule-width))), linear-gradient(#000, #000);
+    mask-size: 100% 100%, 100% var(--rule-bottom);
+    mask-position: top, bottom;
+    mask-repeat: no-repeat;
   }
 
   /* Border-coloured chrome, cut to shape. See `rect` above. */
@@ -355,10 +365,10 @@
 
   /* Leading comes from `INITIATIVE.bodyLineHeight`, set inline on each band. */
   .body {
-    position: absolute;
+    position: relative;
     font-family: var(--card-font-title);
     font-weight: var(--card-font-title-weight);
-    overflow: hidden;
+    /* Natural text height grows Right Now; flex gives End of Round the rest. */
   }
 
   /* Badge art is a black shape with alpha, so it is masked, not drawn. */
