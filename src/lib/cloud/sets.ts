@@ -29,6 +29,7 @@ import {
 } from './assets';
 import type { EmbeddedAsset } from './assets';
 import { auth } from './auth.svelte';
+import { fetchOwnProfile } from './profile';
 import { shortHash } from '$lib/core/hash';
 import { renderCharacterCards } from './character-cards';
 import {
@@ -978,29 +979,47 @@ export async function listOutdatedCardPreviews(): Promise<CardPreviewRefreshTarg
 }
 
 /**
- * Backfill one immutable published snapshot without moving its content revision.
+ * Rebuild one immutable published snapshot without moving its content revision.
  *
  * The narrow database RPC verifies every uploaded image and changes only the
  * derived manifest/version columns. A failure leaves the old row untouched.
+ * Force mode repairs current-version images after checking admin status;
+ * the database RPC remains the authority for committing the new manifest.
  */
 export async function refreshPublishedCardPreviews(
   targetId: string,
-  onProgress?: (done: number, total: number) => void
+  onProgress?: (done: number, total: number) => void,
+  options: { force?: boolean } = {}
 ): Promise<boolean> {
   await auth.ensureFresh();
   const user = auth.user;
   if (!user) throw new CloudError('Sign in to refresh gallery card previews.', 401);
+  if (options.force && !(await fetchOwnProfile())?.isAdmin) {
+    throw new CloudError('Administrator access is required to force-refresh gallery card images.', 403);
+  }
 
+  // A damaged current-version bitmap must be repairable without editing the
+  // author's snapshot or marking every published set as outdated.
+  const versionFilter = options.force ? '' : `&card_preview_version=lt.${CARD_PREVIEW_RENDERER_VERSION}`;
   const rows = await request<PublishedSetWithDocument[]>(
     `/rest/v1/sets?select=${SUMMARY_COLUMNS},document,card_previews,card_preview_version,card_preview_fingerprints` +
       `&id=eq.${encodeURIComponent(targetId)}` +
-      `&card_preview_version=lt.${CARD_PREVIEW_RENDERER_VERSION}&limit=1`
+      `${versionFilter}&limit=1`
   );
   const row = rows[0];
   if (!row) return false;
 
+  if (options.force && row.card_preview_version > CARD_PREVIEW_RENDERER_VERSION) {
+    throw new CloudError('These images were made by a newer app version. Reload before refreshing them.', 409);
+  }
   const set = await hydratePublishedSet(row);
   const snapshot = await createCardPreviewManifest(set, user.id, row.id, null, onProgress);
+  const current = await request<{ revision: number }[]>(
+    `/rest/v1/sets?select=revision&id=eq.${encodeURIComponent(targetId)}&limit=1`
+  );
+  if (current[0]?.revision !== row.revision) {
+    throw new CloudError('The set was republished while its images were rendering. Look it up and refresh again.', 409);
+  }
   await request('/rest/v1/rpc/refresh_set_card_previews', {
     method: 'POST',
     body: {

@@ -21,6 +21,7 @@
   import { fetchOwnProfile, updateOwnProfile } from '$lib/cloud/profile';
   import {
     backfillPublishedTtsSave,
+    fetchSetSummaryBySlug,
     listOutdatedCardPreviews,
     listOutdatedSocialPreviews,
     listSetsMissingTtsSave,
@@ -34,6 +35,7 @@
   } from '$lib/cloud/sets';
   import { Button, Icon, TextInput } from '$lib/ui';
   import SignInPanel from './SignInPanel.svelte';
+  import ForceCardPreviewRefresh from './ForceCardPreviewRefresh.svelte';
 
   interface Props {
     /** A completed provider redirect should put the public-name choice in view. */
@@ -74,6 +76,7 @@
   let cardPreviewFaceTotal = $state(0);
   let cardPreviewFailures = $state<string[]>([]);
   let cardPreviewError = $state<string | null>(null);
+  let cardForceBusy = $state(false);
   let ttsQueue = $state<TtsSaveBackfillTarget[]>([]);
   let ttsQueueLoading = $state(false);
   let ttsBackfilling = $state(false);
@@ -86,7 +89,7 @@
   let ttsError = $state<string | null>(null);
 
   /** One rendering job at a time: each mounts its own off-screen card stage. */
-  const maintenanceBusy = $derived(previewRefreshing || cardPreviewRefreshing || ttsBackfilling);
+  const maintenanceBusy = $derived(previewRefreshing || cardPreviewRefreshing || cardForceBusy || ttsBackfilling);
 
   const dirty = $derived(
     displayName.trim() !== saved || avatarUrl.trim() !== savedAvatarUrl
@@ -244,6 +247,15 @@
     } finally {
       ttsQueueLoading = false;
     }
+  }
+
+  async function forceCardPreviews(
+    id: string,
+    onProgress: (done: number, total: number) => void
+  ): Promise<boolean> {
+    const refreshed = await refreshPublishedCardPreviews(id, onProgress, { force: true });
+    if (refreshed) cardPreviewQueue = cardPreviewQueue.filter((entry) => entry.id !== id);
+    return refreshed;
   }
 
   async function backfillTtsSaves(): Promise<void> {
@@ -542,6 +554,12 @@
                 </small>
               {/if}
               {#if cardPreviewError}<p class="error" role="alert">{cardPreviewError}</p>{/if}
+              <ForceCardPreviewRefresh
+                disabled={maintenanceBusy}
+                lookup={fetchSetSummaryBySlug}
+                refresh={forceCardPreviews}
+                onbusychange={(busy) => (cardForceBusy = busy)}
+              />
             </section>
 
             <section class="preview-maintenance">

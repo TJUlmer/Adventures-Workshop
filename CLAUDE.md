@@ -1940,6 +1940,17 @@ not what a nav label currently calls it.
 
 ### Sharing and the gallery
 
+Account → Gallery card images includes an admin-only "Force refresh one set"
+control. Paste a share link (path or legacy hash form) or code, look it up, then
+refresh the named published row. `refreshPublishedCardPreviews(..., { force: true })`
+checks the current profile's admin flag and bypasses only the outdated-version
+filter; passing no previous manifest rebuilds every face. The existing
+`refresh_set_card_previews` RPC enforces admin access and updates derived image
+columns only, leaving the document, content revision and share link intact.
+It needs no migration. A newer renderer version is refused, and a revision
+recheck rejects work if the author republishes during rendering. The account's
+shared maintenance-busy state prevents overlapping image/TTS rendering jobs.
+
 **`GalleryScreen` and `SharedSetScreen` render outside `AppShell`** (see
 `App.svelte`'s routing, alongside `HomeScreen`), so `TitleBar` — which
 assumes a set is open (`workshop.adventure`, Save, Export) — was never an
