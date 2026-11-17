@@ -1491,11 +1491,17 @@ cannot switch either divider to the unrelated `theme.divider` ink colour.
 **Rules headings and authored dividers.** Both Rules orientations use the
 supplied Vibranium Suit reference's cap-height/header proportion (about 32/60),
 with width fitting for long titles and cap-centred placement as the type shrinks.
+Rules headings use Bebas Neue Custom, matching action-card titles. Their sizes use
+`inName()` and their cap placement uses `NAME_METRICS`, preserving the measured
+cap height and band centring when switching from Oswald.
 Orientation changes remount the heading to discard its previous fit; width changes
 from mobile pane switches or preview transitions also refit, with height-only
 ResizeObserver notifications ignored to avoid a fitting loop. A one-pixel
 inset avoids fractional text overflow being replaced by an ellipsis; the PNG
-clone also refits at print size before computed styles are frozen. Event cards
+clone also refits at print size before computed styles are frozen. Headings reserve
+the font's measured descent as bottom padding: the tight 0.9 line box otherwise
+clips Q's tail into O. This preserves cap placement and width fitting in preview
+and export. Event cards
 share this renderer but retain their previous heading size and position.
 
 Rules body copy accepts `{{break}}`, including the rich-text toolbar's Insert
@@ -2643,8 +2649,8 @@ printed cards get their contrast in the first place:
 
 | file | for | roles |
 |---|---|---|
-| `BebasNeue-Custom.ttf` | Knockout HTF48 Featherweight | name ribbon, card title |
-| `Oswald-custom-condensed.ttf` | *by association, not by the record* | initiative labels and copy, rules heading, threat board |
+| `BebasNeue-Custom.ttf` | Knockout HTF48 Featherweight | name ribbon, card title, rules heading |
+| `Oswald-custom-condensed.ttf` | *by association, not by the record* | initiative labels and copy, threat board |
 | `Os-Custom-Junior.ttf` | HTF29 JuniorLiteweight, HTF49 Liteweight | ability text, quantity, boost + combat values |
 
 Each carries one weight, so every role in `card-fonts.css` is 400: asking for
@@ -2654,7 +2660,7 @@ The Featherweight roles moved to Bebas Neue because it matches on the property
 that cannot be fixed by measurement — stem weight, 0.158 of cap height against
 0.160 — where the Oswald cut had to be squeezed into place. Bebas is **caps
 only**: every lowercase codepoint is drawn as a capital, which is why it takes
-those two roles rather than `--card-font-title` wholesale. The condensed Oswald
+these uppercase roles rather than `--card-font-title` wholesale. The condensed Oswald
 keeps the roles that carry mixed-case copy.
 
 Compare a candidate face with `tools/font-compare.py`, which reports vertical

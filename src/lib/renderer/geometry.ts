@@ -357,9 +357,9 @@ export const FONT_METRICS = {
 } as const;
 
 /**
- * The same, for the face the name ribbon and the card title set in.
+ * The same, for the face the name ribbon, card title and rules heading set in.
  *
- * A second set because those two moved to Bebas Neue and it does not share
+ * A second set because these roles use Bebas Neue and it does not share
  * Oswald's shape at all: its caps stand taller (0.703 against 0.672) and its
  * line box is a different animal entirely — 0.95 of ascent where Oswald has
  * 1.19. That last one is why this could not be waved through as "close enough".
@@ -405,7 +405,7 @@ const ARTWORK_CAP = 0.666;
  */
 export const inFace = (artworkSize: number): number => (artworkSize * ARTWORK_CAP) / FONT_METRICS.cap;
 
-/** As `inFace`, for the two roles set in the name face. See `NAME_METRICS`. */
+/** As `inFace`, for the roles set in the name face. See `NAME_METRICS`. */
 export const inName = (artworkSize: number): number => (artworkSize * ARTWORK_CAP) / NAME_METRICS.cap;
 
 /**
@@ -1803,7 +1803,7 @@ export const RULES = {
   dividerHeight: 426 - 403,
   /* The supplied Vibranium Suit reference has ~32px caps in a ~60px band.
      Keep that proportion in both orientations; long headings fit separately. */
-  heading: { x: 232, capTop: 202, width: 1170, size: inFace(210) },
+  heading: { x: 232, capTop: 202, width: 1170, size: inName(210) },
   /* 93px of advance on a 68px face, read off the template's three lines. */
   body: {
     x: 232,
@@ -1854,7 +1854,7 @@ export const RULES_LANDSCAPE = {
    * card's own printed rule reads at, not a copy of any of its numbers.
    */
   dividerHeight: 10,
-  heading: { x: 232, capTop: 204, width: 1756, size: inFace(210) },
+  heading: { x: 232, capTop: 204, width: 1756, size: inName(210) },
   body: {
     x: 232,
     capTop: 502,

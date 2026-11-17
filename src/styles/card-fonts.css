@@ -52,8 +52,8 @@
  * card title or a character name, which is why none has been worth redrawing.
  *
  * It is **caps only**. Every lowercase codepoint is drawn as a capital, which
- * is why it is scoped to these two roles instead of taking `--card-font-title`
- * wholesale: several of that variable's other users carry mixed-case copy and
+ * is why it is scoped to the name ribbon, card title and rules heading instead
+ * of taking `--card-font-title` wholesale: several other users carry mixed-case copy and
  * would set entirely in capitals. Note the name ribbon prints "Villain" on the
  * real card, so it sets as VILLAIN here until the face grows a lower case.
  */
@@ -67,7 +67,7 @@
 
 /*
  * Condensed — the display face for everything else that is set large: the
- * initiative card's labels and copy, the rules heading, the threat board.
+ * initiative card's labels and copy, and the threat board.
  *
  * These were Featherweight's roles by association rather than by the record,
  * which lists Featherweight as the name and the title only. They keep this cut

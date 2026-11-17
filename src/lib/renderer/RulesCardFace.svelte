@@ -15,6 +15,7 @@
     capTopToBoxTop,
     FONT_METRICS,
     inFace,
+    NAME_METRICS,
     px,
     pu,
     py,
@@ -45,7 +46,9 @@
   const cleanBody = $derived(resolveCustomSymbolImages(sanitizeRichText(card.body), customSymbols));
   const body = $derived(card.type === 'rules' ? renderRichTextBreaks(cleanBody) : cleanBody);
   const headingBoxOffset = $derived(
-    -capTopToBoxTop(-FONT_METRICS.cap * geom.heading.size / 2, geom.heading.size, 0.9)
+    -capTopToBoxTop(
+      -NAME_METRICS.cap * geom.heading.size / 2, geom.heading.size, 0.9, NAME_METRICS
+    )
   );
   const empty = $derived(richTextIsEmpty(card.body));
 
@@ -171,6 +174,7 @@
     style:top="calc({py(geom.interior.y + geom.headerHeight / 2, FRAME)} - {pu(headingBoxOffset, FRAME)} * var(--fit-scale, 1))"
     style:width={px(geom.heading.width, FRAME)}
     style:--heading-size={pu(geom.heading.size, FRAME)}
+    style:padding-bottom="{NAME_METRICS.descent}em"
     style:color={theme.headerInk}
     style:text-align={headingAlign}
   >{heading}</div>
@@ -183,6 +187,7 @@
     style:top={py(capTopToBoxTop(246, inFace(118)), FRAME)}
     style:width={px(geom.heading.width, FRAME)}
     style:font-size={pu(inFace(118), FRAME)}
+    style:padding-bottom="{FONT_METRICS.descent}em"
     style:color={theme.headerInk}
   >{heading}</div>
 {/if}
@@ -273,12 +278,17 @@
     font-weight: var(--card-font-title-weight);
     text-transform: uppercase;
     line-height: 0.9;
+    /* Reserve each font's descent below the tight line box so clipping long
+       headings does not erase Q's tail. Padding
+       leaves the cap-centred position and width fitting unchanged. */
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
 
   .rules-heading {
+    font-family: var(--card-font-name);
+    font-weight: var(--card-font-name-weight);
     /* Integer scroll widths can call a fractional overflow fitted, while the
        exported face replaces the last letters with an ellipsis. */
     box-sizing: border-box;
