@@ -1946,6 +1946,16 @@ not what a nav label currently calls it.
 
 ### Sharing and the gallery
 
+**Private popularity tracking.** `cloud/gallery-activity.ts` records public set and
+character views, plus successful project/PNG/TTS exports (including shared TTS
+saves and collection outputs), through migration `0048_private_gallery_metrics`.
+Daily aggregates are admin-readable only; no new counts enter public listings.
+The browser key rotates daily in IndexedDB; server receipts deduplicate parent
+sets across full/character publications. Public view labels and Most viewed are
+hidden, and the legacy view RPC is a no-op. See `PRIVATE_GALLERY_METRICS.md` for
+deployment, counting rules, limitations and month/year/all-time queries. This is
+separate from likes/comments and adds nothing to editable set documents.
+
 Account → Gallery card images includes an admin-only "Force refresh one set"
 control. Paste a share link (path or legacy hash form) or code, look it up, then
 refresh the named published row. `refreshPublishedCardPreviews(..., { force: true })`

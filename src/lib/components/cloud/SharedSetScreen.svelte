@@ -37,6 +37,8 @@
   import { listContributors } from '$lib/cloud/contributions';
   import type { Contributor } from '$lib/cloud/contributions';
   import { auth } from '$lib/cloud/auth.svelte';
+  import { recordGalleryExport, recordGalleryView } from '$lib/cloud/gallery-activity';
+  import type { GalleryExportActivity } from '$lib/cloud/gallery-activity';
   import {
     createSetComment,
     deleteSetComment,
@@ -84,6 +86,19 @@
   }
 
   let { slug, characterHint }: Props = $props();
+
+  const reportExport = $derived.by(() => {
+    const source = row;
+    return source ? (activity: GalleryExportActivity) => recordGalleryExport(source, activity) : undefined;
+  });
+
+  $effect(() => {
+    if (!row || !set || loading) return;
+    const hint = characterHint && set.characters.some((character) => character.id === characterHint) &&
+      scopeKeyOf(viewScope) === scopeKeyOf(scopeForPublishedView(row, set, characterHint))
+      ? characterHint : undefined;
+    recordGalleryView(row, viewScope, hint);
+  });
 
   /**
    * Whether to offer taking a copy.
@@ -1249,6 +1264,7 @@
               projectFileMode="copy"
               publishedSource={row ? { id: row.id, revision: row.revision } : null}
               prepareSet={prepareCurrentSet}
+              onexport={reportExport}
             />
             {#if portableProgress || portableError}
             <p class="panel-hint" aria-live="polite">

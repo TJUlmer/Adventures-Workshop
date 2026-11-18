@@ -70,6 +70,8 @@
     CollectionVisibility
   } from '$lib/cloud/collections';
   import { cloudEnabled } from '$lib/cloud/config';
+  import { recordGalleryExport } from '$lib/cloud/gallery-activity';
+  import type { GalleryExportActivity } from '$lib/cloud/gallery-activity';
   import type {
     CollectionDeck,
     CollectionInvite,
@@ -1288,6 +1290,27 @@
     return null;
   }
 
+  function completedCollectionExport(
+    decks: readonly CollectionDeck[],
+    format: GalleryExportActivity['format']
+  ): () => void {
+    const reports = decks.map((deck) => {
+      const character = deck.tile.scope === 'hero'
+        ? deck.set.characters.find((candidate) => candidate.role === 'hero')?.id : undefined;
+      return {
+        source: { ...deck.tile, character_id: character },
+        output: {
+          format,
+          scope: { kind: 'full' } as const,
+          customized: !!excludedExportCharacters.get(deck.tile.set_id)?.size
+        }
+      };
+    });
+    return () => {
+      for (const report of reports) recordGalleryExport(report.source, report.output);
+    };
+  }
+
   async function openExportSelector(): Promise<void> {
     if (boxProgress !== null) return;
     boxProgress = 'Fetching decks…';
@@ -1352,6 +1375,8 @@
       const decks = await loadSelectedBox();
       if (!decks) return;
 
+      const notify = completedCollectionExport(decks, 'png');
+
       const result = await exportCollectionCardPngs(
         decks.map((deck) => ({ author: deck.tile.author_name || 'Anonymous', set: deck.set })),
         collection.name || 'Collection',
@@ -1361,6 +1386,7 @@
         }
       );
       saveExport(result);
+      notify();
       notice = `Downloaded ${result.filename}.`;
     } catch (error) {
       notice = error instanceof Error ? error.message : 'That export did not finish.';
@@ -1389,6 +1415,8 @@
       const decks = await loadSelectedBox();
       if (!decks) return;
 
+      const notify = completedCollectionExport(decks, 'tts');
+
       if (!hostBoxOnline) void writeTtsSavedObjectsPath(boxPath);
 
       const hosting = hostBoxOnline
@@ -1406,6 +1434,7 @@
       );
 
       if (result.download) saveExport(result.download);
+      notify();
       notice = result.directory
         ? `Wrote ${result.fileCount} files to ${result.directory}.`
         : result.hosting === 'online'

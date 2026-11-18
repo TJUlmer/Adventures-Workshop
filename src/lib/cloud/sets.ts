@@ -1307,26 +1307,6 @@ export async function fetchParentSet(
   }
 }
 
-/**
- * Count a view, best-effort.
- *
- * Through an RPC because a reader has no write anywhere near this table, and
- * loosening that so a counter could move would be the widest hole in the
- * schema. Never throws: a number failing to go up is not worth showing anyone.
- */
-export async function recordSetView(slug: string): Promise<void> {
-  try {
-    await request('/rest/v1/rpc/record_set_view', {
-      method: 'POST',
-      body: { share_slug: slug },
-      // Anonymous like the read it accompanies — a view is a view.
-      anonymous: true
-    });
-  } catch {
-    // Counting is not the point of the page it happens on.
-  }
-}
-
 /** Report a set to whoever moderates the gallery. */
 export async function reportSet(setId: string, reason: string): Promise<void> {
   await request('/rest/v1/set_reports', {

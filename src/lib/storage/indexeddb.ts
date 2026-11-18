@@ -73,6 +73,33 @@ export async function idbGet<T>(store: string, key: string): Promise<T | null> {
   });
 }
 
+/** Read and replace in one transaction, so simultaneous tabs agree on a value. */
+export async function idbUpdate<T>(
+  store: string,
+  key: string,
+  update: (value: T | null) => T
+): Promise<T | null> {
+  const db = await open();
+  if (!db) return null;
+  return new Promise((resolve) => {
+    const tx = db.transaction(store, 'readwrite');
+    const records = tx.objectStore(store);
+    const request = records.get(key);
+    let result: T | null = null;
+    request.onsuccess = () => {
+      try {
+        result = update((request.result as T | undefined) ?? null);
+        records.put(result, key);
+      } catch {
+        tx.abort();
+      }
+    };
+    tx.oncomplete = () => resolve(result);
+    tx.onerror = () => resolve(null);
+    tx.onabort = () => resolve(null);
+  });
+}
+
 /** Every value in a store, in no particular order — callers that care sort it. */
 export async function idbGetAll<T>(store: string): Promise<T[]> {
   const db = await open();

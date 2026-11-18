@@ -162,7 +162,6 @@
         {#if row.subtitle}<span class="subtitle">{row.subtitle}</span>{/if}
         <span class="stats numeric">
           {row.card_count} cards · {row.character_count} characters
-          {#if row.view_count > 0}· {row.view_count} views{/if}
         </span>
         <span class="stats numeric">
           Updated {new Date(row.updated_at).toLocaleDateString()}

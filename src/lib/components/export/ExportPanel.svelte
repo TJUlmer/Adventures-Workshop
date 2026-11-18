@@ -22,6 +22,7 @@
     ttsSaveFilename
   } from '$lib/export';
   import { auth } from '$lib/cloud/auth.svelte';
+  import type { GalleryExportActivity } from '$lib/cloud/gallery-activity';
   import { cloudEnabled } from '$lib/cloud/config';
   import { createTtsAssetHost, fetchSharedTtsSave } from '$lib/cloud/tts-assets';
   import type { TtsPublishedSource } from '$lib/cloud/tts-assets';
@@ -69,6 +70,8 @@
      * needs a self-contained document.
      */
     prepareSet?: () => Promise<AdventureSet>;
+    /** Called only after an output succeeds; opening print sheets is not an export. */
+    onexport?: (activity: GalleryExportActivity) => void;
   }
 
   let {
@@ -77,7 +80,8 @@
     scope = $bindable({ kind: 'full' }),
     projectFileMode = 'backup',
     publishedSource = null,
-    prepareSet
+    prepareSet,
+    onexport
   }: Props = $props();
 
   /**
@@ -150,12 +154,26 @@
     return applyExportSelection(computeScopedSet(source, scope), selection);
   }
 
+  function completedExport(
+    format: GalleryExportActivity['format'],
+    callback: typeof onexport
+  ): () => void {
+    // Scope controls remain usable during rendering. Attribute the completed
+    // output to the selection and publication it actually started with.
+    const activity: GalleryExportActivity = { format, scope: { ...scope }, customized: selectionActive };
+    return () => {
+      try { callback?.(activity); } catch { /* Metrics never change the export result. */ }
+    };
+  }
+
   async function runExport(id: string): Promise<void> {
     const exporter = getExporter(id);
     if (!exporter) return;
+    const report = onexport;
     try {
       const prepared = await readySet();
       const preparedSelection = selectedFrom(prepared);
+      const notify = completedExport('project', report);
       const source =
         exporter.input === 'selected-content'
           ? preparedSelection
@@ -163,6 +181,7 @@
             ? makeIndependentSetCopy(preparedSelection)
             : prepared;
       saveExport(await exporter.run(source));
+      notify();
       flash(`Exported ${exportLabel(exporter)}.`);
     } catch (error) {
       flash(error instanceof Error ? error.message : 'Export failed.', 'error');
@@ -200,15 +219,18 @@
 
   async function exportPngs(): Promise<void> {
     if (pngProgress !== null) return;
+    const report = onexport;
     pngProgress = prepareSet ? 'Preparing artwork…' : 'Rendering…';
     try {
       const preparedSelection = selectedFrom(await readySet());
+      const notify = completedExport('png', report);
       pngProgress = 'Rendering…';
       const result = await exportCardPngs(preparedSelection, {
         bleed: pngBleed,
         onProgress: (done, total) => (pngProgress = `Rendering ${done} of ${total}…`)
       });
       saveExport(result);
+      notify();
       flash(`Exported ${result.filename}.`);
     } catch (error) {
       flash(error instanceof Error ? error.message : 'Export failed.', 'error');
@@ -283,6 +305,8 @@
     }
     ttsProgress = 'Preparing…';
     ttsResult = null;
+    const report = onexport;
+    let notify = completedExport('tts', report);
     try {
       const retainedPublishedSource =
         scope.kind === 'full' && !selectionActive ? publishedSource : null;
@@ -297,6 +321,7 @@
         if (shared) {
           const filename = ttsSaveFilename(finalSet);
           saveExport({ filename, mimeType: 'application/json', blob: shared.blob });
+          notify();
           ttsResult = {
             hosting: 'online',
             directory: null,
@@ -314,6 +339,7 @@
 
       ttsProgress = prepareSet ? 'Preparing artwork…' : 'Rendering…';
       const preparedSelection = selectedFrom(await readySet());
+      notify = completedExport('tts', report);
       ttsProgress = 'Rendering…';
 
       const hosting = hostTtsAssets
@@ -328,6 +354,7 @@
       });
 
       if (result.download) saveExport(result.download);
+      notify();
       ttsResult = {
         hosting: result.hosting,
         directory: result.directory,

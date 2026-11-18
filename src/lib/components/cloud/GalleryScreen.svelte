@@ -166,7 +166,6 @@
   const SORTS = [
     { value: 'newest' as const, label: 'Newest' },
     { value: 'liked' as const, label: 'Most liked' },
-    { value: 'popular' as const, label: 'Most viewed' },
     { value: 'name' as const, label: 'Name' }
   ];
 
@@ -717,7 +716,6 @@
 
                   <span class="stats numeric">
                     {set.card_count} cards · {set.character_count} characters
-                    {#if set.view_count > 0}· {set.view_count} views{/if}
                   </span>
                   <!--
                     Revision only once there is one. "rev 1" on every tile is
@@ -887,9 +885,6 @@
                     {/if}
                   </span>
 
-                  {#if character.view_count > 0}
-                    <span class="stats numeric">{character.view_count} views</span>
-                  {/if}
                 </span>
               </button>
 

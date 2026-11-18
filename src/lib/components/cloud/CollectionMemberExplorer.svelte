@@ -10,6 +10,7 @@
    */
   import AssetsOverview from '$lib/components/tools/AssetsOverview.svelte';
   import { usableCardPreviewVersion } from '$lib/cloud/card-previews';
+  import { recordGalleryView } from '$lib/cloud/gallery-activity';
   import type { CollectionTile } from '$lib/cloud/collections';
   import {
     fetchSetBySlug,
@@ -59,6 +60,14 @@
   let loadGeneration = 0;
   let memberLoadController: AbortController | null = null;
   let portablePromise: Promise<void> | null = null;
+
+  $effect(() => {
+    if (!row || !displaySet || opening) return;
+    const hint = characterId && displaySet.characters.some((character) => character.id === characterId) &&
+      scopeKeyOf(viewScope) === scopeKeyOf(initialScope(row, displaySet, characterId))
+      ? characterId : undefined;
+    recordGalleryView(row, viewScope, hint);
+  });
 
   /* Kept for this component's lifetime, so returning to a member during the
      same collection visit is instant. Revision is part of the key: a newly

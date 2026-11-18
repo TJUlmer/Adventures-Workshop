@@ -8,12 +8,30 @@
  * nothing to do with which sets exist or which one was open last, and a
  * reader of that file should not have to skim past them to find what does.
  */
-import { idbDelete, idbGet, idbPut, META_STORE } from './indexeddb';
+import { idbDelete, idbGet, idbPut, idbUpdate, META_STORE } from './indexeddb';
 
 const TTS_SAVED_OBJECTS_PATH_KEY = 'tts-saved-objects-path';
 const CLOUD_DRAFT_OPT_IN_PREFIX = 'cloud-draft-opt-in:';
 const BONUS_ABILITY_INK_PRESETS_KEY = 'bonus-ability-ink-presets';
 const MAP_WORKSPACE_WIDTHS_KEY = 'map-workspace-widths';
+const GALLERY_VISITOR_KEY = 'gallery-activity-visitor';
+
+let galleryVisitor: { day: string; key: Promise<string> } | null = null;
+
+/** One random browser key per UTC day; never an account or device identifier. */
+export function readGalleryVisitorKey(day: string): Promise<string> {
+  if (galleryVisitor?.day === day) return galleryVisitor.key;
+  const key = (async () => {
+    const saved = await idbUpdate<{ day: string; key: string }>(META_STORE, GALLERY_VISITOR_KEY, (current) => {
+      if (current?.day === day && typeof current.key === 'string' &&
+          /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(current.key)) return current;
+      return { day, key: crypto.randomUUID() };
+    });
+    return saved?.key ?? crypto.randomUUID();
+  })();
+  galleryVisitor = { day, key };
+  return key;
+}
 
 export interface MapWorkspaceWidths {
   sidebar: number;
