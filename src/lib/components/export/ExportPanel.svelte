@@ -473,7 +473,7 @@
             <span class="export-text">
               <span class="export-label">Download individual card PNGs</span>
               <span class="export-hint">
-                {pngProgress ?? 'One full-resolution image per card, organized by kind in a .zip.'}
+                {pngProgress ?? 'One full-resolution image per distinct card appearance, organized by kind in a .zip.'}
               </span>
             </span>
           </button>

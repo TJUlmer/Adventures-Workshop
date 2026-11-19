@@ -37,6 +37,7 @@ import type { CardImageOptions } from './card-image';
 
 export interface StageJob {
   card: Card | null;
+  copy?: number;
   /** Owning character, for the name ribbon. */
   character?: Character | null;
   /** Draw this character's deck back instead of a card. */
@@ -137,6 +138,7 @@ export async function withCardStage<T>(run: (photograph: Photograph) => Promise<
       target: slot,
       props: {
         card: job.card,
+        copy: job.copy,
         character: job.character ?? null,
         cardback: job.cardback ?? null,
         statCard: job.statCard ?? null,

@@ -1,11 +1,22 @@
 import type { CharacterId, HeroCharacterCardId } from '$lib/characters/types';
-import type { Artwork } from '$lib/core/artwork';
+import type { Artwork, ArtworkInit } from '$lib/core/artwork';
+import type { CustomSymbolId } from '$lib/symbols/types';
 import type { Id, IsoDateTime } from '$lib/core/id';
 import type { DeckId } from '$lib/decks/types';
 import type { CardStyleOverride, Fill } from './style';
 
 export type CardId = Id<'Card'>;
 export type CardArtworkLayerId = Id<'CardArtworkLayer'>;
+
+export const COPY_SYMBOL_SLOTS = ['ribbonSymbol', 'boostSymbol', 'cornerBadge'] as const;
+export type CopySymbolSlot = (typeof COPY_SYMBOL_SLOTS)[number];
+
+/** Only image inputs may differ; content and printed quantity stay on the card. */
+export interface CardCopyVisual {
+  copy: number;
+  artwork?: ArtworkInit;
+  symbols?: Partial<Record<CopySymbolSlot, CustomSymbolId>>;
+}
 
 /** Legacy v70 insertion points, retained only to repair saved documents. */
 export const CARD_ARTWORK_LAYER_PLACEMENTS = [
@@ -276,6 +287,7 @@ export interface CardArtworkLayer {
 /** A villain, minion or hero action card. */
 export interface ActionCard extends CardCommon {
   type: 'action';
+  copyVisuals: CardCopyVisual[];
   /** Optional full-card overlays used for border breaks and foreground details. */
   artworkLayers: CardArtworkLayer[];
   /** Every built-in and uploaded layer, ordered back-to-front. */

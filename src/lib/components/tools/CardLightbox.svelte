@@ -66,7 +66,7 @@
     event && side === 'back'
       ? 'Reverse'
       : item?.kind === 'card'
-        ? CARD_TYPE_META[item.card.type].label
+        ? item.meta || CARD_TYPE_META[item.card.type].label
         : item?.meta ?? ''
   );
 
@@ -205,6 +205,7 @@
                 {#if item.kind === 'card'}
                   <CardRenderer
                     card={deckReverse ? null : item.card}
+                    copy={item.copy}
                     cardback={deckReverse}
                     character={item.character}
                     theme={resolveStyleForCard(set, item.card)}

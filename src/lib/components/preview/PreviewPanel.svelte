@@ -38,6 +38,7 @@
    */
   const cardback = $derived(workshop.selectedCharacter);
   const card = $derived(cardback ? null : workshop.previewCard);
+  const selectedCopy = $derived(workshop.selection.target === 'card' ? workshop.selection.copy ?? 0 : 1);
 
   /**
    * A hero's character card(s), shown above its deck back.
@@ -91,7 +92,7 @@
   const meta = $derived(card ? CARD_TYPE_META[card.type] : null);
   const selectedArtworkLayer = $derived.by(() => {
     if (
-      card?.type !== 'action' ||
+      card?.type !== 'action' || selectedCopy > 0 ||
       cardArtworkLayerView.cardId !== card.id ||
       !cardArtworkLayerView.layerId
     ) {
@@ -111,12 +112,14 @@
       : null
   );
   const selectedMainArtworkTarget = $derived(
-    card?.type === 'action' ? { entity: 'card' as const, id: card.id } : null
+    card?.type === 'action' ? selectedCopy > 0
+      ? { entity: 'cardCopy' as const, id: card.id, copy: selectedCopy }
+      : { entity: 'card' as const, id: card.id } : null
   );
   const selectedMainArtwork = $derived(
     selectedMainArtworkTarget && artworkAdjustmentView.active(selectedMainArtworkTarget)
       ? card?.type === 'action'
-        ? card.artwork
+        ? workshop.artworkFor(selectedMainArtworkTarget)
         : null
       : null
   );
@@ -228,7 +231,7 @@
       Math.max(MIN_CARD_QUANTITY, Math.trunc(card.quantity) + delta)
     );
     if (next === card.quantity) return;
-    workshop.editCard(card.id, (candidate) => (candidate.quantity = next));
+    workshop.requestCardQuantity(card.id, next);
   }
 
   /**
@@ -247,7 +250,10 @@
     exportError = null;
     try {
       if (card) {
-        saveExport(await renderCardImage(plate, card, { bleed }));
+        const copy = selectedCopy;
+        const result = await renderCardImage(plate, card, { bleed });
+        if (copy > 0) result.filename = result.filename.replace(/\.png$/i, `-copy-${copy}.png`);
+        saveExport(result);
       } else if (statCard && format) {
         const label =
           (characterSlot?.kind === 'card' ? characterSlot.entry?.name.trim() : '') ||
@@ -373,10 +379,14 @@
     -->
     {#if card || characterSlot?.kind === 'cardback'}
       {#if statCard}<span class="face-label">Deck back</span>{/if}
+      {#if card?.type === 'action' && (selectedCopy > 0 || card.copyVisuals.length)}
+        <span class="face-label">{selectedCopy > 0 ? `Copy ${selectedCopy} of ${card.quantity}` : 'Shared card design'}</span>
+      {/if}
       <div class="card-slot" style:width="{zoom * 100}%" style:--zoom={zoom}>
         <div class="card-canvas">
           <CardRenderer
             {card}
+            copy={selectedCopy}
             {cardback}
             character={owner}
             {theme}
@@ -391,7 +401,7 @@
               showBleed={bleeding}
               {showGuides}
               disabled={Boolean(
-                selectedMainArtwork ||
+                selectedCopy > 0 || selectedMainArtwork ||
                   (selectedArtworkTarget && artworkAdjustmentView.active(selectedArtworkTarget))
               )}
             />

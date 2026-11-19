@@ -15,6 +15,7 @@
   import { stockTheme } from '$lib/cards/theme';
   import { cardLabel } from '$lib/cards/factory';
   import type { Card } from '$lib/cards/types';
+  import { resolveCardCopy } from '$lib/cards/copy-visuals';
   import { characterLabel } from '$lib/characters/factory';
   import type { Character, HeroCharacterCard } from '$lib/characters/types';
   import { hasArtwork } from '$lib/core/artwork';
@@ -33,6 +34,8 @@
 
   interface Props {
     card: Card | null;
+    /** One-based physical copy. Zero previews the shared design in the editor. */
+    copy?: number;
     /** Owning character, used for the name ribbon. */
     character?: Character | null;
     /**
@@ -64,7 +67,8 @@
   }
 
   let {
-    card,
+    card: sourceCard,
+    copy = 1,
     character = null,
     cardback = null,
     statCard = null,
@@ -75,6 +79,8 @@
     options,
     customSymbols = []
   }: Props = $props();
+
+  const card = $derived(sourceCard ? resolveCardCopy(sourceCard, copy) : null);
 
   const settings = $derived({ ...DEFAULT_RENDER_OPTIONS, ...options });
 

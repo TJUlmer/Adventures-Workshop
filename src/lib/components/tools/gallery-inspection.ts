@@ -18,6 +18,7 @@ interface GalleryCardItemBase {
 
 export interface GalleryPrintedCardItem extends GalleryCardItemBase {
   kind: 'card';
+  copy?: number;
   card: Card;
   character: Character | null;
 }

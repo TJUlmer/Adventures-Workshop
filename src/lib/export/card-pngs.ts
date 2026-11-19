@@ -7,6 +7,7 @@
  */
 import type { CardbackSubject } from '$lib/decks/types';
 import { cardLabel } from '$lib/cards/factory';
+import { appearanceCopyFor, cardAppearanceCopies, physicalCopies } from '$lib/cards/copy-visuals';
 import type { Card } from '$lib/cards/types';
 import { characterLabel } from '$lib/characters/factory';
 import type { Character, HeroCharacterCard } from '$lib/characters/types';
@@ -53,6 +54,7 @@ const FOLDERS = {
 } as const;
 
 export interface CardPngJob {
+  copy?: number;
   folder: string;
   name: string;
   card: Card | null;
@@ -203,7 +205,12 @@ export function planCardPngJobs(set: AdventureSet): CardPngJob[] {
     }
   }
 
-  return jobs;
+  return jobs.flatMap((job) => {
+    if (job.card?.type !== 'action') return [job];
+    const appearances = cardAppearanceCopies(job.card);
+    return appearances.map((copy) => ({ ...job, copy,
+      name: appearances.length > 1 ? `${job.name} copy ${copy}` : job.name }));
+  });
 }
 
 /**
@@ -226,6 +233,7 @@ export function cardPngRenderJob(
   return {
     stage: {
       card: job.card,
+      copy: job.copy,
       character: job.character,
       cardback: job.cardback,
       statCard: job.statCard ?? null,
@@ -347,6 +355,7 @@ function readme(title: string, options: CardPngOptions, folders: Set<string>): s
  * box so that names cannot collide and progress counts once.
  */
 interface PngRun {
+  copyNotes: string[];
   entries: ZipEntry[];
   taken: Set<string>;
   /* Collected as the export runs rather than predicted, so the guide can only
@@ -356,6 +365,10 @@ interface PngRun {
   folders: Set<string>;
   done: number;
   total: number;
+}
+
+function copyNotes(run: PngRun): string {
+  return run.copyNotes.length ? `\n\nVisual copy allocations\n-----------------------\n${run.copyNotes.join('\n')}\n` : '';
 }
 
 /**
@@ -390,10 +403,16 @@ async function photographJobs(
 
       if (blob) {
         run.folders.add(job.folder);
+        const path = uniquePath(run.taken, `${prefix}${job.folder}`, job.name);
         run.entries.push({
-          path: uniquePath(run.taken, `${prefix}${job.folder}`, job.name),
+          path,
           bytes: await toBytes(blob)
         });
+        if (job.card?.type === 'action' && job.card.copyVisuals.length) {
+          const card = job.card;
+          const copies = physicalCopies(card).filter((copy) => appearanceCopyFor(card, copy) === job.copy);
+          run.copyNotes.push(`${path}: physical ${copies.length === 1 ? 'copy' : 'copies'} ${copies.join(', ')} of ${card.quantity}; prints x${card.quantity}.`);
+        }
       }
 
       run.done += 1;
@@ -424,6 +443,7 @@ export async function exportCardPngs(
   const jobs = planCardPngJobs(set);
   const root = slugify(set.name, 'adventure-set');
   const run: PngRun = {
+    copyNotes: [],
     entries: [],
     taken: new Set<string>(),
     folders: new Set<string>(),
@@ -438,7 +458,7 @@ export async function exportCardPngs(
   const entries = run.entries;
   entries.push({
     path: 'README.txt',
-    bytes: new TextEncoder().encode(readme(set.name, options, run.folders))
+    bytes: new TextEncoder().encode(readme(set.name, options, run.folders) + copyNotes(run))
   });
 
   return {
@@ -506,6 +526,7 @@ export async function exportCollectionCardPngs(
 ): Promise<ExportResult> {
   const planned = members.map((member) => ({ member, jobs: planCardPngJobs(member.set) }));
   const run: PngRun = {
+    copyNotes: [],
     entries: [],
     taken: new Set<string>(),
     folders: new Set<string>(),
@@ -528,7 +549,7 @@ export async function exportCollectionCardPngs(
 
   run.entries.push({
     path: 'README.txt',
-    bytes: new TextEncoder().encode(boxReadme(members, name, options, run.folders))
+    bytes: new TextEncoder().encode(boxReadme(members, name, options, run.folders) + copyNotes(run))
   });
 
   return {

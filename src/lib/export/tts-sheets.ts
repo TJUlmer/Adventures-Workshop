@@ -13,6 +13,7 @@
  * has no reason to be as soft as a full deck of them.
  */
 import type { AdventureSet } from '$lib/sets/types';
+import { appearanceCopyFor } from '$lib/cards/copy-visuals';
 import { initiativeSubjectForCard, resolveStyleForCard } from '$lib/sets/queries';
 import { cardbackFormat } from '$lib/decks/factory';
 import { trimBox } from '$lib/renderer/geometry';
@@ -77,7 +78,7 @@ export function chooseGrid(count: number, aspect: number): SheetGrid {
 
 /** What makes two planned cards the same picture. */
 function designKey(planned: TtsCardPlan): string {
-  if (planned.card) return `card:${planned.card.id}:${planned.character?.id ?? ''}`;
+  if (planned.card) return `card:${planned.card.id}:${appearanceCopyFor(planned.card, planned.copy)}:${planned.character?.id ?? ''}`;
   return `stat:${planned.statCard?.id ?? ''}:${planned.statCardEntry?.id ?? ''}`;
 }
 
@@ -225,6 +226,7 @@ export async function renderDeckSheets(
          go through the style cascade at all. */
       const job = {
         card: planned.card,
+        copy: planned.copy,
         character: planned.character,
         statCard: planned.statCard ?? null,
         statCardEntry: planned.statCardEntry ?? null,

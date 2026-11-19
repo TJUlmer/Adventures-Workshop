@@ -12,6 +12,7 @@
  */
 import {
   CARD_OWNERS,
+  COPY_SYMBOL_SLOTS,
   CARD_ARTWORK_LAYER_PLACEMENTS,
   CARD_FIXED_LAYERS,
   COMBAT_SYMBOLS,
@@ -53,6 +54,7 @@ import {
 } from '$lib/map/types';
 import type {
   ActionCard,
+  CardCopyVisual,
   BonusAbility,
   Card,
   CardArtworkLayer,
@@ -231,6 +233,45 @@ function artwork(value: unknown): Artwork {
     adjustments: asRecord(raw['adjustments']),
     effects: asRecord(raw['effects'])
   });
+}
+
+function cardCopyVisuals(value: unknown, quantity: number): CardCopyVisual[] {
+  if (!Array.isArray(value)) return [];
+  const copies = new Map<number, CardCopyVisual>();
+  for (const entry of value) {
+    const raw = asRecord(entry);
+    const copy = num(raw['copy'], 0);
+    if (!Number.isInteger(copy) || copy < 1 || copy > Math.max(1, Math.trunc(quantity)) || copies.has(copy)) continue;
+    const visual: CardCopyVisual = { copy };
+    const art = asRecord(raw['artwork']);
+    const clean = artwork(art);
+    const override: NonNullable<CardCopyVisual['artwork']> = {};
+    if (typeof art['source'] === 'string' || art['source'] === null) override.source = clean.source;
+    if (typeof art['label'] === 'string') override.label = clean.label;
+    for (const group of ['crop', 'transform', 'adjustments', 'effects'] as const) {
+      const incoming = asRecord(art[group]);
+      const defaults = asRecord(createArtwork()[group]);
+      const normalized = asRecord(clean[group]);
+      const part: Record<string, unknown> = {};
+      for (const key of Object.keys(defaults)) {
+        const candidate = incoming[key];
+        if (typeof candidate !== typeof defaults[key]) continue;
+        if (typeof candidate === 'number' && !Number.isFinite(candidate)) continue;
+        part[key] = normalized[key];
+      }
+      if (Object.keys(part).length) Object.assign(override, { [group]: part });
+    }
+    if (Object.keys(override).length) visual.artwork = override;
+    const symbols = asRecord(raw['symbols']);
+    for (const slot of COPY_SYMBOL_SLOTS) {
+      if (typeof symbols[slot] === 'string' && symbols[slot].trim()) {
+        visual.symbols ??= {};
+        visual.symbols[slot] = symbols[slot] as CustomSymbolId;
+      }
+    }
+    if (visual.artwork || visual.symbols) copies.set(copy, visual);
+  }
+  return [...copies.values()].sort((a, b) => a.copy - b.copy);
 }
 
 /** `null` is a valid, meaningful value here — see `ActionCard.symbol`. */
@@ -1003,6 +1044,7 @@ function normalizeCard(value: unknown): Card | null {
       return {
         ...common,
         type: 'action',
+        copyVisuals: cardCopyVisuals(raw['copyVisuals'], common.quantity),
         ...artworkState,
         title: str(raw['title']),
         attack: nullableNum(raw['attack'], 2),

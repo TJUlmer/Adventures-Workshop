@@ -5,6 +5,7 @@ import { INITIATIVE_BAND_DEFAULTS } from '$lib/renderer/geometry';
 import { actionTextToPlain } from '$lib/text/action-text';
 import { SUBJECT_TOKEN } from '$lib/text/tokens';
 import { solid } from './style';
+import { cloneCopyVisuals } from './copy-visuals';
 import type {
   Card,
   CardArtworkLayer,
@@ -118,6 +119,7 @@ export function createCard<TType extends CardType>(
       return {
         ...common,
         type: 'action',
+        copyVisuals: [],
         artworkLayers: [],
         layerOrder: [...DEFAULT_CARD_LAYER_ORDER],
         title: '',
@@ -193,6 +195,7 @@ export function duplicateCard(card: Card): Card {
     copy.backReplacement = cloneArtwork(copy.backReplacement);
   }
   if (copy.type === 'action') {
+    copy.copyVisuals = cloneCopyVisuals(copy.copyVisuals);
     const copiedLayerIds = new Map<CardArtworkLayerId, CardArtworkLayerId>();
     copy.artworkLayers = copy.artworkLayers.map((layer) => {
       const id = createId<CardArtworkLayerId>('cardartlayer');

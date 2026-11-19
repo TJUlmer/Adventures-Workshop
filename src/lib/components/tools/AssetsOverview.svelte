@@ -17,6 +17,7 @@
    */
   import { tick } from 'svelte';
   import { cardLabel } from '$lib/cards/factory';
+  import { cardAppearanceCopies, physicalCopyCount } from '$lib/cards/copy-visuals';
   import type { Card } from '$lib/cards/types';
   import { CARD_TYPE_META, INITIATIVE_VARIANTS } from '$lib/cards/types';
   import { characterLabel } from '$lib/characters/factory';
@@ -31,7 +32,7 @@
     cardPreviewUrl,
     characterCardPreviewKey,
     deckBackPreviewKey,
-    printedCardPreviewKey
+    cardCopyPreviewKey
   } from '$lib/cloud/card-previews';
   import type { CardPreviewManifest } from '$lib/cloud/card-previews';
   import { renderMeshSnapshot } from '$lib/models/snapshot';
@@ -301,7 +302,7 @@
 
   /** How many tiles each design is drawn as: its physical copies, or once. */
   function copiesShown(card: Card): number {
-    return showAllCopies ? Math.max(1, card.quantity) : 1;
+    return showAllCopies ? physicalCopyCount(card) : 1;
   }
 
   function renderedCardCount(cards: readonly Card[]): number {
@@ -502,16 +503,17 @@
       previews: { front: publishedPreview(key) || undefined } }], key, deckLabel(deck));
   }
 
-  function cardItem(group: Group, card: Card): GalleryCardItem {
-    const front = publishedPreview(printedCardPreviewKey(card.id, 'front'));
+  function cardItem(group: Group, card: Card, copy = 1): GalleryCardItem {
+    const front = publishedPreview(cardCopyPreviewKey(card, 'front', copy));
     const back =
-      card.type === 'event' ? publishedPreview(reverseForCard(card) ? deckBackPreviewKey(card.deckId) : printedCardPreviewKey(card.id, 'back')) : '';
+      card.type === 'event' ? publishedPreview(reverseForCard(card) ? deckBackPreviewKey(card.deckId) : cardCopyPreviewKey(card, 'back', copy)) : '';
     return {
       kind: 'card',
-      key: card.id,
+      key: `${card.id}:copy:${copy}`,
       label: cardLabel(card),
-      meta: CARD_TYPE_META[card.type].label,
+      meta: `${CARD_TYPE_META[card.type].label}${showAllCopies ? ` · Copy ${copy} of ${physicalCopyCount(card)}` : ''}`,
       card,
+      copy,
       character: group.owner,
       previews: { ...(front ? { front } : {}), ...(back ? { back } : {}) }
     };
@@ -563,8 +565,9 @@
     }
   }
 
-  function openGroupCard(group: Group, card: Card, side: GalleryCardSide): void {
-    openCards(group.cards.map((entry) => cardItem(group, entry)), card.id, group.title, side);
+  function openGroupCard(group: Group, card: Card, side: GalleryCardSide, copy = 1): void {
+    const items = group.cards.flatMap((entry) => Array.from({ length: copiesShown(entry) }, (_, index) => cardItem(group, entry, index + 1)));
+    openCards(items, `${card.id}:copy:${copy}`, group.title, side);
   }
 
   function openIdentity(character: Character, key: string): void {
@@ -815,10 +818,11 @@
         {#each group.cards as card (card.id)}
           {@const sides = card.type === 'event' ? EVENT_SIDES : FRONT_ONLY}
           {@const copies = copiesShown(card)}
+          {@const appearances = cardAppearanceCopies(card).length}
           {#each Array.from({ length: copies }, (_, index) => index) as copy (copy)}
           {#each sides as side (side)}
             {@const reverse = side === 'back' ? reverseForCard(card) : null}
-            {@const previewSrc = publishedPreview(reverse ? deckBackPreviewKey(card.deckId) : printedCardPreviewKey(card.id, side))}
+            {@const previewSrc = publishedPreview(reverse ? deckBackPreviewKey(card.deckId) : cardCopyPreviewKey(card, side, copy + 1))}
             <figure class="tile">
               <svelte:element
                 this={previewTile}
@@ -830,9 +834,9 @@
                   ? `${interactive ? 'Edit' : 'View'} ${cardLabel(card)}${side === 'back' ? ', reverse' : ''}${copies > 1 ? `, copy ${copy + 1} of ${copies}` : ''}`
                   : undefined}
                 onclick={interactive
-                  ? () => workshop.selectCard(card.id)
+                  ? () => workshop.selectCard(card.id, showAllCopies && card.type === 'action' ? copy + 1 : 0)
                   : inspectable
-                    ? () => openGroupCard(group, card, side)
+                    ? () => openGroupCard(group, card, side, copy + 1)
                     : undefined}
               >
                 {#if previewSrc}
@@ -855,6 +859,7 @@
                   <svelte:boundary onerror={(error) => report(`Card “${cardLabel(card)}”`, error)}>
                     <CardRenderer
                       card={reverse ? null : card}
+                      copy={copy + 1}
                       cardback={reverse}
                       character={group.owner}
                       theme={resolveStyleForCard(set, card)}
@@ -877,6 +882,8 @@
                   {side === 'back' ? 'Reverse' : CARD_TYPE_META[card.type].label}
                   <!-- Each tile is already one physical card when every copy is laid out. -->
                   {#if !showAllCopies && card.quantity > 1}<span class="numeric">×{card.quantity}</span>{/if}
+                  {#if showAllCopies}<span>Copy {copy + 1} of {copies}</span>
+                  {:else if appearances > 1}<span>{appearances} appearances</span>{/if}
                 </span>
               </figcaption>
             </figure>

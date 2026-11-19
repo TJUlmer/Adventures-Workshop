@@ -2,10 +2,10 @@
   /**
    * The card editor panel.
    *
-   * Two tabs, not one long scroll: Content is what you edit on every card,
+   * Content is what you edit on every card,
    * Design is what you touch once and then leave alone. Splitting them keeps
    * the common path short and stops the colour controls from burying the
-   * ability text.
+   * ability text. Action cards also expose Copies for visual-only overrides.
    *
    * The header is the card's identity and its two destructive-ish actions,
    * nothing else — the preview panel is where the eye should go.
@@ -36,6 +36,7 @@
   import { workshop } from '$lib/state/workshop.svelte';
   import { Button, ConfirmAction, Field, FillEditor, Icon, Section, Select, Tabs } from '$lib/ui';
   import ActionCardContent from './ActionCardContent.svelte';
+  import CardCopiesPanel from './CardCopiesPanel.svelte';
   import ArtworkLayersPanel from './ArtworkLayersPanel.svelte';
   import ArtworkPanel from './ArtworkPanel.svelte';
   import InitiativeBandsPanel from './InitiativeBandsPanel.svelte';
@@ -44,7 +45,7 @@
   import RulesCardContent from './RulesCardContent.svelte';
   import StylePanel from './StylePanel.svelte';
 
-  type Tab = 'content' | 'design';
+  type Tab = 'content' | 'design' | 'copies';
 
   const SURFACES: Partial<Record<Card['type'], readonly (keyof CardTheme)[]>> = {
     action: ACTION_SURFACES,
@@ -78,6 +79,16 @@
   let borderBreaksVisible = $state(false);
   let borderBreaksCardId = $state<CardId | null>(null);
 
+  const selectedCopy = $derived(workshop.selection.target === 'card' ? workshop.selection.copy ?? 0 : 0);
+  $effect(() => {
+    if (card?.type === 'action' && selectedCopy > 0) tab = 'copies';
+    else if (tab === 'copies') tab = 'content';
+  });
+  function changeTab(next: Tab): void {
+    tab = next;
+    if (card) workshop.selectCard(card.id, next === 'copies' ? selectedCopy || 1 : 0);
+  }
+
   $effect(() => {
     const nextId = card?.id ?? null;
     if (nextId === borderBreaksCardId) return;
@@ -92,6 +103,7 @@
     if (request.address.cardId !== card?.id) return;
     handledTargetRevision = request.revision;
 
+    if (selectedCopy > 0 && card) workshop.selectCard(card.id);
     tab = 'content';
     void tick().then(async () => {
       await tick();
@@ -130,7 +142,8 @@
 
   const tabs = $derived([
     { value: 'content' as const, label: 'Content' },
-    { value: 'design' as const, label: 'Design', badge: overrideCount }
+    { value: 'design' as const, label: 'Design', badge: overrideCount },
+    ...(card?.type === 'action' ? [{ value: 'copies' as const, label: 'Copies', badge: card.quantity }] : [])
   ]);
 
   function originFor(key: keyof CardTheme): string {
@@ -193,11 +206,13 @@
   </header>
 
   <div class="tabs">
-    <Tabs bind:value={tab} {tabs} label="Card editor sections" />
+    <Tabs bind:value={() => tab, changeTab} {tabs} label="Card editor sections" />
   </div>
 
   <div class="body scroll-y" bind:this={body}>
-    {#if tab === 'content'}
+    {#if tab === 'copies'}
+      <CardCopiesPanel />
+    {:else if tab === 'content'}
       {#if card.type === 'action'}
         <ActionCardContent {card} />
       {:else if card.type === 'initiative'}

@@ -11,7 +11,7 @@ export type Selection =
   | { readonly target: 'set' }
   | { readonly target: 'character'; readonly id: CharacterId }
   | { readonly target: 'deck'; readonly id: DeckId }
-  | { readonly target: 'card'; readonly id: CardId };
+  | { readonly target: 'card'; readonly id: CardId; readonly copy?: number };
 
 export const SET_SELECTION: Selection = { target: 'set' };
 

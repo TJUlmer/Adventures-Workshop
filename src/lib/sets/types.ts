@@ -505,7 +505,8 @@ export type SetId = Id<'Set'>;
  * a version newer than this build understands is refused.
  */
 /** v78 — decks gained sparse card-back and card-style overrides. */
-export const SET_SCHEMA_VERSION = 78;
+/** v79 preserves per-copy action-card visuals; older editors would discard them. */
+export const SET_SCHEMA_VERSION = 79;
 
 /**
  * What a set is for.

@@ -13,6 +13,7 @@
  */
 import type { CardbackSubject } from '$lib/decks/types';
 import { cardLabel } from '$lib/cards/factory';
+import { cardAppearanceCopies, physicalCopies } from '$lib/cards/copy-visuals';
 import type { CardTheme } from '$lib/cards/style';
 import type { Card } from '$lib/cards/types';
 import { characterLabel } from '$lib/characters/factory';
@@ -32,6 +33,7 @@ import type { PageGrid, Paper } from './paper';
 
 /** One printed card, in the shape `CardRenderer` wants. */
 export interface PrintItem {
+  copy?: number;
   key: string;
   /** For the screen-only page heading, never printed on the card. */
   label: string;
@@ -268,11 +270,12 @@ function planPairings(
   for (const entry of [...view.heroes, ...view.villains, ...view.minions, ...view.others]) {
     for (const deck of entry.decks) {
       for (const card of deck.cards) {
-        add(
-          sizeFor(card),
-          pairingFor(card, entry.character),
-          options.useQuantities ? card.quantity : 1
-        );
+        for (const copy of options.useQuantities ? physicalCopies(card) : cardAppearanceCopies(card)) {
+          const pairing = pairingFor(card, entry.character);
+          pairing.front = { ...pairing.front, copy, key: `${pairing.front.key}:copy:${copy}` };
+          if (pairing.back) pairing.back = { ...pairing.back, copy, key: `${pairing.back.key}:copy:${copy}` };
+          add(sizeFor(card), pairing, 1);
+        }
       }
     }
 
@@ -296,7 +299,12 @@ function planPairings(
     for (const entry of entries) {
       for (const card of entry.cards) {
         const character = characterForCard(set, card);
-        add(sizeFor(card), pairingFor(card, character), options.useQuantities ? card.quantity : 1);
+        for (const copy of options.useQuantities ? physicalCopies(card) : cardAppearanceCopies(card)) {
+          const pairing = pairingFor(card, character);
+          pairing.front = { ...pairing.front, copy, key: `${pairing.front.key}:copy:${copy}` };
+          if (pairing.back) pairing.back = { ...pairing.back, copy, key: `${pairing.back.key}:copy:${copy}` };
+          add(sizeFor(card), pairing, 1);
+        }
       }
     }
   }

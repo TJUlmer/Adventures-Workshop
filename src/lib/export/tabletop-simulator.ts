@@ -27,6 +27,7 @@
  * `exports-folder.ts` for where they get one.
  */
 import { cardLabel } from '$lib/cards/factory';
+import { physicalCopies } from '$lib/cards/copy-visuals';
 import type { Card, CardType } from '$lib/cards/types';
 import { CARD_TYPE_META } from '$lib/cards/types';
 import { characterLabel } from '$lib/characters/factory';
@@ -69,6 +70,7 @@ export type TtsBack =
   | { readonly kind: 'plain' };
 
 export interface TtsCardPlan {
+  readonly copy?: number;
   /**
    * The card to draw, or `null` for a face that is not one.
    *
@@ -104,7 +106,7 @@ export interface TtsDeckPlan {
  */
 function expand(cards: readonly Card[], character: Character | null): TtsCardPlan[] {
   return cards.flatMap((card) =>
-    Array.from({ length: Math.max(1, card.quantity) }, () => ({ card, character }))
+    physicalCopies(card).map((copy) => ({ card, character, copy }))
   );
 }
 
@@ -459,6 +461,7 @@ function gmNotes(plan: TtsCardPlan): string {
 
   return JSON.stringify({
     cardId: plan.card.id,
+    copy: plan.copy ?? 1,
     cardType: plan.card.type,
     characterId: plan.character?.id ?? null
   });

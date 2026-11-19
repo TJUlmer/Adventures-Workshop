@@ -31,6 +31,9 @@ import {
 } from '$lib/cards/factory';
 import type { CardStyleOverride, CardTheme } from '$lib/cards/style';
 import { stockTheme } from '$lib/cards/theme';
+import { copySymbolAvailable, mergeCopyArtwork, physicalCopyCount } from '$lib/cards/copy-visuals';
+import type { CardCopyVisual, CopySymbolSlot } from '$lib/cards/types';
+import type { ArtworkInit } from '$lib/core/artwork';
 import type {
   Card,
   CardArtworkLayerId,
@@ -155,6 +158,7 @@ function deckAcceptsCardType(deck: Deck, type: CardType): boolean {
 /** Addresses an entity that owns artwork. */
 export type EntityRef =
   | { readonly entity: 'card'; readonly id: CardId }
+  | { readonly entity: 'cardCopy'; readonly id: CardId; readonly copy: number }
   | {
       readonly entity: 'cardArtworkLayer';
       readonly id: CardId;
@@ -199,6 +203,7 @@ export class WorkshopStore {
   mapEditingId = $state<AdventureMapId | null>(null);
 
   selection = $state<Selection>(SET_SELECTION);
+  copyQuantityRequest = $state<{ cardId: CardId; quantity: number } | null>(null);
 
   /** When the document last reached durable storage. `null` = never saved. */
   savedAt = $state<IsoDateTime | null>(null);
@@ -753,6 +758,7 @@ export class WorkshopStore {
 
   load(set: AdventureSet): void {
     this.adventure = set;
+    this.copyQuantityRequest = null;
     this.selection = SET_SELECTION;
     this.mapEditingId = set.maps[0]?.id ?? null;
     this.syncSingleHeroName();
@@ -949,8 +955,8 @@ export class WorkshopStore {
     navigation.go('editor');
   }
 
-  selectCard(id: CardId): void {
-    this.selection = { target: 'card', id };
+  selectCard(id: CardId, copy = 0): void {
+    this.selection = { target: 'card', id, ...(copy > 0 ? { copy } : {}) };
     navigation.go('editor');
   }
 
@@ -1604,6 +1610,93 @@ export class WorkshopStore {
 
   // -- Artwork ----------------------------------------------------------
 
+  private copyVisual(id: CardId, copy: number, create = false): CardCopyVisual | null {
+    const card = findCard(this.adventure, id);
+    if (card?.type !== 'action' || !Number.isInteger(copy) || copy < 1 || copy > physicalCopyCount(card)) return null;
+    let visual = card.copyVisuals.find((entry) => entry.copy === copy);
+    if (!visual && create) {
+      visual = { copy };
+      card.copyVisuals.push(visual);
+    }
+    return visual ?? null;
+  }
+
+  private pruneCopyVisual(id: CardId): void {
+    const card = findCard(this.adventure, id);
+    if (card?.type !== 'action') return;
+    for (const visual of card.copyVisuals) {
+      if (visual.artwork && !Object.keys(visual.artwork).length) delete visual.artwork;
+      if (visual.symbols && !Object.keys(visual.symbols).length) delete visual.symbols;
+    }
+    card.copyVisuals = card.copyVisuals.filter((visual) =>
+      !!(visual.artwork && Object.keys(visual.artwork).length) ||
+      !!(visual.symbols && Object.keys(visual.symbols).length)).sort((a, b) => a.copy - b.copy);
+    card.updatedAt = now();
+    this.touch();
+  }
+
+  private patchCopyArtwork(ref: Extract<EntityRef, { entity: 'cardCopy' }>, patch: ArtworkInit): void {
+    const visual = this.copyVisual(ref.id, ref.copy, true);
+    if (!visual) return;
+    const previous = visual.artwork ?? {};
+    visual.artwork = { ...previous, ...patch };
+    for (const group of ['crop', 'transform', 'adjustments', 'effects'] as const) {
+      if (patch[group]) Object.assign(visual.artwork, { [group]: { ...previous[group], ...patch[group] } });
+    }
+    this.pruneCopyVisual(ref.id);
+  }
+
+  resetCopyVisual(id: CardId, copy: number, part: 'artwork' | 'all' = 'all'): void {
+    const visual = this.copyVisual(id, copy);
+    if (!visual) return;
+    delete visual.artwork;
+    if (part === 'all') delete visual.symbols;
+    this.pruneCopyVisual(id);
+  }
+
+  setCopySymbol(id: CardId, copy: number, slot: CopySymbolSlot, symbol: CustomSymbolId | null): void {
+    const card = findCard(this.adventure, id);
+    if (card?.type !== 'action' || (symbol && !copySymbolAvailable(card, slot))) return;
+    const visual = this.copyVisual(id, copy, symbol !== null);
+    if (!visual) return;
+    visual.symbols ??= {};
+    if (symbol) visual.symbols[slot] = symbol;
+    else delete visual.symbols[slot];
+    this.pruneCopyVisual(id);
+  }
+
+  /** A reduction that removes custom visuals needs an explicit keep selection. */
+  setCardQuantity(id: CardId, quantity: number, keep?: readonly number[]): boolean {
+    const card = findCard(this.adventure, id);
+    if (!card || !Number.isFinite(quantity)) return false;
+    quantity = Math.max(1, Math.trunc(quantity));
+    const count = physicalCopyCount(card);
+    if (card.type === 'action') {
+      if (quantity < count && !keep && card.copyVisuals.some((visual) => visual.copy > quantity)) return false;
+      const retained = keep ?? Array.from({ length: Math.min(count, quantity) }, (_, index) => index + 1);
+      if (keep && (quantity >= count || retained.length !== quantity || new Set(retained).size !== quantity ||
+          retained.some((copy) => !Number.isInteger(copy) || copy < 1 || copy > count))) return false;
+      card.copyVisuals = card.copyVisuals.flatMap((visual) => {
+        const index = retained.indexOf(visual.copy);
+        return index < 0 ? [] : [{ ...visual, copy: index + 1 }];
+      });
+      if (this.selection.target === 'card' && this.selection.id === id && this.selection.copy) {
+        const index = retained.indexOf(this.selection.copy);
+        this.selection = { target: 'card', id, ...(index >= 0 ? { copy: index + 1 } : {}) };
+      }
+    }
+    card.quantity = quantity;
+    card.updatedAt = now();
+    this.touch();
+    return true;
+  }
+
+  requestCardQuantity(id: CardId, quantity: number): void {
+    if (this.setCardQuantity(id, quantity)) return;
+    this.copyQuantityRequest = { cardId: id, quantity };
+    this.selectCard(id);
+  }
+
   /**
    * The character-card design a character or one of its `additionalCards`
    * owns — `cardId` absent means the primary's own, present means that
@@ -1619,6 +1712,11 @@ export class WorkshopStore {
 
   /** The artwork block a ref points at, or `null` if the ref is stale. */
   artworkFor(ref: EntityRef): Artwork | null {
+    if (ref.entity === 'cardCopy') {
+      const card = findCard(this.adventure, ref.id);
+      if (card?.type !== 'action' || !Number.isInteger(ref.copy) || ref.copy < 1 || ref.copy > physicalCopyCount(card)) return null;
+      return mergeCopyArtwork(card.artwork, this.copyVisual(ref.id, ref.copy)?.artwork);
+    }
     if (ref.entity === 'threat') return this.adventure.threat.background;
     if (ref.entity === 'cardArtworkLayer') {
       const card = findCard(this.adventure, ref.id);
@@ -1678,6 +1776,11 @@ export class WorkshopStore {
 
   /** Attach a local image. Passing `null` detaches it and resets placement. */
   setArtworkSource(ref: EntityRef, source: string | null, label = ''): void {
+    if (ref.entity === 'cardCopy') {
+      this.patchCopyArtwork(ref, { source, label: source === null ? '' : label,
+        crop: { ...FULL_CROP }, transform: { ...DEFAULT_TRANSFORM } });
+      return;
+    }
     const artwork = this.artworkFor(ref);
     if (!artwork) return;
     artwork.source = source;
@@ -1688,6 +1791,7 @@ export class WorkshopStore {
   }
 
   setCrop(ref: EntityRef, patch: Partial<CropRect>): void {
+    if (ref.entity === 'cardCopy') { this.patchCopyArtwork(ref, { crop: patch }); return; }
     const artwork = this.artworkFor(ref);
     if (!artwork) return;
     artwork.crop = { ...artwork.crop, ...patch };
@@ -1695,6 +1799,7 @@ export class WorkshopStore {
   }
 
   setTransform(ref: EntityRef, patch: Partial<ArtTransform>): void {
+    if (ref.entity === 'cardCopy') { this.patchCopyArtwork(ref, { transform: patch }); return; }
     const artwork = this.artworkFor(ref);
     if (!artwork) return;
     artwork.transform = { ...artwork.transform, ...patch };
@@ -1702,6 +1807,7 @@ export class WorkshopStore {
   }
 
   setAdjustments(ref: EntityRef, patch: Partial<ArtAdjustments>): void {
+    if (ref.entity === 'cardCopy') { this.patchCopyArtwork(ref, { adjustments: patch }); return; }
     const artwork = this.artworkFor(ref);
     if (!artwork) return;
     artwork.adjustments = { ...artwork.adjustments, ...patch };
@@ -1709,6 +1815,7 @@ export class WorkshopStore {
   }
 
   setEffects(ref: EntityRef, patch: Partial<ArtEffects>): void {
+    if (ref.entity === 'cardCopy') { this.patchCopyArtwork(ref, { effects: patch }); return; }
     const artwork = this.artworkFor(ref);
     if (!artwork) return;
     artwork.effects = { ...artwork.effects, ...patch };
@@ -1717,6 +1824,12 @@ export class WorkshopStore {
 
   /** Reset one aspect of the artwork without disturbing the others. */
   resetArtwork(ref: EntityRef, part: 'crop' | 'transform' | 'adjustments' | 'effects'): void {
+    if (ref.entity === 'cardCopy') {
+      const visual = this.copyVisual(ref.id, ref.copy);
+      if (visual?.artwork) delete visual.artwork[part];
+      this.pruneCopyVisual(ref.id);
+      return;
+    }
     const artwork = this.artworkFor(ref);
     if (!artwork) return;
     switch (part) {
@@ -1750,6 +1863,7 @@ export class WorkshopStore {
     if (
       target.entity === 'threat' ||
       target.entity === 'figure' ||
+      target.entity === 'cardCopy' ||
       target.entity === 'cardArtworkLayer'
     ) {
       return null;

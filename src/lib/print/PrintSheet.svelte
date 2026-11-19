@@ -99,6 +99,7 @@
                symbol id means something only inside the set it came from. -->
           <CardRenderer
             card={cell.card}
+            copy={cell.copy}
             character={cell.character}
             cardback={cell.cardback}
             statCard={cell.statCard ?? null}

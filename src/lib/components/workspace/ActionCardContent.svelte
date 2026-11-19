@@ -35,6 +35,7 @@
   import { customSymbolToken, symbolToken } from '$lib/text/tokens';
   import { CARD_EDIT_MARKERS } from '$lib/cards/edit-targets';
   import { workshop } from '$lib/state/workshop.svelte';
+  import CardQuantityField from './CardQuantityField.svelte';
   import {
     Button,
     Field,
@@ -264,14 +265,7 @@
     <p class="hint">Symbols grow from their centre. Add spaces before or after the name to leave more room.</p>
   </div>
 
-  <Field label="Copies in deck">
-    <NumberInput
-      value={card.quantity}
-      min={1}
-      max={20}
-      onchange={(quantity) => edit((target) => (target.quantity = quantity))}
-    />
-  </Field>
+  <CardQuantityField />
 
   <Field label="Deck">
     <Select

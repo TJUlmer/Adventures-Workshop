@@ -10,9 +10,11 @@ import { cardPngRenderJob, planCardPngJobs } from '$lib/export/card-pngs';
 import type { CardPngJob } from '$lib/export/card-pngs';
 import { hashEntity } from '$lib/sets/fingerprint';
 import type { AdventureSet } from '$lib/sets/types';
+import { appearanceCopyFor, resolveCardCopy } from '$lib/cards/copy-visuals';
+import type { Card } from '$lib/cards/types';
 
 /** Bump whenever the renderer or stored image format changes. */
-export const CARD_PREVIEW_RENDERER_VERSION = 14;
+export const CARD_PREVIEW_RENDERER_VERSION = 15;
 
 /**
  * Width of a stored gallery card face, in pixels.
@@ -52,8 +54,12 @@ export interface CardPreviewRenderResult {
   total: number;
 }
 
-export function printedCardPreviewKey(cardId: string, side: CardPreviewSide = 'front'): string {
-  return `card:${cardId}:${side}`;
+export function printedCardPreviewKey(cardId: string, side: CardPreviewSide = 'front', copy = 1): string {
+  return copy > 1 ? `card:${cardId}:copy:${copy}:${side}` : `card:${cardId}:${side}`;
+}
+
+export function cardCopyPreviewKey(card: Card, side: CardPreviewSide = 'front', copy = 1): string {
+  return printedCardPreviewKey(card.id, side, appearanceCopyFor(card, copy));
 }
 
 export function deckBackPreviewKey(characterId: string): string {
@@ -71,7 +77,7 @@ export function cardPreviewUrl(manifest: CardPreviewManifest | null | undefined,
 }
 
 function previewKey(job: CardPngJob): string {
-  if (job.card) return printedCardPreviewKey(job.card.id, job.side ?? 'front');
+  if (job.card) return printedCardPreviewKey(job.card.id, job.side ?? 'front', job.copy);
   if (job.cardback) return deckBackPreviewKey(job.cardback.id);
   if (job.statCard) return characterCardPreviewKey(job.statCardEntry?.id ?? job.statCard.id);
   throw new Error(`The card PNG job “${job.name}” has no publishable face.`);
@@ -105,9 +111,14 @@ function renderFingerprint(
   cache: WeakMap<object, string>
 ): string {
   const renderJob = cardPngRenderJob(set, job);
+  const resolved = job.card ? resolveCardCopy(job.card, job.copy) : null;
+  // Sibling copy images are not inputs to this face. Including them would
+  // re-render every appearance when only one copy's picture changes.
+  const face = resolved?.type === 'action' ? { ...resolved, copyVisuals: [], updatedAt: null } : resolved;
   return hashEntity({
     stage: {
-      card: dependencyFingerprint(renderJob.stage.card, cache),
+      card: dependencyFingerprint(face, cache),
+      copy: renderJob.stage.copy,
       character: dependencyFingerprint(renderJob.stage.character, cache),
       cardback: dependencyFingerprint(renderJob.stage.cardback, cache),
       statCard: dependencyFingerprint(renderJob.stage.statCard, cache),

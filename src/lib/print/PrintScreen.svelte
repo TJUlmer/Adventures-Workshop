@@ -284,7 +284,7 @@
           <Switch
             checked={useQuantities}
             label="Print duplicates"
-            hint="One card per copy the set says exists"
+            hint="On: every physical copy. Off: one of each visual appearance."
             onchange={(value) => (useQuantities = value)}
           />
           <Switch

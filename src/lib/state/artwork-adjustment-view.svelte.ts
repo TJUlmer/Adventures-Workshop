@@ -5,6 +5,8 @@ export function artworkAdjustmentKey(target: EntityRef): string {
   switch (target.entity) {
     case 'card':
       return `card:${target.id}`;
+    case 'cardCopy':
+      return `card-copy:${target.id}:${target.copy}`;
     case 'cardArtworkLayer':
       return `card-layer:${target.id}:${target.layerId}`;
     case 'character':
