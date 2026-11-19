@@ -269,7 +269,11 @@ function cardCopyVisuals(value: unknown, quantity: number): CardCopyVisual[] {
         visual.symbols[slot] = symbols[slot] as CustomSymbolId;
       }
     }
-    if (visual.artwork || visual.symbols) copies.set(copy, visual);
+    if (raw['boost'] === null || (typeof raw['boost'] === 'number' && Number.isFinite(raw['boost']))) visual.boost = raw['boost'];
+    for (const field of ['tuckEffect', 'cornerBadge'] as const) {
+      if (typeof raw[field] === 'string') visual[field] = raw[field];
+    }
+    if (visual.artwork || visual.symbols || visual.boost !== undefined || visual.tuckEffect !== undefined || visual.cornerBadge !== undefined) copies.set(copy, visual);
   }
   return [...copies.values()].sort((a, b) => a.copy - b.copy);
 }

@@ -143,7 +143,7 @@
   const tabs = $derived([
     { value: 'content' as const, label: 'Content' },
     { value: 'design' as const, label: 'Design', badge: overrideCount },
-    ...(card?.type === 'action' ? [{ value: 'copies' as const, label: 'Copies', badge: card.quantity }] : [])
+    ...(card?.type === 'action' ? [{ value: 'copies' as const, label: 'Copies' }] : [])
   ]);
 
   function originFor(key: keyof CardTheme): string {

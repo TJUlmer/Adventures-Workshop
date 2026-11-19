@@ -82,10 +82,12 @@ TypeScript is pinned to `~6` because `svelte-check` does not run on 7 yet.
   document and recorded by the deep autosave observer. Do not add separate editor
   histories or persist checkpoints. Document loads and accepted contributions reset it.
 - **Any new persisted field needs a branch in `sets/normalize.ts`**, or existing
-  documents load without it. `SET_SCHEMA_VERSION` is 79; newer files are refused.
+  documents load without it. `SET_SCHEMA_VERSION` is 80; newer files are refused.
   `normalizeSet` must be idempotent.
 - **Action-card copies share content and quantity.** Sparse `copyVisuals` can
-  override main artwork and eligible standalone custom symbols only. Resolve
+  override main artwork, eligible standalone custom symbols, boost value, tuck
+  text and corner badge content. Titles, names, combat ability text, combat values,
+  split combat, boost effects and bonus attacks remain shared. Resolve
   through `cards/copy-visuals.ts`; editor copy 0 means shared design, copy 1 is
   the default representative elsewhere. Expand physical copies once for print/TTS;
   PNG/publication image jobs deduplicate appearances. Keep the printed ×N shared.

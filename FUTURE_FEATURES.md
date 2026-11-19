@@ -24,11 +24,14 @@ See `PRIVATE_GALLERY_METRICS.md` for the deployed data model and counting rules.
 An implementation plan is recorded in `CARD_VARIANTS_PLAN.md`. The first release
 was narrowed on 18 November 2026 to artwork and standalone symbols; colours,
 gradients, patterns and general styling remain shared. The user approved
-implementation, and it is implemented locally awaiting commit/deployment.
+implementation; the initial version is in preview. On 19 November the user added
+per-copy boost value, tuck text and badge content, with no Copies tab number badge.
+That refinement is implemented locally awaiting commit/deployment.
 
 One logical card has shared content and quantity, with optional visual overrides
 for individual physical copies. These are not independently editable cards linked
-by title. Changing text on an individual copy would make it a separate card.
+by title. Combat ability text stays shared; the three permitted detail fields
+above are explicit exceptions.
 
 Official examples supplied by the user:
 
@@ -39,9 +42,9 @@ Official examples supplied by the user:
 
 Scope confirmed by the user:
 
-- Card title, rules text, values and ownership belong to the shared card. Editing
-  those fields changes every copy; a copy editor must not expose independent
-  content fields.
+- Card title, name, combat ability text/values, ownership, split combat, boost
+  effects and bonus attacks belong to the shared card. Boost value, tuck effect
+  text and corner badge content may differ by copy; other content stays shared.
 - Individual copies may override artwork and designated symbols, such as the
   basket symbols in the example. Basket symbols can matter to play, so this is
   an explicit permitted variation rather than a promise that every visual change

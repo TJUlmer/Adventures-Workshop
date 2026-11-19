@@ -1,4 +1,5 @@
 import type { ActionCard, CardOwner, CombatSymbol } from '$lib/cards/types';
+import { resolveCardCopy } from '$lib/cards/copy-visuals';
 import {
   COMBAT_SYMBOLS,
   isAttackCapableSymbol,
@@ -110,7 +111,11 @@ function boostSummary(cards: readonly ActionCard[]): BoostSummary {
   const customCards: ActionCard[] = [];
   const missingCards: ActionCard[] = [];
 
-  for (const card of cards) {
+  // A boost exception changes the physical deck's average, not its design count.
+  const boostCards = cards.flatMap((card) => card.copyVisuals.some((copy) => copy.boost !== undefined)
+    ? Array.from({ length: cardCopies(card) }, (_, index) => ({ ...resolveCardCopy(card, index + 1), quantity: 1 }))
+    : [card]);
+  for (const card of boostCards) {
     if (card.boostSymbol.trim().length > 0) customCards.push(card);
     else if (card.boost !== null && Number.isFinite(card.boost)) numericCards.push(card);
     else missingCards.push(card);
@@ -120,6 +125,9 @@ function boostSummary(cards: readonly ActionCard[]): BoostSummary {
   const numeric = summarizeWeightedNumbers(numericCards, (card) => card.boost);
   const customSymbol = countCards(customCards);
   const missing = countCards(missingCards);
+  numeric.designCount = new Set(numericCards.filter((card) => cardCopies(card) > 0).map((card) => card.id)).size;
+  customSymbol.designCount = new Set(customCards.map((card) => card.id)).size;
+  missing.designCount = new Set(missingCards.map((card) => card.id)).size;
   const representedCopies = numeric.copyCount + customSymbol.copyCount;
 
   return {

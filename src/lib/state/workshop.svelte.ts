@@ -32,7 +32,7 @@ import {
 import type { CardStyleOverride, CardTheme } from '$lib/cards/style';
 import { stockTheme } from '$lib/cards/theme';
 import { copySymbolAvailable, mergeCopyArtwork, physicalCopyCount } from '$lib/cards/copy-visuals';
-import type { CardCopyVisual, CopySymbolSlot } from '$lib/cards/types';
+import type { CardCopyVisual, CopyDetailField, CopySymbolSlot } from '$lib/cards/types';
 import type { ArtworkInit } from '$lib/core/artwork';
 import type {
   Card,
@@ -1630,7 +1630,8 @@ export class WorkshopStore {
     }
     card.copyVisuals = card.copyVisuals.filter((visual) =>
       !!(visual.artwork && Object.keys(visual.artwork).length) ||
-      !!(visual.symbols && Object.keys(visual.symbols).length)).sort((a, b) => a.copy - b.copy);
+      !!(visual.symbols && Object.keys(visual.symbols).length) ||
+      visual.boost !== undefined || visual.tuckEffect !== undefined || visual.cornerBadge !== undefined).sort((a, b) => a.copy - b.copy);
     card.updatedAt = now();
     this.touch();
   }
@@ -1650,7 +1651,12 @@ export class WorkshopStore {
     const visual = this.copyVisual(id, copy);
     if (!visual) return;
     delete visual.artwork;
-    if (part === 'all') delete visual.symbols;
+    if (part === 'all') {
+      delete visual.symbols;
+      delete visual.boost;
+      delete visual.tuckEffect;
+      delete visual.cornerBadge;
+    }
     this.pruneCopyVisual(id);
   }
 
@@ -1662,6 +1668,17 @@ export class WorkshopStore {
     visual.symbols ??= {};
     if (symbol) visual.symbols[slot] = symbol;
     else delete visual.symbols[slot];
+    if (slot === 'cornerBadge') delete visual.cornerBadge;
+    this.pruneCopyVisual(id);
+  }
+
+  setCopyDetail<K extends CopyDetailField>(id: CardId, copy: number, field: K, value: CardCopyVisual[K]): void {
+    const visual = this.copyVisual(id, copy, value !== undefined);
+    if (!visual) return;
+    if (value === undefined) delete visual[field];
+    else visual[field] = value;
+    // The badge's text field also inserts icons; it supersedes the older icon-only override.
+    if (field === 'cornerBadge' && visual.symbols) delete visual.symbols.cornerBadge;
     this.pruneCopyVisual(id);
   }
 

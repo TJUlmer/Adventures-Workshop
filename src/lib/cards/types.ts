@@ -11,12 +11,17 @@ export type CardArtworkLayerId = Id<'CardArtworkLayer'>;
 export const COPY_SYMBOL_SLOTS = ['ribbonSymbol', 'boostSymbol', 'cornerBadge'] as const;
 export type CopySymbolSlot = (typeof COPY_SYMBOL_SLOTS)[number];
 
-/** Only image inputs may differ; content and printed quantity stay on the card. */
+/** Copy exceptions are explicit; identity, combat rules and quantity stay shared. */
 export interface CardCopyVisual {
   copy: number;
   artwork?: ArtworkInit;
   symbols?: Partial<Record<CopySymbolSlot, CustomSymbolId>>;
+  boost?: number | null;
+  tuckEffect?: string;
+  cornerBadge?: string;
 }
+
+export type CopyDetailField = 'boost' | 'tuckEffect' | 'cornerBadge';
 
 /** Legacy v70 insertion points, retained only to repair saved documents. */
 export const CARD_ARTWORK_LAYER_PLACEMENTS = [

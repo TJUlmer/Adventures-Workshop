@@ -42,7 +42,7 @@
   <dialog bind:this={dialog} oncancel={() => requested=null} aria-labelledby="keep-copy-title">
     {#if requested !== null}
       <h2 id="keep-copy-title">Choose {requested} {requested===1?'copy':'copies'} to keep</h2>
-      <p>Reducing the quantity would remove custom visuals. Select the copies to keep; their text stays shared.</p>
+      <p>Reducing the quantity would remove customized copies. Select the copies to keep.</p>
       <div class="copies">
         {#each physicalCopies(card) as copy (copy)}
           <button type="button" aria-label={`Keep copy ${copy} of ${card.quantity}`} aria-pressed={keep.has(copy)} class:selected={keep.has(copy)}

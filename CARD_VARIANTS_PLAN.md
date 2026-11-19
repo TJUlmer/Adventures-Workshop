@@ -1,19 +1,22 @@
 # Card visual variants — implementation plan
 
-Planned and approved for implementation on 18 November 2026. Implemented locally;
-commit and deployment remain separate steps.
+Planned and approved on 18 November 2026; initial implementation deployed to preview
+as `3de5300`. Scope refined on 19 November: allow boost value, tuck text and corner
+badge content overrides, and keep the Copies tab understated without a number badge.
+These refinements are implemented locally awaiting commit/deployment.
 
 ## Implementation
 
 - Action cards have a **Copies** tab with one selector per physical copy.
   Content and Design edit the shared card; Copies edits main artwork and eligible
-  standalone uploaded symbols. Clearing an override restores shared visuals.
+  standalone uploaded symbols, boost value, tuck text and badge content. Clearing
+  an override restores shared values. Effect visibility and styling stay shared.
 - Quantity reductions that would discard customized copies ask which to retain.
   The quantity change and retained-copy reindexing use the existing Undo/Redo.
 - Overview/gallery can show every physical copy. The collapsed view uses copy 1.
   PNG archives contain one file per distinct appearance and a copy allocation guide;
   print and TTS preserve the true deck quantity and shared printed ×N.
-- Document schema is 79; publication renderer version is 15. Nested copy artwork
+- Document schema is 80; publication renderer version is 16. Nested copy artwork
   uses the existing structural asset extraction/hydration, and preview manifests
   accept copy-qualified keys. No database migration is required.
 - Verified with synthetic hero, villain and minion cards, including three symbols
@@ -22,11 +25,13 @@ commit and deployment remain separate steps.
 
 ## Confirmed behaviour
 
-One logical action card owns its title, rules, values, combat type, ownership and
-quantity. Individual physical copies may have different artwork or standalone
-symbols. They are not separate cards joined by matching titles.
+One logical action card owns its title, name, combat ability text/values, combat
+type, split combat, boost effects, bonus attacks, ownership and quantity. Physical
+copies may differ in artwork, standalone symbols, boost value, tuck text and corner
+badge content. They are not separate cards joined by matching titles.
 
-The user selected **artwork and standalone symbols first**. Per-copy colours,
+The initial scope was **artwork and standalone symbols**, then expanded to the
+three permitted detail fields above. Per-copy colours,
 gradients, patterns and general styling are outside the first release.
 
 Acceptance examples supplied by the user:
@@ -50,16 +55,17 @@ inflate the physical count when printed or exported.
   the existing custom boost-symbol slot and a symbol-only corner badge. A slot
   must already be configured on the shared card; copy editing substitutes its
   uploaded icon. Visibility, placement and size remain shared in this release.
-- A symbol-only slot accepts a `CustomSymbolId`, not arbitrary text. A corner
-  badge containing text is not a copy-editable symbol slot. Text-embedded icons
-  in names/rules remain shared initially.
-- Combat symbols, numeric boost/combat values, names, ability text and ownership
-  cannot be overridden. Replacing an already configured custom icon must not
-  expose controls for changing the underlying numeric value or combat type.
+- Ribbon/boost symbol slots accept a `CustomSymbolId`, not arbitrary text.
+  Corner badges have a text/icon editor, including badges containing text.
+  Text-embedded icons in names/combat rules remain shared.
+- Combat symbols/values, titles, names, combat ability text, split combat, boost
+  effects, bonus attacks and ownership cannot be overridden. Boost value, tuck
+  effect text and corner badge content can be overridden. Visibility, orientation
+  and styling follow the shared card. Boost analysis uses physical copy values.
 - Keep extra artwork layer structure/content and whole-card replacement images
   shared initially. Whole-face copy replacements would bypass shared text and
   values, so they must not become an escape hatch in the copy editor.
-- No card history, automatic grouping by title, independent variant text or
+- No card history, automatic grouping by title, independent combat rules text or
   per-copy deck backs in this feature.
 
 These boundaries cover the two requested examples. Per-copy overlay artwork or
@@ -78,6 +84,9 @@ interface ActionCardCopyVisual {
   copy: number;
   artwork?: ArtworkInit;
   symbols?: Partial<Record<StandaloneSymbolSlot, CustomSymbolId>>;
+  boost?: number | null;
+  tuckEffect?: string;
+  cornerBadge?: string;
 }
 
 // ActionCard.copyVisuals: ActionCardCopyVisual[]
@@ -98,7 +107,7 @@ interface ActionCardCopyVisual {
 - Normalize positive integral copy positions, repair duplicate positions
   deterministically, sanitize allowed fields, and reject entries outside the
   physical quantity. Normalization must be idempotent.
-- Bump the document schema to the next available version (currently 78 → 79),
+- Document schema moved 78 → 79 for visuals and 79 → 80 for permitted details,
   because an older editor would silently discard copy visuals. Cover JSON
   import/export and private cloud drafts, not just new-card creation.
 
@@ -107,9 +116,9 @@ interface ActionCardCopyVisual {
 1. Keep Content and Design edits attached to the shared logical card. Editing
    its title/rules updates every copy.
 2. Add a Copies section with thumbnails labelled Copy 1 of N, Copy 2 of N, etc.
-   Selecting one opens only its artwork and eligible symbol controls. The large
+   Selecting one opens its artwork, eligible symbols and permitted detail fields. The large
    preview shows that resolved copy. Mark inherited values and provide reset
-   controls for artwork, individual symbols and all copy visuals.
+   controls for artwork, individual symbols, each detail and the entire copy.
 3. Selecting a copy never duplicates a card or changes quantity. Retain a clear
    route back to shared content/design. Text direct-edit targets must route to
    the shared editor rather than opening a copy-specific text field.

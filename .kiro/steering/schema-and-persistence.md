@@ -5,7 +5,7 @@ description: Rules for persisted document shape. Apply when adding or changing a
 
 # Schema and persistence
 
-`SET_SCHEMA_VERSION` (currently **79**) is checked on import; files from a newer
+`SET_SCHEMA_VERSION` (currently **80**) is checked on import; files from a newer
 schema are **refused**, not guessed at. The same check applies when opening a
 published set — `row.schema_version > SET_SCHEMA_VERSION` throws rather than
 loading a document this build cannot fully understand.
@@ -29,15 +29,19 @@ must be identical, and a fresh fork must report nothing.
 **Absent is meaningfully different from empty** in places — a threat step's
 `fill: null` means "follow the board", not "no fill". Do not collapse the two.
 
-Action-card `copyVisuals` (schema 79) are sparse main-artwork/standalone-symbol
-overrides for one-based physical positions. Shared content, style and quantity
-remain on the parent. Normalize the whitelist without filling absent override
+Action-card `copyVisuals` (schema 80) are sparse main-artwork/standalone-symbol,
+boost value, tuck text and badge content overrides for one-based physical positions.
+Titles, names, combat rules/values, split combat, boost effects, bonus attacks,
+effect visibility/placement, style and quantity remain shared on the parent.
+Normalize the whitelist without filling absent override
 keys; clearing restores inheritance. `cards/copy-visuals.ts` resolves each face,
 with copy 0 reserved for the shared editor and copy 1 the default representative.
 Print/TTS expand physical quantities once; PNG/publication deduplicate appearances.
 Quantity reductions that discard customized copies require a keep selection and
 use the existing session Undo/Redo. Nested assets use structural extraction and
-hydration; publication renderer 15 uses copy-qualified preview keys. No SQL
+hydration; publication renderer 16 uses copy-qualified preview keys. Boost analysis
+uses physical copy values while retaining logical design counts. The Copies tab
+has no number badge. Explicit null boost and blank text are valid overrides. No SQL
 migration is required. See `CARD_VARIANTS_PLAN.md` for the first-release scope.
 
 A real migration ladder lands when a *shape* changes, not just a name.

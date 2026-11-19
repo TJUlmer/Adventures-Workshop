@@ -2946,18 +2946,22 @@ a data URL is an address like any other to the sheet renderer.
 ### Schema
 
 Action cards have sparse `copyVisuals` addressed by one-based physical copy
-position. Only main artwork and eligible standalone custom symbols can differ;
-text, values, ownership, style, backs and printed ×N remain shared. Resolve faces
+position. Main artwork, eligible standalone symbols, boost value, tuck text and
+corner badge content can differ. Titles, names, combat ability text/values, split
+combat, boost effects, bonus attacks, ownership, style, backs and printed ×N stay
+shared. Effect visibility and placement also stay shared. Resolve faces
 through `cards/copy-visuals.ts`. Copy 0 is the editor's shared design; copy 1 is
 the default representative elsewhere. Print/TTS expand physical quantities once;
 PNG/publication jobs deduplicate appearances. Quantity reductions that discard
 customized copies require a keep selection and use the existing session Undo/Redo.
-Schema 79 normalizes the sparse override whitelist, preserving inheritance.
-Publication renderer 15 stores copy-qualified manifest keys with independent
+Schema 80 normalizes the sparse override whitelist, preserving inheritance;
+explicit null boost and blank text remain overrides. Boost analysis weights each
+physical copy's value without increasing logical design counts. Copies has no
+number badge. Publication renderer 16 stores copy-qualified manifest keys with independent
 face fingerprints. Structural asset extraction/hydration already covers nested
 copy artwork; no SQL migration is needed. See `CARD_VARIANTS_PLAN.md`.
 
-`SET_SCHEMA_VERSION` (currently 79) is checked on import; newer files are
+`SET_SCHEMA_VERSION` (currently 80) is checked on import; newer files are
 refused. There is no migration ladder — `sets/normalize.ts` repairs on load,
 filling absent fields from the factories. **Any new persisted field needs a
 branch there**, or existing documents load without it. Absent is meaningfully

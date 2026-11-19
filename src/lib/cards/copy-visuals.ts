@@ -6,6 +6,9 @@ import type { ActionCard, Card, CardCopyVisual, CopySymbolSlot } from './types';
 export function cloneCopyVisuals(visuals: readonly CardCopyVisual[]): CardCopyVisual[] {
   return visuals.map((visual) => ({
     copy: visual.copy,
+    ...(visual.boost !== undefined ? { boost: visual.boost } : {}),
+    ...(visual.tuckEffect !== undefined ? { tuckEffect: visual.tuckEffect } : {}),
+    ...(visual.cornerBadge !== undefined ? { cornerBadge: visual.cornerBadge } : {}),
     ...(visual.artwork ? { artwork: { ...visual.artwork,
       ...Object.fromEntries((['crop', 'transform', 'adjustments', 'effects'] as const)
         .filter((group) => visual.artwork?.[group])
@@ -51,6 +54,9 @@ export function resolveCardCopy<T extends Card>(card: T, copy = 1): T {
     const symbol = visual.symbols?.[slot];
     if (symbol && copySymbolAvailable(card, slot)) resolved[slot] = customSymbolToken(symbol);
   }
+  if (visual.boost !== undefined) resolved.boost = visual.boost;
+  if (card.showTuckEffect && visual.tuckEffect !== undefined) resolved.tuckEffect = visual.tuckEffect;
+  if (card.showCornerBadge && visual.cornerBadge !== undefined) resolved.cornerBadge = visual.cornerBadge;
   return resolved as T;
 }
 
@@ -80,6 +86,8 @@ function sameAppearance(a: ActionCard, b: ActionCard): boolean {
   // every thumbnail/copy would dominate gallery updates.
   return a.artwork.source === b.artwork.source && a.ribbonSymbol === b.ribbonSymbol &&
     a.boostSymbol === b.boostSymbol && a.cornerBadge === b.cornerBadge &&
+    (Boolean(a.boostSymbol) || a.boost === b.boost) &&
+    (!a.showTuckEffect || a.tuckEffect === b.tuckEffect) &&
     JSON.stringify([a.artwork.crop, a.artwork.transform, a.artwork.adjustments, a.artwork.effects]) ===
     JSON.stringify([b.artwork.crop, b.artwork.transform, b.artwork.adjustments, b.artwork.effects]);
 }
