@@ -57,7 +57,7 @@
 {/snippet}
 
 {#if card && face && theme && look}
-  <Section title="Copies" description="Customize each copy's artwork, symbols, boost, tuck text and badge. Card identity, combat rules and quantity stay shared.">
+  <Section title="Copies" description="Customize artwork, symbols, boost value, tuck text, and badge content on different copies of the same action card. The name, card title, and ability text will be unchanged.">
     <Button size="sm" onclick={() => workshop.selectCard(card.id)}>Edit shared content</Button>
     <div class="copies" aria-label="Choose a copy">
       {#each physicalCopies(card) as position (position)}
@@ -83,8 +83,8 @@
         {/if}
         {#if face.boostSymbol}<p class="hint">Choose None above to print the boost value instead.</p>{/if}
       </Section>
-      <Section title={`Copy ${copy} ribbon symbol`} description="The ribbon's visibility follows shared Content. Fill colour paints the strip behind the symbol.">
-        {#if card.showRibbonSymbol}
+      {#if card.showRibbonSymbol}
+        <Section title={`Copy ${copy} ribbon symbol`} description="The ribbon's visibility follows shared Content. Fill colour paints the strip behind the symbol.">
           {@render symbolPicker('ribbonSymbol', 'Ribbon symbol')}
           <Slider label="Symbol size" value={look.ribbonSymbolSize} min={40} max={220} step={2}
             neutral={theme.ribbonSymbolSize} editable
@@ -95,10 +95,10 @@
           <FillEditor label="Fill colour" value={look.ribbonFoot} origin="shared card" overridden={visual?.style?.ribbonFoot !== undefined}
             onchange={(fill) => workshop.setCopyStyle(card.id, copy, 'ribbonFoot', fill)}
             onreset={() => workshop.setCopyStyle(card.id, copy, 'ribbonFoot', undefined)}/>
-        {:else}<p class="hint">Enable Ribbon symbol in shared Content to customize it here.</p>{/if}
-      </Section>
-      <Section title={`Copy ${copy} tuck effect`} description="Visibility and orientation follow shared Content.">
-        {#if card.showTuckEffect}
+        </Section>
+      {/if}
+      {#if card.showTuckEffect}
+        <Section title={`Copy ${copy} tuck effect`} description="Visibility and orientation follow shared Content.">
           <FormattedTextField label="Tuck effect text" value={face.tuckEffect} multiline={false}
             customSymbols={workshop.adventure.customSymbols}
             onchange={(value) => workshop.setCopyDetail(card.id, copy, 'tuckEffect', value)}/>
@@ -112,10 +112,10 @@
             <ColorInput value={visual?.style?.tuckEffectInk} inherited={theme.tuckEffectInk} origin="shared card"
               onchange={(ink) => workshop.setCopyStyle(card.id, copy, 'tuckEffectInk', ink)}/>
           </div>
-        {:else}<p class="hint">Enable Tuck effect in shared Content to customize it here.</p>{/if}
-      </Section>
-      <Section title={`Copy ${copy} corner badge`} description="Badge visibility and placement follow shared Content.">
-        {#if card.showCornerBadge}
+        </Section>
+      {/if}
+      {#if card.showCornerBadge}
+        <Section title={`Copy ${copy} corner badge`} description="Badge visibility and placement follow shared Content.">
           <AbilityField label="Corner badge content" value={face.cornerBadge} placeholder="Symbol or value" rows={1}
             customSymbols={workshop.adventure.customSymbols}
             onchange={(value) => workshop.setCopyDetail(card.id, copy, 'cornerBadge', value)}/>
@@ -135,8 +135,8 @@
             <ColorInput value={visual?.style?.cornerBadgeInk} inherited={theme.cornerBadgeInk} origin="shared card"
               onchange={(ink) => workshop.setCopyStyle(card.id, copy, 'cornerBadgeInk', ink)}/>
           </div>
-        {:else}<p class="hint">Enable Corner badge in shared Content to customize it here.</p>{/if}
-      </Section>
+        </Section>
+      {/if}
       <Section title={`Copy ${copy} artwork`} description={visual?.artwork ? 'This copy has artwork overrides.' : 'Currently following the shared artwork.'}>
         {#if visual?.artwork}<Button size="sm" onclick={() => workshop.resetCopyVisual(card.id, copy, 'artwork')}>Use shared artwork</Button>{/if}
         <ArtworkPanel target={{entity:'cardCopy',id:card.id,copy}}
