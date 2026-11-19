@@ -3,7 +3,7 @@ import type { Artwork, ArtworkInit } from '$lib/core/artwork';
 import type { CustomSymbolId } from '$lib/symbols/types';
 import type { Id, IsoDateTime } from '$lib/core/id';
 import type { DeckId } from '$lib/decks/types';
-import type { CardStyleOverride, Fill } from './style';
+import type { CardStyleOverride, CardTheme, Fill } from './style';
 
 export type CardId = Id<'Card'>;
 export type CardArtworkLayerId = Id<'CardArtworkLayer'>;
@@ -11,17 +11,27 @@ export type CardArtworkLayerId = Id<'CardArtworkLayer'>;
 export const COPY_SYMBOL_SLOTS = ['ribbonSymbol', 'boostSymbol', 'cornerBadge'] as const;
 export type CopySymbolSlot = (typeof COPY_SYMBOL_SLOTS)[number];
 
+export const COPY_STYLE_KEYS = [
+  'ribbonSymbolSize', 'ribbonFoot', 'cornerBadge', 'cornerBadgeOpacity',
+  'cornerBadgeInk', 'tuckEffect', 'tuckEffectInk'
+] as const satisfies readonly (keyof CardTheme)[];
+export type CopyStyleKey = (typeof COPY_STYLE_KEYS)[number];
+export type CardCopyStyle = Partial<Pick<CardTheme, CopyStyleKey>>;
+
 /** Copy exceptions are explicit; identity, combat rules and quantity stay shared. */
 export interface CardCopyVisual {
   copy: number;
   artwork?: ArtworkInit;
   symbols?: Partial<Record<CopySymbolSlot, CustomSymbolId>>;
+  style?: CardCopyStyle;
+  boostSymbol?: string;
+  ribbonSymbol?: string;
   boost?: number | null;
   tuckEffect?: string;
   cornerBadge?: string;
 }
 
-export type CopyDetailField = 'boost' | 'tuckEffect' | 'cornerBadge';
+export type CopyDetailField = 'boost' | 'tuckEffect' | 'cornerBadge' | 'boostSymbol' | 'ribbonSymbol';
 
 /** Legacy v70 insertion points, retained only to repair saved documents. */
 export const CARD_ARTWORK_LAYER_PLACEMENTS = [

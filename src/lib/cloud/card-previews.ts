@@ -14,7 +14,7 @@ import { appearanceCopyFor, resolveCardCopy } from '$lib/cards/copy-visuals';
 import type { Card } from '$lib/cards/types';
 
 /** Bump whenever the renderer or stored image format changes. */
-export const CARD_PREVIEW_RENDERER_VERSION = 16;
+export const CARD_PREVIEW_RENDERER_VERSION = 17;
 
 /**
  * Width of a stored gallery card face, in pixels.

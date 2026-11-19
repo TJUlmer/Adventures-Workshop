@@ -112,7 +112,7 @@ function boostSummary(cards: readonly ActionCard[]): BoostSummary {
   const missingCards: ActionCard[] = [];
 
   // A boost exception changes the physical deck's average, not its design count.
-  const boostCards = cards.flatMap((card) => card.copyVisuals.some((copy) => copy.boost !== undefined)
+  const boostCards = cards.flatMap((card) => card.copyVisuals.some((copy) => copy.boost !== undefined || copy.boostSymbol !== undefined || copy.symbols?.boostSymbol !== undefined)
     ? Array.from({ length: cardCopies(card) }, (_, index) => ({ ...resolveCardCopy(card, index + 1), quantity: 1 }))
     : [card]);
   for (const card of boostCards) {

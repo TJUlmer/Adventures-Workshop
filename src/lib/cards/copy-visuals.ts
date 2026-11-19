@@ -2,10 +2,29 @@ import { createArtwork, hasArtwork } from '$lib/core/artwork';
 import type { Artwork, ArtworkInit } from '$lib/core/artwork';
 import { customSymbolToken } from '$lib/text/tokens';
 import type { ActionCard, Card, CardCopyVisual, CopySymbolSlot } from './types';
+import { COPY_STYLE_KEYS } from './types';
+import type { CardCopyStyle } from './types';
+
+function pickCopyStyle(style: CardCopyStyle | undefined): CardCopyStyle | undefined {
+  if (!style) return undefined;
+  return Object.fromEntries(COPY_STYLE_KEYS.flatMap((key) => {
+    const value = style[key];
+    return value === undefined ? [] : [[key, typeof value === 'object' ? { ...value } : value]];
+  })) as CardCopyStyle;
+}
+
+export function copyStyleFor(card: Card | null, copy = 1): CardCopyStyle | undefined {
+  if (card?.type !== 'action' || copy < 1 || copy > physicalCopyCount(card) ||
+      (card.useReplacement && hasArtwork(card.replacement))) return undefined;
+  return pickCopyStyle(card.copyVisuals.find((entry) => entry.copy === copy)?.style);
+}
 
 export function cloneCopyVisuals(visuals: readonly CardCopyVisual[]): CardCopyVisual[] {
   return visuals.map((visual) => ({
     copy: visual.copy,
+    ...(visual.style ? { style: pickCopyStyle(visual.style) } : {}),
+    ...(visual.boostSymbol !== undefined ? { boostSymbol: visual.boostSymbol } : {}),
+    ...(visual.ribbonSymbol !== undefined ? { ribbonSymbol: visual.ribbonSymbol } : {}),
     ...(visual.boost !== undefined ? { boost: visual.boost } : {}),
     ...(visual.tuckEffect !== undefined ? { tuckEffect: visual.tuckEffect } : {}),
     ...(visual.cornerBadge !== undefined ? { cornerBadge: visual.cornerBadge } : {}),
@@ -37,11 +56,11 @@ export function mergeCopyArtwork(base: Artwork, override?: ArtworkInit): Artwork
   });
 }
 
-/** Substitution is allowed only in an already configured, symbol-only slot. */
+/** Icon choices are independent of the shared icon, but keep shared visibility. */
 export function copySymbolAvailable(card: ActionCard, slot: CopySymbolSlot): boolean {
-  if (slot === 'ribbonSymbol' && !card.showRibbonSymbol) return false;
-  if (slot === 'cornerBadge' && !card.showCornerBadge) return false;
-  return /^\{\{custom:[^{}]+\}\}$/.test(card[slot].trim());
+  if (slot === 'ribbonSymbol') return card.showRibbonSymbol;
+  if (slot === 'cornerBadge') return card.showCornerBadge;
+  return true;
 }
 
 /** Zero means shared artwork in the editor; elsewhere copy 1 is representative. */
@@ -55,8 +74,11 @@ export function resolveCardCopy<T extends Card>(card: T, copy = 1): T {
     if (symbol && copySymbolAvailable(card, slot)) resolved[slot] = customSymbolToken(symbol);
   }
   if (visual.boost !== undefined) resolved.boost = visual.boost;
+  if (visual.boostSymbol !== undefined) resolved.boostSymbol = visual.boostSymbol;
+  if (card.showRibbonSymbol && visual.ribbonSymbol !== undefined) resolved.ribbonSymbol = visual.ribbonSymbol;
   if (card.showTuckEffect && visual.tuckEffect !== undefined) resolved.tuckEffect = visual.tuckEffect;
   if (card.showCornerBadge && visual.cornerBadge !== undefined) resolved.cornerBadge = visual.cornerBadge;
+  if (visual.style) resolved.style = { ...card.style, ...copyStyleFor(card, copy) };
   return resolved as T;
 }
 
@@ -88,6 +110,7 @@ function sameAppearance(a: ActionCard, b: ActionCard): boolean {
     a.boostSymbol === b.boostSymbol && a.cornerBadge === b.cornerBadge &&
     (Boolean(a.boostSymbol) || a.boost === b.boost) &&
     (!a.showTuckEffect || a.tuckEffect === b.tuckEffect) &&
+    JSON.stringify(COPY_STYLE_KEYS.map((key) => a.style[key])) === JSON.stringify(COPY_STYLE_KEYS.map((key) => b.style[key])) &&
     JSON.stringify([a.artwork.crop, a.artwork.transform, a.artwork.adjustments, a.artwork.effects]) ===
     JSON.stringify([b.artwork.crop, b.artwork.transform, b.artwork.adjustments, b.artwork.effects]);
 }

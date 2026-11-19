@@ -22,11 +22,14 @@ See `PRIVATE_GALLERY_METRICS.md` for the deployed data model and counting rules.
 ## Visual variants of a card's copies
 
 An implementation plan is recorded in `CARD_VARIANTS_PLAN.md`. The first release
-was narrowed on 18 November 2026 to artwork and standalone symbols; colours,
-gradients, patterns and general styling remain shared. The user approved
+was narrowed on 18 November 2026 to artwork and standalone symbols; broader
+styling was initially excluded. The user approved
 implementation; the initial version is in preview. On 19 November the user added
 per-copy boost value, tuck text and badge content, with no Copies tab number badge.
-That refinement is implemented locally awaiting commit/deployment.
+That refinement is in preview as `53fa96b`. A further refinement adds ribbon
+symbol size/strip fill, badge fill/opacity/content colour and tuck fill/text colour,
+plus boost/ribbon symbol choices with None and shared resets. It is implemented
+locally awaiting commit/deployment. Tuck orientation remains shared.
 
 One logical card has shared content and quantity, with optional visual overrides
 for individual physical copies. These are not independently editable cards linked

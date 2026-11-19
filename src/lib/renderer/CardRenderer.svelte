@@ -15,7 +15,7 @@
   import { stockTheme } from '$lib/cards/theme';
   import { cardLabel } from '$lib/cards/factory';
   import type { Card } from '$lib/cards/types';
-  import { resolveCardCopy } from '$lib/cards/copy-visuals';
+  import { copyStyleFor, resolveCardCopy } from '$lib/cards/copy-visuals';
   import { characterLabel } from '$lib/characters/factory';
   import type { Character, HeroCharacterCard } from '$lib/characters/types';
   import { hasArtwork } from '$lib/core/artwork';
@@ -90,7 +90,7 @@
    * the document changes and switching it off returns the design untouched.
    */
   const look = $derived.by(() => {
-    const resolved = theme ?? stockTheme(card?.type, character?.role);
+    const resolved = mergeCardStyle(theme ?? stockTheme(card?.type, character?.role), copyStyleFor(sourceCard, copy));
     return settings.printerFriendly ? mergeCardStyle(resolved, MONO_LAYER) : resolved;
   });
 

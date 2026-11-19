@@ -505,8 +505,8 @@ export type SetId = Id<'Set'>;
  * a version newer than this build understands is refused.
  */
 /** v78 — decks gained sparse card-back and card-style overrides. */
-/** v80 preserves per-copy boost, tuck text and badge overrides alongside v79 visuals. */
-export const SET_SCHEMA_VERSION = 80;
+/** v81 preserves per-copy symbol choices and the restricted symbol/badge/tuck style layer. */
+export const SET_SCHEMA_VERSION = 81;
 
 /**
  * What a set is for.

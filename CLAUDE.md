@@ -2949,19 +2949,25 @@ Action cards have sparse `copyVisuals` addressed by one-based physical copy
 position. Main artwork, eligible standalone symbols, boost value, tuck text and
 corner badge content can differ. Titles, names, combat ability text/values, split
 combat, boost effects, bonus attacks, ownership, style, backs and printed ×N stay
-shared. Effect visibility and placement also stay shared. Resolve faces
+shared. Effect visibility, placement and tuck orientation also stay shared.
+Copies can choose any offered boost/ribbon symbol (or None) without preconfiguring
+the shared symbol slot. Sparse copy style overrides are restricted to ribbon symbol
+size and strip fill, badge fill/opacity/content colour and tuck fill/text colour.
+`CardRenderer` applies that limited layer after the shared resolved theme and before
+printer-friendly overrides; the resolved card's style also records it for appearance
+deduplication and publication fingerprints. Resolve faces
 through `cards/copy-visuals.ts`. Copy 0 is the editor's shared design; copy 1 is
 the default representative elsewhere. Print/TTS expand physical quantities once;
 PNG/publication jobs deduplicate appearances. Quantity reductions that discard
 customized copies require a keep selection and use the existing session Undo/Redo.
-Schema 80 normalizes the sparse override whitelist, preserving inheritance;
+Schema 81 normalizes the sparse override whitelist, preserving inheritance;
 explicit null boost and blank text remain overrides. Boost analysis weights each
 physical copy's value without increasing logical design counts. Copies has no
-number badge. Publication renderer 16 stores copy-qualified manifest keys with independent
+number badge. Publication renderer 17 stores copy-qualified manifest keys with independent
 face fingerprints. Structural asset extraction/hydration already covers nested
 copy artwork; no SQL migration is needed. See `CARD_VARIANTS_PLAN.md`.
 
-`SET_SCHEMA_VERSION` (currently 80) is checked on import; newer files are
+`SET_SCHEMA_VERSION` (currently 81) is checked on import; newer files are
 refused. There is no migration ladder — `sets/normalize.ts` repairs on load,
 filling absent fields from the factories. **Any new persisted field needs a
 branch there**, or existing documents load without it. Absent is meaningfully

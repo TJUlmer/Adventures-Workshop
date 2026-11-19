@@ -13,6 +13,7 @@
 import {
   CARD_OWNERS,
   COPY_SYMBOL_SLOTS,
+  COPY_STYLE_KEYS,
   CARD_ARTWORK_LAYER_PLACEMENTS,
   CARD_FIXED_LAYERS,
   COMBAT_SYMBOLS,
@@ -273,7 +274,31 @@ function cardCopyVisuals(value: unknown, quantity: number): CardCopyVisual[] {
     for (const field of ['tuckEffect', 'cornerBadge'] as const) {
       if (typeof raw[field] === 'string') visual[field] = raw[field];
     }
-    if (visual.artwork || visual.symbols || visual.boost !== undefined || visual.tuckEffect !== undefined || visual.cornerBadge !== undefined) copies.set(copy, visual);
+    for (const field of ['boostSymbol', 'ribbonSymbol'] as const) {
+      const token = raw[field];
+      if (typeof token === 'string' && (token === '' || /^\{\{custom:[^{}]+\}\}$/.test(token) ||
+          (field === 'ribbonSymbol' && /^\{\{(attack|defense|versatile|scheme)\}\}$/.test(token)))) visual[field] = token;
+    }
+    const style = asRecord(raw['style']);
+    for (const key of COPY_STYLE_KEYS) {
+      const value = style[key];
+      if (key === 'ribbonFoot' || key === 'cornerBadge' || key === 'tuckEffect') {
+        if (typeof asRecord(value)['color'] === 'string') {
+          visual.style ??= {};
+          visual.style[key] = fill(value, DEFAULT_CARD_THEME[key]);
+        }
+      } else if (key === 'ribbonSymbolSize' || key === 'cornerBadgeOpacity') {
+        if (typeof value === 'number' && Number.isFinite(value)) {
+          visual.style ??= {};
+          visual.style[key] = key === 'ribbonSymbolSize' ? Math.max(40, Math.min(220, value)) : Math.max(0, Math.min(1, value));
+        }
+      } else if (typeof value === 'string') {
+        visual.style ??= {};
+        visual.style[key] = value;
+      }
+    }
+    if (visual.artwork || visual.symbols || visual.style || visual.boostSymbol !== undefined || visual.ribbonSymbol !== undefined ||
+        visual.boost !== undefined || visual.tuckEffect !== undefined || visual.cornerBadge !== undefined) copies.set(copy, visual);
   }
   return [...copies.values()].sort((a, b) => a.copy - b.copy);
 }

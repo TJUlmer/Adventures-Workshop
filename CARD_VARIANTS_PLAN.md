@@ -3,20 +3,25 @@
 Planned and approved on 18 November 2026; initial implementation deployed to preview
 as `3de5300`. Scope refined on 19 November: allow boost value, tuck text and corner
 badge content overrides, and keep the Copies tab understated without a number badge.
-These refinements are implemented locally awaiting commit/deployment.
+Those refinements were deployed to preview as `53fa96b`. A further 19 November
+refinement adds a boost symbol row above boost, full ribbon symbol choices,
+ribbon size/strip fill, badge fill/opacity/content colour and tuck fill/text colour.
+This styling refinement is implemented locally awaiting commit/deployment. Tuck
+orientation and other shared special effects remain unchanged.
 
 ## Implementation
 
 - Action cards have a **Copies** tab with one selector per physical copy.
   Content and Design edit the shared card; Copies edits main artwork and eligible
   standalone uploaded symbols, boost value, tuck text and badge content. Clearing
-  an override restores shared values. Effect visibility and styling stay shared.
+  an override restores shared values. Effect visibility, placement and tuck
+  orientation stay shared. The seven permitted style fields inherit individually.
 - Quantity reductions that would discard customized copies ask which to retain.
   The quantity change and retained-copy reindexing use the existing Undo/Redo.
 - Overview/gallery can show every physical copy. The collapsed view uses copy 1.
   PNG archives contain one file per distinct appearance and a copy allocation guide;
   print and TTS preserve the true deck quantity and shared printed ×N.
-- Document schema is 80; publication renderer version is 16. Nested copy artwork
+- Document schema is 81; publication renderer version is 17. Nested copy artwork
   uses the existing structural asset extraction/hydration, and preview manifests
   accept copy-qualified keys. No database migration is required.
 - Verified with synthetic hero, villain and minion cards, including three symbols
@@ -31,8 +36,8 @@ copies may differ in artwork, standalone symbols, boost value, tuck text and cor
 badge content. They are not separate cards joined by matching titles.
 
 The initial scope was **artwork and standalone symbols**, then expanded to the
-three permitted detail fields above. Per-copy colours,
-gradients, patterns and general styling are outside the first release.
+three permitted detail fields above, then the restricted symbol/badge/tuck style
+controls. General card styling, patterns and extra artwork layers remain shared.
 
 Acceptance examples supplied by the user:
 
@@ -51,17 +56,19 @@ inflate the physical count when printed or exported.
   and deck backs unchanged.
 - Per-copy artwork includes the main image, crop, transform, adjustments and
   effects. These are image controls; shared card fills and patterns stay shared.
-- Reuse existing standalone custom-symbol positions, initially the ribbon foot,
-  the existing custom boost-symbol slot and a symbol-only corner badge. A slot
-  must already be configured on the shared card; copy editing substitutes its
-  uploaded icon. Visibility, placement and size remain shared in this release.
-- Ribbon/boost symbol slots accept a `CustomSymbolId`, not arbitrary text.
+- Boost offers None and uploaded symbols above its numeric value. Ribbon offers
+  None, the shared editor's built-in choices and uploaded symbols, plus size and
+  strip fill. No preconfigured shared icon is required. Ribbon visibility and
+  position stay shared. Existing ID-only symbol overrides remain compatible.
+- Ribbon/boost symbol fields accept single valid icon tokens, not arbitrary text.
   Corner badges have a text/icon editor, including badges containing text.
   Text-embedded icons in names/combat rules remain shared.
 - Combat symbols/values, titles, names, combat ability text, split combat, boost
   effects, bonus attacks and ownership cannot be overridden. Boost value, tuck
-  effect text and corner badge content can be overridden. Visibility, orientation
-  and styling follow the shared card. Boost analysis uses physical copy values.
+  effect text and corner badge content can be overridden. Tuck bar fill/text colour
+  and badge background fill/opacity/content colour can differ; tuck orientation,
+  other styling and effect visibility stay shared. Boost analysis uses physical
+  copy values and symbol choices.
 - Keep extra artwork layer structure/content and whole-card replacement images
   shared initially. Whole-face copy replacements would bypass shared text and
   values, so they must not become an escape hatch in the copy editor.
@@ -84,6 +91,9 @@ interface ActionCardCopyVisual {
   copy: number;
   artwork?: ArtworkInit;
   symbols?: Partial<Record<StandaloneSymbolSlot, CustomSymbolId>>;
+  boostSymbol?: string;
+  ribbonSymbol?: string;
+  style?: CardCopyStyle; // Restricted to the seven approved style keys.
   boost?: number | null;
   tuckEffect?: string;
   cornerBadge?: string;
@@ -107,7 +117,8 @@ interface ActionCardCopyVisual {
 - Normalize positive integral copy positions, repair duplicate positions
   deterministically, sanitize allowed fields, and reject entries outside the
   physical quantity. Normalization must be idempotent.
-- Document schema moved 78 → 79 for visuals and 79 → 80 for permitted details,
+- Document schema moved 78 → 79 for visuals, 79 → 80 for permitted details,
+  and 80 → 81 for symbol choices and the restricted style layer,
   because an older editor would silently discard copy visuals. Cover JSON
   import/export and private cloud drafts, not just new-card creation.
 

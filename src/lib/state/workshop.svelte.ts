@@ -32,7 +32,8 @@ import {
 import type { CardStyleOverride, CardTheme } from '$lib/cards/style';
 import { stockTheme } from '$lib/cards/theme';
 import { copySymbolAvailable, mergeCopyArtwork, physicalCopyCount } from '$lib/cards/copy-visuals';
-import type { CardCopyVisual, CopyDetailField, CopySymbolSlot } from '$lib/cards/types';
+import { COPY_STYLE_KEYS } from '$lib/cards/types';
+import type { CardCopyStyle, CardCopyVisual, CopyDetailField, CopyStyleKey, CopySymbolSlot } from '$lib/cards/types';
 import type { ArtworkInit } from '$lib/core/artwork';
 import type {
   Card,
@@ -1627,10 +1628,12 @@ export class WorkshopStore {
     for (const visual of card.copyVisuals) {
       if (visual.artwork && !Object.keys(visual.artwork).length) delete visual.artwork;
       if (visual.symbols && !Object.keys(visual.symbols).length) delete visual.symbols;
+      if (visual.style && !Object.keys(visual.style).length) delete visual.style;
     }
     card.copyVisuals = card.copyVisuals.filter((visual) =>
       !!(visual.artwork && Object.keys(visual.artwork).length) ||
       !!(visual.symbols && Object.keys(visual.symbols).length) ||
+      !!visual.style || visual.boostSymbol !== undefined || visual.ribbonSymbol !== undefined ||
       visual.boost !== undefined || visual.tuckEffect !== undefined || visual.cornerBadge !== undefined).sort((a, b) => a.copy - b.copy);
     card.updatedAt = now();
     this.touch();
@@ -1653,6 +1656,9 @@ export class WorkshopStore {
     delete visual.artwork;
     if (part === 'all') {
       delete visual.symbols;
+      delete visual.style;
+      delete visual.boostSymbol;
+      delete visual.ribbonSymbol;
       delete visual.boost;
       delete visual.tuckEffect;
       delete visual.cornerBadge;
@@ -1669,6 +1675,7 @@ export class WorkshopStore {
     if (symbol) visual.symbols[slot] = symbol;
     else delete visual.symbols[slot];
     if (slot === 'cornerBadge') delete visual.cornerBadge;
+    else delete visual[slot];
     this.pruneCopyVisual(id);
   }
 
@@ -1679,6 +1686,21 @@ export class WorkshopStore {
     else visual[field] = value;
     // The badge's text field also inserts icons; it supersedes the older icon-only override.
     if (field === 'cornerBadge' && visual.symbols) delete visual.symbols.cornerBadge;
+    if (field === 'boostSymbol' && visual.symbols) delete visual.symbols.boostSymbol;
+    if (field === 'ribbonSymbol' && visual.symbols) delete visual.symbols.ribbonSymbol;
+    this.pruneCopyVisual(id);
+  }
+
+  setCopyStyle<K extends CopyStyleKey>(id: CardId, copy: number, key: K, value: CardCopyStyle[K]): void {
+    if (!(COPY_STYLE_KEYS as readonly string[]).includes(key)) return;
+    const visual = this.copyVisual(id, copy, value !== undefined);
+    if (!visual) return;
+    if (value === undefined) {
+      if (visual.style) delete visual.style[key];
+    } else {
+      visual.style ??= {};
+      visual.style[key] = value;
+    }
     this.pruneCopyVisual(id);
   }
 

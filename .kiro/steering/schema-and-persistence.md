@@ -5,7 +5,7 @@ description: Rules for persisted document shape. Apply when adding or changing a
 
 # Schema and persistence
 
-`SET_SCHEMA_VERSION` (currently **80**) is checked on import; files from a newer
+`SET_SCHEMA_VERSION` (currently **81**) is checked on import; files from a newer
 schema are **refused**, not guessed at. The same check applies when opening a
 published set — `row.schema_version > SET_SCHEMA_VERSION` throws rather than
 loading a document this build cannot fully understand.
@@ -29,17 +29,22 @@ must be identical, and a fresh fork must report nothing.
 **Absent is meaningfully different from empty** in places — a threat step's
 `fill: null` means "follow the board", not "no fill". Do not collapse the two.
 
-Action-card `copyVisuals` (schema 80) are sparse main-artwork/standalone-symbol,
+Action-card `copyVisuals` (schema 81) are sparse main-artwork/standalone-symbol,
 boost value, tuck text and badge content overrides for one-based physical positions.
 Titles, names, combat rules/values, split combat, boost effects, bonus attacks,
-effect visibility/placement, style and quantity remain shared on the parent.
+effect visibility/placement, tuck orientation and quantity remain shared on the parent.
+Only ribbon symbol size/strip fill, badge fill/opacity/content colour and tuck bar
+fill/text colour can override shared styling. Boost/ribbon choices include None
+and do not require a configured shared icon. Copy style keys are whitelisted on
+load and write, applied after the resolved card theme and before printer-friendly
+styling. Clone nested fills when duplicating; preserve sparse inheritance on reset.
 Normalize the whitelist without filling absent override
 keys; clearing restores inheritance. `cards/copy-visuals.ts` resolves each face,
 with copy 0 reserved for the shared editor and copy 1 the default representative.
 Print/TTS expand physical quantities once; PNG/publication deduplicate appearances.
 Quantity reductions that discard customized copies require a keep selection and
 use the existing session Undo/Redo. Nested assets use structural extraction and
-hydration; publication renderer 16 uses copy-qualified preview keys. Boost analysis
+hydration; publication renderer 17 uses copy-qualified preview keys. Boost analysis
 uses physical copy values while retaining logical design counts. The Copies tab
 has no number badge. Explicit null boost and blank text are valid overrides. No SQL
 migration is required. See `CARD_VARIANTS_PLAN.md` for the first-release scope.
