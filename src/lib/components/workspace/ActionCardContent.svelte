@@ -119,7 +119,7 @@
   ] as const;
 
   const isScheme = $derived(card.symbol === 'scheme');
-  const hasSeparateDefenseAbility = $derived(!abilityIsEmpty(card.defenseAbility));
+  const hasSeparateDefenseAbility = $derived(!abilityIsEmpty(card.defenseAbility, true));
   const availableCustomSymbols = $derived(
     workshop.adventure.customSymbols.filter((symbol) => symbol.source)
   );
@@ -535,7 +535,7 @@
           symbol={CARD_SYMBOLS.attack}
           hint={hasSeparateDefenseAbility
             ? 'Printed above the floating separator.'
-            : 'Applies to both attack and defense until the Defense side contains text.'}
+            : 'Applies to both attack and defense until the Defense side contains text or an intentional space.'}
           ability={card.ability}
           onchange={(patch) => edit((target) => Object.assign(target.ability, patch))}
           resolved={resolvedTheme}
@@ -547,8 +547,8 @@
           sourceRegion="defense-ability"
           symbol={CARD_SYMBOLS.defense}
           hint={hasSeparateDefenseAbility
-            ? 'Printed below the floating separator.'
-            : 'Add text here to give defense its own effect and show the separator.'}
+            ? 'Printed below the floating separator. A space keeps the separator without visible text.'
+            : 'Add text for a separate defense effect, or enter a space to show the separator without visible text.'}
           ability={card.defenseAbility}
           onchange={(patch) => edit((target) => Object.assign(target.defenseAbility, patch))}
           resolved={resolvedTheme}

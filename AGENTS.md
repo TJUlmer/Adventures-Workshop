@@ -130,6 +130,9 @@ TypeScript is pinned to `~6` because `svelte-check` does not run on 7 yet.
 - Importing a store with a `?t=` cache-buster creates a separate, empty instance.
 - `clip-path` clips `box-shadow` and `outline` away entirely.
 - A negative margin on a `flex: 1 1 0` item wins it extra width.
+- An untouched split-defense ability shares the attack effect; an intentional
+  space retains the split separator/rule without visible copy. Use whitespace-aware
+  `abilityIsEmpty(ability, true)` for split layout, not ordinary empty-text checks.
 
 ## Further reading
 

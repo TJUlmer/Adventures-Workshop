@@ -44,7 +44,7 @@ with copy 0 reserved for the shared editor and copy 1 the default representative
 Print/TTS expand physical quantities once; PNG/publication deduplicate appearances.
 Quantity reductions that discard customized copies require a keep selection and
 use the existing session Undo/Redo. Nested assets use structural extraction and
-hydration; publication renderer 17 uses copy-qualified preview keys. Boost analysis
+hydration; publication renderer 18 uses copy-qualified preview keys. Boost analysis
 uses physical copy values while retaining logical design counts. The Copies tab
 has no number badge. Explicit null boost and blank text are valid overrides. No SQL
 migration is required. See `CARD_VARIANTS_PLAN.md` for the first-release scope.
