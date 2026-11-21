@@ -143,10 +143,11 @@ export function usedTimings(ability: AbilityBlocks): AbilityTiming[] {
   return ABILITY_TIMINGS.filter((timing) => actionTextHasContent(ability[timing], true));
 }
 
-export function abilityIsEmpty(ability: AbilityBlocks): boolean {
+/** Split halves may use a deliberate space to retain their separator without text. */
+export function abilityIsEmpty(ability: AbilityBlocks, preserveWhitespace = false): boolean {
   return (
-    !actionTextHasContent(ability.plain) &&
-    ability.bonusAbilities.every((bonus) => !actionTextHasContent(bonus.text)) &&
+    !actionTextHasContent(ability.plain, preserveWhitespace) &&
+    ability.bonusAbilities.every((bonus) => !actionTextHasContent(bonus.text, preserveWhitespace)) &&
     usedTimings(ability).length === 0
   );
 }

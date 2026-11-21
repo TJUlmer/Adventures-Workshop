@@ -562,11 +562,15 @@ clearance replaces the villain-only bottom inset. The hero path also drops the
 villain/minion split floors, letting its symbol/copy establish the compact
 resting height. `HERO_SPLIT_DIVIDER_Y` is the one manual Y control for its title,
 divider and boost; the art and body heights derive from it so no seam can open.
-Both halves therefore stay compact until their copy needs the room. A blank
+Both halves therefore stay compact until their copy needs the room. An untouched
 `defenseAbility` does not draw the split body or horizontal separator: both
 values use the ordinary value column beside `ability`, making that attack-side
-copy apply to both. Any real defense copy switches the same card to the two
-halves and restores the separator. No second split model is needed.
+copy apply to both. Defense text or an intentional space switches the same card
+to the two halves and restores the separator. The space prints no placeholder
+or visible character. Each half's vertical rule appears only with visible content,
+so attack or defense can independently remain blank without a rule. The editor
+and renderer use `abilityIsEmpty(ability, true)` to retain the horizontal split;
+vertical rules use the default whitespace-trimming check. No second split model is needed.
 Everywhere else —
 `ActionCardFace`'s artwork, divider, boost disc, title, and the ability text's
 own left-aligned layout the moment there are no attack/defense values to

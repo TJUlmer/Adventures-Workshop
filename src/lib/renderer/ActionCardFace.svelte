@@ -243,8 +243,8 @@
     (character ? resolvedHeroName(character) : '').trim() || 'Hero Name'
   );
 
-  /** Blank defense copy means the attack-side effect is shared by both values. */
-  const hasSeparateDefenseAbility = $derived(!abilityIsEmpty(card.defenseAbility));
+  /** Untouched defense copy shares the attack effect; an intentional space retains the split. */
+  const hasSeparateDefenseAbility = $derived(!abilityIsEmpty(card.defenseAbility, true));
   const usesSplitBody = $derived(card.split && hasSeparateDefenseAbility);
 
   /**
@@ -1448,10 +1448,8 @@
             style:min-height={pu(value === null ? 0 : symbol.height)}
           >
             <!--
-              A split half prints no placeholder, so with no copy there is
-              nothing for the rule to separate the value from — and a rule
-              against blank space reads as an error. It only appears once the
-              half has both.
+              The horizontal split can be intentional even without printed copy.
+              Each vertical rule still needs visible content on its own half.
             -->
             {#if value !== null && !abilityIsEmpty(ability)}
               <div
