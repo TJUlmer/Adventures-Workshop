@@ -131,8 +131,9 @@ TypeScript is pinned to `~6` because `svelte-check` does not run on 7 yet.
 - `clip-path` clips `box-shadow` and `outline` away entirely.
 - A negative margin on a `flex: 1 1 0` item wins it extra width.
 - An untouched split-defense ability shares the attack effect; an intentional
-  space retains the split separator/rule without visible copy. Use whitespace-aware
-  `abilityIsEmpty(ability, true)` for split layout, not ordinary empty-text checks.
+  space retains the horizontal split separator without visible copy. Each half's
+  vertical rule needs visible ability content. Use `abilityIsEmpty(ability, true)`
+  for split layout and the default check for vertical rules.
 
 ## Further reading
 

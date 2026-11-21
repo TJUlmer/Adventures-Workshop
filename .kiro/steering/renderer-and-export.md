@@ -6,11 +6,12 @@ description: Invariants of the render-is-export pipeline. Apply when touching sr
 # The renderer is the export
 
 For split combat, an untouched defense ability shares the attack effect. An
-intentional space instead retains the horizontal separator and that half's
-vertical rule without visible text. Use `abilityIsEmpty(ability, true)` for split
-layout decisions; ordinary text emptiness remains unchanged. Editor input,
+intentional space instead retains the horizontal separator without visible text.
+Each half's vertical rule requires visible content, independently of the other
+half. Use `abilityIsEmpty(ability, true)` for split layout decisions and the default
+whitespace-trimming check for vertical rules. Editor input,
 normalization and JSON already preserve intentional spaces. Publication renderer
-18 invalidates older stored images that treated these split halves as empty.
+19 invalidates older stored images that drew vertical rules beside blank split halves.
 
 `src/lib/renderer/` draws cards as DOM, and `src/lib/export/card-image.ts`
 photographs that same DOM. **There is no second drawing path** — an export that

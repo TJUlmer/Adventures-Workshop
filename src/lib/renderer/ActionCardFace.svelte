@@ -1448,10 +1448,10 @@
             style:min-height={pu(value === null ? 0 : symbol.height)}
           >
             <!--
-              Untouched halves have no rule. A deliberate space keeps the rule
-              without printing a placeholder or requiring a visible character.
+              The horizontal split can be intentional even without printed copy.
+              Each vertical rule still needs visible content on its own half.
             -->
-            {#if value !== null && !abilityIsEmpty(ability, true)}
+            {#if value !== null && !abilityIsEmpty(ability)}
               <div
                 class="rule-v"
                 style:width={pu(ABILITY_RULE.width)}

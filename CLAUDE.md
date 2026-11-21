@@ -567,9 +567,10 @@ Both halves therefore stay compact until their copy needs the room. An untouched
 values use the ordinary value column beside `ability`, making that attack-side
 copy apply to both. Defense text or an intentional space switches the same card
 to the two halves and restores the separator. The space prints no placeholder
-or visible character, but retains the half's vertical rule too. The editor and
-renderer use `abilityIsEmpty(ability, true)` for these decisions; the default
-empty-text check still ignores whitespace elsewhere. No second split model is needed.
+or visible character. Each half's vertical rule appears only with visible content,
+so attack or defense can independently remain blank without a rule. The editor
+and renderer use `abilityIsEmpty(ability, true)` to retain the horizontal split;
+vertical rules use the default whitespace-trimming check. No second split model is needed.
 Everywhere else —
 `ActionCardFace`'s artwork, divider, boost disc, title, and the ability text's
 own left-aligned layout the moment there are no attack/defense values to
@@ -2966,7 +2967,7 @@ customized copies require a keep selection and use the existing session Undo/Red
 Schema 81 normalizes the sparse override whitelist, preserving inheritance;
 explicit null boost and blank text remain overrides. Boost analysis weights each
 physical copy's value without increasing logical design counts. Copies has no
-number badge. Publication renderer 18 stores copy-qualified manifest keys with independent
+number badge. Publication renderer 19 stores copy-qualified manifest keys with independent
 face fingerprints. Structural asset extraction/hydration already covers nested
 copy artwork; no SQL migration is needed. See `CARD_VARIANTS_PLAN.md`.
 
