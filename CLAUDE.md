@@ -938,8 +938,16 @@ its own line colour, so `createCardback`'s default is role-aware: `#f6eada`
 for the hero's `umlabs_cardback_frame.png`, `#ebe8d5` for villain/minion
 (`adventures_minion_cardback_nologo.png`) — picking one colour for both would
 read wrong the moment an author opened whichever role it wasn't sampled from.
-The hero's contrasting `umlabs_cardback_logo.png` follows the same ink colour
-as its name, exposed together as "Text & logo" in `CardbackPanel`.
+The hero frame uses the complete alpha of `UMLabs_Cardback_Template.png`.
+Its contrasting `umlabs_cardback_logo_alpha.png` follows the same ink colour
+as its name, exposed together as "Text & logo" in `CardbackPanel`. The logo
+mask is generated at the source's exact 1632×2218 canvas, without bleed resampling.
+Both layers use alpha masking: browsers that ignore raster `mask-mode: luminance`
+otherwise paint the whole badge in the ink colour and hide the UMLABS lettering.
+Regenerate only this mask with
+`python tools/hero-card-assets.py --cardback-logo-only`; the legacy resampled
+frame/logo outputs are not used by this renderer. Publication renderer 20
+invalidates older cached gallery images when refreshed or republished.
 
 **A hero's back prints no role line, so `CardbackPanel`'s "Role line" field
 is gated to `character.role !== 'hero'`.** `HeroCardbackFace` has never read

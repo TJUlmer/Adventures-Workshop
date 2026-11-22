@@ -2,6 +2,10 @@
 
     python tools/hero-card-assets.py
 
+Regenerate only the browser-safe deck-back logo, leaving other art untouched:
+
+    python tools/hero-card-assets.py --cardback-logo-only
+
 The supplied art is a *picture* of a finished card: the frame, the combat
 ribbon's head and a leftover boost numeral all painted into one file, and the
 character card's frame drawn with its band fills knocked out. The renderer
@@ -18,6 +22,8 @@ Outputs, all alpha masks unless noted:
 
   umlabs_cardback_frame.png      the deck-back border and logo badge
   umlabs_cardback_logo.png       the contrasting UMLABS mark inside the badge
+  umlabs_cardback_logo_alpha.png the current logo at its source canvas size,
+                                used without browser luminance-mask support
   hero_action_frame.png          the card frame, boost numeral removed
   hero_combat_banner.png         the ribbon's coloured head, chevron foot and all
   hero_ribbon_point.png          the tail's pennant point, at its natural place
@@ -40,6 +46,7 @@ makes.
 from __future__ import annotations
 
 import re
+from argparse import ArgumentParser
 from collections import Counter
 from pathlib import Path
 
@@ -431,7 +438,7 @@ def split_label_ink() -> None:
         print(f"label ink already out of {skipped} band(s); skipped")
 
 
-def split_cardback() -> None:
+def split_cardback(*, logo_only: bool = False) -> None:
     art = load(CARDBACK_SOURCE)
     alpha = art[:, :, 3].astype(float) / 255
 
@@ -442,6 +449,13 @@ def split_cardback() -> None:
     luminance = art[:, :, :3].mean(2) / 255
     dark = np.rint(alpha * (1 - luminance) * 255).astype(int)
     light = np.rint(alpha * luminance * 255).astype(int)
+
+    # The live renderer stretches the original source over the card canvas.
+    # Keep this mask on that exact source canvas; the legacy bleed-resampled
+    # masks below have different dimensions and no longer align with it.
+    mask_png(light).save(TEMPLATES / "umlabs_cardback_logo_alpha.png")
+    if logo_only:
+        return
 
     to_bleed(mask_png(dark)).save(TEMPLATES / "umlabs_cardback_frame.png")
     to_bleed(mask_png(light)).save(TEMPLATES / "umlabs_cardback_logo.png")
@@ -819,4 +833,11 @@ def main() -> None:
     )
 
 if __name__ == "__main__":
-    main()
+    parser = ArgumentParser(description=__doc__)
+    parser.add_argument("--cardback-logo-only", action="store_true",
+                        help="Regenerate only the source-sized alpha logo mask.")
+    args = parser.parse_args()
+    if args.cardback_logo_only:
+        split_cardback(logo_only=True)
+    else:
+        main()

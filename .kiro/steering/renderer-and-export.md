@@ -39,6 +39,15 @@ that bite:
 
 ## Masking, not redrawing
 
+Avoid browser-side luminance masks for raster images: some mobile browsers
+interpret their full alpha instead, hiding the hero deck-back logo under a
+solid badge. `HeroCardbackFace` pairs the source template's full alpha with
+`umlabs_cardback_logo_alpha.png`, generated without resampling on the same source
+canvas. Run `python tools/hero-card-assets.py --cardback-logo-only` after changing
+that source. The existing frame and "Text & logo" colours still control the two
+layers, and replacement backs bypass them. Publication renderer 20 refreshes
+cached faces through the existing gallery refresh/republication path.
+
 The general trick throughout: template art is used as a **CSS alpha mask over a
 fill**, so shapes keep their drawn form while taking any colour or gradient. That is
 what makes the border customisable without redrawing it.

@@ -121,6 +121,9 @@ TypeScript is pinned to `~6` because `svelte-check` does not run on 7 yet.
 - Importing a store with a `?t=` cache-buster creates a separate, empty instance.
 - `clip-path` clips `box-shadow` and `outline` away entirely.
 - A negative margin on a `flex: 1 1 0` item wins it extra width.
+- Raster luminance masks are not reliable across mobile browsers. The hero
+  deck-back logo uses a source-sized alpha mask; regenerate it with
+  `python tools/hero-card-assets.py --cardback-logo-only` when its template changes.
 - An untouched split-defense ability shares the attack effect; an intentional
   space retains the horizontal split separator without visible copy. Each half's
   vertical rule needs visible ability content. Use `abilityIsEmpty(ability, true)`

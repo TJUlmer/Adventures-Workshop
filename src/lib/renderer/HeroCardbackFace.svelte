@@ -8,9 +8,10 @@
    * same canvas by `CardbackFace`. Both backs draw artwork edge to edge.
    * The hero's distinct two-tone lockup is read directly from
    * `UMLabs_Cardback_Template.png`: its complete alpha supplies the frame
-   * layer, while its white/luminance pixels supply the contrasting mark in
-   * `back.ink` along with the hero name. That keeps both existing colour
-   * controls meaningful without letting derived masks drift behind the source.
+   * layer, while a generated alpha mask supplies the contrasting mark in
+   * `back.ink` along with the hero name. Raster luminance masks fall back to
+   * alpha in some browsers, painting the whole badge and hiding its logo.
+   * Generate the logo from the same source canvas without resampling it.
    */
   import { fillCss } from '$lib/cards/style';
   import { cardbackLabel } from '$lib/decks/factory';
@@ -37,7 +38,7 @@
     <CardArt artwork={back.artwork} background="transparent" />
   </div>
 
-  <!-- Two readings of the one source template preserve its two colour roles. -->
+  <!-- Both layers use alpha so the text/logo colour works on mobile browsers too. -->
   <div class="mask template-frame" style:background={fillCss(back.frame)}></div>
   <div class="mask template-ink" style:background={back.ink}></div>
 
@@ -62,8 +63,6 @@
     position: absolute;
     inset: 0;
     pointer-events: none;
-    mask-image: url('/assets/templates/UMLabs_Cardback_Template.png');
-    -webkit-mask-image: url('/assets/templates/UMLabs_Cardback_Template.png');
     mask-size: 100% 100%;
     -webkit-mask-size: 100% 100%;
     mask-repeat: no-repeat;
@@ -71,11 +70,13 @@
   }
 
   .template-frame {
-    mask-mode: alpha;
+    mask-image: url('/assets/templates/UMLabs_Cardback_Template.png');
+    -webkit-mask-image: url('/assets/templates/UMLabs_Cardback_Template.png');
   }
 
   .template-ink {
-    mask-mode: luminance;
+    mask-image: url('/assets/templates/umlabs_cardback_logo_alpha.png');
+    -webkit-mask-image: url('/assets/templates/umlabs_cardback_logo_alpha.png');
   }
 
   .name {
