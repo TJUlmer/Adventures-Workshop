@@ -4,13 +4,15 @@
 
   type Target = Pick<SetSummary, 'id' | 'name' | 'revision'>;
   interface Props {
+    kind: 'card-images' | 'tts';
     disabled?: boolean;
     lookup: (slug: string) => Promise<Target | null>;
     refresh: (id: string, onProgress: (done: number, total: number) => void) => Promise<boolean>;
     onbusychange: (busy: boolean) => void;
   }
 
-  let { disabled = false, lookup, refresh, onbusychange }: Props = $props();
+  let { kind, disabled = false, lookup, refresh, onbusychange }: Props = $props();
+  const isTts = $derived(kind === 'tts');
   let link = $state('');
   let target = $state<Target | null>(null);
   let lookingUp = $state(false);
@@ -80,9 +82,13 @@
         total = count;
       });
       if (!refreshed) throw new Error('That published set is no longer available. Look it up again.');
-      status = `Refreshed gallery card images for ${selected.name}. Reload its shared page to see them.`;
+      status = isTts
+        ? `Refreshed the shared TTS copy for ${selected.name}. Export it again and load the new saved object in TTS. Existing objects keep their previous images.`
+        : `Refreshed gallery card images for ${selected.name}. Reload its shared page to see them.`;
     } catch (cause) {
-      error = cause instanceof Error ? cause.message : 'Could not refresh the gallery card images.';
+      error = cause instanceof Error ? cause.message : isTts
+        ? 'Could not refresh the shared TTS copy.'
+        : 'Could not refresh the gallery card images.';
     } finally {
       refreshing = false;
       onbusychange(false);
@@ -92,7 +98,9 @@
 
 <div class="force-refresh">
   <strong>Force refresh one set</strong>
-  <p>Rebuild gallery card images even when they are marked up to date. The published content and revision stay the same.</p>
+  <p>{isTts
+    ? 'Rebuild the shared TTS export, including its card images. Earlier exports keep working while this revision is current. The published content and revision stay the same.'
+    : 'Rebuild gallery card images even when they are marked up to date. The published content and revision stay the same.'}</p>
   <label>
     <span>Published set link or code</span>
     <TextInput
@@ -117,11 +125,15 @@
       <span>Published revision {target.revision}</span>
     </div>
     <Button size="sm" disabled={disabled || busy} onclick={forceRefresh}>
-      {refreshing ? 'Refreshing card images…' : 'Force refresh card images'}
+      {isTts
+        ? refreshing ? 'Refreshing TTS copy…' : 'Force refresh TTS copy'
+        : refreshing ? 'Refreshing card images…' : 'Force refresh card images'}
     </Button>
   {/if}
   {#if refreshing}
-    <p role="status">{total > 0 ? `Rendering ${done} of ${total} card images…` : 'Preparing published artwork…'}</p>
+    <p role="status">{total > 0
+      ? isTts ? `Preparing ${done} of ${total} TTS items…` : `Rendering ${done} of ${total} card images…`
+      : 'Preparing published artwork…'}</p>
     <progress max={total || 1} value={done}></progress>
   {/if}
   {#if error}<p class="error" role="alert">{error}</p>{/if}

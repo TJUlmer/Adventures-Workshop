@@ -161,9 +161,11 @@ async function registerManifest(
   setId: string,
   paths: string[],
   savePath: string | null,
-  publishedSource: TtsPublishedSource | null
+  publishedSource: TtsPublishedSource | null,
+  forceRefresh = false
 ): Promise<'published-current' | 'temporary'> {
-  const rows = await request<TtsRetentionRow[]>('/rest/v1/rpc/register_tts_export', {
+  const rpc = forceRefresh ? 'refresh_published_tts_save' : 'register_tts_export';
+  const rows = await request<TtsRetentionRow[]>(`/rest/v1/rpc/${rpc}`, {
     method: 'POST',
     body: {
       p_source_key: setId,
@@ -186,13 +188,18 @@ async function registerManifest(
  * `publishedSource` asks for the export to become that revision's shared copy.
  * The server grants it only to the row's owner or an administrator, and only
  * while that revision has none; anything else is registered as temporary.
+ * An explicit admin refresh uses a separate RPC that retains earlier assets.
  */
 export function createTtsAssetHost(
   setId: string,
-  publishedSource: TtsPublishedSource | null = null
+  publishedSource: TtsPublishedSource | null = null,
+  options: { forceRefresh?: boolean } = {}
 ): Promise<TtsOnlineAssetHost> {
+  if (options.forceRefresh && !publishedSource) {
+    throw new CloudError('A published revision is required to refresh a shared TTS copy.', 400);
+  }
   return hostFor(setId, () => (paths, savePath) =>
-    registerManifest(setId, paths, savePath, publishedSource)
+    registerManifest(setId, paths, savePath, publishedSource, options.forceRefresh)
   );
 }
 

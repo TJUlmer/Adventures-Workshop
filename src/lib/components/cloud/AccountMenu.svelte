@@ -35,7 +35,7 @@
   } from '$lib/cloud/sets';
   import { Button, Icon, TextInput } from '$lib/ui';
   import SignInPanel from './SignInPanel.svelte';
-  import ForceCardPreviewRefresh from './ForceCardPreviewRefresh.svelte';
+  import ForcePublishedRefresh from './ForcePublishedRefresh.svelte';
 
   interface Props {
     /** A completed provider redirect should put the public-name choice in view. */
@@ -77,6 +77,7 @@
   let cardPreviewFailures = $state<string[]>([]);
   let cardPreviewError = $state<string | null>(null);
   let cardForceBusy = $state(false);
+  let ttsForceBusy = $state(false);
   let ttsQueue = $state<TtsSaveBackfillTarget[]>([]);
   let ttsQueueLoading = $state(false);
   let ttsBackfilling = $state(false);
@@ -89,7 +90,7 @@
   let ttsError = $state<string | null>(null);
 
   /** One rendering job at a time: each mounts its own off-screen card stage. */
-  const maintenanceBusy = $derived(previewRefreshing || cardPreviewRefreshing || cardForceBusy || ttsBackfilling);
+  const maintenanceBusy = $derived(previewRefreshing || cardPreviewRefreshing || cardForceBusy || ttsForceBusy || ttsBackfilling);
 
   const dirty = $derived(
     displayName.trim() !== saved || avatarUrl.trim() !== savedAvatarUrl
@@ -290,6 +291,15 @@
     ttsStepTotal = 0;
     ttsBackfilling = false;
     await loadTtsQueue();
+  }
+
+  async function forceTtsSave(
+    id: string,
+    onProgress: (done: number, total: number) => void
+  ): Promise<boolean> {
+    await backfillPublishedTtsSave(id, onProgress, { force: true });
+    ttsQueue = ttsQueue.filter((entry) => entry.id !== id);
+    return true;
   }
 
   async function save(): Promise<void> {
@@ -554,7 +564,8 @@
                 </small>
               {/if}
               {#if cardPreviewError}<p class="error" role="alert">{cardPreviewError}</p>{/if}
-              <ForceCardPreviewRefresh
+              <ForcePublishedRefresh
+                kind="card-images"
                 disabled={maintenanceBusy}
                 lookup={fetchSetSummaryBySlug}
                 refresh={forceCardPreviews}
@@ -606,6 +617,13 @@
                 </small>
               {/if}
               {#if ttsError}<p class="error" role="alert">{ttsError}</p>{/if}
+              <ForcePublishedRefresh
+                kind="tts"
+                disabled={maintenanceBusy}
+                lookup={fetchSetSummaryBySlug}
+                refresh={forceTtsSave}
+                onbusychange={(busy) => (ttsForceBusy = busy)}
+              />
             </section>
           {/if}
 
