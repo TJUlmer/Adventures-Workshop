@@ -1063,13 +1063,19 @@ export async function listSetsMissingTtsSave(): Promise<TtsSaveBackfillTarget[]>
  * The files land under the administrator's own Storage prefix, which is all
  * the upload policy allows; the server accepts them as the shared copy only
  * because the caller is an administrator and the revision still has none.
+ * Force mode repairs an existing shared copy through an admin-only RPC;
+ * the database checks the revision atomically and retains earlier assets.
  */
 export async function backfillPublishedTtsSave(
   targetId: string,
-  onProgress?: (done: number, total: number) => void
+  onProgress?: (done: number, total: number) => void,
+  options: { force?: boolean } = {}
 ): Promise<void> {
   await auth.ensureFresh();
   if (!auth.user) throw new CloudError('Sign in to prepare shared Tabletop Simulator copies.', 401);
+  if (options.force && !(await fetchOwnProfile())?.isAdmin) {
+    throw new CloudError('Administrator access is required to refresh a shared TTS copy.', 403);
+  }
 
   const rows = await request<PublishedSetWithDocument[]>(
     `/rest/v1/sets?select=${SUMMARY_COLUMNS},document&id=eq.${encodeURIComponent(targetId)}&limit=1`
@@ -1081,7 +1087,11 @@ export async function backfillPublishedTtsSave(
   const result = await exportTabletopSimulator(set, {
     hosting: {
       kind: 'online',
-      host: await createTtsAssetHost(row.local_id, { id: row.id, revision: row.revision })
+      host: await createTtsAssetHost(
+        row.local_id,
+        { id: row.id, revision: row.revision },
+        { forceRefresh: options.force }
+      )
     },
     onProgress
   });

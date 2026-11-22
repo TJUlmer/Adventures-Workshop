@@ -278,11 +278,17 @@ before writing the row (required, like card previews) and registers it after,
 because the server grants shared status only to a revision it can see — hence
 `createDeferredTtsAssetHost`. Only the owner or an administrator can register
 one: whatever the first registrant uploads is what every later visitor gets, so
-a visitor's upload is never trusted for it. The first copy registered for a
-revision is **never replaced** while that revision is current — replacing it
-would retire files earlier visitors' saves already point at — so a republish
-with an unchanged document (same revision) keeps the old copy and its own
-becomes temporary. A new revision or an unpublish retires it, and every
+a visitor's upload is never trusted for it. A republish with an unchanged
+document (same revision) keeps the old copy and its own becomes temporary.
+An administrator can explicitly repair the current shared copy using Account →
+Shared Tabletop Simulator copies → Force refresh one set. Migration
+`0049_admin_tts_refresh.sql` adds `refresh_published_tts_save`: it validates new
+uploads through normal registration, locks and checks the published revision,
+then switches the saved-object path while retaining the union of old and new
+asset paths. Earlier downloaded saves therefore keep their textures while the
+revision is current. The published document, revision and gallery images are
+unchanged; users must export again and load the new saved object to see a repair.
+A new revision or an unpublish retires the manifest, and every
 `tts-assets` candidate is due after seven days, so an older save has a week.
 A scoped or pruned visitor export is not the published revision and stays
 temporary. Rows published before this, or whose registration failed, are
