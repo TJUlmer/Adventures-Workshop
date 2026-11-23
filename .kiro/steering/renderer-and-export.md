@@ -13,6 +13,16 @@ whitespace-trimming check for vertical rules. Editor input,
 normalization and JSON already preserve intentional spaces. Publication renderer
 19 invalidates older stored images that drew vertical rules beside blank split halves.
 
+Character ability titles must use the full panel width (`width: 100%`). A
+shrink-wrapped title can round short when export freezes its used dimensions at
+fractional page zoom, moving its final word into a hidden line. Renderer 20
+invalidates those gallery images; existing shared TTS saves need their separate
+admin refresh and must be exported and loaded again.
+
+Renderer 21 combines these fixes with copy-specific visual overrides and
+copy-qualified publication image keys. Physical copy expansion remains separate
+from deduplicating identical rendered appearances.
+
 `src/lib/renderer/` draws cards as DOM, and `src/lib/export/card-image.ts`
 photographs that same DOM. **There is no second drawing path** — an export that
 redrew cards its own way would drift from what the author approved. Preserve that.

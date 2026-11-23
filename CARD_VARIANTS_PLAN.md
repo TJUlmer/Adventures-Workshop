@@ -6,7 +6,9 @@ badge content overrides, and keep the Copies tab understated without a number ba
 Those refinements were deployed to preview as `53fa96b`. A further 19 November
 refinement adds a boost symbol row above boost, full ribbon symbol choices,
 ribbon size/strip fill, badge fill/opacity/content colour and tuck fill/text colour.
-This styling refinement is implemented locally awaiting commit/deployment. Tuck
+The styling refinement was committed as `6bd6884`. The integrated Copies preview
+also includes main through `613d926`: the character ability title export fix,
+admin gallery/TTS refresh controls, and the shared TTS refresh migration. Tuck
 orientation and other shared special effects remain unchanged.
 
 ## Implementation
@@ -21,7 +23,7 @@ orientation and other shared special effects remain unchanged.
 - Overview/gallery can show every physical copy. The collapsed view uses copy 1.
   PNG archives contain one file per distinct appearance and a copy allocation guide;
   print and TTS preserve the true deck quantity and shared printed ×N.
-- Document schema is 81; publication renderer version is 17. Nested copy artwork
+- Document schema is 81; publication renderer version is 21. Nested copy artwork
   uses the existing structural asset extraction/hydration, and preview manifests
   accept copy-qualified keys. No database migration is required.
 - Verified with synthetic hero, villain and minion cards, including three symbols
@@ -29,6 +31,15 @@ orientation and other shared special effects remain unchanged.
   retention, image exports, print/TTS planning and publication cache invalidation.
 
 ## Confirmed behaviour
+
+Integrated preview verification on 23 November 2026 covered IndexedDB save/load,
+schema 78 import and schema 81 JSON round trips, idempotent normalization, and
+three villains in the same set. Four physical hero cards with three appearances
+produced three PNG/gallery faces, four print cells and four cards in the generated
+TTS saved object. Customized gradient stops and intentional blank split abilities
+survived normalization. The character ability title remained complete in exports
+at 80% page scale. Copy reset, Undo/Redo and the customized-copy retention chooser
+were also exercised through the real editor. No published assets were changed.
 
 One logical action card owns its title, name, combat ability text/values, combat
 type, split combat, boost effects, bonus attacks, ownership and quantity. Physical

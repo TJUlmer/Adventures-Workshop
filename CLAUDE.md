@@ -706,6 +706,16 @@ cannot trigger condensation. Ribbon names preserve authored leading and trailing
 Only the ribbon keeps that padding; rules-text name substitutions stay trimmed.
 Factory and normalization both default the scale to 1 for existing cards.
 
+**Character ability titles use the full available panel width.** A flex-start,
+auto-width title was shrink-wrapped to its exact text width. At fractional page
+scale, the export's frozen used width could round just short: the final word
+wrapped inside a frozen one-line height and disappeared. Hester Shaw's
+"You Can't Trust Anyone" reproduced this at 67% and 80% CSS page zoom, despite
+fitting in the live preview. Keep `.ability-name` at `width: 100%`; longer titles
+still wrap normally within the existing two-line clamp. Publication renderer 20
+invalidates earlier gallery images. Existing shared TTS saves need the separate
+admin refresh, followed by a new export and loading the replacement saved object.
+
 **The character card is a genuinely new card, not a reskin.**
 `HeroCharacterCardFace` is its own component, dispatched from `CardRenderer`
 through a `statCard` prop keyed by character, the same shape as `cardback`: a
