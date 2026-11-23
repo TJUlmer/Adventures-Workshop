@@ -1300,6 +1300,10 @@
    */
   .ability-name {
     display: -webkit-box;
+    /* Export freezes used widths and heights. A shrink-wrapped title can
+       round just short at fractional page zoom, wrapping its final word
+       inside the frozen one-line height. Keep the panel's available width. */
+    width: 100%;
     font-family: var(--card-font-name);
     font-weight: var(--card-font-name-weight);
     text-transform: uppercase;
