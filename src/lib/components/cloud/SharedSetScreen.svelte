@@ -1405,7 +1405,6 @@
             componentPreviewsReady={portableSet !== null}
             prepareComponentPreviews={prepareCurrentSet}
             cardPreviews={publishedCardPreviews}
-            publication={row ? { slug: row.slug, revision: row.revision } : undefined}
             publishedPngsOnly
             heading={false}
             {cardSize}

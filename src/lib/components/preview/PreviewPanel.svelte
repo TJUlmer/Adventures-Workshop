@@ -4,7 +4,7 @@
    * chrome as it can get away with: a bleed toggle, the cut line, and zoom.
    */
   import { tick } from 'svelte';
-  import { createCard } from '$lib/cards/factory';
+  import { cardLabel, createCard } from '$lib/cards/factory';
   import { resolveCardTheme } from '$lib/cards/theme';
   import { CARD_TYPE_META } from '$lib/cards/types';
   import { characterLabel, createCharacter, primaryCardName } from '$lib/characters/factory';
@@ -24,6 +24,7 @@
   import { workshop } from '$lib/state/workshop.svelte';
   import { Button, EmptyState, Icon } from '$lib/ui';
   import ArtworkTransformOverlay from './ArtworkTransformOverlay.svelte';
+  import CardRevisionHistory from './CardRevisionHistory.svelte';
   import PreviewFieldOverlay from './PreviewFieldOverlay.svelte';
   import DeckPreviewPanel from './DeckPreviewPanel.svelte';
 
@@ -31,6 +32,7 @@
   let showGuides = $state(false);
   /** Preview width as a fraction of the panel's available width. */
   let zoom = $state(1);
+  let historyOpen = $state(false);
 
   /**
    * A selected character previews its deck back — that is what the character
@@ -314,6 +316,10 @@
     <span class="eyebrow">Preview</span>
 
     <div class="tools">
+      {#if card}
+        <Button size="sm" disabled={cardEditorView.previewEditAddress !== null}
+          onclick={() => (historyOpen = true)}>Revision history</Button>
+      {/if}
       <Button
         size="sm"
         title={hasBleed ? undefined : 'This template is drawn at trim size — it has no bleed'}
@@ -599,6 +605,11 @@
     >{Math.round(zoom * 100)}%</button>
   </div>
 </div>
+
+{#if historyOpen && card}
+  <CardRevisionHistory setId={workshop.adventure.id} cardId={card.id} label={cardLabel(card)}
+    copy={Math.max(1, selectedCopy)} onclose={() => (historyOpen = false)} />
+{/if}
 
 {/if}
 

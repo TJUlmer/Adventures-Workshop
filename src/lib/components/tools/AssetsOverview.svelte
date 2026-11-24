@@ -35,7 +35,6 @@
     cardCopyPreviewKey
   } from '$lib/cloud/card-previews';
   import type { CardPreviewManifest } from '$lib/cloud/card-previews';
-  import type { PublishedCardHistorySource } from '$lib/cloud/card-history';
   import { renderMeshSnapshot } from '$lib/models/snapshot';
   import { CardRenderer, MapBoard, ThreatBoard } from '$lib/renderer';
   import { initiativeSubjectForCard, resolveStyleForCard, cardbackForDeck, findDeck, resolveDeckCardback } from '$lib/sets/queries';
@@ -69,7 +68,6 @@
     prepareComponentPreviews?: () => Promise<unknown>;
     /** Fixed publication pixels. Omitted by the editable Overview. */
     cardPreviews?: CardPreviewManifest;
-    publication?: PublishedCardHistorySource;
     /** A shared publication must never substitute a live reconstructed card. */
     publishedPngsOnly?: boolean;
     /** Off where the screen around it has already named the set. */
@@ -102,7 +100,6 @@
     componentPreviewsReady = true,
     prepareComponentPreviews,
     cardPreviews,
-    publication,
     publishedPngsOnly = false,
     heading = true,
     cardSize,
@@ -1207,7 +1204,6 @@
     onnext={() => moveLightbox(1)}
     onsidechange={(side) => (lightboxSide = side)}
     {publishedPngsOnly}
-    {publication}
   />
 {/if}
 {#if inspectable && ComponentModal}

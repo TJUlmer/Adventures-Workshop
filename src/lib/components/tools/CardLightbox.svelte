@@ -7,11 +7,7 @@
    * publish time. Missing publication pixels are reported rather than replaced
    * with a live reconstruction that may differ from the author's PNG.
    */
-  import { tick } from 'svelte';
   import { CARD_TYPE_META } from '$lib/cards/types';
-  import { fetchPublishedCardHistory } from '$lib/cloud/card-history';
-  import type { PublishedCardHistory, PublishedCardHistorySource } from '$lib/cloud/card-history';
-  import { assetPrefix } from '$lib/cloud/sets';
   import { CardRenderer } from '$lib/renderer';
   import { initiativeSubjectForCard, resolveStyleForCard, cardbackForDeck, findDeck } from '$lib/sets/queries';
   import type { AdventureSet } from '$lib/sets/types';
@@ -26,7 +22,6 @@
     index: number;
     side: GalleryCardSide;
     publishedPngsOnly?: boolean;
-    publication?: PublishedCardHistorySource;
     onclose: () => void;
     onprevious: () => void;
     onnext: () => void;
@@ -41,7 +36,6 @@
     index,
     side,
     publishedPngsOnly = false,
-    publication,
     onclose,
     onprevious,
     onnext,
@@ -51,37 +45,11 @@
   let dialog = $state<HTMLDialogElement | null>(null);
   let swipe = $state<{ x: number; y: number; id: number } | null>(null);
   let failedPreviewUrl = $state('');
-  let history = $state.raw<{ key: string; result: PublishedCardHistory } | null>(null);
-  let selectedRevision = $state<{ key: string; revision: number } | null>(null);
-  let earlierRevisionButton = $state<HTMLButtonElement | null>(null);
 
   const item = $derived(items[index] ?? null);
   const first = $derived(index <= 0);
   const last = $derived(index >= items.length - 1);
   const event = $derived(item?.kind === 'card' && item.card.type === 'event');
-  const historyKey = $derived(
-    open && publication && item?.kind === 'card' ? `${publication.slug}:${publication.revision}:${item.key}` : null
-  );
-  const cardHistory = $derived(history?.key === historyKey ? history.result : null);
-  const viewingRevision = $derived(
-    selectedRevision?.key === historyKey ? selectedRevision.revision : publication?.revision
-  );
-  const latestRevision = $derived(cardHistory?.latest_revision ?? publication?.revision);
-  const pageIsOlder = $derived(Boolean(publication && latestRevision && publication.revision < latestRevision));
-  const viewingOlder = $derived(Boolean(viewingRevision && latestRevision && viewingRevision < latestRevision));
-  const revisions = $derived.by(() => {
-    if (!publication || !cardHistory) return [];
-    const current = publication.revision;
-    const earlier = cardHistory.ranges.flatMap((range) => {
-      const last = Math.min(range.last_revision, current - 1);
-      return Array.from({ length: Math.max(0, last - range.first_revision + 1) },
-        (_, index) => range.first_revision + index);
-    });
-    return [...earlier, current];
-  });
-  const revisionIndex = $derived(viewingRevision === undefined ? -1 : revisions.indexOf(viewingRevision));
-  const archived = $derived(cardHistory?.ranges.find((range) => viewingRevision !== undefined &&
-    range.first_revision <= viewingRevision && viewingRevision <= range.last_revision));
   const deckReverse = $derived.by(() => {
     if (item?.kind !== 'card' || side !== 'back') return null;
     const deck = findDeck(set, item.card.deckId);
@@ -92,14 +60,7 @@
       (item.card.type === 'event' || (item.card.type === 'rules' && item.card.landscape))
   );
   const miniature = $derived(item?.kind === 'card' && item.card.type === 'initiative');
-  const visibleFace = $derived(event && side === 'back' ? 'back' : 'front');
-  const previewSrc = $derived.by(() => {
-    if (archived && viewingRevision !== publication?.revision) {
-      const path = visibleFace === 'back' ? archived.back_path : archived.front_path;
-      return path ? `${assetPrefix()}${path}` : '';
-    }
-    return item?.previews?.[visibleFace] ?? '';
-  });
+  const previewSrc = $derived(item?.previews?.[event && side === 'back' ? 'back' : 'front'] ?? '');
   const usePublishedPreview = $derived(Boolean(previewSrc && previewSrc !== failedPreviewUrl));
   const faceMeta = $derived(
     event && side === 'back'
@@ -115,47 +76,10 @@
     if (!open && dialog.open) dialog.close();
   });
 
-  $effect(() => {
-    const key = historyKey;
-    const slug = publication?.slug;
-    if (!key || !slug || item?.kind !== 'card') return;
-    history = null;
-    selectedRevision = null;
-    const controller = new AbortController();
-    void fetchPublishedCardHistory(slug, item.card.id, item.copy ?? 1, controller.signal)
-      .then((result) => {
-        if (result && !controller.signal.aborted) history = { key, result };
-      })
-      .catch(() => {
-        // The current preview also works against deployments without the history migration.
-      });
-    return () => controller.abort();
-  });
-
-  function stepRevision(delta: number): void {
-    const revision = revisions[revisionIndex + delta];
-    if (historyKey && revision !== undefined) selectedRevision = { key: historyKey, revision };
-  }
-
-  function returnToLatest(): void {
-    if (pageIsOlder) {
-      window.location.reload();
-      return;
-    }
-    selectedRevision = null;
-    void tick().then(() => earlierRevisionButton?.focus());
-  }
-
   function onkeydown(event: KeyboardEvent): void {
     if (event.key === 'Escape') {
       event.preventDefault();
       onclose();
-      return;
-    }
-    if (event.target instanceof Element && event.target.closest('.revision-controls') &&
-        (event.key === 'ArrowLeft' || event.key === 'ArrowRight')) {
-      event.preventDefault();
-      stepRevision(event.key === 'ArrowLeft' ? -1 : 1);
       return;
     }
     if (event.key === 'ArrowLeft' && !first) {
@@ -238,33 +162,8 @@
         </button>
       </header>
 
-      {#if viewingOlder || revisions.length > 1}
-        <div class="revision-bar" class:older={viewingOlder}>
-          {#if viewingOlder}
-            <div class="revision-notice">
-              <strong>Viewing an older version · Read-only</strong>
-              <span>Published Revision {viewingRevision} · Latest is Revision {latestRevision}</span>
-            </div>
-            <button type="button" class="return-latest" onclick={returnToLatest}>
-              {pageIsOlder ? 'Refresh to latest' : 'Back to latest'}
-            </button>
-          {/if}
-          {#if revisions.length > 1}
-            <div class="revision-controls" role="group" aria-label="Card revisions">
-              <button type="button" aria-label="Earlier published revision" aria-disabled={revisionIndex <= 0}
-                bind:this={earlierRevisionButton}
-                onclick={() => stepRevision(-1)}><span aria-hidden="true">‹</span></button>
-              <span class="numeric">{viewingOlder ? 'Revision' : 'Latest revision'} {viewingRevision}</span>
-              <button type="button" aria-label="Later published revision" aria-disabled={revisionIndex >= revisions.length - 1}
-                onclick={() => stepRevision(1)}><span aria-hidden="true">›</span></button>
-            </div>
-          {/if}
-        </div>
-      {/if}
-
       <p class="sr-only" aria-live="polite">
         {item.label}, {faceMeta}, {index + 1} of {items.length}
-        {#if viewingOlder}. Viewing published revision {viewingRevision}, read-only. Latest is revision {latestRevision}.{/if}
       </p>
 
       <div
@@ -287,7 +186,7 @@
         </button>
 
         <div class="card-view" class:landscape class:miniature>
-          {#key `${item.key}:${visibleFace}:${viewingRevision ?? ''}`}
+          {#key `${item.key}:${event ? side : 'front'}`}
             {#if usePublishedPreview}
               <img
                 class="published-card-preview"
@@ -295,11 +194,6 @@
                 alt={item.label}
                 onerror={() => (failedPreviewUrl = previewSrc)}
               />
-            {:else if viewingOlder}
-              <div class="published-unavailable" role="alert">
-                <Icon name="image" size={26} />
-                <strong>Preview unavailable for Revision {viewingRevision}</strong>
-              </div>
             {:else if publishedPngsOnly}
               <div class="published-unavailable" role="alert">
                 <Icon name="image" size={26} />
@@ -406,61 +300,6 @@
     gap: var(--space-4);
     padding: var(--space-4) var(--space-5);
     border-bottom: 1px solid var(--border-subtle);
-  }
-
-  .revision-bar {
-    flex: none;
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    justify-content: space-between;
-    gap: var(--space-2) var(--space-4);
-    padding: var(--space-2) var(--space-5);
-    border-bottom: 1px solid var(--border-subtle);
-  }
-
-  .revision-bar.older {
-    border-inline-start: var(--space-1) solid var(--warning);
-    background: color-mix(in oklab, var(--warning) 14%, var(--surface-raised));
-  }
-
-  .revision-notice {
-    display: grid;
-    gap: var(--space-1);
-    color: var(--text-primary);
-    font-size: var(--text-xs);
-  }
-
-  .revision-controls {
-    display: flex;
-    align-items: center;
-    gap: var(--space-2);
-    font-size: var(--text-xs);
-    white-space: nowrap;
-  }
-
-  .revision-controls button,
-  .return-latest {
-    min-height: var(--touch-target);
-    min-width: var(--touch-target);
-    padding-inline: var(--space-2);
-    border: 1px solid var(--border-default);
-    border-radius: var(--radius-sm);
-    color: var(--text-primary);
-    background: var(--surface-raised);
-  }
-
-  .revision-controls button {
-    font-size: var(--text-lg);
-  }
-
-  .revision-controls button[aria-disabled='true'] {
-    opacity: 0.45;
-  }
-
-  .return-latest {
-    font-size: var(--text-xs);
-    font-weight: var(--weight-semibold);
   }
 
   .heading {

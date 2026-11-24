@@ -341,7 +341,6 @@
             componentPreviewsReady={portableSet !== null}
             prepareComponentPreviews={prepareComponents}
             cardPreviews={publishedCardPreviews}
-            publication={row ? { slug: row.slug, revision: row.revision } : undefined}
             publishedPngsOnly
             heading={false}
             showZoom

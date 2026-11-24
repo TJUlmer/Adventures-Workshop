@@ -88,15 +88,17 @@ removal during publishing or refresh.
 
 ## Published card history
 
-Apply `0050_published_card_history.sql` before deploying the client that publishes copy aliases
-and reads card history. A successful publication that advances the revision records each card's
-image references for the five most recent published revisions, including the latest. Consecutive
-revisions with the same images share a range and the same Storage objects. Existing listings
+Apply `0050_published_card_history.sql` to record revisions and `0051_card_editor_revision_history.sql`
+to enable publisher-only access from the card editor. A successful publication that advances the
+revision records each card's image references for the five most recent published revisions,
+including the latest. Consecutive revisions with the same images share a range and the same
+Storage objects. Existing listings
 start at the most recent revision available when they next publish.
 
-The gallery only offers history for cards present in the latest publication. Removing a card
-releases its history references. Expiry and unpublishing also release the references. The cleanup
-planner and its deletion-time check both keep any image with another live reference.
+The card editor offers history for the publisher's cards present in the latest publication.
+Removing a card releases its history references. Expiry and unpublishing also release the
+references. The cleanup planner and its deletion-time check both keep any image with another
+live reference.
 
 ## Safety model
 
