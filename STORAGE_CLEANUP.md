@@ -88,12 +88,13 @@ removal during publishing or refresh.
 
 ## Published card history
 
-Apply `0050_published_card_history.sql` to record revisions and `0051_card_editor_revision_history.sql`
-to enable publisher-only access from the card editor. A successful publication that advances the
-revision records each card's image references for the five most recent published revisions,
-including the latest. Consecutive revisions with the same images share a range and the same
-Storage objects. Existing listings
-start at the most recent revision available when they next publish.
+Apply `0050_published_card_history.sql` to record revisions, `0051_card_editor_revision_history.sql`
+to enable publisher-only access, and `0052_card_history_retention_50.sql` to extend retention.
+A successful publication that advances the revision records each card's image references for
+the 50 most recent published revisions, including the latest. Consecutive revisions with the
+same images share a range and the same Storage objects. Existing listings start at the most
+recent revision available when they next publish. The longer window uses the history still
+available when the migration runs and fills in as authors republish.
 
 The card editor offers history for the publisher's cards present in the latest publication.
 Removing a card releases its history references. Expiry and unpublishing also release the
