@@ -9,6 +9,8 @@
   import { CARD_TYPE_META } from '$lib/cards/types';
   import { characterLabel, createCharacter, primaryCardName } from '$lib/characters/factory';
   import { CHARACTER_BAND_NAMES, type HeroCharacterCard } from '$lib/characters/types';
+  import { auth } from '$lib/cloud/auth.svelte';
+  import { assetPrefix } from '$lib/cloud/sets';
   import { asId } from '$lib/core/id';
   import { deckLabel } from '$lib/decks/factory';
   import type { DeckId } from '$lib/decks/types';
@@ -28,11 +30,12 @@
   import PreviewFieldOverlay from './PreviewFieldOverlay.svelte';
   import DeckPreviewPanel from './DeckPreviewPanel.svelte';
 
+  let { visible }: { visible: boolean } = $props();
+
   let showBleed = $state(false);
   let showGuides = $state(false);
   /** Preview width as a fraction of the panel's available width. */
   let zoom = $state(1);
-  let historyOpen = $state(false);
 
   /**
    * A selected character previews its deck back — that is what the character
@@ -41,6 +44,12 @@
   const cardback = $derived(workshop.selectedCharacter);
   const card = $derived(cardback ? null : workshop.previewCard);
   const selectedCopy = $derived(workshop.selection.target === 'card' ? workshop.selection.copy ?? 0 : 1);
+  const published = $derived(card ? cardEditorView.publishedRevision : null);
+  const historyTarget = $derived({
+    selection: workshop.selection,
+    setId: workshop.adventure.id,
+    accountId: auth.user?.id
+  });
 
   /**
    * A hero's character card(s), shown above its deck back.
@@ -244,7 +253,7 @@
    * format and filename worked out here instead.
    */
   async function exportPng(bleed: boolean): Promise<void> {
-    if (cardEditorView.previewEditAddress) return;
+    if (published || cardEditorView.previewEditAddress) return;
     const plate = stage?.querySelector<HTMLElement>('.plate');
     if (!plate) return;
 
@@ -315,30 +324,35 @@
   <div class="head">
     <span class="eyebrow">Preview</span>
 
-    <div class="tools">
-      {#if card}
-        <Button size="sm" disabled={cardEditorView.previewEditAddress !== null}
-          onclick={() => (historyOpen = true)}>Revision history</Button>
-      {/if}
-      <Button
-        size="sm"
-        title={hasBleed ? undefined : 'This template is drawn at trim size — it has no bleed'}
-        aria-pressed={bleeding}
-        disabled={!hasBleed}
-        onclick={() => (showBleed = !showBleed)}
-      >
-        {bleeding ? 'Hide bleed' : 'Show bleed'}
-      </Button>
-      <Button
-        size="sm"
-        aria-pressed={showGuides}
-        disabled={!bleeding}
-        onclick={() => (showGuides = !showGuides)}
-      >
-        {showGuides ? 'Hide cut line' : 'Show cut line'}
-      </Button>
-    </div>
+    {#if !published}
+      <div class="tools">
+        <Button
+          size="sm"
+          title={hasBleed ? undefined : 'This template is drawn at trim size — it has no bleed'}
+          aria-pressed={bleeding}
+          disabled={!hasBleed}
+          onclick={() => (showBleed = !showBleed)}
+        >
+          {bleeding ? 'Hide bleed' : 'Show bleed'}
+        </Button>
+        <Button
+          size="sm"
+          aria-pressed={showGuides}
+          disabled={!bleeding}
+          onclick={() => (showGuides = !showGuides)}
+        >
+          {showGuides ? 'Hide cut line' : 'Show cut line'}
+        </Button>
+      </div>
+    {/if}
   </div>
+
+  {#if visible && card}
+    {#key historyTarget}
+      <CardRevisionHistory setId={historyTarget.setId} cardId={card.id} copy={Math.max(1, selectedCopy)}
+        disabled={cardEditorView.previewEditAddress !== null || exporting !== null} />
+    {/key}
+  {/if}
 
   <div class="stage scroll-y" bind:this={stage}>
     {#if statCard && characterSlot?.kind === 'card'}
@@ -383,7 +397,19 @@
       `card: null`, and that used to render underneath the set-level sample
       below rather than giving way to it.
     -->
-    {#if card || characterSlot?.kind === 'cardback'}
+    {#if card && published}
+      <div class="card-slot" style:width="{zoom * 100}%" style:--zoom={zoom}>
+        <img class="published-preview" src={`${assetPrefix()}${published.frontPath}`}
+          alt={`${cardLabel(card)}, published revision ${published.revision}`} />
+      </div>
+      {#if published.backPath}
+        <span class="face-label">Reverse</span>
+        <div class="card-slot" style:width="{zoom * 100}%" style:--zoom={zoom}>
+          <img class="published-preview" src={`${assetPrefix()}${published.backPath}`}
+            alt={`${cardLabel(card)}, reverse of published revision ${published.revision}`} />
+        </div>
+      {/if}
+    {:else if card || characterSlot?.kind === 'cardback'}
       {#if statCard}<span class="face-label">Deck back</span>{/if}
       {#if card?.type === 'action' && (selectedCopy > 0 || card.copyVisuals.length)}
         <span class="face-label">{selectedCopy > 0 ? `Copy ${selectedCopy} of ${card.quantity}` : 'Shared card design'}</span>
@@ -437,7 +463,7 @@
       </div>
     {/if}
 
-    {#if card?.type === 'event'}
+    {#if card?.type === 'event' && !published}
       <!--
         An event card is designed on both sides, so both are on screen. The
         reverse is part of the card rather than a shared deck back, which is
@@ -496,7 +522,7 @@
       </div>
     {/if}
 
-    {#if card && meta}
+    {#if card && meta && !published}
       <div class="facts">
         <span class="fact type" style:--type-color="var({meta.colorVar})">{meta.label}</span>
         <span class="fact">{deck ? deckLabel(deck) : 'No deck'}</span>
@@ -573,7 +599,7 @@
             ? 'Previewed on a hero action card'
             : 'Defaults for every card in the set'}</span>
       </div>
-    {:else}
+    {:else if !published}
       <EmptyState
         icon="card"
         title="Nothing to preview"
@@ -605,11 +631,6 @@
     >{Math.round(zoom * 100)}%</button>
   </div>
 </div>
-
-{#if historyOpen && card}
-  <CardRevisionHistory setId={workshop.adventure.id} cardId={card.id} label={cardLabel(card)}
-    copy={Math.max(1, selectedCopy)} onclose={() => (historyOpen = false)} />
-{/if}
 
 {/if}
 
@@ -653,6 +674,12 @@
     flex: none;
     max-width: calc(372px * var(--zoom));
     transition: width var(--duration-fast) var(--ease-out);
+  }
+
+  .published-preview {
+    display: block;
+    width: 100%;
+    height: auto;
   }
 
   /*

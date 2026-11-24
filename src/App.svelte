@@ -254,8 +254,8 @@
                 {#snippet workspace()}
                   <Workspace />
                 {/snippet}
-                {#snippet preview()}
-                  <PreviewPanel />
+                {#snippet preview(visible)}
+                  <PreviewPanel {visible} />
                 {/snippet}
                 {#snippet status()}
                   <StatusBar />

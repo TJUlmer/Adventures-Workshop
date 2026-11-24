@@ -16,7 +16,7 @@
   interface Props {
     sidebar: Snippet;
     workspace: Snippet;
-    preview: Snippet;
+    preview: Snippet<[visible: boolean]>;
     status?: Snippet;
   }
 
@@ -134,6 +134,13 @@
     activePane = pane;
   }
 
+  function openDraftForContentsAction(event: Event): void {
+    if (cardEditorView.publishedRevision && event.target instanceof Element &&
+        event.target.closest('button, select, [draggable="true"]')) {
+      cardEditorView.publishedRevision = null;
+    }
+  }
+
   function recoverFocusAfterResize(dividerWasFocused = false): void {
     const focused = document.activeElement;
     if (dividerWasFocused && layoutMode !== 'desktop') {
@@ -165,6 +172,7 @@
     const cameFromContents =
       activePane === 'contents' || Boolean(sidebarPane?.contains(document.activeElement));
     const shouldFocusEditor = selection.target === 'set' || cameFromContents;
+    cardEditorView.publishedRevision = null;
     artworkAdjustmentView.end();
     activePane = 'edit';
     if (layoutMode !== 'desktop' && shouldFocusEditor) {
@@ -178,6 +186,7 @@
     if (!request || request.revision === observedTargetRevision) return;
     if (request.address.cardId !== workshop.selectedCard?.id) return;
     observedTargetRevision = request.revision;
+    cardEditorView.publishedRevision = null;
     artworkAdjustmentView.end();
     activePane = 'edit';
   });
@@ -199,6 +208,7 @@
         const focused = document.activeElement;
         const dividerWasFocused =
           panes?.contains(focused) === true && focused?.classList.contains('pane-divider') === true;
+        if (cardEditorView.publishedRevision) activePane = 'preview';
         artworkAdjustmentView.end();
         void tick().then(() => recoverFocusAfterResize(dividerWasFocused));
       }
@@ -259,6 +269,9 @@
     inert={!paneIsVisible('contents')}
     data-workspace-pane="contents"
     bind:this={sidebarPane}
+    onclickcapture={openDraftForContentsAction}
+    onchangecapture={openDraftForContentsAction}
+    ondragstartcapture={openDraftForContentsAction}
   >
     {@render sidebar()}
   </aside>
@@ -266,9 +279,10 @@
   <main
     class="workspace"
     class:pane-hidden={!paneIsVisible('edit')}
+    class:editor-paused={cardEditorView.publishedRevision !== null}
     aria-label="Editor"
     aria-hidden={paneIsVisible('edit') ? undefined : 'true'}
-    inert={!paneIsVisible('edit')}
+    inert={!paneIsVisible('edit') || cardEditorView.publishedRevision !== null}
     data-workspace-pane="edit"
     tabindex="-1"
     bind:this={workspacePane}
@@ -284,7 +298,7 @@
     inert={!paneIsVisible('preview')}
     data-workspace-pane="preview"
   >
-    {@render preview()}
+    {@render preview(paneIsVisible('preview'))}
   </aside>
 
   {#if status}
@@ -345,6 +359,10 @@
   .workspace {
     background: var(--surface-canvas);
     --workspace-inline-padding: var(--space-7);
+  }
+
+  .editor-paused {
+    opacity: 0.65;
   }
 
   .preview {

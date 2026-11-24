@@ -5,10 +5,17 @@ export interface CardEditorTargetRequest {
   address: CardEditAddress;
 }
 
-/** Ephemeral cross-pane focus requests; no part of this state is persisted. */
+interface PublishedCardPreview {
+  revision: number;
+  frontPath: string;
+  backPath: string | null;
+}
+
+/** Ephemeral cross-pane editor state. */
 class CardEditorView {
   request = $state<CardEditorTargetRequest | null>(null);
   previewEditAddress = $state<CardEditAddress | null>(null);
+  publishedRevision = $state.raw<PublishedCardPreview | null>(null);
   #revision = 0;
 
   requestTarget(address: CardEditAddress): void {

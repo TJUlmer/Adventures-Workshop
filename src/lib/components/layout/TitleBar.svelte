@@ -1,6 +1,7 @@
 <script lang="ts">
   import { EXPORTERS, getExporter, saveExport } from '$lib/export';
   import { setLabel } from '$lib/sets/factory';
+  import { cardEditorView } from '$lib/state/card-editor-view.svelte';
   import { workshop } from '$lib/state/workshop.svelte';
   import { persistenceCoordinator } from '$lib/persistence/coordinator.svelte';
   import { Button, Icon } from '$lib/ui';
@@ -8,6 +9,7 @@
   let message = $state<string | null>(null);
 
   const setName = $derived(setLabel(workshop.adventure));
+  const viewingPublished = $derived(cardEditorView.publishedRevision !== null);
 
   function flash(text: string): void {
     message = text;
@@ -33,10 +35,12 @@
   }
 
   function undo(): void {
+    if (viewingPublished) return;
     if (workshop.undo()) flash('Undid the last edit.');
   }
 
   function redo(): void {
+    if (viewingPublished) return;
     if (workshop.redo()) flash('Redid the last edit.');
   }
 
@@ -129,11 +133,11 @@
 
     <div class="history-actions" role="group" aria-label="Edit history">
       <Button size="sm" iconOnly variant="ghost" aria-label="Undo" title="Undo (Ctrl/⌘+Z)"
-        aria-keyshortcuts="Control+Z Meta+Z" disabled={!workshop.canUndo} onclick={undo}>
+        aria-keyshortcuts="Control+Z Meta+Z" disabled={viewingPublished || !workshop.canUndo} onclick={undo}>
         <Icon name="undo" size={17} />
       </Button>
       <Button size="sm" iconOnly variant="ghost" aria-label="Redo" title="Redo (Ctrl/⌘+Shift+Z or Ctrl+Y)"
-        aria-keyshortcuts="Control+Shift+Z Meta+Shift+Z Control+Y" disabled={!workshop.canRedo} onclick={redo}>
+        aria-keyshortcuts="Control+Shift+Z Meta+Shift+Z Control+Y" disabled={viewingPublished || !workshop.canRedo} onclick={redo}>
         <Icon name="redo" size={17} />
       </Button>
     </div>
