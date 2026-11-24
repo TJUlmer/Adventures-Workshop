@@ -22,17 +22,18 @@
 
   let { sidebar, workspace, preview, status }: Props = $props();
 
-  const DEFAULT_PREVIEW_WIDTH = 424;
-  const MIN_PREVIEW_WIDTH = 320;
-  const MAX_PREVIEW_WIDTH = 900;
+  const paneSizes = {
+    contents: { defaultWidth: 272, min: 220, max: 540, storageKey: 'unmatched-labs.contents-width' },
+    preview: { defaultWidth: 424, min: 320, max: 900, storageKey: 'unmatched-labs.preview-width' }
+  };
   const MIN_WORKSPACE_WIDTH = 360;
   const DIVIDER_WIDTH = 8;
-  const STORAGE_KEY = 'unmatched-labs.preview-width';
   const PHONE_MAX_WIDTH = 760;
   const TABLET_MAX_WIDTH = 1180;
 
   type LayoutMode = 'phone' | 'tablet' | 'desktop';
   type ActivePane = 'contents' | 'edit' | 'preview';
+  type ResizablePane = keyof typeof paneSizes;
 
   function modeForWidth(width: number): LayoutMode {
     if (width <= PHONE_MAX_WIDTH) return 'phone';
@@ -40,84 +41,81 @@
     return 'desktop';
   }
 
-  function initialMode(): LayoutMode {
-    return typeof window === 'undefined' ? 'desktop' : modeForWidth(window.innerWidth);
-  }
-
   let panes = $state<HTMLDivElement | null>(null);
   let sidebarPane = $state<HTMLElement | null>(null);
   let workspacePane = $state<HTMLElement | null>(null);
-  let previewDivider = $state<HTMLDivElement | null>(null);
-  let layoutMode = $state<LayoutMode>(initialMode());
+  let layoutWidth = $state(typeof window === 'undefined' ? Infinity : window.innerWidth);
+  let layoutMode = $derived(modeForWidth(layoutWidth));
   // This is view state, not document state. Re-entering Cards deliberately
   // starts on Edit so the current desktop behaviour remains the default.
   let activePane = $state<ActivePane>('edit');
-  let previewWidth = $state(DEFAULT_PREVIEW_WIDTH);
-  let previewMaximum = $state(MAX_PREVIEW_WIDTH);
-  let resizeSession = $state.raw<PointerSession | null>(null);
+  const preferredWidths = {
+    contents: paneSizes.contents.defaultWidth,
+    preview: paneSizes.preview.defaultWidth
+  };
+  const widths = $state({ ...preferredWidths });
+  let resizeSession = $state.raw<{ pane: ResizablePane; pointer: PointerSession } | null>(null);
 
-  function measuredMaximumPreviewWidth(): number {
-    if (!panes || !sidebarPane) return MAX_PREVIEW_WIDTH;
-    // Below this breakpoint the resizable desktop preview becomes a selectable
-    // surface. Do not shrink a remembered desktop preference merely because
-    // the window is temporarily too narrow to show the divider.
-    if (panes.clientWidth <= TABLET_MAX_WIDTH) return MAX_PREVIEW_WIDTH;
-    return Math.max(
-      MIN_PREVIEW_WIDTH,
-      Math.min(
-        MAX_PREVIEW_WIDTH,
-        panes.clientWidth - sidebarPane.clientWidth - MIN_WORKSPACE_WIDTH - DIVIDER_WIDTH
-      )
-    );
+  function maximumWidth(
+    pane: ResizablePane,
+    otherWidth = widths[pane === 'contents' ? 'preview' : 'contents']
+  ): number {
+    const { min, max } = paneSizes[pane];
+    const available = layoutWidth - otherWidth - MIN_WORKSPACE_WIDTH - 2 * DIVIDER_WIDTH;
+    return Math.max(min, Math.min(max, available));
   }
 
-  function clampPreviewWidth(value: number): number {
-    return Math.min(previewMaximum, Math.max(MIN_PREVIEW_WIDTH, value));
+  function clampWidth(pane: ResizablePane, value: number, otherWidth?: number): number {
+    return Math.min(maximumWidth(pane, otherWidth), Math.max(paneSizes[pane].min, value));
   }
 
-  function rememberPreviewWidth(): void {
+  function setPaneWidth(pane: ResizablePane, value: number, remember = true): void {
+    widths[pane] = clampWidth(pane, value);
+    if (remember) rememberWidth(pane);
+  }
+
+  function rememberWidth(pane: ResizablePane): void {
+    const width = Math.round(widths[pane]);
+    preferredWidths[pane] = width;
     try {
-      window.localStorage.setItem(STORAGE_KEY, String(Math.round(previewWidth)));
+      window.localStorage.setItem(paneSizes[pane].storageKey, String(width));
     } catch {
       // A disabled localStorage only makes this a session preference.
     }
   }
 
-  function setPreviewWidth(value: number, remember = true): void {
-    previewWidth = clampPreviewWidth(value);
-    if (remember) rememberPreviewWidth();
-  }
-
-  function beginResize(event: PointerEvent): void {
-    resizeSession?.cancel('superseded');
-    resizeSession = startPointerSession(event, {
-      snapshot: { width: previewWidth },
+  function beginResize(pane: ResizablePane, event: PointerEvent): void {
+    resizeSession?.pointer.cancel('superseded');
+    const direction = pane === 'contents' ? 1 : -1;
+    // Keep the last clamped view width even if the drag is interrupted.
+    const finish = (): void => {
+      resizeSession = null;
+      rememberWidth(pane);
+    };
+    const pointer = startPointerSession(event, {
+      snapshot: { width: widths[pane] },
       onMove: (movement, _event, snapshot) => {
-        // The divider is the preview's left edge: moving it left makes the pane wider.
-        setPreviewWidth(snapshot.width - movement.deltaX, false);
+        setPaneWidth(pane, snapshot.width + direction * movement.deltaX, false);
       },
-      onCommit: () => {
-        resizeSession = null;
-        rememberPreviewWidth();
-      },
-      /* Preview width is view-only. Keeping the last clamped width on an
-         interruption is coherent and avoids a surprising snap after resize. */
-      onCancel: () => {
-        resizeSession = null;
-        rememberPreviewWidth();
+      onCommit: finish,
+      onCancel: (_reason, movement) => {
+        if (movement.activated) finish();
+        else resizeSession = null;
       },
       onTap: () => {
         resizeSession = null;
       }
     });
+    if (pointer) resizeSession = { pane, pointer };
   }
 
-  function resizeWithKeyboard(event: KeyboardEvent): void {
+  function resizeWithKeyboard(pane: ResizablePane, event: KeyboardEvent): void {
     const step = event.shiftKey ? 48 : 16;
-    if (event.key === 'ArrowLeft') setPreviewWidth(previewWidth + step);
-    else if (event.key === 'ArrowRight') setPreviewWidth(previewWidth - step);
-    else if (event.key === 'Home') setPreviewWidth(MIN_PREVIEW_WIDTH);
-    else if (event.key === 'End') setPreviewWidth(previewMaximum);
+    const direction = pane === 'contents' ? 1 : -1;
+    if (event.key === 'ArrowLeft') setPaneWidth(pane, widths[pane] - direction * step);
+    else if (event.key === 'ArrowRight') setPaneWidth(pane, widths[pane] + direction * step);
+    else if (event.key === 'Home') setPaneWidth(pane, paneSizes[pane].min);
+    else if (event.key === 'End') setPaneWidth(pane, maximumWidth(pane));
     else return;
     event.preventDefault();
   }
@@ -186,36 +184,72 @@
 
   onMount(() => {
     try {
-      const stored = Number(window.localStorage.getItem(STORAGE_KEY));
-      if (Number.isFinite(stored) && stored > 0) previewWidth = clampPreviewWidth(stored);
+      for (const pane of ['contents', 'preview'] as const) {
+        const stored = Number(window.localStorage.getItem(paneSizes[pane].storageKey));
+        if (Number.isFinite(stored) && stored > 0) preferredWidths[pane] = stored;
+      }
     } catch {
       // Keep the default when browser storage is unavailable.
     }
 
-    const observer = new ResizeObserver(() => {
-      const nextMode = modeForWidth(panes?.clientWidth ?? window.innerWidth);
+    function syncLayout(): void {
+      const nextWidth = panes?.clientWidth ?? window.innerWidth;
+      const nextMode = modeForWidth(nextWidth);
       if (nextMode !== layoutMode) {
-        const dividerWasFocused = document.activeElement === previewDivider;
+        const focused = document.activeElement;
+        const dividerWasFocused =
+          panes?.contains(focused) === true && focused?.classList.contains('pane-divider') === true;
         artworkAdjustmentView.end();
-        layoutMode = nextMode;
         void tick().then(() => recoverFocusAfterResize(dividerWasFocused));
       }
-      previewMaximum = measuredMaximumPreviewWidth();
-      previewWidth = clampPreviewWidth(previewWidth);
+      layoutWidth = nextWidth;
+      if (nextMode !== 'desktop') return;
+      // Keep the Contents width where possible so the tree stays readable.
+      // A tighter viewport may temporarily constrain either saved width.
+      widths.contents = clampWidth('contents', preferredWidths.contents, paneSizes.preview.min);
+      widths.preview = clampWidth('preview', preferredWidths.preview);
+    }
+
+    syncLayout();
+    const observer = new ResizeObserver(() => {
+      if (panes?.clientWidth === layoutWidth) return;
+      resizeSession?.pointer.cancel('viewport-change');
+      syncLayout();
     });
     if (panes) observer.observe(panes);
     return () => {
-      resizeSession?.dispose();
+      resizeSession?.pointer.dispose();
       observer.disconnect();
     };
   });
 </script>
 
+{#snippet divider(pane: ResizablePane, label: string)}
+  <div
+    class="pane-divider"
+    class:dragging={resizeSession?.pane === pane}
+    role="slider"
+    aria-label="Resize {label}"
+    aria-orientation="vertical"
+    aria-valuemin={paneSizes[pane].min}
+    aria-valuemax={Math.round(maximumWidth(pane))}
+    aria-valuenow={Math.round(widths[pane])}
+    aria-valuetext="{Math.round(widths[pane])} pixels wide"
+    tabindex="0"
+    title="Drag to resize the {label}. Double-click to reset."
+    onpointerdown={(event) => beginResize(pane, event)}
+    onkeydown={(event) => resizeWithKeyboard(pane, event)}
+    ondblclick={() => setPaneWidth(pane, paneSizes[pane].defaultWidth)}
+  ></div>
+{/snippet}
+
 <div
   class="panes"
   bind:this={panes}
   data-layout={layoutMode}
-  style:--preview-width="{previewWidth}px"
+  style:--contents-width="{widths.contents}px"
+  style:--preview-width="{widths.preview}px"
+  style:--pane-divider-width="{DIVIDER_WIDTH}px"
 >
   <aside
     class="sidebar"
@@ -228,6 +262,7 @@
   >
     {@render sidebar()}
   </aside>
+  {@render divider('contents', 'Contents pane')}
   <main
     class="workspace"
     class:pane-hidden={!paneIsVisible('edit')}
@@ -240,23 +275,7 @@
   >
     {@render workspace()}
   </main>
-  <div
-    class="preview-divider"
-    class:dragging={resizeSession !== null}
-    role="slider"
-    aria-label="Resize card preview"
-    aria-orientation="vertical"
-    aria-valuemin={MIN_PREVIEW_WIDTH}
-    aria-valuemax={Math.round(previewMaximum)}
-    aria-valuenow={Math.round(previewWidth)}
-    aria-valuetext="{Math.round(previewWidth)} pixels wide"
-    tabindex="0"
-    bind:this={previewDivider}
-    title="Drag to resize the card preview. Double-click to reset."
-    onpointerdown={beginResize}
-    onkeydown={resizeWithKeyboard}
-    ondblclick={() => setPreviewWidth(DEFAULT_PREVIEW_WIDTH)}
-  ></div>
+  {@render divider('preview', 'card preview')}
   <aside
     class="preview"
     class:pane-hidden={!paneIsVisible('preview')}
@@ -298,7 +317,9 @@
 <style>
   .panes {
     display: grid;
-    grid-template-columns: var(--sidebar-width) minmax(0, 1fr) 8px var(--preview-width);
+    grid-template-columns:
+      var(--contents-width) var(--pane-divider-width) minmax(0, 1fr)
+      var(--pane-divider-width) var(--preview-width);
     grid-template-rows: minmax(0, 1fr) auto;
     flex: 1 1 auto;
     min-height: 0;
@@ -315,6 +336,9 @@
 
   .sidebar {
     background: var(--surface-sunken);
+  }
+
+  .panes:not([data-layout='desktop']) .sidebar {
     border-right: 1px solid var(--border-subtle);
   }
 
@@ -327,7 +351,7 @@
     background: var(--surface-sunken);
   }
 
-  .preview-divider {
+  .pane-divider {
     position: relative;
     z-index: 2;
     cursor: col-resize;
@@ -335,7 +359,7 @@
     background: var(--surface-sunken);
   }
 
-  .preview-divider::after {
+  .pane-divider::after {
     content: '';
     position: absolute;
     inset-block: 0;
@@ -348,14 +372,14 @@
       background-color var(--duration-fast) var(--ease-out);
   }
 
-  .preview-divider:hover::after,
-  .preview-divider:focus-visible::after,
-  .preview-divider.dragging::after {
+  .pane-divider:hover::after,
+  .pane-divider:focus-visible::after,
+  .pane-divider.dragging::after {
     width: 3px;
     background: var(--accent);
   }
 
-  .preview-divider:focus-visible {
+  .pane-divider:focus-visible {
     outline: none;
   }
 
@@ -442,8 +466,7 @@
     padding-block-end: 0;
   }
 
-  .panes[data-layout='tablet'] .preview-divider,
-  .panes[data-layout='phone'] .preview-divider {
+  .panes:not([data-layout='desktop']) .pane-divider {
     display: none;
   }
 

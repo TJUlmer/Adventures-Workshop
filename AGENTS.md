@@ -135,6 +135,11 @@ TypeScript is pinned to `~6` because `svelte-check` does not run on 7 yet.
   vertical rule needs visible ability content. Use `abilityIsEmpty(ability, true)`
   for split layout and the default check for vertical rules.
 
+## Collaboration preference
+
+- When reporting a code change, include an estimated implementation and verification
+  time for a typical developer.
+
 ## Further reading
 
 `README.md` (document model, cascade, shell), `CLAUDE.md` (full architecture,

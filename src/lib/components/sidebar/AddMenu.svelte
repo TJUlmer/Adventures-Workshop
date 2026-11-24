@@ -242,7 +242,7 @@
     color: var(--text-muted);
   }
 
-  @media (hover: none), (any-pointer: coarse) {
+  @media (hover: none), (pointer: coarse) {
     .trigger {
       width: var(--touch-target);
       height: var(--touch-target);

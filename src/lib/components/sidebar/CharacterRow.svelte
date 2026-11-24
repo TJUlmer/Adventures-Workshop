@@ -202,7 +202,7 @@
     color: var(--danger);
   }
 
-  @media (hover: none), (any-pointer: coarse) {
+  @media (hover: none), (pointer: coarse) {
     .row {
       gap: 0;
       min-height: var(--touch-target);

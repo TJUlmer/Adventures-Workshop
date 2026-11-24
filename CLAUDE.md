@@ -3065,6 +3065,9 @@ it does.
 
 ## Verifying changes
 
+When reporting a code change, include an estimated implementation and verification
+time for a typical developer.
+
 The established loop, and the one that catches real bugs:
 
 1. `npm run check`.
