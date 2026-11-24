@@ -9,11 +9,12 @@ turning ordinary edits, soft deletion, publication, or conflict recovery into da
   The one current document remains indefinitely, including while it is soft-deleted and can be
   restored. Assets removed by a successful newer draft revision become due after three days;
   abandoned uploads that never belonged to a saved revision keep the 30-day safety period.
-- `set-assets`: individual objects not referenced anywhere in either a current `sets` row
-  or a `set_contributions` row. The scan considers every string in those rows so covers the
+- `set-assets`: individual objects no longer referenced by a current `sets` row, a
+  `set_contributions` row, or retained published card history. The scan covers the
   published document, thumbnails, social images, character cards, covers, and contribution
-  payloads. Assets removed by a successful republish or unpublish become due after three days;
-  abandoned uploads that never reached a published row keep the 30-day safety period.
+  payloads. A successful republish or unpublish can queue superseded assets with a three-day
+  grace period. A retained history reference keeps its image live. Abandoned uploads keep the
+  30-day safety period.
 - `tts-assets`: generated files that are absent from the one shared copy of each published
   row's latest revision. Every other file is due seven days after the latest export that named
   it: a replaced or unpublished revision's copy, and every temporary export (from an editor, a
@@ -84,6 +85,18 @@ After the refresh, confirm the referenced WebP count and visually inspect publis
 Use the existing dry-run cleanup workflow below to measure old unreferenced PNG bytes.
 Deletion still requires its backup, grace period, and canary checks; there is no automatic
 removal during publishing or refresh.
+
+## Published card history
+
+Apply `0050_published_card_history.sql` before deploying the client that publishes copy aliases
+and reads card history. A successful publication that advances the revision records each card's
+image references for the five most recent published revisions, including the latest. Consecutive
+revisions with the same images share a range and the same Storage objects. Existing listings
+start at the most recent revision available when they next publish.
+
+The gallery only offers history for cards present in the latest publication. Removing a card
+releases its history references. Expiry and unpublishing also release the references. The cleanup
+planner and its deletion-time check both keep any image with another live reference.
 
 ## Safety model
 

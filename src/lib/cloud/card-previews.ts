@@ -10,7 +10,7 @@ import { cardPngRenderJob, planCardPngJobs } from '$lib/export/card-pngs';
 import type { CardPngJob } from '$lib/export/card-pngs';
 import { hashEntity } from '$lib/sets/fingerprint';
 import type { AdventureSet } from '$lib/sets/types';
-import { appearanceCopyFor, resolveCardCopy } from '$lib/cards/copy-visuals';
+import { appearanceCopyFor, cardAppearanceCopies, physicalCopies, resolveCardCopy } from '$lib/cards/copy-visuals';
 import type { Card } from '$lib/cards/types';
 
 /** Bump whenever the renderer or stored image format changes. */
@@ -37,6 +37,27 @@ export function usableCardPreviewVersion(version: number): boolean {
 export type CardPreviewSide = 'front' | 'back';
 export type CardPreviewManifest = Record<string, string>;
 export type CardPreviewFingerprintManifest = Record<string, string>;
+export type CardPreviewCopyAliases = Record<string, Record<number, number>>;
+
+/** An absent copy image normally points to copy 1. Retain the uncommon aliases
+ * to other copies so a future revision can still find the right older image. */
+export function cardPreviewCopyAliases(set: AdventureSet): CardPreviewCopyAliases {
+  const cards: CardPreviewCopyAliases = {};
+  for (const card of set.cards) {
+    if (card.type !== 'action' || card.copyVisuals.length === 0) continue;
+    const appearances = cardAppearanceCopies(card);
+    const copies = physicalCopies(card);
+    if (appearances.length === 1 || appearances.length === copies.length) continue;
+    const aliases: Record<number, number> = {};
+    for (const copy of copies) {
+      if (appearances.includes(copy)) continue;
+      const source = appearanceCopyFor(card, copy);
+      if (source > 1) aliases[copy] = source;
+    }
+    cards[card.id] = aliases;
+  }
+  return cards;
+}
 
 export interface ReusableCardPreviews {
   manifest: CardPreviewManifest;

@@ -13,6 +13,7 @@
  * untouched by whether a set has ever been published.
  */
 import { parseSetFile, serializeSet } from '$lib/export/json';
+import type { SetFile } from '$lib/export/json';
 import { hasArtwork } from '$lib/core/artwork';
 import { usesAutomaticBoxArt } from '$lib/sets/box-art';
 import { charactersByRole, setStats } from '$lib/sets/queries';
@@ -34,6 +35,7 @@ import { shortHash } from '$lib/core/hash';
 import { renderCharacterCards } from './character-cards';
 import {
   CARD_PREVIEW_RENDERER_VERSION,
+  cardPreviewCopyAliases,
   deckBackPreviewKey,
   renderCardPreviews
 } from './card-previews';
@@ -492,7 +494,7 @@ export async function publishSet(
    * validates. Publishing anything else would mean a second serialisation to
    * keep correct, and the two would drift.
    */
-  const envelope: unknown = JSON.parse(serializeSet(scoped));
+  const envelope = JSON.parse(serializeSet(scoped)) as SetFile;
 
   /*
    * Photograph the exact serialized snapshot that becomes the published row.
@@ -639,6 +641,7 @@ export async function publishSet(
   }
 
   const stats = setStats(scoped);
+  const copyAliases = cardPreviewCopyAliases(publishSnapshot);
   const row = {
     owner_id: user.id,
     local_id: set.id,
@@ -654,6 +657,8 @@ export async function publishSet(
     card_previews: cardPreviewSnapshot.manifest,
     card_preview_version: CARD_PREVIEW_RENDERER_VERSION,
     card_preview_fingerprints: cardPreviewSnapshot.fingerprints,
+    card_preview_copy_aliases: Object.keys(copyAliases).length
+      ? { exportedAt: envelope.exportedAt, cards: copyAliases } : null,
     character_cards: characterCards,
     /* Trimmed and capped here as well as in the field: a note is printed under
        someone else's set, so its length is not the author's alone to decide. */
@@ -704,17 +709,28 @@ export async function publishSet(
    * `slug` is left out of the payload on purpose so the existing one survives.
    */
   options.onProgress?.({ stage: 'document', done: 0, total: 1 });
-  const upsert = (body: typeof row) =>
+  const upsertRow = (body: typeof row, includeCopyAliases = true) =>
     request<PublishedSet[]>(
       '/rest/v1/sets?on_conflict=owner_id,local_id,scope,character_id',
       {
         method: 'POST',
-        body,
+        body: includeCopyAliases ? body : { ...body, card_preview_copy_aliases: undefined },
         headers: {
           Prefer: 'resolution=merge-duplicates,return=representation'
         }
       }
     );
+
+  async function upsert(body: typeof row): Promise<PublishedSet[]> {
+    try {
+      return await upsertRow(body);
+    } catch (error) {
+      // A preview build may use a project while the history migration is pending.
+      if (!(error instanceof CloudError) || error.code !== 'PGRST204' ||
+          !error.message.includes('card_preview_copy_aliases')) throw error;
+      return upsertRow(body, false);
+    }
+  }
 
   let rows: PublishedSet[];
   try {
