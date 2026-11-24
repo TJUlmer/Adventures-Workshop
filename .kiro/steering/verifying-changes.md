@@ -5,6 +5,9 @@ description: The verification loop for a project with no test suite, plus the tr
 
 # Verifying changes
 
+When reporting a code change, include an estimated implementation and verification
+time for a typical developer.
+
 There is no test suite. This is the loop that catches real bugs:
 
 1. **`npm run check`.** It is the only gate; `npm run build` will not emit if it

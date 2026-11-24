@@ -149,7 +149,7 @@
     padding-inline: var(--space-2);
   }
 
-  @media (hover: none), (any-pointer: coarse) {
+  @media (hover: none), (pointer: coarse) {
     .toggle {
       min-height: var(--touch-target);
       height: auto;
