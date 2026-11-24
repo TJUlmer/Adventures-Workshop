@@ -419,7 +419,7 @@
     border: 1px dashed var(--border-default);
   }
 
-  @media (hover: none), (any-pointer: coarse) {
+  @media (hover: none), (pointer: coarse) {
     .head,
     .subhead,
     .add-row,

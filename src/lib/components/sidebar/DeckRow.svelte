@@ -276,7 +276,7 @@
     }
   }
 
-  @media (hover: none), (any-pointer: coarse) {
+  @media (hover: none), (pointer: coarse) {
     .row {
       min-height: var(--touch-target);
       height: auto;
