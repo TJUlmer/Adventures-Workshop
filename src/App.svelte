@@ -23,11 +23,9 @@
   import HomeScreen from '$lib/components/library/HomeScreen.svelte';
   import PrintScreen from '$lib/print/PrintScreen.svelte';
   import { auth } from '$lib/cloud/auth.svelte';
-  import {
-    readCollectionSlug,
-    readSharedCharacterHint,
-    readSharedSlug
-  } from '$lib/state/navigation.svelte';
+  import { createId } from '$lib/core/id';
+  import { useBrowserNavigation } from '$lib/state/browser-navigation.svelte';
+  import { readBrowserRoute } from '$lib/state/browser-route';
   import PreviewPanel from '$lib/components/preview/PreviewPanel.svelte';
   import SetSidebar from '$lib/components/sidebar/SetSidebar.svelte';
   import FiguresPanel from '$lib/components/tools/FiguresPanel.svelte';
@@ -53,12 +51,8 @@
    * flight would show Home and then jump to whatever set was actually open —
    * `sessionReady` gates the first paint on it instead.
    *
-   * `openDeepLink` (below) now has to run inside the async startup sequence
-   * rather than straight after, for the same reason: it used to follow a *synchronous*
-   * `restoreSession` and so was guaranteed to run after it. Calling it
-   * unconditionally here would race the restore instead, and could have the
-   * restored "last open" set clobber the very share link it is meant to lose
-   * to.
+   * The browser location is applied after the library is ready, so a draft
+   * URL can resolve its set and selection in the same startup pass.
    */
   // Any session from a previous visit, before anything asks whether we have one.
   auth.restore();
@@ -85,122 +79,29 @@
   // Which sign-in buttons to show. Fire and forget: the panel starts with none.
   void auth.loadProviders();
 
-  /*
-   * A share link wins over the restored session.
-   *
-   * Someone arriving on `#/shared/…` clicked a link to see a *particular* set,
-   * and `restoreSession` has just reopened whatever they were last editing. The
-   * link is the more recent intent, so it is applied after.
-   */
-  /*
-   * Read where we arrived *before* anything else can rewrite the address bar.
-   *
-   * `restoreSession` reopens whatever was last being edited, and every view
-   * that is not a shared set or a collection now clears the real-path tail on
-   * the way in — so by the time the deep link was read, the URL naming it had
-   * already been tidied away and the link silently did nothing. Captured at
-   * the top instead, which makes boot order irrelevant rather than a thing to
-   * keep in the right sequence.
-   */
-  const arrivedAtCollection = readCollectionSlug();
-  const arrivedAtShared = readSharedSlug();
-  const arrivedAtCharacter = readSharedCharacterHint();
-
-  const openDeepLink = (): void => {
-    /* A collection link is checked first only because the two patterns cannot
-       both match one URL — either order works, and this one reads in the
-       order the paths were added. */
-    if (arrivedAtCollection) {
-      navigation.openCollection(arrivedAtCollection);
-      return;
-    }
-    if (arrivedAtShared) navigation.openShared(arrivedAtShared, arrivedAtCharacter);
-  };
-
+  const initialRoute = readBrowserRoute(new URL(window.location.href));
+  const printSelections = new Map<string, AdventureSet>();
+  const browserNavigation = useBrowserNavigation((key) => printSelections.has(key));
   let sessionReady = $state(false);
+
   void (async () => {
-    // Home's permanent-account library is cloud-authoritative, so session
-    // restoration must settle before its first summary request. Offline is
-    // still allowed through: `ensureFresh` preserves a session on network
-    // failure and the library then presents its labelled cache fallback.
     await auth.ensureFresh().catch(() => {});
-    await restoreSession(workshop);
-    openDeepLink();
+    await restoreSession(workshop, initialRoute === null);
+    await browserNavigation.start(initialRoute);
     sessionReady = true;
   })();
   useAutosave(workshop);
 
-  /**
-   * Put the view back in step with whatever the address bar now says.
-   *
-   * Shared by the two listeners below because they are the same question
-   * asked after two different events, and answering it twice is how they
-   * would drift.
-   *
-   * Async because leaving an open set has to save it first. That guard came
-   * from the cloud drafts beta, where it covered the shared route only —
-   * the collection route needs it for exactly the same reason, and a link
-   * that discards unsaved work is no better for being a different link.
-   */
-  const syncFromUrl = async (): Promise<void> => {
-    const collection = readCollectionSlug();
-    if (collection) {
-      if (navigation.inSet && !(await workshop.saveNow())) return;
-      navigation.openCollection(collection);
-      return;
-    }
-    const slug = readSharedSlug();
-    if (slug) {
-      if (navigation.inSet && !(await workshop.saveNow())) return;
-      navigation.openShared(slug, readSharedCharacterHint());
-      return;
-    }
-    // The URL no longer names either, so neither view may stay on screen.
-    if (navigation.view.kind === 'shared') navigation.leaveShared();
-    else if (navigation.view.kind === 'collection') navigation.leaveCollection();
-  };
-
-  $effect(() => {
-    /*
-     * Back and forward, and paste-into-bar.
-     *
-     * **Two events, not one.** `hashchange` covers the hash forms and an
-     * in-app `#/shared/…` link; it does *not* fire for the two real paths,
-     * which move through `pushState` and come back through `popstate`. Until
-     * this listener existed, Back out of a shared set restored the URL to `/`
-     * and left the set itself on screen — a pre-existing gap, invisible while
-     * `/shared/` was the only real path and nobody had reason to test Back on
-     * it, and confirmed here by driving the shared route rather than assumed
-     * from reading. Adding the collection route is what made it worth fixing:
-     * one broken Back is a curiosity, two is the routing being wrong.
-     */
-    const onUrlChange = (): void => void syncFromUrl();
-    window.addEventListener('hashchange', onUrlChange);
-    window.addEventListener('popstate', onUrlChange);
-    return () => {
-      window.removeEventListener('hashchange', onUrlChange);
-      window.removeEventListener('popstate', onUrlChange);
-    };
-  });
-
   const currentPage = $derived(navigation.page);
-
-  /*
-   * The export panel is unmounted when creator printing leaves the set shell,
-   * so App holds the exact transient selection long enough for PrintScreen to
-   * consume it. Raw state avoids deeply proxying a potentially large document
-   * full of embedded artwork; the reference is replaced, never edited here.
-   */
-  let printSet = $state.raw<AdventureSet | null>(null);
+  const printSet = $derived(navigation.view.kind === 'set' && navigation.view.printKey
+    ? printSelections.get(navigation.view.printKey) : undefined);
 
   function openPrint(set: AdventureSet): void {
-    printSet = set;
-    navigation.go('print');
+    // A browser history entry needs the exact selection that was sent to print.
+    const key = createId('print');
+    printSelections.set(key, set);
+    navigation.go('print', key);
   }
-
-  $effect(() => {
-    if (currentPage !== 'print') printSet = null;
-  });
 </script>
 
 {#if sessionReady}
@@ -209,7 +110,7 @@
     Nothing here reads `navigation.view` correctly until the restore (and,
     where it applies, the deep link it defers to) has actually run.
   -->
-  <div class="app-frame">
+  <div class="app-frame" inert={browserNavigation.restoring} aria-busy={browserNavigation.restoring}>
     <header class="global-banner"><GlobalHeader openAccountOnStart={openAccountAfterSignIn} /></header>
 
     <div class="app-view">

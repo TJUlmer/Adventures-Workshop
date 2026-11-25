@@ -17,6 +17,7 @@ import { cloudConfig } from './config';
 import { CloudError, CloudNotConfiguredError, request, useAccessToken } from './http';
 
 const SESSION_KEY = 'adventures-workshop:session:v1';
+const SIGN_IN_ROUTE_KEY = 'adventures-workshop:sign-in-route';
 
 /** How long the app treats a token as usable, short of its real expiry. */
 const REFRESH_MARGIN_MS = 60_000;
@@ -313,12 +314,14 @@ class Auth {
     const config = cloudConfig();
     if (!config) throw new CloudNotConfiguredError();
 
-    /*
-     * Back to exactly where we are, hash and all. `redirect_to` has to be on
-     * the project's allow-list — Supabase refuses anything else — so a new
-     * deployment needs its URL added there before this works from it.
-     */
-    const back = encodeURIComponent(window.location.href);
+    // The provider needs the fragment for its credentials. Keep the app route
+    // in this tab so it can be restored as soon as the credentials are read.
+    const destination = new URL(window.location.href);
+    try {
+      window.sessionStorage.setItem(SIGN_IN_ROUTE_KEY, destination.hash);
+    } catch { /* The pathname is enough to resume when tab storage is blocked. */ }
+    destination.hash = '';
+    const back = encodeURIComponent(destination.href);
     window.location.href =
       `${config.url}/auth/v1/authorize?provider=${provider}&redirect_to=${back}`;
   }
@@ -354,7 +357,13 @@ class Auth {
       user: { id: readSubject(access) ?? '', email: params.get('email') ?? '' }
     });
 
-    history.replaceState(null, '', window.location.pathname + window.location.search);
+    let route = '';
+    try {
+      const saved = window.sessionStorage.getItem(SIGN_IN_ROUTE_KEY);
+      if (saved?.startsWith('#/')) route = saved;
+      window.sessionStorage.removeItem(SIGN_IN_ROUTE_KEY);
+    } catch { /* The callback still has its original pathname. */ }
+    history.replaceState(history.state, '', window.location.pathname + window.location.search + route);
     return true;
   }
 

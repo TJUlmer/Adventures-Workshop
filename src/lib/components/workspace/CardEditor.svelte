@@ -33,6 +33,7 @@
   import { ART_WINDOW, HERO_ART_WINDOW_HEIGHT } from '$lib/renderer/geometry';
   import { characterForCard, resolveStyleForCard, styleOriginForCard } from '$lib/sets/queries';
   import { cardEditorView } from '$lib/state/card-editor-view.svelte';
+  import type { CardContentTab } from '$lib/state/card-editor-view.svelte';
   import { workshop } from '$lib/state/workshop.svelte';
   import { Button, ConfirmAction, Field, FillEditor, Icon, Section, Select, Tabs } from '$lib/ui';
   import ActionCardContent from './ActionCardContent.svelte';
@@ -45,7 +46,7 @@
   import RulesCardContent from './RulesCardContent.svelte';
   import StylePanel from './StylePanel.svelte';
 
-  type Tab = 'content' | 'design' | 'copies';
+  type Tab = CardContentTab | 'copies';
 
   const SURFACES: Partial<Record<Card['type'], readonly (keyof CardTheme)[]>> = {
     action: ACTION_SURFACES,
@@ -73,20 +74,18 @@
     card?.type === 'action' && characterForCard(workshop.adventure, card)?.role === 'hero'
   );
 
-  let tab = $state<Tab>('content');
   let body = $state<HTMLDivElement | null>(null);
   let handledTargetRevision = 0;
   let borderBreaksVisible = $state(false);
   let borderBreaksCardId = $state<CardId | null>(null);
 
   const selectedCopy = $derived(workshop.selection.target === 'card' ? workshop.selection.copy ?? 0 : 0);
-  $effect(() => {
-    if (card?.type === 'action' && selectedCopy > 0) tab = 'copies';
-    else if (tab === 'copies') tab = 'content';
-  });
+  const tab = $derived<Tab>(card?.type === 'action' && selectedCopy > 0 ? 'copies' : cardEditorView.tab);
+
   function changeTab(next: Tab): void {
-    tab = next;
-    if (card) workshop.selectCard(card.id, next === 'copies' ? selectedCopy || 1 : 0);
+    if (!card) return;
+    workshop.selectCard(card.id, next === 'copies' ? selectedCopy || 1 : 0);
+    if (next !== 'copies') cardEditorView.tab = next;
   }
 
   $effect(() => {
@@ -104,7 +103,7 @@
     handledTargetRevision = request.revision;
 
     if (selectedCopy > 0 && card) workshop.selectCard(card.id);
-    tab = 'content';
+    cardEditorView.tab = 'content';
     void tick().then(async () => {
       await tick();
       if (workshop.selectedCard?.id !== request.address.cardId) return;

@@ -5,8 +5,11 @@ export interface CardEditorTargetRequest {
   address: CardEditAddress;
 }
 
+export type CardContentTab = 'content' | 'design';
+
 /** Ephemeral cross-pane focus requests; no part of this state is persisted. */
 class CardEditorView {
+  tab = $state<CardContentTab>('content');
   request = $state<CardEditorTargetRequest | null>(null);
   previewEditAddress = $state<CardEditAddress | null>(null);
   #revision = 0;

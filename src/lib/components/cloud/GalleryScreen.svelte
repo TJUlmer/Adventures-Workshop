@@ -103,7 +103,7 @@
    * roster answers that directly where a shelf of boxes asks you to open one
    * and look — most published rows are single figures anyway.
    */
-  let mode = $state<Mode>(navigation.galleryMode);
+  const mode = $derived<Mode>(navigation.galleryMode);
   let sets = $state<GallerySet[]>([]);
   let collections = $state<PublicCollection[]>([]);
   let characters = $state<GalleryCharacter[]>([]);
@@ -546,10 +546,9 @@
     <div class="controls">
       <div class="browse-control">
         <SegmentedControl
-          bind:value={mode}
+          bind:value={navigation.galleryMode}
           segments={MODES}
           label="Browse"
-          onchange={(selected) => (navigation.galleryMode = selected)}
         />
       </div>
 

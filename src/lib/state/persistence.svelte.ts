@@ -40,7 +40,7 @@ import type { WorkshopStore } from './workshop.svelte';
  * render on this rather than showing Home and then jumping, which is what
  * awaiting it here without a caller-side gate would have looked like.
  */
-export async function restoreSession(store: WorkshopStore): Promise<void> {
+export async function restoreSession(store: WorkshopStore, resumeLastSet = true): Promise<void> {
   // Not awaited: this only lowers the odds of a rare, silent eviction under
   // storage pressure — see `requestPersistentStorage` — and nothing below
   // depends on its answer, so it should not add its own latency to the
@@ -51,7 +51,7 @@ export async function restoreSession(store: WorkshopStore): Promise<void> {
   await Promise.all([draftRollout.refresh(), draftDiagnostics.load()]);
 
   const adopted = await migrateLegacyDocument();
-  if (adopted) {
+  if (adopted && resumeLastSet) {
     store.load(adopted);
     store.markSaved(adopted.meta.updatedAt);
     await store.refreshLibrary();
@@ -60,6 +60,7 @@ export async function restoreSession(store: WorkshopStore): Promise<void> {
   }
 
   await store.refreshLibrary();
+  if (!resumeLastSet) return;
 
   const lastOpen = await readLastOpen();
   // A successful cloud listing is authoritative. If another browser purged

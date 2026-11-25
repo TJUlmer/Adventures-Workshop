@@ -115,6 +115,8 @@ import {
 } from '$lib/threat/types';
 import { navigation } from './navigation.svelte';
 import type { SetPage } from './navigation.svelte';
+import { cardEditorView } from './card-editor-view.svelte';
+import { characterEditorView } from './character-editor-view.svelte';
 import type { CardbackSubject, Deck, DeckId, DeckKind } from '$lib/decks/types';
 import { createEmptySet } from '$lib/sets/factory';
 import {
@@ -577,8 +579,8 @@ export class WorkshopStore {
   async createSet(name?: string, kind: SetKind = 'adventure'): Promise<AdventureSet> {
     const set = createEmptySet({ ...(name === undefined ? {} : { name }), kind });
     await this.addSet(set);
-    this.load(set);
     await rememberLastOpen(set.id);
+    this.load(set);
     navigation.openSet('home');
     return set;
   }
@@ -597,21 +599,31 @@ export class WorkshopStore {
 
     await saveSetToLibrary(set);
     await this.refreshLibrary();
-    this.load(set);
     await rememberLastOpen(set.id);
+    this.load(set);
     this.selectCharacter(hero.id);
     return set;
   }
 
-  async openSet(id: SetId): Promise<boolean> {
-    if (navigation.inSet && this.adventure.id !== id && !(await this.saveNow())) return false;
+  async #openDocument(id: SetId, arrive: () => void): Promise<boolean> {
+    const previousId = navigation.inSet ? this.adventure.id : null;
+    if (previousId && previousId !== id && !(await this.saveNow())) return false;
     const opened = await persistenceCoordinator.open(id);
-    if (!opened) return false;
+    if (!opened) {
+      if (previousId) persistenceCoordinator.activate(previousId);
+      return false;
+    }
+    await rememberLastOpen(id);
+    // Install the set and its destination together. Browser history observes the
+    // pair, so opening a card cannot leave an intermediate set-home entry.
     this.load(opened.set);
     this.markSaved(opened.set.meta.updatedAt);
-    await rememberLastOpen(id);
-    navigation.openSet('home');
+    arrive();
     return true;
+  }
+
+  async openSet(id: SetId): Promise<boolean> {
+    return this.#openDocument(id, () => navigation.openSet('home'));
   }
 
   /**
@@ -623,9 +635,7 @@ export class WorkshopStore {
    * this only has to sequence the two.
    */
   async openCharacter(setId: SetId, characterId: CharacterId): Promise<boolean> {
-    const opened = await this.openSet(setId);
-    if (opened) this.selectCharacter(characterId);
-    return opened;
+    return this.#openDocument(setId, () => this.selectCharacter(characterId));
   }
 
   /**
@@ -635,9 +645,7 @@ export class WorkshopStore {
    * to get there.
    */
   async openSetPage(id: SetId, page: SetPage): Promise<boolean> {
-    const opened = await this.openSet(id);
-    if (opened) navigation.go(page);
-    return opened;
+    return this.#openDocument(id, () => navigation.go(page));
   }
 
   async closeSet(): Promise<void> {
@@ -761,6 +769,8 @@ export class WorkshopStore {
     this.adventure = set;
     this.copyQuantityRequest = null;
     this.selection = SET_SELECTION;
+    cardEditorView.tab = 'content';
+    characterEditorView.tab = 'identity';
     this.mapEditingId = set.maps[0]?.id ?? null;
     this.syncSingleHeroName();
     this.#resetHistory();
@@ -946,7 +956,10 @@ export class WorkshopStore {
   }
 
   /** Selecting always means "take me to the editor" — that is what it is for. */
-  selectCharacter(id: CharacterId): void {
+  selectCharacter(id: CharacterId, tab?: string): void {
+    if (tab !== undefined || this.selectedCharacter?.id !== id || navigation.page !== 'editor') {
+      characterEditorView.open(findCharacter(this.adventure, id), tab);
+    }
     this.selection = { target: 'character', id };
     navigation.go('editor');
   }
@@ -957,6 +970,7 @@ export class WorkshopStore {
   }
 
   selectCard(id: CardId, copy = 0): void {
+    if (copy > 0 || this.selection.target !== 'card' || navigation.page !== 'editor') cardEditorView.tab = 'content';
     this.selection = { target: 'card', id, ...(copy > 0 ? { copy } : {}) };
     navigation.go('editor');
   }

@@ -383,7 +383,7 @@
       const result = await claimInviteLink(token).catch(() => null);
       const url = new URL(window.location.href);
       url.searchParams.delete('join');
-      window.history.replaceState({}, '', url.toString());
+      window.history.replaceState(window.history.state, '', url.toString());
       if (!result || result.outcome === 'not_found') {
         claimNotice = 'That invitation link is not valid.';
       } else if (result.outcome === 'revoked') {

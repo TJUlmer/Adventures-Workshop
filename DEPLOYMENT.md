@@ -19,7 +19,9 @@ Nothing to configure. Vercel detects Vite and gets all three right:
 
 `vercel.json` contains the one rewrite needed by the real `/shared/{slug}` route.
 That path exists so link-unfurling clients can reach share metadata without running
-the hash router. Other in-app routes continue to use the hash and need no server rewrite.
+the hash router. The library, draft pages and open editor tabs use the URL fragment,
+so the browser can restore them without a server rewrite. Reloading a draft URL still
+requires that the draft be available through the local or signed-in library.
 
 ## Environment variables
 

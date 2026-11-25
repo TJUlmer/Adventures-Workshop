@@ -1,7 +1,6 @@
 <script lang="ts">
   /** Keep the complete inheritance path visible beside the set's roster. */
   import { characterLabel } from '$lib/characters/factory';
-  import { characterEditorView } from '$lib/state/character-editor-view.svelte';
   import { workshop } from '$lib/state/workshop.svelte';
   import type { CharacterEntry, SetOutline } from '$lib/sets/types';
   import { Icon } from '$lib/ui';
@@ -22,15 +21,8 @@
     return roster[0] ?? null;
   });
 
-  /**
-   * Requested *before* selecting — `selectCharacter` triggers
-   * `CharacterEditor`'s own reset-to-identity effect, and this is what that
-   * effect consumes instead of always landing on Identity. See
-   * `characterEditorView`'s `#pendingTab` doc comment.
-   */
   function openCharacterDefaults(entry: CharacterEntry): void {
-    characterEditorView.requestTab('defaults');
-    workshop.selectCharacter(entry.character.id);
+    workshop.selectCharacter(entry.character.id, 'defaults');
   }
 </script>
 

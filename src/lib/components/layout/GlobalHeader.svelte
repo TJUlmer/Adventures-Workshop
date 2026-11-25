@@ -8,7 +8,6 @@
    * different application. This banner is mounted once by `App.svelte`; pages
    * beneath it own only the actions that operate on their current subject.
    */
-  import { readSharedSlug } from '$lib/state/navigation.svelte';
   import { navigation } from '$lib/state/navigation.svelte';
   import { workshop } from '$lib/state/workshop.svelte';
   import { coverArtwork } from '$lib/cloud/thumbnail';
@@ -76,20 +75,15 @@
   }
 
   async function goHome(): Promise<void> {
-    /* `closeSet` refreshes the library and clears last-open state. A shared
-       path also needs `leaveShared` or its URL would reopen itself on reload. */
-    const sharedPathOpen = readSharedSlug() !== null;
     if (navigation.inSet && !(await workshop.saveNow())) return;
     await workshop.closeSet();
-    if (sharedPathOpen) navigation.leaveShared({ kind: 'home' });
   }
 
   async function openWelcome(): Promise<void> {
     /* Leaving the editor cancels its pending autosave timer. Flush first so
        Continue cannot immediately reload an older stored copy. */
     if (navigation.inSet && !(await workshop.saveNow())) return;
-    if (readSharedSlug() !== null) navigation.leaveShared({ kind: 'welcome' });
-    else navigation.openWelcome();
+    navigation.openWelcome();
   }
 
   async function continueWorking(): Promise<void> {
@@ -104,14 +98,12 @@
     }
 
     if (navigation.inSet && !(await workshop.saveNow())) return;
-    if (readSharedSlug() !== null) navigation.leaveShared({ kind: 'home' });
     await workshop.openSet(entry.id);
   }
 
   async function openGallery(): Promise<void> {
     if (navigation.inSet && !(await workshop.saveNow())) return;
-    if (readSharedSlug() !== null) navigation.leaveShared({ kind: 'gallery' });
-    else navigation.openGallery();
+    navigation.openGallery();
   }
 </script>
 
